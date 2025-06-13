@@ -13,6 +13,7 @@ from PyQt6.QtGui import (QIcon, QPixmap, QPainter, QMouseEvent, QWheelEvent, QAc
 
 import os
 import json
+import time 
 import traceback
 from datetime import datetime, timedelta
 import re
@@ -268,12 +269,14 @@ class TeslaCamViewer(QWidget):
         self.scrubber.event_marker_hovered.connect(self.handle_event_hover)
         self.slider_layout.addWidget(self.time_label); self.slider_layout.addWidget(self.scrubber,1); self.layout.addLayout(self.slider_layout); self.setLayout(self.layout)
         
-        self.position_update_timer = QTimer(self); self.position_update_timer.setInterval(250); self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
+        self.position_update_timer = QTimer(self); self.position_update_timer.setInterval(300); self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
         self.daily_clip_collections=[[] for _ in range(6)]; self.current_clip_indices=[-1]*6; self.export_start_ms = None; self.export_end_ms = None
         self.root_clips_path=None; self.current_segment_start_datetime=None; self.first_timestamp_of_day=None
         self.is_daily_view_active=False; self.temp_thumbnail_file=None; self.go_to_time_dialog_instance=None
         self.event_tooltip = EventToolTip(self); self.tooltip_timer = QTimer(self); self.tooltip_timer.setSingleShot(True)
         self.export_thread = None; self.export_worker = None; self.files_to_cleanup_after_export = []
+        self.last_text_update_time = 0
+        self.current_segment_start_ms = 0
         
         self.load_settings(); self.update_layout()
 
@@ -597,12 +600,12 @@ class TeslaCamViewer(QWidget):
 
     def update_slider_and_time_display(self):
         try:
-            if not self.is_daily_view_active or not self.first_timestamp_of_day: 
-                self.time_label.setText("Time: --:-- (Clip: --:--)"); return
+            if not self.is_daily_view_active or not self.first_timestamp_of_day: return
             
-            ref_player = self.get_active_players()[self.camera_name_to_index["front"]]
+            active_players = self.get_active_players()
+            ref_player = active_players[self.camera_name_to_index["front"]]
             if not (ref_player.source() and ref_player.source().isValid()):
-                ref_player = next((p for i, p in enumerate(self.get_active_players()) if p.source() and p.source().isValid()), None)
+                ref_player = next((p for i, p in enumerate(active_players) if p.source() and p.source().isValid()), None)
 
             if not ref_player:
                 if self.play_btn.text() != "▶️ Play":
@@ -610,23 +613,22 @@ class TeslaCamViewer(QWidget):
                      self.pause_all()
                 return
 
-            current_pos, clip_duration = ref_player.position(), ref_player.duration()
+            current_pos = ref_player.position()
+            clip_duration = ref_player.duration()
             
             if clip_duration > 0 and current_pos > clip_duration / 2:
                 self._preload_next_segment()
             
-            match = self.filename_pattern.match(os.path.basename(ref_player.source().path()))
-            if not match: return
-
-            clip_start_time = datetime.strptime(f"{match.group(1)} {match.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-            time_since_first_clip = int((clip_start_time - self.first_timestamp_of_day).total_seconds() * 1000)
-            global_position = min(time_since_first_clip + current_pos, self.scrubber.maximum())
+            global_position = min(self.current_segment_start_ms + current_pos, self.scrubber.maximum())
             
             if not self.scrubber.isSliderDown(): 
                 self.scrubber.blockSignals(True); self.scrubber.setValue(global_position); self.scrubber.blockSignals(False)
-
-            global_time = self.first_timestamp_of_day + timedelta(milliseconds=global_position)
-            self.time_label.setText(f"{global_time.strftime('%Y-%m-%d %H:%M:%S')} (Clip: {self.format_time(current_pos)} / {self.format_time(clip_duration if clip_duration > 0 else 0)})")
+            
+            current_time = time.time()
+            if current_time - self.last_text_update_time > 1 or self.play_btn.text() == "▶️ Play":
+                global_time = self.first_timestamp_of_day + timedelta(milliseconds=global_position)
+                self.time_label.setText(f"{global_time.strftime('%Y-%m-%d %H:%M:%S')} (Clip: {self.format_time(current_pos)} / {self.format_time(clip_duration if clip_duration > 0 else 0)})")
+                self.last_text_update_time = current_time
         
         except Exception as e:
             if DEBUG_UI: print(f"Error in update_slider_and_time_display: {e}"); traceback.print_exc()
@@ -644,6 +646,12 @@ class TeslaCamViewer(QWidget):
     def _load_and_set_segment(self, segment_index, position_ms=0):
         self.active_player_set = 'a'
         active_players = self.get_active_players()
+        
+        front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
+        m = self.filename_pattern.match(os.path.basename(front_clips[segment_index]))
+        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+        self.current_segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
+
         for i in range(6):
             self.current_clip_indices[i] = segment_index -1
             self._load_next_clip_for_player_set(active_players, i)
@@ -691,6 +699,13 @@ class TeslaCamViewer(QWidget):
 
         self.active_player_set = 'b' if self.active_player_set == 'a' else 'a'
         active_players = self.get_active_players()
+        
+        next_segment_index = self.current_clip_indices[0] + 1
+        front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
+        m = self.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
+        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+        self.current_segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
+
         for i in range(6):
             active_players[i].setVideoOutput(self.video_player_item_widgets[i].video_item)
             self.current_clip_indices[i] += 1
