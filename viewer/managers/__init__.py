@@ -17,6 +17,7 @@ from .error_handling import ErrorHandler, ErrorContext, ErrorSeverity
 from .video_playback import VideoPlaybackManager
 from .export import ExportManager
 from .layout import LayoutManager
+from .clip import ClipManager
 
 __all__ = [
     'BaseManager',
@@ -26,5 +27,6 @@ __all__ = [
     'ErrorSeverity',
     'VideoPlaybackManager',
     'ExportManager',
-    'LayoutManager'
+    'LayoutManager',
+    'ClipManager'
 ]

@@ -215,7 +215,7 @@ class LayoutManager(BaseManager):
             # Update visibility list
             self._update_visibility_from_checkboxes()
 
-            # Emit signal
+            # Emit signal for individual camera visibility change
             self.signals.camera_visibility_changed.emit(camera_index, is_visible)
 
             self.logger.debug(f"Camera {camera_index} visibility set to {is_visible}")
