@@ -43,8 +43,8 @@ def main():
     app = QApplication(sys.argv)
     
     # These must be set for QSettings to work correctly on all platforms
-    app.setOrganizationName("TeslaCamViewerAdvanced")
-    app.setApplicationName("TeslaCamViewerAdvanced")
+    app.setOrganizationName("JR Media")
+    app.setApplicationName("SentrySix")
 
     # Set application icon
     app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'assets', 'Sentry_six.ico')))

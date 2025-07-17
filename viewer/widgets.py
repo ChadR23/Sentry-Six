@@ -25,9 +25,9 @@ class ExportScrubber(QSlider):
         self.events = []
         self.setMouseTracking(True)
         
-        self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg"))
-        self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg"))
-        self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg"))
+        self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.hovered_event = None
 
     def set_export_range(self, start_ms, end_ms):
@@ -137,6 +137,11 @@ class ExportScrubber(QSlider):
         else:
             super().mouseReleaseEvent(event)
 
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        # Emit hover event with None to hide the tooltip
+        self.event_marker_hovered.emit(None, self.mapToGlobal(self.rect().center()))
+
 class EventToolTip(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
@@ -146,15 +151,28 @@ class EventToolTip(QWidget):
         self.thumbnail_label = QLabel()
         self.thumbnail_label.setFixedSize(192, 108)
         self.thumbnail_label.setStyleSheet("border: 1px solid #444; background-color: #222;")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.reason_label = QLabel()
         self.reason_label.setStyleSheet("background-color: #282c34; padding: 4px; border-radius: 3px;")
+        self.reason_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.thumbnail_label)
         layout.addWidget(self.reason_label)
 
     def update_content(self, reason_text, pixmap):
-        self.reason_label.setText(reason_text.replace("_", " ").title())
+        # Map reason to short label
+        reason_lower = reason_text.lower() if reason_text else ""
+        if "user_interaction" in reason_lower:
+            short_label = "User Event"
+        elif "sentry" in reason_lower:
+            short_label = "Sentry Detection"
+        elif "honk" in reason_lower:
+            short_label = "User Honked"
+        else:
+            short_label = reason_text.replace("_", " ").title() if reason_text else "Event"
+        self.reason_label.setText(short_label)
         if pixmap and not pixmap.isNull():
             self.thumbnail_label.setPixmap(pixmap.scaled(self.thumbnail_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.thumbnail_label.setText("")
         else:
             self.thumbnail_label.setText("  No Preview Available")
 
@@ -328,7 +346,7 @@ class GoToTimeDialog(QDialog):
 
     def trigger_thumbnail_generation(self):
         time_str = self.time_input.text().strip()
-        if not time_str or not utils.FFMPEG_FOUND:
+        if not time_str or not utils.FFMPEG_EXE:
             self.thumbnail_label.setText("Preview N/A (No input/ffmpeg)")
             return
         

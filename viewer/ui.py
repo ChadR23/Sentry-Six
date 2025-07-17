@@ -14,14 +14,17 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDia
                              QDialog, QDialogButtonBox)
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
-from PyQt6.QtCore import Qt, QUrl, QTimer, QSettings, QThread
+from PyQt6.QtCore import Qt, QUrl, QTimer, QSettings, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 
 from . import utils
 from . import widgets
 from . import workers
+from . import ffmpeg_manager
 from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
+from .ffmpeg_manager import FFMPEG_EXE
+from .hwacc_detector import hwacc_detector
 
 
 class WelcomeDialog(QDialog):
@@ -48,6 +51,16 @@ class WelcomeDialog(QDialog):
         if folder:
             self.selected_folder = folder
 
+class FFmpegCheckWorker(QObject):
+    finished = pyqtSignal()
+    def __init__(self, parent_widget):
+        super().__init__()
+        self.parent_widget = parent_widget
+    def run(self):
+        from . import ffmpeg_manager
+        ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self.parent_widget)
+        self.finished.emit()
+
 class TeslaCamViewer(QWidget):
     def __init__(self, show_welcome: bool = True):
         super().__init__()
@@ -71,6 +84,11 @@ class TeslaCamViewer(QWidget):
         # State for robustly handling seeks to unloaded clips
         self.pending_seek_position = -1
         self.players_awaiting_seek = set()
+
+        # Hardware acceleration detection
+        self.hwacc_gpu_type = None
+        self.hwacc_available = False
+        self._detect_hardware_acceleration()
 
         self.setWindowTitle("Sentry Six")
         self.setMinimumSize(1280, 720)
@@ -97,7 +115,31 @@ class TeslaCamViewer(QWidget):
         if show_welcome:
             self._maybe_show_welcome_dialog()
         self.update_layout()
+        # FFmpeg update check (Windows only) - show progress dialog and run in thread
+        QTimer.singleShot(0, self._start_ffmpeg_check_with_progress)
 
+    def _start_ffmpeg_check_with_progress(self):
+        from PyQt6.QtWidgets import QProgressDialog
+        self.ffmpeg_progress_dialog = QProgressDialog("Checking for FFmpeg updates...", None, 0, 0, self)
+        self.ffmpeg_progress_dialog.setWindowTitle("Please Wait")
+        self.ffmpeg_progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.ffmpeg_progress_dialog.setMinimumDuration(0)
+        self.ffmpeg_progress_dialog.setCancelButton(None)
+        self.ffmpeg_progress_dialog.show()
+        self.ffmpeg_check_thread = QThread()
+        self.ffmpeg_check_worker = FFmpegCheckWorker(parent_widget=self)
+        self.ffmpeg_check_worker.moveToThread(self.ffmpeg_check_thread)
+        self.ffmpeg_check_thread.started.connect(self.ffmpeg_check_worker.run)
+        self.ffmpeg_check_worker.finished.connect(self._on_ffmpeg_check_done)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_thread.quit)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_worker.deleteLater)
+        self.ffmpeg_check_thread.finished.connect(self.ffmpeg_check_thread.deleteLater)
+        self.ffmpeg_check_thread.start()
+
+    def _on_ffmpeg_check_done(self):
+        if hasattr(self, 'ffmpeg_progress_dialog') and self.ffmpeg_progress_dialog:
+            self.ffmpeg_progress_dialog.close()
+            self.ffmpeg_progress_dialog = None
 
     def _maybe_show_welcome_dialog(self):
         if self.app_state.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
@@ -111,6 +153,29 @@ class TeslaCamViewer(QWidget):
         else:
             if dlg.dont_show_cb.isChecked():
                 self.settings.setValue("welcome_seen", True)
+
+    def _detect_hardware_acceleration(self):
+        """Detect and configure hardware acceleration for video decoding"""
+        try:
+            # Detect GPU and hardware acceleration capabilities
+            gpu_type, hwacc_available = hwacc_detector.detect_and_configure()
+            
+            self.hwacc_gpu_type = gpu_type
+            self.hwacc_available = hwacc_available
+            
+            # Print debug information
+            hwacc_detector.print_debug_info()
+            
+            if utils.DEBUG_UI:
+                print(f"[UI] Hardware acceleration detection complete:")
+                print(f"[UI] GPU Type: {gpu_type}")
+                print(f"[UI] HWACC Available: {hwacc_available}")
+                
+        except Exception as e:
+            if utils.DEBUG_UI:
+                print(f"[UI] Hardware acceleration detection error: {e}")
+            self.hwacc_gpu_type = None
+            self.hwacc_available = False
 
     def _create_top_controls(self):
         top_controls_layout = QHBoxLayout()
@@ -162,6 +227,14 @@ class TeslaCamViewer(QWidget):
             player_a.mediaStatusChanged.connect(lambda s, p=player_a, idx=i: self.handle_media_status_changed(s, p, idx))
             player_b = QMediaPlayer(); player_b.setAudioOutput(QAudioOutput())
             player_b.mediaStatusChanged.connect(lambda s, p=player_b, idx=i: self.handle_media_status_changed(s, p, idx))
+            
+            # Configure hardware acceleration if available
+            if self.hwacc_available and self.hwacc_gpu_type:
+                hwacc_detector.configure_media_player_hwacc(player_a, self.hwacc_gpu_type)
+                hwacc_detector.configure_media_player_hwacc(player_b, self.hwacc_gpu_type)
+                if utils.DEBUG_UI:
+                    print(f"[UI] Configured hardware acceleration for player {i}")
+            
             self.players_a.append(player_a); self.players_b.append(player_b)
 
             self.video_items_a.append(QGraphicsVideoItem())
@@ -266,12 +339,45 @@ class TeslaCamViewer(QWidget):
     def get_active_players(self): return self.players_a if self.active_player_set == 'a' else self.players_b
     def get_inactive_players(self): return self.players_b if self.active_player_set == 'a' else self.players_a
     def get_active_video_items(self): return self.video_items_a if self.active_player_set == 'a' else self.video_items_b
+    
+    def get_hardware_acceleration_status(self) -> dict:
+        """Get current hardware acceleration status for debugging"""
+        return {
+            "gpu_type": self.hwacc_gpu_type,
+            "hwacc_available": self.hwacc_available,
+            "debug_info": hwacc_detector.get_debug_info()
+        }
         
     def reset_to_default_layout(self):
         self.settings.remove("cameraOrder") # Remove saved order to reset
+        # Set all cameras to visible
         for checkbox in self.camera_visibility_checkboxes:
-            checkbox.blockSignals(True); checkbox.setChecked(True); checkbox.blockSignals(False)
-        self.update_layout_from_visibility_change()
+            checkbox.blockSignals(True)
+            checkbox.setChecked(True)
+            checkbox.blockSignals(False)
+        # Reset the ordered_visible_player_indices to default order (all indices from checkbox_info)
+        self.ordered_visible_player_indices = [idx for _, _, idx in self.checkbox_info]
+        self.update_layout()
+        # Reload video sources for all visible cameras
+        current_segment_index = self.app_state.playback_state.clip_indices[0]
+        active_players = self.get_active_players()
+        reference_player = None
+        for idx in self.ordered_visible_player_indices:
+            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                reference_player = active_players[idx]
+                break
+        current_time = reference_player.position() if reference_player else 0
+        is_playing = self.play_btn.text() == "⏸️ Pause"
+        for i in self.ordered_visible_player_indices:
+            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+            active_players[i].setPosition(current_time)
+            if is_playing:
+                active_players[i].play()
+        for i in set(range(6)) - set(self.ordered_visible_player_indices):
+            active_players[i].setSource(QUrl())
+        self.video_grid_widget.update()
+        self.video_grid_widget.adjustSize()
+        self.save_settings()
 
     def update_layout_from_visibility_change(self):
         # Update the list of visible player indices based on checkboxes
@@ -470,11 +576,11 @@ class TeslaCamViewer(QWidget):
         self.date_selector.blockSignals(False); return bool(dates)
 
     def generate_and_set_thumbnail(self, video_path, timestamp_seconds):
-        if not utils.FFMPEG_FOUND or not self.go_to_time_dialog_instance: return
+        if not os.path.exists(FFMPEG_EXE) or not self.go_to_time_dialog_instance: return
         
         temp_fd, temp_file_path = tempfile.mkstemp(suffix=".jpg"); os.close(temp_fd)
         try:
-            cmd = [utils.FFMPEG_PATH, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", temp_file_path]
+            cmd = [FFMPEG_EXE, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", temp_file_path]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             
             pixmap = QPixmap(temp_file_path) if os.path.exists(temp_file_path) else QPixmap()
@@ -612,7 +718,7 @@ class TeslaCamViewer(QWidget):
     def handle_event_click(self, event_data):
         seek_ms = event_data['ms_in_timeline']
         if 'sentry' in event_data['reason'] or 'user_interaction' in event_data['reason']:
-            seek_ms -= 10000 
+            seek_ms -= 10000
         self.seek_all_global(max(0, seek_ms))
         self.play_all()
 
@@ -640,7 +746,7 @@ class TeslaCamViewer(QWidget):
         self.scrubber.set_export_range(self.app_state.export_state.start_ms, self.app_state.export_state.end_ms)
 
     def show_export_dialog(self):
-        if not all([utils.FFMPEG_FOUND, self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
+        if not all([os.path.exists(FFMPEG_EXE), self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
             QMessageBox.warning(self, "Export Error", "Please load clips and set both a start and end time before exporting."); return
         dialog = QDialog(self); dialog.setWindowTitle("Export Options"); layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("Select export quality:")); full_res_rb = QRadioButton("Full Resolution"); mobile_rb = QRadioButton("Mobile Friendly - 1080p")
@@ -952,33 +1058,61 @@ class TeslaCamViewer(QWidget):
         self._preload_next_segment()
 
     def update_layout(self):
+        # Remove all widgets from the grid
         while self.video_grid.count():
             item = self.video_grid.takeAt(0)
             widget = item.widget() if item else None
             if widget is not None:
                 widget.setParent(None)
                 widget.hide()
-        
-        num_visible = len(self.ordered_visible_player_indices)
-        if num_visible == 0: self.video_grid.update(); return 
 
+        num_visible = len(self.ordered_visible_player_indices)
+        if num_visible == 0:
+            self.video_grid.update()
+            return
+
+        # Calculate columns (1 for 1, 2 for 2/4, 3 for 3/6)
         cols = 1 if num_visible == 1 else 2 if num_visible in [2, 4] else 3
-        
+
         current_col, current_row = 0, 0
         for p_idx in self.ordered_visible_player_indices:
-            widget = self.video_player_item_widgets[p_idx]; widget.setVisible(True); widget.reset_view() 
+            widget = self.video_player_item_widgets[p_idx]
+            widget.setVisible(True)
+            widget.reset_view()  # Ensure video fits the new cell size
             self.video_grid.addWidget(widget, current_row, current_col)
-            
             active_video_item = self.get_active_video_items()[p_idx]
             widget.set_video_item(active_video_item)
 
             current_col += 1
-            if current_col >= cols: current_col = 0; current_row += 1
+            if current_col >= cols:
+                current_col = 0
+                current_row += 1
 
+        # Hide any widgets not in the visible set
         for hidden_idx in (set(range(6)) - set(self.ordered_visible_player_indices)):
             self.video_player_item_widgets[hidden_idx].setVisible(False)
-        
+
+        # Set row and column stretch factors for uniform grid sizing
+        num_rows = (num_visible + cols - 1) // cols
+        if num_visible == 1:
+            # Only one camera: make it fill all space
+            self.video_grid.setRowStretch(0, 1)
+            self.video_grid.setColumnStretch(0, 1)
+            # Set all other stretches to 0 (in case of previous layouts)
+            for i in range(1, 6):
+                self.video_grid.setRowStretch(i, 0)
+                self.video_grid.setColumnStretch(i, 0)
+        else:
+            for i in range(num_rows):
+                self.video_grid.setRowStretch(i, 1)
+            for j in range(cols):
+                self.video_grid.setColumnStretch(j, 1)
+
+        self.video_grid_widget.updateGeometry()
         self.video_grid_widget.update()
+        self.video_grid_widget.adjustSize()
+        self.video_grid.update()
+        self.video_grid.invalidate()
 
     def check_for_updates(self):
         from viewer import updater

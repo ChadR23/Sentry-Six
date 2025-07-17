@@ -12,43 +12,27 @@ try:
 except (ImportError, AttributeError):
     DEBUG_UI = False
 
+from .ffmpeg_manager import FFMPEG_EXE, FFPROBE_EXE
+
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(os.path.dirname(BASE_DIR), 'assets')
 
-FFMPEG_PATH = "ffmpeg"
-FFPROBE_PATH = "ffprobe"
-FFMPEG_FOUND = False
+# Remove FFMPEG_PATH, FFPROBE_PATH, FFMPEG_FOUND, and find_ffmpeg logic
+# Use FFMPEG_EXE and FFPROBE_EXE everywhere instead
 
 filename_pattern = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})-(front|left_repeater|right_repeater|back|left_pillar|right_pillar)\.mp4")
 
 # --- FFmpeg Functions ---
-def find_ffmpeg():
-    global FFMPEG_PATH, FFPROBE_PATH, FFMPEG_FOUND
-    # Use shutil.which to find executables in the system's PATH
-    ffmpeg_exe = shutil.which("ffmpeg")
-    if ffmpeg_exe:
-        FFMPEG_PATH = ffmpeg_exe
-        FFMPEG_FOUND = True
-    else:
-        FFMPEG_FOUND = False
-
-    ffprobe_exe = shutil.which("ffprobe")
-    # If ffprobe isn't in path, check next to ffmpeg (common in manual installs)
-    if not ffprobe_exe and FFMPEG_FOUND:
-        ffprobe_in_ffmpeg_dir = os.path.join(os.path.dirname(FFMPEG_PATH), "ffprobe.exe" if os.name == 'nt' else "ffprobe")
-        if os.path.exists(ffprobe_in_ffmpeg_dir):
-            ffprobe_exe = ffprobe_in_ffmpeg_dir
-    
-    FFPROBE_PATH = ffprobe_exe if ffprobe_exe else ""
-    return FFMPEG_FOUND
+# Remove FFMPEG_PATH, FFPROBE_PATH, FFMPEG_FOUND, and find_ffmpeg logic
+# Use FFMPEG_EXE and FFPROBE_EXE everywhere instead
 
 def get_video_duration_ms(video_path):
-    if not FFPROBE_PATH or not os.path.exists(video_path):
+    if not FFPROBE_EXE or not os.path.exists(video_path):
         return 60000  # Default to 1 minute if ffprobe is not found or file doesn't exist
 
     command = [
-        FFPROBE_PATH,
+        FFPROBE_EXE,
         "-v", "error",
         "-select_streams", "v:0",
         "-show_entries", "format=duration",
@@ -96,4 +80,5 @@ def setup_assets():
                 print(f"Could not write asset file {path}: {e}")
 
 # Initial call to find FFmpeg on startup
-FFMPEG_FOUND = find_ffmpeg()
+# Remove FFMPEG_PATH, FFPROBE_PATH, FFMPEG_FOUND, and find_ffmpeg logic
+# Use FFMPEG_EXE and FFPROBE_EXE everywhere instead

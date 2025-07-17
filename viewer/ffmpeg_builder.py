@@ -27,7 +27,7 @@ class FFmpegCommandBuilder:
         if not inputs:
             return None, [], 0.0
 
-        cmd = [utils.FFMPEG_PATH, "-y"]
+        cmd = [utils.FFMPEG_EXE, "-y"]
         initial_filters = []
         stream_maps = []
         

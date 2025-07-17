@@ -40,21 +40,22 @@ class ExportWorker(QObject):
                 creationflags=creation_flags
             )
 
-            for line in self.proc.stdout:
-                if not self._is_running:
-                    self.proc.terminate()
-                    break
-                
-                match = time_pattern.search(line)
-                if match and self.duration_s > 0:
-                    hours, minutes, seconds, hundredths = map(int, match.groups())
-                    current_progress_s = (hours * 3600) + (minutes * 60) + seconds + (hundredths / 100)
-                    percentage = max(0, min(100, int((current_progress_s / self.duration_s) * 100)))
-                    self.progress_value.emit(percentage)
-                    self.progress.emit(f"Exporting... ({percentage}%)")
+            if self.proc.stdout:
+                for line in self.proc.stdout:
+                    if not self._is_running:
+                        self.proc.terminate()
+                        break
+                    
+                    match = time_pattern.search(line)
+                    if match and self.duration_s > 0:
+                        hours, minutes, seconds, hundredths = map(int, match.groups())
+                        current_progress_s = (hours * 3600) + (minutes * 60) + seconds + (hundredths / 100)
+                        percentage = max(0, min(100, int((current_progress_s / self.duration_s) * 100)))
+                        self.progress_value.emit(percentage)
+                        self.progress.emit(f"Exporting... ({percentage}%)")
 
-                if utils.DEBUG_UI:
-                    print(f"[FFMPEG]: {line.strip()}")
+                    if utils.DEBUG_UI:
+                        print(f"[FFMPEG]: {line.strip()}")
             
             self.proc.wait()
 
