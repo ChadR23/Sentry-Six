@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from .constants import NUM_CAMERAS
 
 @dataclass
 class ExportState:
@@ -10,7 +11,7 @@ class ExportState:
 @dataclass
 class PlaybackState:
     """Holds the state for the current playback segment."""
-    clip_indices: list[int] = field(default_factory=lambda: [-1] * 6)
+    clip_indices: list[int] = field(default_factory=lambda: [-1] * NUM_CAMERAS)
     segment_start_ms: int = 0
 
 @dataclass
@@ -28,7 +29,7 @@ class AppState:
     root_clips_path: str | None = None
     first_timestamp_of_day: datetime | None = None
     is_daily_view_active: bool = False
-    daily_clip_collections: list[list[str]] = field(default_factory=lambda: [[] for _ in range(6)])
+    daily_clip_collections: list[list[str]] = field(default_factory=lambda: [[] for _ in range(NUM_CAMERAS)])
     
     # Nested state objects
     playback_state: PlaybackState = field(default_factory=PlaybackState)

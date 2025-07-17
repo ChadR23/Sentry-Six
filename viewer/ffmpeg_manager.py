@@ -7,14 +7,23 @@ import shutil
 import tempfile
 from datetime import datetime, timedelta
 from PyQt6.QtWidgets import QMessageBox
-import logging
 
-FFMPEG_DIR = os.path.join(os.path.dirname(__file__), '..', 'ffmpeg_bin')
-FFMPEG_EXE = os.path.join(FFMPEG_DIR, 'ffmpeg.exe')
-FFPROBE_EXE = os.path.join(FFMPEG_DIR, 'ffprobe.exe')
-CONFIG_FILE = os.path.join(FFMPEG_DIR, 'ffmpeg_update.json')
-FFMPEG_URL = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
-CHECK_INTERVAL_DAYS = 30
+from .constants import (
+    FFMPEG_BIN_DIR, FFMPEG_EXE_NAME, FFPROBE_EXE_NAME, FFMPEG_CONFIG_FILE,
+    FFMPEG_DOWNLOAD_URL, FFMPEG_CHECK_INTERVAL_DAYS, get_ffmpeg_exe_path,
+    get_ffprobe_exe_path
+)
+from .logging_config import get_logger
+
+# Module logger
+logger = get_logger(__name__)
+
+FFMPEG_DIR = str(FFMPEG_BIN_DIR)
+FFMPEG_EXE = str(get_ffmpeg_exe_path())
+FFPROBE_EXE = str(get_ffprobe_exe_path())
+CONFIG_FILE = str(FFMPEG_BIN_DIR / FFMPEG_CONFIG_FILE)
+FFMPEG_URL = FFMPEG_DOWNLOAD_URL
+CHECK_INTERVAL_DAYS = FFMPEG_CHECK_INTERVAL_DAYS
 
 LATEST_VERSION_CACHE = None
 
@@ -124,12 +133,12 @@ def download_and_replace_ffmpeg(parent=None):
 
 def ensure_ffmpeg_up_to_date(parent=None):
     # Always use bundled ffmpeg, but check for updates once a month
-    logging.info(f"Checking for FFmpeg at: {FFMPEG_EXE}")
+    logger.info(f"Checking for FFmpeg at: {FFMPEG_EXE}")
     exists = os.path.exists(FFMPEG_EXE)
-    logging.info(f"FFmpeg exists: {exists}")
+    logger.info(f"FFmpeg exists: {exists}")
     if not exists:
         msg = f"Bundled FFmpeg is missing. The app may not function correctly.\n\nExpected path: {FFMPEG_EXE}\nExists: {exists}"
-        logging.error(msg)
+        logger.error(msg)
         QMessageBox.critical(parent, "FFmpeg Missing", msg)
         return
     if not is_time_to_check():
