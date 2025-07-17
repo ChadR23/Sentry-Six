@@ -7,7 +7,7 @@ import math
 import re
 import subprocess
 from datetime import datetime, timedelta
-from typing import Tuple, List
+from typing import Tuple, List, Any
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
                              QGridLayout, QHBoxLayout, QMessageBox, QComboBox, 
@@ -27,7 +27,8 @@ from .ffmpeg_builder import FFmpegCommandBuilder
 from .ffmpeg_manager import FFMPEG_EXE
 from .hwacc_detector import hwacc_detector
 from .managers import (DependencyContainer, ErrorHandler, VideoPlaybackManager,
-                      ExportManager, LayoutManager, ClipManager, ErrorContext, ErrorSeverity)
+                      ExportManager, LayoutManager, ClipManager, ConfigurationManager,
+                      ErrorContext, ErrorSeverity)
 
 
 class WelcomeDialog(QDialog):
@@ -1388,12 +1389,14 @@ class TeslaCamViewer(QWidget):
             self.container.register_service('camera_map', self.camera_name_to_index)
 
             # Create managers
+            self.config_manager = ConfigurationManager(self, self.container)
             self.video_manager = VideoPlaybackManager(self, self.container)
             self.export_manager = ExportManager(self, self.container)
             self.layout_manager = LayoutManager(self, self.container)
             self.clip_manager = ClipManager(self, self.container)
 
             # Register managers in container
+            self.container.register_service('configuration', self.config_manager)
             self.container.register_service('video_playback', self.video_manager)
             self.container.register_service('export', self.export_manager)
             self.container.register_service('layout', self.layout_manager)
@@ -1417,6 +1420,7 @@ class TeslaCamViewer(QWidget):
     def _initialize_all_managers(self) -> bool:
         """Initialize all managers in correct order."""
         managers = [
+            ('ConfigurationManager', self.config_manager),
             ('VideoPlaybackManager', self.video_manager),
             ('ExportManager', self.export_manager),
             ('LayoutManager', self.layout_manager),
@@ -1441,6 +1445,12 @@ class TeslaCamViewer(QWidget):
             # Connect error handler signals
             self.error_handler.error_occurred.connect(self._on_manager_error)
             self.error_handler.critical_error.connect(self._on_critical_error)
+
+            # Configuration manager signals (Week 7 implementation)
+            self.config_manager.signals.setting_changed.connect(self._on_setting_changed)
+            self.config_manager.signals.theme_changed.connect(self._on_theme_changed)
+            self.config_manager.signals.language_changed.connect(self._on_language_changed)
+            self.config_manager.signals.profile_loaded.connect(self._on_profile_loaded)
 
             # Video playback manager signals (Week 2 Implementation)
             self.video_manager.signals.playback_state_changed.connect(self._on_playback_state_changed)
@@ -1492,6 +1502,51 @@ class TeslaCamViewer(QWidget):
         QMessageBox.critical(self, "Critical Error",
                            f"A critical error occurred:\n\n{message}\n\n"
                            "The application may not function correctly.")
+
+    # ========================================
+    # ConfigurationManager Signal Handlers (Week 7 Implementation)
+    # ========================================
+
+    def _on_setting_changed(self, setting_key: str, new_value: Any) -> None:
+        """Handle setting changes from ConfigurationManager."""
+        try:
+            # Apply setting changes to UI
+            if setting_key == 'ui.theme':
+                self._apply_theme(new_value)
+            elif setting_key == 'playback.default_speed':
+                self._update_default_playback_speed(new_value)
+            elif setting_key == 'ui.compact_mode':
+                self._toggle_compact_mode(new_value)
+            elif setting_key == 'cameras.default_layout':
+                self._apply_camera_layout(new_value)
+
+        except Exception as e:
+            print(f"Error handling setting change: {e}")
+
+    def _on_theme_changed(self, theme_name: str) -> None:
+        """Handle theme changes from ConfigurationManager."""
+        try:
+            self._apply_theme(theme_name)
+        except Exception as e:
+            print(f"Error handling theme change: {e}")
+
+    def _on_language_changed(self, language_code: str) -> None:
+        """Handle language changes from ConfigurationManager."""
+        try:
+            # Language change implementation would go here
+            # For now, just log the change
+            print(f"Language changed to: {language_code}")
+        except Exception as e:
+            print(f"Error handling language change: {e}")
+
+    def _on_profile_loaded(self, profile_name: str) -> None:
+        """Handle profile loading from ConfigurationManager."""
+        try:
+            # Refresh UI with new profile settings
+            self._refresh_ui_from_config()
+            print(f"Profile '{profile_name}' loaded")
+        except Exception as e:
+            print(f"Error handling profile load: {e}")
 
     # ========================================
     # VideoPlaybackManager Signal Handlers (Week 2 Implementation)
@@ -1939,6 +1994,8 @@ class TeslaCamViewer(QWidget):
     def cleanup_managers(self) -> None:
         """Clean up all managers when application closes."""
         try:
+            if hasattr(self, 'config_manager'):
+                self.config_manager.cleanup()
             if hasattr(self, 'video_manager'):
                 self.video_manager.cleanup()
             if hasattr(self, 'export_manager'):
@@ -1952,6 +2009,118 @@ class TeslaCamViewer(QWidget):
             print("✓ Managers cleaned up successfully")
         except Exception as e:
             print(f"✗ Error during manager cleanup: {e}")
+
+    # ========================================
+    # ConfigurationManager Wrapper Methods (Week 7 Implementation)
+    # ========================================
+
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        """Get a configuration setting (delegated to ConfigurationManager)."""
+        if hasattr(self, 'config_manager') and self.config_manager.is_initialized():
+            return self.config_manager.get_setting(key, default)
+        else:
+            # Fallback to QSettings for basic settings
+            return self.settings.value(key, default)
+
+    def set_setting(self, key: str, value: Any, save: bool = True) -> bool:
+        """Set a configuration setting (delegated to ConfigurationManager)."""
+        if hasattr(self, 'config_manager') and self.config_manager.is_initialized():
+            return self.config_manager.set_setting(key, value, save)
+        else:
+            # Fallback to QSettings
+            self.settings.setValue(key, value)
+            if save:
+                self.settings.sync()
+            return True
+
+    def save_window_geometry(self) -> None:
+        """Save current window geometry to configuration."""
+        try:
+            geometry = self.saveGeometry()
+            window_state = self.saveState()
+
+            if hasattr(self, 'config_manager') and self.config_manager.is_initialized():
+                self.config_manager.set_setting('app.window_geometry', geometry.data())
+                self.config_manager.set_setting('app.window_state', window_state.data())
+            else:
+                self.settings.setValue('geometry', geometry)
+                self.settings.setValue('windowState', window_state)
+
+        except Exception as e:
+            print(f"Error saving window geometry: {e}")
+
+    def restore_window_geometry(self) -> None:
+        """Restore window geometry from configuration."""
+        try:
+            if hasattr(self, 'config_manager') and self.config_manager.is_initialized():
+                geometry = self.config_manager.get_setting('app.window_geometry')
+                window_state = self.config_manager.get_setting('app.window_state')
+
+                if geometry:
+                    self.restoreGeometry(geometry)
+                if window_state:
+                    self.restoreState(window_state)
+            else:
+                geometry = self.settings.value('geometry')
+                window_state = self.settings.value('windowState')
+
+                if geometry:
+                    self.restoreGeometry(geometry)
+                if window_state:
+                    self.restoreState(window_state)
+
+        except Exception as e:
+            print(f"Error restoring window geometry: {e}")
+
+    def _apply_theme(self, theme_name: str) -> None:
+        """Apply a theme to the application."""
+        try:
+            # Theme application logic would go here
+            # For now, just log the theme change
+            print(f"Applying theme: {theme_name}")
+        except Exception as e:
+            print(f"Error applying theme: {e}")
+
+    def _update_default_playback_speed(self, speed: float) -> None:
+        """Update default playback speed."""
+        try:
+            # Update playback speed logic would go here
+            print(f"Default playback speed updated to: {speed}")
+        except Exception as e:
+            print(f"Error updating playback speed: {e}")
+
+    def _toggle_compact_mode(self, enabled: bool) -> None:
+        """Toggle compact mode UI."""
+        try:
+            # Compact mode logic would go here
+            print(f"Compact mode {'enabled' if enabled else 'disabled'}")
+        except Exception as e:
+            print(f"Error toggling compact mode: {e}")
+
+    def _apply_camera_layout(self, layout_name: str) -> None:
+        """Apply camera layout configuration."""
+        try:
+            # Camera layout logic would go here
+            print(f"Applying camera layout: {layout_name}")
+        except Exception as e:
+            print(f"Error applying camera layout: {e}")
+
+    def _refresh_ui_from_config(self) -> None:
+        """Refresh UI elements from current configuration."""
+        try:
+            if hasattr(self, 'config_manager') and self.config_manager.is_initialized():
+                # Apply current settings to UI
+                theme = self.config_manager.get_setting('ui.theme', 'dark')
+                self._apply_theme(theme)
+
+                speed = self.config_manager.get_setting('playback.default_speed', 1.0)
+                self._update_default_playback_speed(speed)
+
+                compact = self.config_manager.get_setting('ui.compact_mode', False)
+                self._toggle_compact_mode(compact)
+
+        except Exception as e:
+            print(f"Error refreshing UI from config: {e}")
 
     def closeEvent(self, event):
         """Override close event to ensure proper cleanup."""

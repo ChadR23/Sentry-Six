@@ -9,6 +9,9 @@ specific aspects of the application functionality:
 - ErrorHandler: Centralized error handling and user notification
 - VideoPlaybackManager: Video player operations and synchronization
 - ExportManager: Video export operations and progress tracking
+- LayoutManager: Camera layout and UI management
+- ClipManager: File discovery and clip loading
+- ConfigurationManager: Application settings and user preferences
 """
 
 from .base import BaseManager
@@ -18,6 +21,7 @@ from .video_playback import VideoPlaybackManager
 from .export import ExportManager
 from .layout import LayoutManager
 from .clip import ClipManager
+from .configuration import ConfigurationManager
 
 __all__ = [
     'BaseManager',
@@ -28,5 +32,6 @@ __all__ = [
     'VideoPlaybackManager',
     'ExportManager',
     'LayoutManager',
-    'ClipManager'
+    'ClipManager',
+    'ConfigurationManager'
 ]
