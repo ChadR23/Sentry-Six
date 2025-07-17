@@ -9,9 +9,6 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from . import utils
 from .state import TimelineData
-from .constants import FFMPEG_TIME_PATTERN, NUM_CAMERAS
-from .logging_config import get_logger
-from .resource_manager import safe_remove_file
 
 class ExportWorker(QObject):
     finished = pyqtSignal(bool, str)
@@ -20,20 +17,18 @@ class ExportWorker(QObject):
 
     def __init__(self, ffmpeg_cmd, duration_s, parent=None):
         super().__init__(parent)
-        self.logger = get_logger(__name__)
         self.ffmpeg_cmd = ffmpeg_cmd
         self.duration_s = duration_s
         self._is_running = True
         self.proc = None
-        self.logger.info(f"ExportWorker initialized for {duration_s:.2f}s export")
 
     def run(self):
-        time_pattern = FFMPEG_TIME_PATTERN
-
+        time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")
+        
         try:
-            self.logger.info("Starting FFmpeg export process")
-            self.logger.debug(f"FFmpeg command: {' '.join(self.ffmpeg_cmd)}")
-
+            if utils.DEBUG_UI:
+                print(f"--- Starting Export ---\nFFmpeg Command:\n{' '.join(self.ffmpeg_cmd)}\n-----------------------")
+            
             self.progress.emit("Exporting clip... (0%)")
             
             creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
@@ -65,15 +60,12 @@ class ExportWorker(QObject):
             self.proc.wait()
 
             if not self._is_running:
-                self.logger.info("Export was cancelled by user")
                 self.finished.emit(False, "Export was cancelled by the user.")
             elif self.proc.returncode == 0:
-                self.logger.info("Export completed successfully")
                 self.progress_value.emit(100)
                 self.progress.emit("Finalizing...")
                 self.finished.emit(True, "Export completed successfully!")
             else:
-                self.logger.error(f"Export failed with return code {self.proc.returncode}")
                 self.finished.emit(False, f"Export failed with return code {self.proc.returncode}.")
         
         except Exception as e:
@@ -84,11 +76,9 @@ class ExportWorker(QObject):
             self._is_running = False
 
     def stop(self):
-        self.logger.info("Stopping export worker")
         self._is_running = False
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
-            self.logger.debug("Export process terminated")
 
 
 class ClipLoaderWorker(QObject):
@@ -97,26 +87,21 @@ class ClipLoaderWorker(QObject):
 
     def __init__(self, root_path, selected_date, camera_map, parent=None):
         super().__init__(parent)
-        self.logger = get_logger(__name__)
         self.root_path = root_path
         self.selected_date = selected_date
         self.camera_map = camera_map
         self._is_running = True
-        self.logger.info(f"ClipLoaderWorker initialized for date: {selected_date}")
 
     def run(self):
         try:
-            self.logger.info(f"Starting clip loading for {self.selected_date}")
-            raw_files = {cam_idx: [] for cam_idx in range(NUM_CAMERAS)}
+            raw_files = {cam_idx: [] for cam_idx in range(len(self.camera_map))}
             all_ts = []
             events = []
-
+            
             potential_folders = [p for p in [os.path.join(self.root_path, d) for d in os.listdir(self.root_path)] if os.path.isdir(p) and os.path.basename(p).startswith(self.selected_date)]
-            self.logger.debug(f"Found {len(potential_folders)} potential folders")
-
+            
             if not self._is_running: return
             if not potential_folders:
-                self.logger.warning(f"No clip folders found for {self.selected_date}")
                 self.finished.emit(TimelineData([], [], None, 0, f"No clip folders found for {self.selected_date}"))
                 return
 
@@ -159,8 +144,8 @@ class ClipLoaderWorker(QObject):
             for evt in events:
                 evt['ms_in_timeline'] = (evt['timestamp_dt'] - first_ts).total_seconds() * 1000
             
-            final_clip_collections = [[] for _ in range(NUM_CAMERAS)]
-            for i in range(NUM_CAMERAS):
+            final_clip_collections = [[] for _ in range(len(self.camera_map))]
+            for i in range(len(self.camera_map)):
                 raw_files[i].sort(key=lambda x: x[1])
                 final_clip_collections[i] = [f[0] for f in raw_files[i]]
 
@@ -180,5 +165,4 @@ class ClipLoaderWorker(QObject):
                 self.finished.emit(TimelineData([], [], None, 0, error_msg))
 
     def stop(self):
-        self.logger.info("Stopping clip loader worker")
         self._is_running = False

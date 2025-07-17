@@ -3,15 +3,14 @@ import os
 import sys
 import logging
 from viewer.version import __version__
-from .constants import GITHUB_REPO, UPDATE_CHECK_TIMEOUT
 
-GITHUB_REPO_NAME = GITHUB_REPO
+GITHUB_REPO = 'ChadR23/Sentry-Six'
 
 def get_latest_release():
-    url = f'https://api.github.com/repos/{GITHUB_REPO_NAME}/releases/latest'
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/releases/latest'
     logging.info(f"Checking for latest release from {url}")
     try:
-        response = requests.get(url, timeout=UPDATE_CHECK_TIMEOUT)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         logging.info("Successfully fetched latest release info.")
         return response.json()
