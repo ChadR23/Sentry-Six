@@ -7,6 +7,7 @@ import math
 import re
 import subprocess
 from datetime import datetime, timedelta
+from typing import Tuple, List
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
                              QGridLayout, QHBoxLayout, QMessageBox, QComboBox, 
@@ -26,7 +27,7 @@ from .ffmpeg_builder import FFmpegCommandBuilder
 from .ffmpeg_manager import FFMPEG_EXE
 from .hwacc_detector import hwacc_detector
 from .managers import (DependencyContainer, ErrorHandler, VideoPlaybackManager,
-                      ExportManager, ErrorContext, ErrorSeverity)
+                      ExportManager, LayoutManager, ErrorContext, ErrorSeverity)
 
 
 class WelcomeDialog(QDialog):
@@ -71,8 +72,7 @@ class TeslaCamViewer(QWidget):
         self.camera_name_to_index = {"front":0, "left_repeater":1, "right_repeater":2, "back":3, "left_pillar":4, "right_pillar":5}
         self.camera_index_to_name = {v: k for k, v in self.camera_name_to_index.items()}
 
-        # Initialize manager infrastructure
-        self._initialize_managers()
+        # Manager infrastructure will be initialized after UI is fully created
 
         self.go_to_time_dialog_instance = None
         self.event_tooltip = widgets.EventToolTip(self)
@@ -115,6 +115,13 @@ class TeslaCamViewer(QWidget):
         self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
         
         self.load_settings()
+
+        # Initialize manager infrastructure after UI is fully created
+        try:
+            self._initialize_managers()
+        except Exception as e:
+            print(f"Warning: Manager initialization failed: {e}")
+            # Continue with fallback behavior
 
         # First-time onboarding dialog
         if show_welcome:
@@ -378,92 +385,117 @@ class TeslaCamViewer(QWidget):
         }
         
     def reset_to_default_layout(self):
-        self.settings.remove("cameraOrder") # Remove saved order to reset
-        # Set all cameras to visible
-        for checkbox in self.camera_visibility_checkboxes:
-            checkbox.blockSignals(True)
-            checkbox.setChecked(True)
-            checkbox.blockSignals(False)
-        # Reset the ordered_visible_player_indices to default order (all indices from checkbox_info)
-        self.ordered_visible_player_indices = [idx for _, _, idx in self.checkbox_info]
-        self.update_layout()
-        # Reload video sources for all visible cameras
-        current_segment_index = self.app_state.playback_state.clip_indices[0]
-        active_players = self.get_active_players()
-        reference_player = None
-        for idx in self.ordered_visible_player_indices:
-            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
-                reference_player = active_players[idx]
-                break
-        current_time = reference_player.position() if reference_player else 0
-        is_playing = self.play_btn.text() == "⏸️ Pause"
-        for i in self.ordered_visible_player_indices:
-            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
-            active_players[i].setPosition(current_time)
-            if is_playing:
-                active_players[i].play()
-        for i in set(range(6)) - set(self.ordered_visible_player_indices):
-            active_players[i].setSource(QUrl())
-        self.video_grid_widget.update()
-        self.video_grid_widget.adjustSize()
-        self.save_settings()
+        """Reset layout to default configuration (delegated to LayoutManager)."""
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            self.layout_manager.reset_to_default_layout()
+            self.layout_manager.update_ui_layout()
+
+            # Reload video sources for all visible cameras
+            current_segment_index = self.app_state.playback_state.clip_indices[0]
+            active_players = self.get_active_players()
+            reference_player = None
+            for idx in self.layout_manager.get_visible_cameras():
+                if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                    reference_player = active_players[idx]
+                    break
+            current_time = reference_player.position() if reference_player else 0
+            is_playing = self.play_btn.text() == "⏸️ Pause"
+            visible_cameras = self.layout_manager.get_visible_cameras()
+            for i in visible_cameras:
+                self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+                active_players[i].setPosition(current_time)
+                if is_playing:
+                    active_players[i].play()
+            for i in set(range(6)) - set(visible_cameras):
+                active_players[i].setSource(QUrl())
+            self.save_settings()
+        else:
+            # Fallback to original implementation
+            self.settings.remove("cameraOrder")
+            for checkbox in self.camera_visibility_checkboxes:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)
+            self.ordered_visible_player_indices = [idx for _, _, idx in self.checkbox_info]
+            self.update_layout()
 
     def update_layout_from_visibility_change(self):
-        # Update the list of visible player indices based on checkboxes
-        new_visible = [
-            self.checkbox_info[i][2]
-            for i, cb in enumerate(self.camera_visibility_checkboxes)
-            if cb.isChecked()
-        ]
-        # Track previously visible cameras
-        last_visible = getattr(self, '_last_visible_player_indices', [])
-        newly_visible = set(new_visible) - set(last_visible)
-        newly_hidden = set(last_visible) - set(new_visible)
-        self.ordered_visible_player_indices = new_visible
-        self.update_layout()
-        # Only load/seek newly visible cameras
-        current_segment_index = self.app_state.playback_state.clip_indices[0]
-        active_players = self.get_active_players()
-        # Use the first active visible player's position as reference (if any)
-        reference_player = None
-        for idx in new_visible:
-            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
-                reference_player = active_players[idx]
-                break
-        current_time = reference_player.position() if reference_player else 0
-        is_playing = self.play_btn.text() == "⏸️ Pause"
-        for i in newly_visible:
-            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
-            active_players[i].setPosition(current_time)
-            if is_playing:
-                active_players[i].play()
-        for i in newly_hidden:
-            active_players[i].setSource(QUrl())
-        self.save_settings()
-        # Update for next time
-        self._last_visible_player_indices = list(new_visible)
+        """Update layout from visibility change (delegated to LayoutManager)."""
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            self.layout_manager._update_visibility_from_checkboxes()
+            self.layout_manager.update_ui_layout()
+
+            # Only load/seek newly visible cameras
+            current_segment_index = self.app_state.playback_state.clip_indices[0]
+            active_players = self.get_active_players()
+            newly_visible = self.layout_manager.get_newly_visible_cameras()
+
+            # Use the first active visible player's position as reference (if any)
+            reference_player = None
+            visible_cameras = self.layout_manager.get_visible_cameras()
+            for idx in visible_cameras:
+                if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                    reference_player = active_players[idx]
+                    break
+            current_time = reference_player.position() if reference_player else 0
+            is_playing = self.play_btn.text() == "⏸️ Pause"
+            newly_hidden = self.layout_manager.get_newly_hidden_cameras()
+
+            for i in newly_visible:
+                self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+                active_players[i].setPosition(current_time)
+                if is_playing:
+                    active_players[i].play()
+            for i in newly_hidden:
+                active_players[i].setSource(QUrl())
+            self.save_settings()
+
+            # Update state tracking
+            self.layout_manager.update_last_visible_state()
+        else:
+            # Fallback to original implementation
+            new_visible = [
+                self.checkbox_info[i][2]
+                for i, cb in enumerate(self.camera_visibility_checkboxes)
+                if cb.isChecked()
+            ]
+            self.ordered_visible_player_indices = new_visible
+            self.update_layout()
     
     def handle_widget_swap(self, dragged_index, dropped_on_index):
-        if utils.DEBUG_UI:
-            print(f"[UI] handle_widget_swap received: Dragged={dragged_index}, Dropped On={dropped_on_index}")
-            print(f"[UI] List before swap: {self.ordered_visible_player_indices}")
-        
-        try:
-            drag_pos = self.ordered_visible_player_indices.index(dragged_index)
-            drop_pos = self.ordered_visible_player_indices.index(dropped_on_index)
-            
-            # Swap the items in the list
-            self.ordered_visible_player_indices[drag_pos], self.ordered_visible_player_indices[drop_pos] = \
-                self.ordered_visible_player_indices[drop_pos], self.ordered_visible_player_indices[drag_pos]
+        """Handle widget swap (delegated to LayoutManager)."""
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            if utils.DEBUG_UI:
+                print(f"[UI] handle_widget_swap received: Dragged={dragged_index}, Dropped On={dropped_on_index}")
+                print(f"[UI] List before swap: {self.layout_manager.get_visible_cameras()}")
+
+            success = self.layout_manager.handle_camera_drop(dragged_index, dropped_on_index)
 
             if utils.DEBUG_UI:
-                print(f"[UI] List after swap: {self.ordered_visible_player_indices}")
-                print("[UI] Calling update_layout...")
+                print(f"[UI] List after swap: {self.layout_manager.get_visible_cameras()}")
+                print(f"[UI] Swap successful: {success}")
+        else:
+            # Fallback to original implementation
+            if utils.DEBUG_UI:
+                print(f"[UI] handle_widget_swap received: Dragged={dragged_index}, Dropped On={dropped_on_index}")
+                print(f"[UI] List before swap: {self.ordered_visible_player_indices}")
 
-            self.update_layout()
-            self.save_settings()
-        except ValueError:
-            if utils.DEBUG_UI: print("Error: Tried to swap indices that are not in the visible list.")
+            try:
+                drag_pos = self.ordered_visible_player_indices.index(dragged_index)
+                drop_pos = self.ordered_visible_player_indices.index(dropped_on_index)
+
+                # Swap the items in the list
+                self.ordered_visible_player_indices[drag_pos], self.ordered_visible_player_indices[drop_pos] = \
+                    self.ordered_visible_player_indices[drop_pos], self.ordered_visible_player_indices[drag_pos]
+
+                if utils.DEBUG_UI:
+                    print(f"[UI] List after swap: {self.ordered_visible_player_indices}")
+                    print("[UI] Calling update_layout...")
+
+                self.update_layout()
+                self.save_settings()
+            except ValueError:
+                if utils.DEBUG_UI: print("Error: Tried to swap indices that are not in the visible list.")
 
     def set_ui_loading(self, is_loading):
         """Enable/disable UI elements during async operations."""
@@ -478,48 +510,63 @@ class TeslaCamViewer(QWidget):
             QApplication.restoreOverrideCursor()
 
     def load_settings(self):
+        """Load settings (layout delegated to LayoutManager)."""
         geom = self.settings.value("windowGeometry"); self.restoreGeometry(geom) if geom else self.setGeometry(50, 50, 1600, 950)
         self.speed_selector.setCurrentText(self.settings.value("lastSpeedText", "1x", type=str))
-        
-        # Load visibility first
-        vis_states = self.settings.value("cameraVisibility")
-        if vis_states and len(vis_states) == len(self.camera_visibility_checkboxes):
-            for i, cb in enumerate(self.camera_visibility_checkboxes): 
-                cb.setChecked(vis_states[i] == 'true')
-        
-        # Build the initial ordered list from the checkboxes
-        visible_from_checkboxes = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
 
-        # Load custom order and validate it
-        saved_order_str = self.settings.value("cameraOrder", type=list)
-        if saved_order_str:
-            saved_order = [int(i) for i in saved_order_str]
-            # Ensure the saved order only contains currently visible cameras
-            validated_order = [idx for idx in saved_order if idx in visible_from_checkboxes]
-            # Add any newly visible cameras (that weren't in the saved order) to the end
-            for idx in visible_from_checkboxes:
-                if idx not in validated_order:
-                    validated_order.append(idx)
-            self.ordered_visible_player_indices = validated_order
+        # Load layout settings through LayoutManager
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            self.layout_manager.apply_layout_from_settings()
+            # Update ordered_visible_player_indices for backward compatibility
+            self.ordered_visible_player_indices = self.layout_manager.get_visible_cameras()
         else:
-            self.ordered_visible_player_indices = visible_from_checkboxes
+            # Fallback to original implementation
+            # Load visibility first
+            vis_states = self.settings.value("cameraVisibility")
+            if vis_states and len(vis_states) == len(self.camera_visibility_checkboxes):
+                for i, cb in enumerate(self.camera_visibility_checkboxes):
+                    cb.setChecked(vis_states[i] == 'true')
+
+            # Build the initial ordered list from the checkboxes
+            visible_from_checkboxes = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
+
+            # Load custom order and validate it
+            saved_order_str = self.settings.value("cameraOrder", type=list)
+            if saved_order_str:
+                saved_order = [int(i) for i in saved_order_str]
+                # Ensure the saved order only contains currently visible cameras
+                validated_order = [idx for idx in saved_order if idx in visible_from_checkboxes]
+                # Add any newly visible cameras (that weren't in the saved order) to the end
+                for idx in visible_from_checkboxes:
+                    if idx not in validated_order:
+                        validated_order.append(idx)
+                self.ordered_visible_player_indices = validated_order
+            else:
+                self.ordered_visible_player_indices = visible_from_checkboxes
 
         last_folder = self.settings.value("lastRootFolder", "", type=str)
         if last_folder and os.path.isdir(last_folder):
             self.app_state.root_clips_path = last_folder
             self.repopulate_date_selector_from_path(last_folder)
             self.date_selector.setCurrentIndex(-1)
-        
-        if not self.app_state.is_daily_view_active: 
+
+        if not self.app_state.is_daily_view_active:
             self.clear_all_players()
 
     def save_settings(self):
+        """Save settings (layout delegated to LayoutManager)."""
         self.settings.setValue("windowGeometry", self.saveGeometry())
         self.settings.setValue("lastRootFolder", self.app_state.root_clips_path or "")
         self.settings.setValue("lastSpeedText", self.speed_selector.currentText())
-        self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
-        # Save the custom order of visible indices
-        self.settings.setValue("cameraOrder", [str(i) for i in self.ordered_visible_player_indices])
+
+        # Save layout settings through LayoutManager
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            self.layout_manager.save_layout_to_settings()
+        else:
+            # Fallback to original implementation
+            self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
+            # Save the custom order of visible indices
+            self.settings.setValue("cameraOrder", [str(i) for i in self.ordered_visible_player_indices])
 
     def closeEvent(self, event): 
         self.save_settings()
@@ -581,6 +628,12 @@ class TeslaCamViewer(QWidget):
 
         self._load_and_set_segment(0)
         self.update_layout()
+
+        # Ensure LayoutManager updates UI after clips are loaded
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            # Re-acquire UI components in case they weren't available during initialization
+            self.layout_manager._acquire_ui_components()
+            self.layout_manager.update_ui_layout()
 
     def _apply_root_folder(self, folder):
         """Set root clips folder and refresh date selector."""
@@ -943,9 +996,8 @@ class TeslaCamViewer(QWidget):
                 ref_player = next((p for i, p in enumerate(self.get_active_players()) if p.source() and p.source().isValid()), None)
 
             if not ref_player:
-                if self.play_btn.text() != "▶️ Play":
-                     if self.scrubber.value() < self.scrubber.maximum(): self.scrubber.setValue(self.scrubber.maximum())
-                     self.pause_all()
+                # Don't jump to end when no valid player is available
+                # This happens during loading - just return without changing position
                 return
 
             current_pos = ref_player.position()
@@ -1207,61 +1259,66 @@ class TeslaCamViewer(QWidget):
             self._preload_next_segment()
 
     def update_layout(self):
-        # Remove all widgets from the grid
-        while self.video_grid.count():
-            item = self.video_grid.takeAt(0)
-            widget = item.widget() if item else None
-            if widget is not None:
-                widget.setParent(None)
-                widget.hide()
-
-        num_visible = len(self.ordered_visible_player_indices)
-        if num_visible == 0:
-            self.video_grid.update()
-            return
-
-        # Calculate columns (1 for 1, 2 for 2/4, 3 for 3/6)
-        cols = 1 if num_visible == 1 else 2 if num_visible in [2, 4] else 3
-
-        current_col, current_row = 0, 0
-        for p_idx in self.ordered_visible_player_indices:
-            widget = self.video_player_item_widgets[p_idx]
-            widget.setVisible(True)
-            widget.reset_view()  # Ensure video fits the new cell size
-            self.video_grid.addWidget(widget, current_row, current_col)
-            active_video_item = self.get_active_video_items()[p_idx]
-            widget.set_video_item(active_video_item)
-
-            current_col += 1
-            if current_col >= cols:
-                current_col = 0
-                current_row += 1
-
-        # Hide any widgets not in the visible set
-        for hidden_idx in (set(range(6)) - set(self.ordered_visible_player_indices)):
-            self.video_player_item_widgets[hidden_idx].setVisible(False)
-
-        # Set row and column stretch factors for uniform grid sizing
-        num_rows = (num_visible + cols - 1) // cols
-        if num_visible == 1:
-            # Only one camera: make it fill all space
-            self.video_grid.setRowStretch(0, 1)
-            self.video_grid.setColumnStretch(0, 1)
-            # Set all other stretches to 0 (in case of previous layouts)
-            for i in range(1, 6):
-                self.video_grid.setRowStretch(i, 0)
-                self.video_grid.setColumnStretch(i, 0)
+        """Update layout (delegated to LayoutManager)."""
+        if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+            self.layout_manager.update_ui_layout()
         else:
-            for i in range(num_rows):
-                self.video_grid.setRowStretch(i, 1)
-            for j in range(cols):
-                self.video_grid.setColumnStretch(j, 1)
+            # Fallback to original implementation
+            # Remove all widgets from the grid
+            while self.video_grid.count():
+                item = self.video_grid.takeAt(0)
+                widget = item.widget() if item else None
+                if widget is not None:
+                    widget.setParent(None)
+                    widget.hide()
 
-        self.video_grid_widget.updateGeometry()
-        self.video_grid_widget.update()
-        self.video_grid_widget.adjustSize()
-        self.video_grid.update()
-        self.video_grid.invalidate()
+            num_visible = len(self.ordered_visible_player_indices)
+            if num_visible == 0:
+                self.video_grid.update()
+                return
+
+            # Calculate columns (1 for 1, 2 for 2/4, 3 for 3/6)
+            cols = 1 if num_visible == 1 else 2 if num_visible in [2, 4] else 3
+
+            current_col, current_row = 0, 0
+            for p_idx in self.ordered_visible_player_indices:
+                widget = self.video_player_item_widgets[p_idx]
+                widget.setVisible(True)
+                widget.reset_view()  # Ensure video fits the new cell size
+                self.video_grid.addWidget(widget, current_row, current_col)
+                active_video_item = self.get_active_video_items()[p_idx]
+                widget.set_video_item(active_video_item)
+
+                current_col += 1
+                if current_col >= cols:
+                    current_col = 0
+                    current_row += 1
+
+            # Hide any widgets not in the visible set
+            for hidden_idx in (set(range(6)) - set(self.ordered_visible_player_indices)):
+                self.video_player_item_widgets[hidden_idx].setVisible(False)
+
+            # Set row and column stretch factors for uniform grid sizing
+            num_rows = (num_visible + cols - 1) // cols
+            if num_visible == 1:
+                # Only one camera: make it fill all space
+                self.video_grid.setRowStretch(0, 1)
+                self.video_grid.setColumnStretch(0, 1)
+                # Set all other stretches to 0 (in case of previous layouts)
+                for i in range(1, 6):
+                    self.video_grid.setRowStretch(i, 0)
+                    self.video_grid.setColumnStretch(i, 0)
+            else:
+                for i in range(num_rows):
+                    self.video_grid.setRowStretch(i, 1)
+                for j in range(cols):
+                    self.video_grid.setColumnStretch(j, 1)
+
+            self.video_grid_widget.updateGeometry()
+            self.video_grid_widget.update()
+            self.video_grid_widget.adjustSize()
+            self.video_grid.update()
+            self.video_grid.invalidate()
 
     def check_for_updates(self):
         from viewer import updater
@@ -1306,10 +1363,12 @@ class TeslaCamViewer(QWidget):
             # Create managers
             self.video_manager = VideoPlaybackManager(self, self.container)
             self.export_manager = ExportManager(self, self.container)
+            self.layout_manager = LayoutManager(self, self.container)
 
             # Register managers in container
             self.container.register_service('video_playback', self.video_manager)
             self.container.register_service('export', self.export_manager)
+            self.container.register_service('layout', self.layout_manager)
 
             # Initialize managers
             if not self._initialize_all_managers():
@@ -1331,6 +1390,7 @@ class TeslaCamViewer(QWidget):
         managers = [
             ('VideoPlaybackManager', self.video_manager),
             ('ExportManager', self.export_manager),
+            ('LayoutManager', self.layout_manager),
         ]
 
         for name, manager in managers:
@@ -1367,6 +1427,14 @@ class TeslaCamViewer(QWidget):
             self.export_manager.signals.export_markers_changed.connect(self._on_export_markers_changed)
             self.export_manager.signals.export_error.connect(self._on_export_error)
             self.export_manager.signals.export_validation_failed.connect(self._on_export_validation_failed)
+
+            # Layout manager signals (Week 5 implementation)
+            self.layout_manager.signals.layout_updated.connect(self._on_layout_updated)
+            self.layout_manager.signals.camera_visibility_changed.connect(self._on_camera_visibility_changed)
+            self.layout_manager.signals.camera_order_changed.connect(self._on_camera_order_changed)
+            self.layout_manager.signals.grid_configuration_changed.connect(self._on_grid_configuration_changed)
+            self.layout_manager.signals.layout_validation_failed.connect(self._on_layout_validation_failed)
+            self.layout_manager.signals.camera_drop_completed.connect(self._on_camera_drop_completed)
 
             print("✓ Manager signals connected")
 
@@ -1510,6 +1578,63 @@ class TeslaCamViewer(QWidget):
         except Exception as e:
             print(f"Error handling export validation failed: {e}")
 
+    # ========================================
+    # Layout Manager Signal Handlers (Week 5 Implementation)
+    # ========================================
+
+    def _on_layout_updated(self) -> None:
+        """Handle layout update from LayoutManager."""
+        try:
+            # Update ordered_visible_player_indices for backward compatibility
+            if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+                self.ordered_visible_player_indices = self.layout_manager.get_visible_cameras()
+
+                # Notify VideoPlaybackManager about layout changes if needed
+                if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+                    # VideoPlaybackManager will use the updated ordered_visible_player_indices
+                    pass
+        except Exception as e:
+            print(f"Error handling layout update: {e}")
+
+    def _on_camera_visibility_changed(self, camera_index: int, is_visible: bool) -> None:
+        """Handle camera visibility change from LayoutManager."""
+        try:
+            # Visibility change is handled by LayoutManager
+            pass
+        except Exception as e:
+            print(f"Error handling camera visibility change: {e}")
+
+    def _on_camera_order_changed(self, new_order: list) -> None:
+        """Handle camera order change from LayoutManager."""
+        try:
+            # Order change is handled by LayoutManager
+            pass
+        except Exception as e:
+            print(f"Error handling camera order change: {e}")
+
+    def _on_grid_configuration_changed(self, rows: int, cols: int) -> None:
+        """Handle grid configuration change from LayoutManager."""
+        try:
+            # Grid configuration change is handled by LayoutManager
+            pass
+        except Exception as e:
+            print(f"Error handling grid configuration change: {e}")
+
+    def _on_layout_validation_failed(self, error_message: str) -> None:
+        """Handle layout validation failure from LayoutManager."""
+        try:
+            QMessageBox.warning(self, "Layout Validation Failed", error_message)
+        except Exception as e:
+            print(f"Error handling layout validation failed: {e}")
+
+    def _on_camera_drop_completed(self, dragged_index: int, dropped_on_index: int) -> None:
+        """Handle camera drop completion from LayoutManager."""
+        try:
+            # Drop completion is handled by LayoutManager
+            pass
+        except Exception as e:
+            print(f"Error handling camera drop completed: {e}")
+
     def show_error_message(self, message: str) -> None:
         """Show error message to user (fallback for managers without error handler)."""
         QMessageBox.warning(self, "Error", message)
@@ -1521,6 +1646,8 @@ class TeslaCamViewer(QWidget):
                 self.video_manager.cleanup()
             if hasattr(self, 'export_manager'):
                 self.export_manager.cleanup()
+            if hasattr(self, 'layout_manager'):
+                self.layout_manager.cleanup()
             if hasattr(self, 'container'):
                 self.container.clear()
             print("✓ Managers cleaned up successfully")
@@ -1537,5 +1664,74 @@ class TeslaCamViewer(QWidget):
         # Call original close event handling if it exists
         if hasattr(super(), 'closeEvent'):
             super().closeEvent(event)
-        else:
-            event.accept()
+
+    # ========================================
+    # Manager Integration Methods (Week 5 Implementation)
+    # ========================================
+
+    def sync_layout_state(self) -> None:
+        """Synchronize layout state between LayoutManager and UI."""
+        try:
+            if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+                # Update backward compatibility variables
+                self.ordered_visible_player_indices = self.layout_manager.get_visible_cameras()
+
+                # Ensure VideoPlaybackManager uses updated layout
+                if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+                    # VideoPlaybackManager reads ordered_visible_player_indices from parent widget
+                    pass
+
+        except Exception as e:
+            print(f"Error syncing layout state: {e}")
+
+    def get_layout_diagnostics(self) -> dict:
+        """Get layout diagnostics for debugging."""
+        try:
+            if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+                return self.layout_manager.get_layout_diagnostics()
+            else:
+                return {
+                    'error': 'LayoutManager not available',
+                    'fallback_state': {
+                        'ordered_visible_player_indices': getattr(self, 'ordered_visible_player_indices', []),
+                        'camera_visibility_checkboxes_count': len(getattr(self, 'camera_visibility_checkboxes', [])),
+                    }
+                }
+        except Exception as e:
+            return {'error': f"Failed to get diagnostics: {str(e)}"}
+
+    def validate_manager_integration(self) -> Tuple[bool, List[str]]:
+        """Validate integration between all managers."""
+        try:
+            errors = []
+
+            # Check LayoutManager
+            if not hasattr(self, 'layout_manager'):
+                errors.append("LayoutManager not available")
+            elif not self.layout_manager.is_initialized():
+                errors.append("LayoutManager not initialized")
+
+            # Check VideoPlaybackManager
+            if not hasattr(self, 'video_manager'):
+                errors.append("VideoPlaybackManager not available")
+            elif not self.video_manager.is_initialized():
+                errors.append("VideoPlaybackManager not initialized")
+
+            # Check ExportManager
+            if not hasattr(self, 'export_manager'):
+                errors.append("ExportManager not available")
+            elif not self.export_manager.is_initialized():
+                errors.append("ExportManager not initialized")
+
+            # Check state synchronization
+            if (hasattr(self, 'layout_manager') and self.layout_manager.is_initialized() and
+                hasattr(self, 'ordered_visible_player_indices')):
+                layout_visible = self.layout_manager.get_visible_cameras()
+                ui_visible = self.ordered_visible_player_indices
+                if layout_visible != ui_visible:
+                    errors.append(f"Layout state mismatch: LayoutManager={layout_visible}, UI={ui_visible}")
+
+            return len(errors) == 0, errors
+
+        except Exception as e:
+            return False, [f"Validation error: {str(e)}"]

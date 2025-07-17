@@ -16,6 +16,7 @@ from .container import DependencyContainer
 from .error_handling import ErrorHandler, ErrorContext, ErrorSeverity
 from .video_playback import VideoPlaybackManager
 from .export import ExportManager
+from .layout import LayoutManager
 
 __all__ = [
     'BaseManager',
@@ -24,5 +25,6 @@ __all__ = [
     'ErrorContext',
     'ErrorSeverity',
     'VideoPlaybackManager',
-    'ExportManager'
+    'ExportManager',
+    'LayoutManager'
 ]
