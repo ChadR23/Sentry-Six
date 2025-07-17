@@ -25,6 +25,8 @@ from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
 from .ffmpeg_manager import FFMPEG_EXE
 from .hwacc_detector import hwacc_detector
+from .managers import (DependencyContainer, ErrorHandler, VideoPlaybackManager,
+                      ExportManager, ErrorContext, ErrorSeverity)
 
 
 class WelcomeDialog(QDialog):
@@ -68,6 +70,9 @@ class TeslaCamViewer(QWidget):
         self.app_state = AppState()
         self.camera_name_to_index = {"front":0, "left_repeater":1, "right_repeater":2, "back":3, "left_pillar":4, "right_pillar":5}
         self.camera_index_to_name = {v: k for k, v in self.camera_name_to_index.items()}
+
+        # Initialize manager infrastructure
+        self._initialize_managers()
 
         self.go_to_time_dialog_instance = None
         self.event_tooltip = widgets.EventToolTip(self)
@@ -336,9 +341,31 @@ class TeslaCamViewer(QWidget):
         export_action.triggered.connect(self.show_export_dialog)
         self.addAction(export_action)
 
-    def get_active_players(self): return self.players_a if self.active_player_set == 'a' else self.players_b
-    def get_inactive_players(self): return self.players_b if self.active_player_set == 'a' else self.players_a
-    def get_active_video_items(self): return self.video_items_a if self.active_player_set == 'a' else self.video_items_b
+    # ========================================
+    # Backward Compatibility Wrappers (Week 2 Implementation)
+    # ========================================
+    # These methods delegate to VideoPlaybackManager while maintaining the original API
+
+    def get_active_players(self):
+        """Get active players (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            return self.video_manager.get_active_players()
+        # Fallback to original implementation
+        return self.players_a if self.active_player_set == 'a' else self.players_b
+
+    def get_inactive_players(self):
+        """Get inactive players (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            return self.video_manager.get_inactive_players()
+        # Fallback to original implementation
+        return self.players_b if self.active_player_set == 'a' else self.players_a
+
+    def get_active_video_items(self):
+        """Get active video items (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            return self.video_manager.get_active_video_items()
+        # Fallback to original implementation
+        return self.video_items_a if self.active_player_set == 'a' else self.video_items_b
     
     def get_hardware_acceleration_status(self) -> dict:
         """Get current hardware acceleration status for debugging"""
@@ -544,7 +571,9 @@ class TeslaCamViewer(QWidget):
         self.app_state.is_daily_view_active = True
         self.app_state.first_timestamp_of_day = data.first_timestamp_of_day
         self.app_state.daily_clip_collections = data.daily_clip_collections
-        
+
+
+
         self.scrubber.setRange(0, data.total_duration_ms)
         self.scrubber.set_events(data.events)
 
@@ -612,24 +641,46 @@ class TeslaCamViewer(QWidget):
         self.go_to_time_dialog_instance = None
     
     def toggle_play_pause_all(self):
-        if not self.app_state.is_daily_view_active: return
-        if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.get_active_players()): self.pause_all()
-        else: self.play_all()
+        """Toggle play/pause (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.toggle_play_pause_all()
+        else:
+            # Fallback to original implementation
+            if not self.app_state.is_daily_view_active: return
+            if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.get_active_players()):
+                self.pause_all()
+            else:
+                self.play_all()
 
-    def play_all(self): 
-        self.play_btn.setText("⏸️ Pause"); rate = self.playback_rates.get(self.speed_selector.currentText(), 1.0)
-        any_playing = False
-        for i, p in enumerate(self.get_active_players()):
-            if i in self.ordered_visible_player_indices and p.source() and p.source().isValid():
-                p.setPlaybackRate(rate); p.play(); any_playing = True
-        if any_playing: self.position_update_timer.start()
+    def play_all(self):
+        """Start playback (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.play_all()
+        else:
+            # Fallback to original implementation
+            self.play_btn.setText("⏸️ Pause"); rate = self.playback_rates.get(self.speed_selector.currentText(), 1.0)
+            any_playing = False
+            for i, p in enumerate(self.get_active_players()):
+                if i in self.ordered_visible_player_indices and p.source() and p.source().isValid():
+                    p.setPlaybackRate(rate); p.play(); any_playing = True
+            if any_playing: self.position_update_timer.start()
 
-    def pause_all(self): 
-        self.play_btn.setText("▶️ Play"); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
-    
-    def frame_action(self, offset_ms): 
-        if not self.app_state.is_daily_view_active: return
-        self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
+    def pause_all(self):
+        """Pause playback (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.pause_all()
+        else:
+            # Fallback to original implementation
+            self.play_btn.setText("▶️ Play"); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
+
+    def frame_action(self, offset_ms):
+        """Frame step action (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.frame_action(offset_ms)
+        else:
+            # Fallback to original implementation
+            if not self.app_state.is_daily_view_active: return
+            self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
 
     def _handle_scrubber_press(self):
         if not self.app_state.is_daily_view_active: return
@@ -643,51 +694,56 @@ class TeslaCamViewer(QWidget):
         self.was_playing_before_scrub = False
 
     def seek_all_global(self, global_ms, restore_play_state=False):
-        if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
-        
-        was_playing = self.play_btn.text() == "⏸️ Pause"
-        if was_playing:
-            self.pause_all()
+        """Seek to global timeline position (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.seek_all_global(global_ms, restore_play_state)
+        else:
+            # Fallback to original implementation
+            if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
 
-        target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
-        front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
-        if not front_clips: 
-            if restore_play_state and was_playing: self.play_all()
-            return
-        
-        target_seg_idx = -1
-        # Find the last segment whose start time is before or at the target time.
-        for i, clip_path in enumerate(front_clips):
-            m = utils.filename_pattern.match(os.path.basename(clip_path))
+            was_playing = self.play_btn.text() == "⏸️ Pause"
+            if was_playing:
+                self.pause_all()
+
+            target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
+            front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
+            if not front_clips:
+                if restore_play_state and was_playing: self.play_all()
+                return
+
+            target_seg_idx = -1
+            # Find the last segment whose start time is before or at the target time.
+            for i, clip_path in enumerate(front_clips):
+                m = utils.filename_pattern.match(os.path.basename(clip_path))
+                if m:
+                    clip_start_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-', ':')}", "%Y-%m-%d %H:%M:%S")
+                    if clip_start_dt <= target_dt:
+                        target_seg_idx = i
+                    else:
+                        # Since clips are sorted, we can stop once we pass the target time.
+                        break
+
+            if target_seg_idx == -1:
+                if restore_play_state and was_playing: self.play_all()
+                return
+
+            m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
             if m:
-                clip_start_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-', ':')}", "%Y-%m-%d %H:%M:%S")
-                if clip_start_dt <= target_dt:
-                    target_seg_idx = i
-                else:
-                    # Since clips are sorted, we can stop once we pass the target time.
-                    break
-        
-        if target_seg_idx == -1: 
-            if restore_play_state and was_playing: self.play_all()
-            return
-        
-        m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
-        if m:
-            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-            pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
-        else:
-            pos_in_seg_ms = 0
-        
-        if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
-            self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
-        else:
-            # If we are in the same segment, we can just seek directly.
-            for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
-        
-        self.update_slider_and_time_display()
+                s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+                pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+            else:
+                pos_in_seg_ms = 0
 
-        if restore_play_state and was_playing:
-            self.play_all()
+            if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
+                self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
+            else:
+                # If we are in the same segment, we can just seek directly.
+                for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
+
+            self.update_slider_and_time_display()
+
+            if restore_play_state and was_playing:
+                self.play_all()
 
     def mark_start_time(self):
         if not self.app_state.is_daily_view_active: return
@@ -867,6 +923,12 @@ class TeslaCamViewer(QWidget):
         root_path = self.app_state.root_clips_path
         self.app_state = AppState()
         self.app_state.root_clips_path = root_path
+
+        # Update manager references to the new app_state
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.app_state = self.app_state
+            # Update container service registration
+            self.container.register_service('app_state', self.app_state)
         
         self.time_label.setText("MM/DD/YYYY HH:MM:SS (Clip: 00:00 / 00:00)")
         self.scrubber.setValue(0); self.scrubber.setMaximum(1000)
@@ -908,154 +970,179 @@ class TeslaCamViewer(QWidget):
             for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
 
     def _load_and_set_segment(self, segment_index, position_ms=0):
-        # Cancel any previous pending seek operation.
-        self.pending_seek_position = -1
-        self.players_awaiting_seek.clear()
-
-        # When seeking, we forcefully switch to player set 'a' as the active one.
-        # This simplifies the logic by providing a consistent state.
-        self.active_player_set = 'a'
-        active_players = self.get_active_players()
-        active_video_items = self.get_active_video_items()
-
-        # Stop the other player set to prevent it from continuing playback in the background.
-        [p.stop() for p in self.get_inactive_players()]
-        
-        front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
-        if not (0 <= segment_index < len(front_clips)):
-            if utils.DEBUG_UI: print(f"Segment index {segment_index} out of range. Aborting load.")
-            return
-
-        m = utils.filename_pattern.match(os.path.basename(front_clips[segment_index]))
-        if m and self.app_state.first_timestamp_of_day:
-            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-            segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        """Load and set segment (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager._load_and_set_segment(segment_index, position_ms)
         else:
-            segment_start_ms = 0
-        self.app_state.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=segment_start_ms)
+            # Fallback to original implementation
+            # Cancel any previous pending seek operation.
+            self.pending_seek_position = -1
+            self.players_awaiting_seek.clear()
 
-        # Update the UI to show the new video items immediately.
-        for i in range(6):
-            self.video_player_item_widgets[i].set_video_item(active_video_items[i])
-            
-        # Only load visible cameras
-        players_to_load = set()
-        for i in self.ordered_visible_player_indices:
-            clips = self.app_state.daily_clip_collections[i]
-            if 0 <= segment_index < len(clips):
-                players_to_load.add(active_players[i])
-                self._load_next_clip_for_player_set(active_players, i)
+            # When seeking, we forcefully switch to player set 'a' as the active one.
+            # This simplifies the logic by providing a consistent state.
+            self.active_player_set = 'a'
+            active_players = self.get_active_players()
+            active_video_items = self.get_active_video_items()
+
+            # Stop the other player set to prevent it from continuing playback in the background.
+            [p.stop() for p in self.get_inactive_players()]
+
+            front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
+            if not (0 <= segment_index < len(front_clips)):
+                if utils.DEBUG_UI: print(f"Segment index {segment_index} out of range. Aborting load.")
+                return
+
+            m = utils.filename_pattern.match(os.path.basename(front_clips[segment_index]))
+            if m and self.app_state.first_timestamp_of_day:
+                s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+                segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
             else:
+                segment_start_ms = 0
+            self.app_state.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=segment_start_ms)
+
+            # Update the UI to show the new video items immediately.
+            for i in range(6):
+                self.video_player_item_widgets[i].set_video_item(active_video_items[i])
+
+            # Only load visible cameras
+            players_to_load = set()
+            for i in self.ordered_visible_player_indices:
+                clips = self.app_state.daily_clip_collections[i]
+                if 0 <= segment_index < len(clips):
+                    players_to_load.add(active_players[i])
+                    self._load_next_clip_for_player_set(active_players, i)
+                else:
+                    active_players[i].setSource(QUrl())
+            # Unload hidden cameras
+            for i in set(range(6)) - set(self.ordered_visible_player_indices):
                 active_players[i].setSource(QUrl())
-        # Unload hidden cameras
-        for i in set(range(6)) - set(self.ordered_visible_player_indices):
-            active_players[i].setSource(QUrl())
-        
-        if not players_to_load:
-            return
 
-        if utils.DEBUG_UI: print(f"--- Loading segment {segment_index}, preparing pending seek to {position_ms}ms ---")
-        
-        # Set up the pending seek operation. It will be executed in handle_media_status_changed.
-        self.pending_seek_position = position_ms
-        self.players_awaiting_seek = players_to_load
+            if not players_to_load:
+                return
 
-        self._preload_next_segment()
+            if utils.DEBUG_UI: print(f"--- Loading segment {segment_index}, preparing pending seek to {position_ms}ms ---")
+
+            # Set up the pending seek operation. It will be executed in handle_media_status_changed.
+            self.pending_seek_position = position_ms
+            self.players_awaiting_seek = players_to_load
+
+            self._preload_next_segment()
 
     def _preload_next_segment(self):
-        if not self.app_state.is_daily_view_active: return
-        next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
-        front_cam_idx = self.camera_name_to_index["front"]
-        if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]): return
-        
-        inactive_players = self.get_inactive_players()
-        if inactive_players[front_cam_idx].source().isValid():
-            path = inactive_players[front_cam_idx].source().path()
-            if os.path.basename(path) == os.path.basename(self.app_state.daily_clip_collections[front_cam_idx][next_segment_index]):
-                return
-        
-        if utils.DEBUG_UI: print(f"--- Preloading segment {next_segment_index} ---")
-        # Only preload visible cameras
-        for i in self.ordered_visible_player_indices:
-            self._load_next_clip_for_player_set(inactive_players, i, next_segment_index)
-        # Unload hidden cameras
-        for i in set(range(6)) - set(self.ordered_visible_player_indices):
-            inactive_players[i].setSource(QUrl())
+        """Preload next segment (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager._preload_next_segment()
+        else:
+            # Fallback to original implementation
+            if not self.app_state.is_daily_view_active: return
+            next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
+            front_cam_idx = self.camera_name_to_index["front"]
+            if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]): return
+
+            inactive_players = self.get_inactive_players()
+            if inactive_players[front_cam_idx].source().isValid():
+                path = inactive_players[front_cam_idx].source().path()
+                if os.path.basename(path) == os.path.basename(self.app_state.daily_clip_collections[front_cam_idx][next_segment_index]):
+                    return
+
+            if utils.DEBUG_UI: print(f"--- Preloading segment {next_segment_index} ---")
+            # Only preload visible cameras
+            for i in self.ordered_visible_player_indices:
+                self._load_next_clip_for_player_set(inactive_players, i, next_segment_index)
+            # Unload hidden cameras
+            for i in set(range(6)) - set(self.ordered_visible_player_indices):
+                inactive_players[i].setSource(QUrl())
 
     def _load_next_clip_for_player_set(self, player_set, player_index, force_index=None):
-        idx_to_load = force_index if force_index is not None else self.app_state.playback_state.clip_indices[player_index]
-        clips = self.app_state.daily_clip_collections[player_index]
-        if 0 <= idx_to_load < len(clips):
-            player_set[player_index].setSource(QUrl.fromLocalFile(clips[idx_to_load]))
-        else: player_set[player_index].setSource(QUrl())
+        """Load next clip for player set (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager._load_next_clip_for_player_set(player_set, player_index, force_index)
+        else:
+            # Fallback to original implementation
+            idx_to_load = force_index if force_index is not None else self.app_state.playback_state.clip_indices[player_index]
+            clips = self.app_state.daily_clip_collections[player_index]
+            if 0 <= idx_to_load < len(clips):
+                player_set[player_index].setSource(QUrl.fromLocalFile(clips[idx_to_load]))
+            else: player_set[player_index].setSource(QUrl())
             
     def handle_media_status_changed(self, status, player_instance, player_index):
-        front_idx = self.camera_name_to_index["front"]
+        """Handle media status changes (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.handle_media_status_changed(status, player_instance, player_index)
+        else:
+            # Fallback to original implementation
+            front_idx = self.camera_name_to_index["front"]
 
-        if status == QMediaPlayer.MediaStatus.EndOfMedia and player_instance.source() and player_instance.source().isValid():
-            if player_index == front_idx and player_instance in self.get_active_players():
-                self._swap_player_sets()
-        
-        elif status == QMediaPlayer.MediaStatus.LoadedMedia: 
-            self.video_player_item_widgets[player_index].fit_video_to_view()
-            
-            # If a seek operation is pending, execute it now that the media is loaded.
-            if self.pending_seek_position != -1 and player_instance in self.players_awaiting_seek:
-                player_instance.setPosition(self.pending_seek_position)
-                self.players_awaiting_seek.remove(player_instance)
-                
-                # If this was the last player we were waiting for, reset the state.
-                if not self.players_awaiting_seek:
-                    if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed. ---")
-                    self.pending_seek_position = -1
-        
-        elif status == QMediaPlayer.MediaStatus.InvalidMedia:
-            # If a player fails to load, remove it from the await set to avoid getting stuck.
-            if player_instance in self.players_awaiting_seek:
-                self.players_awaiting_seek.remove(player_instance)
-                if not self.players_awaiting_seek and self.pending_seek_position != -1:
-                    if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed (with invalid media). ---")
-                    self.pending_seek_position = -1
+            if status == QMediaPlayer.MediaStatus.EndOfMedia and player_instance.source() and player_instance.source().isValid():
+                if player_index == front_idx and player_instance in self.get_active_players():
+                    self._swap_player_sets()
+
+            elif status == QMediaPlayer.MediaStatus.LoadedMedia:
+                self.video_player_item_widgets[player_index].fit_video_to_view()
+
+                # If a seek operation is pending, execute it now that the media is loaded.
+                if self.pending_seek_position != -1 and player_instance in self.players_awaiting_seek:
+                    player_instance.setPosition(self.pending_seek_position)
+                    self.players_awaiting_seek.remove(player_instance)
+
+                    # If this was the last player we were waiting for, reset the state.
+                    if not self.players_awaiting_seek:
+                        if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed. ---")
+                        self.pending_seek_position = -1
+
+            elif status == QMediaPlayer.MediaStatus.InvalidMedia:
+                # If a player fails to load, remove it from the await set to avoid getting stuck.
+                if player_instance in self.players_awaiting_seek:
+                    self.players_awaiting_seek.remove(player_instance)
+                    if not self.players_awaiting_seek and self.pending_seek_position != -1:
+                        if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed (with invalid media). ---")
+                        self.pending_seek_position = -1
 
     def _swap_player_sets(self):
-        # Cancel any pending seeks before swapping, as they are no longer relevant.
-        self.pending_seek_position = -1
-        self.players_awaiting_seek.clear()
-        
-        if utils.DEBUG_UI: print(f"--- Swapping player sets. New active set: {'b' if self.active_player_set == 'a' else 'a'} ---")
-        was_playing = self.play_btn.text() == "⏸️ Pause"
-        [p.stop() for p in self.get_active_players()]
-        
-        self.active_player_set = 'b' if self.active_player_set == 'a' else 'a'
-        active_players = self.get_active_players()
-        active_video_items = self.get_active_video_items()
-        
-        next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
-        front_cam_idx = self.camera_name_to_index["front"]
-        
-        if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]):
-            self.pause_all(); return
-        
-        front_clips = self.app_state.daily_clip_collections[front_cam_idx]
-        m = utils.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
-        if m and self.app_state.first_timestamp_of_day:
-            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-            segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        """Swap player sets (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager._swap_player_sets()
         else:
-            segment_start_ms = 0
-        self.app_state.playback_state = PlaybackState(clip_indices=[next_segment_index] * 6, segment_start_ms=segment_start_ms)
+            # Fallback to original implementation
+            # Cancel any pending seeks before swapping, as they are no longer relevant.
+            self.pending_seek_position = -1
+            self.players_awaiting_seek.clear()
 
-        for i in range(6):
-            self.video_player_item_widgets[i].set_video_item(active_video_items[i])
-            active_players[i].setPosition(0)
-        
-        if active_players[front_cam_idx].mediaStatus() == QMediaPlayer.MediaStatus.InvalidMedia:
-            if utils.DEBUG_UI: print(f"--- Segment {next_segment_index} is invalid, skipping. ---")
-            QTimer.singleShot(0, self._swap_player_sets)
-            return
+            if utils.DEBUG_UI: print(f"--- Swapping player sets. New active set: {'b' if self.active_player_set == 'a' else 'a'} ---")
+            was_playing = self.play_btn.text() == "⏸️ Pause"
+            [p.stop() for p in self.get_active_players()]
 
-        if was_playing: self.play_all()
-        self._preload_next_segment()
+            self.active_player_set = 'b' if self.active_player_set == 'a' else 'a'
+            active_players = self.get_active_players()
+            active_video_items = self.get_active_video_items()
+
+            next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
+            front_cam_idx = self.camera_name_to_index["front"]
+
+            if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]):
+                self.pause_all(); return
+
+            front_clips = self.app_state.daily_clip_collections[front_cam_idx]
+            m = utils.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
+            if m and self.app_state.first_timestamp_of_day:
+                s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+                segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+            else:
+                segment_start_ms = 0
+            self.app_state.playback_state = PlaybackState(clip_indices=[next_segment_index] * 6, segment_start_ms=segment_start_ms)
+
+            for i in range(6):
+                self.video_player_item_widgets[i].set_video_item(active_video_items[i])
+                active_players[i].setPosition(0)
+
+            if active_players[front_cam_idx].mediaStatus() == QMediaPlayer.MediaStatus.InvalidMedia:
+                if utils.DEBUG_UI: print(f"--- Segment {next_segment_index} is invalid, skipping. ---")
+                QTimer.singleShot(0, self._swap_player_sets)
+                return
+
+            if was_playing: self.play_all()
+            self._preload_next_segment()
 
     def update_layout(self):
         # Remove all widgets from the grid
@@ -1134,3 +1221,184 @@ class TeslaCamViewer(QWidget):
             QMessageBox.warning(self, "Update Error", f"Could not check for updates:\n{e}")
         finally:
             self.set_ui_loading(False)
+
+    # ========================================
+    # Manager Infrastructure (Week 1 Implementation)
+    # ========================================
+
+    def _initialize_managers(self) -> None:
+        """Initialize the manager-based architecture infrastructure."""
+        try:
+            # Create dependency injection container
+            self.container = DependencyContainer()
+
+            # Create and register error handler
+            self.error_handler = ErrorHandler()
+            self.container.register_service('error_handler', self.error_handler)
+
+            # Register core services
+            self.container.register_service('app_state', self.app_state)
+            self.container.register_service('settings', self.settings)
+            self.container.register_service('camera_map', self.camera_name_to_index)
+
+            # Create managers
+            self.video_manager = VideoPlaybackManager(self, self.container)
+            self.export_manager = ExportManager(self, self.container)
+
+            # Register managers in container
+            self.container.register_service('video_playback', self.video_manager)
+            self.container.register_service('export', self.export_manager)
+
+            # Initialize managers
+            if not self._initialize_all_managers():
+                raise RuntimeError("Failed to initialize one or more managers")
+
+            # Connect manager signals to UI
+            self._connect_manager_signals()
+
+            print("✓ Manager infrastructure initialized successfully")
+
+        except Exception as e:
+            error_msg = f"Failed to initialize manager infrastructure: {e}"
+            print(f"✗ {error_msg}")
+            QMessageBox.critical(self, "Initialization Error", error_msg)
+            raise
+
+    def _initialize_all_managers(self) -> bool:
+        """Initialize all managers in correct order."""
+        managers = [
+            ('VideoPlaybackManager', self.video_manager),
+            ('ExportManager', self.export_manager),
+        ]
+
+        for name, manager in managers:
+            try:
+                if not manager.initialize():
+                    print(f"✗ Failed to initialize {name}")
+                    return False
+                print(f"✓ {name} initialized successfully")
+            except Exception as e:
+                print(f"✗ Error initializing {name}: {e}")
+                return False
+
+        return True
+
+    def _connect_manager_signals(self) -> None:
+        """Connect manager signals to UI update methods."""
+        try:
+            # Connect error handler signals
+            self.error_handler.error_occurred.connect(self._on_manager_error)
+            self.error_handler.critical_error.connect(self._on_critical_error)
+
+            # Video playback manager signals (Week 2 Implementation)
+            self.video_manager.signals.playback_state_changed.connect(self._on_playback_state_changed)
+            self.video_manager.signals.position_changed.connect(self._on_position_changed)
+            self.video_manager.signals.segment_changed.connect(self._on_segment_changed)
+            self.video_manager.signals.error_occurred.connect(self._on_video_manager_error)
+            self.video_manager.signals.player_swap_completed.connect(self._on_player_swap_completed)
+
+            # Export manager signals (placeholders for Week 4)
+            # self.export_manager.export_progress.connect(self._on_export_progress)
+            # self.export_manager.export_finished.connect(self._on_export_finished)
+
+            print("✓ Manager signals connected")
+
+        except Exception as e:
+            print(f"✗ Error connecting manager signals: {e}")
+
+    def _on_manager_error(self, severity: str, title: str, message: str) -> None:
+        """Handle error signals from managers."""
+        if severity == "critical":
+            QMessageBox.critical(self, title, message)
+        elif severity == "error":
+            QMessageBox.warning(self, title, message)
+        else:
+            print(f"Manager {severity}: {title} - {message}")
+
+    def _on_critical_error(self, message: str) -> None:
+        """Handle critical error signals from managers."""
+        QMessageBox.critical(self, "Critical Error",
+                           f"A critical error occurred:\n\n{message}\n\n"
+                           "The application may not function correctly.")
+
+    # ========================================
+    # VideoPlaybackManager Signal Handlers (Week 2 Implementation)
+    # ========================================
+
+    def _on_playback_state_changed(self, is_playing: bool) -> None:
+        """Handle playback state changes from VideoPlaybackManager."""
+        try:
+            # Update play button text
+            if is_playing:
+                self.play_btn.setText("⏸️ Pause")
+                if hasattr(self, 'position_update_timer'):
+                    self.position_update_timer.start()
+            else:
+                self.play_btn.setText("▶️ Play")
+                if hasattr(self, 'position_update_timer'):
+                    self.position_update_timer.stop()
+                self.update_slider_and_time_display()
+        except Exception as e:
+            print(f"Error handling playback state change: {e}")
+
+    def _on_position_changed(self, position_ms: int) -> None:
+        """Handle position changes from VideoPlaybackManager."""
+        try:
+            # Update scrubber position if not being dragged by user
+            if not getattr(self, '_scrubber_being_dragged', False):
+                # Calculate global timeline position
+                if self.app_state.playback_state and self.app_state.playback_state.segment_start_ms >= 0:
+                    global_ms = self.app_state.playback_state.segment_start_ms + position_ms
+                    self.scrubber.setValue(global_ms)
+        except Exception as e:
+            print(f"Error handling position change: {e}")
+
+    def _on_segment_changed(self, segment_index: int) -> None:
+        """Handle segment changes from VideoPlaybackManager."""
+        try:
+            # Update UI to reflect new segment
+            self.update_slider_and_time_display()
+        except Exception as e:
+            print(f"Error handling segment change: {e}")
+
+    def _on_video_manager_error(self, error_message: str) -> None:
+        """Handle error signals from VideoPlaybackManager."""
+        QMessageBox.warning(self, "Video Playback Error", error_message)
+
+    def _on_player_swap_completed(self) -> None:
+        """Handle player swap completion from VideoPlaybackManager."""
+        try:
+            # Update UI after player swap
+            self.update_slider_and_time_display()
+        except Exception as e:
+            print(f"Error handling player swap completion: {e}")
+
+    def show_error_message(self, message: str) -> None:
+        """Show error message to user (fallback for managers without error handler)."""
+        QMessageBox.warning(self, "Error", message)
+
+    def cleanup_managers(self) -> None:
+        """Clean up all managers when application closes."""
+        try:
+            if hasattr(self, 'video_manager'):
+                self.video_manager.cleanup()
+            if hasattr(self, 'export_manager'):
+                self.export_manager.cleanup()
+            if hasattr(self, 'container'):
+                self.container.clear()
+            print("✓ Managers cleaned up successfully")
+        except Exception as e:
+            print(f"✗ Error during manager cleanup: {e}")
+
+    def closeEvent(self, event):
+        """Override close event to ensure proper cleanup."""
+        try:
+            self.cleanup_managers()
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+
+        # Call original close event handling if it exists
+        if hasattr(super(), 'closeEvent'):
+            super().closeEvent(event)
+        else:
+            event.accept()
