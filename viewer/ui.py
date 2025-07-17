@@ -342,9 +342,11 @@ class TeslaCamViewer(QWidget):
         self.addAction(export_action)
 
     # ========================================
-    # Backward Compatibility Wrappers (Week 2 Implementation)
+    # Backward Compatibility Wrappers (Week 2 & Week 4 Implementation)
     # ========================================
-    # These methods delegate to VideoPlaybackManager while maintaining the original API
+    # These methods delegate to managers while maintaining the original API
+
+    # VideoPlaybackManager wrappers (Week 2)
 
     def get_active_players(self):
         """Get active players (delegated to VideoPlaybackManager)."""
@@ -563,10 +565,10 @@ class TeslaCamViewer(QWidget):
             QMessageBox.warning(self, "Could Not Load Date", data.error)
             # No need to call clear_all_players here, as it was done before starting
             return
-        
+
         if data.first_timestamp_of_day is None:
-             QMessageBox.warning(self, "No Videos", f"No valid video files found.")
-             return
+            QMessageBox.warning(self, "No Videos", f"No valid video files found.")
+            return
 
         self.app_state.is_daily_view_active = True
         self.app_state.first_timestamp_of_day = data.first_timestamp_of_day
@@ -745,25 +747,47 @@ class TeslaCamViewer(QWidget):
             if restore_play_state and was_playing:
                 self.play_all()
 
+    # ExportManager wrappers (Week 4)
     def mark_start_time(self):
-        if not self.app_state.is_daily_view_active: return
-        self.app_state.export_state.start_ms = self.scrubber.value()
-        if self.app_state.export_state.end_ms is not None and self.app_state.export_state.start_ms >= self.app_state.export_state.end_ms:
-            self.app_state.export_state.end_ms = self.app_state.export_state.start_ms + 1000 
-        self.update_export_ui()
+        """Mark start time for export (delegated to ExportManager)."""
+        if hasattr(self, 'export_manager') and self.export_manager.is_initialized():
+            self.export_manager.set_start_marker(self.scrubber.value())
+            self.update_export_ui()
+        else:
+            # Fallback implementation
+            if not self.app_state.is_daily_view_active:
+                return
+            self.app_state.export_state.start_ms = self.scrubber.value()
+            if self.app_state.export_state.end_ms is not None and self.app_state.export_state.start_ms >= self.app_state.export_state.end_ms:
+                self.app_state.export_state.end_ms = self.app_state.export_state.start_ms + 1000
+            self.update_export_ui()
 
     def mark_end_time(self):
-        if not self.app_state.is_daily_view_active: return
-        self.app_state.export_state.end_ms = self.scrubber.value()
-        if self.app_state.export_state.start_ms is not None and self.app_state.export_state.end_ms <= self.app_state.export_state.start_ms:
-            self.app_state.export_state.start_ms = self.app_state.export_state.end_ms - 1000
-        self.update_export_ui()
+        """Mark end time for export (delegated to ExportManager)."""
+        if hasattr(self, 'export_manager') and self.export_manager.is_initialized():
+            self.export_manager.set_end_marker(self.scrubber.value())
+            self.update_export_ui()
+        else:
+            # Fallback implementation
+            if not self.app_state.is_daily_view_active:
+                return
+            self.app_state.export_state.end_ms = self.scrubber.value()
+            if self.app_state.export_state.start_ms is not None and self.app_state.export_state.end_ms <= self.app_state.export_state.start_ms:
+                self.app_state.export_state.start_ms = self.app_state.export_state.end_ms - 1000
+            self.update_export_ui()
 
     def handle_marker_drag(self, marker_type, value):
-        if marker_type == 'start': self.app_state.export_state.start_ms = value
-        elif marker_type == 'end': self.app_state.export_state.end_ms = value
-        self.update_export_ui()
-        self.preview_at_global_ms(value)
+        """Handle marker drag (delegated to ExportManager)."""
+        if hasattr(self, 'export_manager') and self.export_manager.is_initialized():
+            self.export_manager.handle_marker_drag(marker_type, value)
+            self.update_export_ui()
+            self.preview_at_global_ms(value)
+        else:
+            # Fallback implementation
+            if marker_type == 'start': self.app_state.export_state.start_ms = value
+            elif marker_type == 'end': self.app_state.export_state.end_ms = value
+            self.update_export_ui()
+            self.preview_at_global_ms(value)
 
     def _handle_marker_drag_finished(self):
         # When the user releases an export marker, snap the video back to the main scrubber position
@@ -802,40 +826,78 @@ class TeslaCamViewer(QWidget):
         self.scrubber.set_export_range(self.app_state.export_state.start_ms, self.app_state.export_state.end_ms)
 
     def show_export_dialog(self):
-        if not all([os.path.exists(FFMPEG_EXE), self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
-            QMessageBox.warning(self, "Export Error", "Please load clips and set both a start and end time before exporting."); return
-        dialog = QDialog(self); dialog.setWindowTitle("Export Options"); layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Select export quality:")); full_res_rb = QRadioButton("Full Resolution"); mobile_rb = QRadioButton("Mobile Friendly - 1080p")
-        full_res_rb.setChecked(True); layout.addWidget(full_res_rb); layout.addWidget(mobile_rb)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+        """Show export dialog (with ExportManager validation)."""
+        # Use ExportManager validation if available
+        if hasattr(self, 'export_manager') and self.export_manager.is_initialized():
+            is_valid, error_message = self.export_manager.validate_export_settings()
+            if not is_valid:
+                QMessageBox.warning(self, "Export Error", error_message)
+                return
+        else:
+            # Fallback validation
+            if not all([os.path.exists(FFMPEG_EXE), self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
+                QMessageBox.warning(self, "Export Error", "Please load clips and set both a start and end time before exporting.")
+                return
+
+        # Show export options dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Export Options")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Select export quality:"))
+
+        full_res_rb = QRadioButton("Full Resolution")
+        mobile_rb = QRadioButton("Mobile Friendly - 1080p")
+        full_res_rb.setChecked(True)
+        layout.addWidget(full_res_rb)
+        layout.addWidget(mobile_rb)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
         if dialog.exec():
-            output_path, _ = QFileDialog.getSaveFileName(self, "Save Exported Clip", f"{self.date_selector.currentData()}_clip.mp4", "MP4 Videos (*.mp4)")
-            if output_path: self.start_export(output_path, mobile_rb.isChecked())
+            output_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Exported Clip",
+                f"{self.date_selector.currentData()}_clip.mp4",
+                "MP4 Videos (*.mp4)"
+            )
+            if output_path:
+                self.start_export(output_path, mobile_rb.isChecked())
 
     def start_export(self, output_path, is_mobile):
-        self.pause_all()
-        result = self._build_ffmpeg_command(output_path, is_mobile)
-        if not result or not result[0]:
-            QMessageBox.critical(self, "Export Failed", "Could not generate FFmpeg command. No visible cameras or clips found for the selected range."); return
-        
-        ffmpeg_cmd, self.files_to_cleanup_after_export, duration_s = result
-        
-        self.progress_dialog = QProgressDialog("Preparing export...", "Cancel", 0, 100, self)
-        self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        self.progress_dialog.setWindowTitle("Exporting")
-        self.progress_dialog.show()
-        
-        self.export_worker = workers.ExportWorker(ffmpeg_cmd, duration_s)
-        self.export_thread = QThread()
-        self.export_worker.moveToThread(self.export_thread)
-        
-        self.export_thread.started.connect(self.export_worker.run)
-        self.export_worker.finished.connect(self.on_export_finished)
-        self.export_worker.progress.connect(self.progress_dialog.setLabelText)
-        self.export_worker.progress_value.connect(self.progress_dialog.setValue)
-        self.progress_dialog.canceled.connect(self.export_worker.stop)
-        
-        self.export_thread.start()
+        """Start export operation (delegated to ExportManager)."""
+        if hasattr(self, 'export_manager') and self.export_manager.is_initialized():
+            success = self.export_manager.start_export(output_path, is_mobile)
+            if not success:
+                # Error handling is done by ExportManager through signals
+                pass
+        else:
+            # Fallback implementation
+            self.pause_all()
+            result = self._build_ffmpeg_command(output_path, is_mobile)
+            if not result or not result[0]:
+                QMessageBox.critical(self, "Export Failed", "Could not generate FFmpeg command. No visible cameras or clips found for the selected range."); return
+
+            ffmpeg_cmd, self.files_to_cleanup_after_export, duration_s = result
+
+            self.progress_dialog = QProgressDialog("Preparing export...", "Cancel", 0, 100, self)
+            self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            self.progress_dialog.setWindowTitle("Exporting")
+            self.progress_dialog.show()
+
+            self.export_worker = workers.ExportWorker(ffmpeg_cmd, duration_s)
+            self.export_thread = QThread()
+            self.export_worker.moveToThread(self.export_thread)
+
+            self.export_thread.started.connect(self.export_worker.run)
+            self.export_worker.finished.connect(self.on_export_finished)
+            self.export_worker.progress.connect(self.progress_dialog.setLabelText)
+            self.export_worker.progress_value.connect(self.progress_dialog.setValue)
+            self.progress_dialog.canceled.connect(self.export_worker.stop)
+
+            self.export_thread.start()
 
     def on_export_finished(self, success, message):
         if success:
@@ -1297,9 +1359,14 @@ class TeslaCamViewer(QWidget):
             self.video_manager.signals.error_occurred.connect(self._on_video_manager_error)
             self.video_manager.signals.player_swap_completed.connect(self._on_player_swap_completed)
 
-            # Export manager signals (placeholders for Week 4)
-            # self.export_manager.export_progress.connect(self._on_export_progress)
-            # self.export_manager.export_finished.connect(self._on_export_finished)
+            # Export manager signals (Week 4 implementation)
+            self.export_manager.signals.export_started.connect(self._on_export_started)
+            self.export_manager.signals.export_progress.connect(self._on_export_progress)
+            self.export_manager.signals.export_finished.connect(self._on_export_finished)
+            self.export_manager.signals.export_cancelled.connect(self._on_export_cancelled)
+            self.export_manager.signals.export_markers_changed.connect(self._on_export_markers_changed)
+            self.export_manager.signals.export_error.connect(self._on_export_error)
+            self.export_manager.signals.export_validation_failed.connect(self._on_export_validation_failed)
 
             print("✓ Manager signals connected")
 
@@ -1372,6 +1439,76 @@ class TeslaCamViewer(QWidget):
             self.update_slider_and_time_display()
         except Exception as e:
             print(f"Error handling player swap completion: {e}")
+
+    # ========================================
+    # ExportManager Signal Handlers (Week 4 Implementation)
+    # ========================================
+
+    def _on_export_started(self) -> None:
+        """Handle export start from ExportManager."""
+        try:
+            # Update UI to show export is in progress
+            self.export_btn.setEnabled(False)
+            self.export_btn.setText("Exporting...")
+        except Exception as e:
+            print(f"Error handling export start: {e}")
+
+    def _on_export_progress(self, percentage: int, message: str) -> None:
+        """Handle export progress updates from ExportManager."""
+        try:
+            # Progress is handled by ExportManager's progress dialog
+            # This is for any additional UI updates if needed
+            pass
+        except Exception as e:
+            print(f"Error handling export progress: {e}")
+
+    def _on_export_finished(self, success: bool, message: str) -> None:
+        """Handle export completion from ExportManager."""
+        try:
+            # Reset export button
+            self.export_btn.setEnabled(True)
+            self.export_btn.setText("Export Clip")
+
+            # Additional UI updates if needed
+            if success:
+                print(f"Export completed successfully: {message}")
+            else:
+                print(f"Export failed: {message}")
+
+        except Exception as e:
+            print(f"Error handling export finished: {e}")
+
+    def _on_export_cancelled(self) -> None:
+        """Handle export cancellation from ExportManager."""
+        try:
+            # Reset export button
+            self.export_btn.setEnabled(True)
+            self.export_btn.setText("Export Clip")
+            print("Export cancelled by user")
+        except Exception as e:
+            print(f"Error handling export cancellation: {e}")
+
+    def _on_export_markers_changed(self, start_ms: int, end_ms: int) -> None:
+        """Handle export marker changes from ExportManager."""
+        try:
+            # Update UI to reflect new markers
+            self.update_export_ui()
+        except Exception as e:
+            print(f"Error handling export markers changed: {e}")
+
+    def _on_export_error(self, error_message: str) -> None:
+        """Handle export errors from ExportManager."""
+        try:
+            QMessageBox.critical(self, "Export Error", error_message)
+        except Exception as e:
+            print(f"Error handling export error: {e}")
+
+    def _on_export_validation_failed(self, validation_message: str) -> None:
+        """Handle export validation failures from ExportManager."""
+        try:
+            QMessageBox.warning(self, "Export Validation Failed", validation_message)
+        except Exception as e:
+            print(f"Error handling export validation failed: {e}")
 
     def show_error_message(self, message: str) -> None:
         """Show error message to user (fallback for managers without error handler)."""
