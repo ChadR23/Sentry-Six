@@ -1135,6 +1135,133 @@ class VideoPlaybackManager(BaseManager):
             self.handle_error(e, "get_current_frame_info")
             return {}
 
+    def synchronize_camera_to_current_position(self, camera_index: int) -> bool:
+        """
+        Synchronize a specific camera to the current playback position.
+
+        This method is called when a camera becomes visible (e.g., when a user
+        re-enables a hidden camera) and needs to be synchronized with the current
+        playback state of other visible cameras. It ensures seamless video playback
+        by loading the correct video segment and seeking to the appropriate position.
+
+        The synchronization process:
+        1. Finds a suitable reference player from currently visible cameras
+        2. Gets the current playback position and segment information
+        3. Loads the corresponding video segment for the target camera
+        4. Seeks the target camera to match the reference position
+        5. Resumes playback if other cameras were playing
+
+        Args:
+            camera_index (int): Index of the camera to synchronize (0-5 for the 6 cameras)
+
+        Returns:
+            bool: True if synchronization was successful, False if it failed due to:
+                  - Daily view not active
+                  - No suitable reference players available
+                  - No video clips available for the target camera
+                  - Media loading errors
+
+        Note:
+            This method uses asynchronous media loading with callbacks to ensure
+            proper synchronization timing. The actual seeking occurs after the
+            media is fully loaded to avoid timing issues.
+
+        Example:
+            # Synchronize front camera (index 0) when it becomes visible
+            success = video_manager.synchronize_camera_to_current_position(0)
+            if not success:
+                logger.warning("Failed to synchronize front camera")
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return False
+
+            # Get current playback state
+            was_playing = self.is_playing
+
+            # Get reference position from front camera or any active camera
+            active_players = self.get_active_players()
+            reference_player = None
+
+            # Try front camera first
+            front_idx = self.camera_name_to_index["front"]
+            front_player = active_players[front_idx]
+
+            # Check if front camera is suitable (LoadedMedia or BufferedMedia are both good)
+            suitable_statuses = [QMediaPlayer.MediaStatus.LoadedMedia, QMediaPlayer.MediaStatus.BufferedMedia]
+
+            if (front_player.source() and
+                front_player.source().isValid() and
+                front_player.mediaStatus() in suitable_statuses):
+                reference_player = front_player
+            else:
+                # Find any other active player as reference
+                for i, player in enumerate(active_players):
+                    if i != camera_index:
+                        has_source = player.source() and player.source().isValid()
+                        status = player.mediaStatus()
+                        if (has_source and status in suitable_statuses):
+                            reference_player = player
+                            break
+
+            if not reference_player:
+                self.logger.warning(f"No reference player available for synchronizing camera {camera_index}")
+                return False
+
+            # Get current position and segment information
+            current_local_ms = reference_player.position()
+            current_segment_index = 0
+            if hasattr(self.app_state.playback_state, 'clip_indices'):
+                # clip_indices might be a list or dict, handle both cases
+                clip_indices = self.app_state.playback_state.clip_indices
+                if isinstance(clip_indices, dict):
+                    current_segment_index = clip_indices.get(front_idx, 0)
+                elif isinstance(clip_indices, list) and len(clip_indices) > front_idx:
+                    current_segment_index = clip_indices[front_idx]
+                else:
+                    # Fallback to 0 if we can't determine the segment
+                    current_segment_index = 0
+
+            # Load the correct clip for the target camera
+            camera_clips = self.app_state.daily_clip_collections[camera_index]
+            if not camera_clips or current_segment_index >= len(camera_clips):
+                self.logger.warning(f"No clips available for camera {camera_index} at segment {current_segment_index}")
+                return False
+
+            target_player = active_players[camera_index]
+            target_clip_path = camera_clips[current_segment_index]
+
+            # Load the clip
+            target_player.setSource(QUrl.fromLocalFile(target_clip_path))
+
+            # Set up synchronization callback
+            def sync_when_loaded():
+                try:
+                    if target_player.mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                        # Seek to the correct position
+                        target_player.setPosition(current_local_ms)
+
+                        # Resume playback if we were playing
+                        if was_playing:
+                            target_player.play()
+
+                        self.logger.debug(f"Synchronized camera {camera_index} to position {current_local_ms}ms")
+
+                        # Disconnect to avoid multiple calls
+                        target_player.mediaStatusChanged.disconnect(sync_when_loaded)
+
+                except Exception as e:
+                    self.handle_error(e, f"sync_when_loaded for camera {camera_index}")
+
+            # Connect the callback
+            target_player.mediaStatusChanged.connect(sync_when_loaded)
+
+            return True
+
+        except Exception as e:
+            self.handle_error(e, f"synchronize_camera_to_current_position({camera_index})")
+            return False
+
     # ========================================
     # Error Recovery & Resilience (Week 3 Implementation)
     # ========================================

@@ -1,3 +1,141 @@
+# Project-specific directories
 /Sentry data test
 /TeslaCamViewerII-master
-/viewer/__pycache__
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+*.pdb
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Qt specific
+*.qmlc
+*.jsc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.pro.user
+*.pro.user.*
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+logs/
+temp/
+tmp/
+
+# Test files and coverage
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation builds
+docs/_build/
+.readthedocs.yml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Application specific
+config.ini
+settings.ini
+*.db
+*.sqlite
+*.sqlite3
+
+# FFmpeg binaries (if included)
+ffmpeg_bin/
+ffmpeg/
+*.exe
+*.dll
+
+# Video test files
+*.mp4
+*.avi
+*.mov
+*.mkv
+test_videos/
+sample_clips/
+
+# Export output
+exports/
+output/
+rendered/
+
+# User data and preferences
+user_data/
+preferences/
+cache/
+
+# Development and testing artifacts
+test_camera_sync.py
+validate_camera_sync.py
+test_plan_camera_sync.md
+camera_sync_implementation_summary.md
+
+# Jupyter notebooks (if any)
+.ipynb_checkpoints/
+*.ipynb
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json

@@ -27,7 +27,7 @@ from .ffmpeg_builder import FFmpegCommandBuilder
 from .ffmpeg_manager import FFMPEG_EXE
 from .hwacc_detector import hwacc_detector
 from .managers import (DependencyContainer, ErrorHandler, VideoPlaybackManager,
-                      ExportManager, LayoutManager, ErrorContext, ErrorSeverity)
+                      ExportManager, LayoutManager, ClipManager, ErrorContext, ErrorSeverity)
 
 
 class WelcomeDialog(QDialog):
@@ -425,29 +425,34 @@ class TeslaCamViewer(QWidget):
             self.layout_manager._update_visibility_from_checkboxes()
             self.layout_manager.update_ui_layout()
 
-            # Only load/seek newly visible cameras
-            current_segment_index = self.app_state.playback_state.clip_indices[0]
-            active_players = self.get_active_players()
+            # Get newly visible and hidden cameras for synchronization
             newly_visible = self.layout_manager.get_newly_visible_cameras()
-
-            # Use the first active visible player's position as reference (if any)
-            reference_player = None
-            visible_cameras = self.layout_manager.get_visible_cameras()
-            for idx in visible_cameras:
-                if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
-                    reference_player = active_players[idx]
-                    break
-            current_time = reference_player.position() if reference_player else 0
-            is_playing = self.play_btn.text() == "⏸️ Pause"
             newly_hidden = self.layout_manager.get_newly_hidden_cameras()
 
-            for i in newly_visible:
-                self._load_next_clip_for_player_set(active_players, i, current_segment_index)
-                active_players[i].setPosition(current_time)
-                if is_playing:
-                    active_players[i].play()
-            for i in newly_hidden:
-                active_players[i].setSource(QUrl())
+            # Handle newly hidden cameras - stop their playback
+            active_players = self.get_active_players()
+            for camera_index in newly_hidden:
+                active_players[camera_index].setSource(QUrl())
+
+            # Handle newly visible cameras - synchronize them properly
+            #
+            # Camera Synchronization Workflow:
+            # 1. LayoutManager detects visibility changes and emits camera_visibility_changed signal
+            # 2. This handler receives the signal with lists of newly visible/hidden cameras
+            # 3. For each newly visible camera, we attempt synchronization:
+            #    a) Primary: Use VideoPlaybackManager.synchronize_camera_to_current_position()
+            #    b) Fallback: Use UI-based _synchronize_newly_visible_camera()
+            # 4. Synchronization loads correct video segment and seeks to current position
+            # 5. Playback state is preserved (resume if others were playing)
+            #
+            for camera_index in newly_visible:
+                # Use VideoPlaybackManager if available, otherwise fallback to UI method
+                if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+                    self.video_manager.synchronize_camera_to_current_position(camera_index)
+                else:
+                    self._synchronize_newly_visible_camera(camera_index)
+
+            # Save settings after visibility changes
             self.save_settings()
 
             # Update state tracking
@@ -579,31 +584,38 @@ class TeslaCamViewer(QWidget):
         super().closeEvent(event)
 
     def handle_date_selection_change(self):
+        """Handle date selection change (delegated to ClipManager)."""
         if self.date_selector.currentIndex() < 0:
             return # Don't clear if nothing is selected
-            
+
         selected_date_str = self.date_selector.currentData()
         if not selected_date_str or not self.app_state.root_clips_path:
             self.clear_all_players()
             return
-        
+
         self.clear_all_players() # Clean up any previous worker first
-        self.set_ui_loading(True)
 
-        self.clip_loader_worker = workers.ClipLoaderWorker(
-            self.app_state.root_clips_path, 
-            selected_date_str, 
-            self.camera_name_to_index
-        )
-        self.clip_loader_thread = QThread()
-        self.clip_loader_worker.moveToThread(self.clip_loader_thread)
+        # Use ClipManager if available, otherwise fallback to original implementation
+        if hasattr(self, 'clip_manager') and self.clip_manager.is_initialized():
+            self.clip_manager.load_clips_for_date(selected_date_str)
+        else:
+            # Fallback to original implementation
+            self.set_ui_loading(True)
 
-        self.clip_loader_thread.started.connect(self.clip_loader_worker.run)
-        self.clip_loader_worker.finished.connect(self._on_clips_loaded)
-        self.clip_loader_thread.finished.connect(self.clip_loader_thread.deleteLater)
-        self.clip_loader_worker.finished.connect(self.clip_loader_worker.deleteLater)
+            self.clip_loader_worker = workers.ClipLoaderWorker(
+                self.app_state.root_clips_path,
+                selected_date_str,
+                self.camera_name_to_index
+            )
+            self.clip_loader_thread = QThread()
+            self.clip_loader_worker.moveToThread(self.clip_loader_thread)
 
-        self.clip_loader_thread.start()
+            self.clip_loader_thread.started.connect(self.clip_loader_worker.run)
+            self.clip_loader_worker.finished.connect(self._on_clips_loaded)
+            self.clip_loader_thread.finished.connect(self.clip_loader_thread.deleteLater)
+            self.clip_loader_worker.finished.connect(self.clip_loader_worker.deleteLater)
+
+            self.clip_loader_thread.start()
 
     def _on_clips_loaded(self, data: TimelineData):
         self.set_ui_loading(False)
@@ -636,14 +648,24 @@ class TeslaCamViewer(QWidget):
             self.layout_manager.update_ui_layout()
 
     def _apply_root_folder(self, folder):
-        """Set root clips folder and refresh date selector."""
+        """Set root clips folder and refresh date selector (delegated to ClipManager)."""
         if folder and os.path.isdir(folder):
-            self.app_state.root_clips_path = folder
             self.clear_all_players()
-            if not self.repopulate_date_selector_from_path(folder):
-                QMessageBox.information(self, "No Dates", "No date folders found.")
+
+            # Use ClipManager if available, otherwise fallback to original implementation
+            if hasattr(self, 'clip_manager') and self.clip_manager.is_initialized():
+                if self.clip_manager.set_root_clips_path(folder):
+                    # ClipManager will emit folder_scan_completed signal which updates date selector
+                    self.date_selector.setCurrentIndex(-1)
+                else:
+                    QMessageBox.information(self, "No Dates", "No date folders found.")
             else:
-                self.date_selector.setCurrentIndex(-1)
+                # Fallback to original implementation
+                self.app_state.root_clips_path = folder
+                if not self.repopulate_date_selector_from_path(folder):
+                    QMessageBox.information(self, "No Dates", "No date folders found.")
+                else:
+                    self.date_selector.setCurrentIndex(-1)
 
     def select_root_folder(self): 
         folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.app_state.root_clips_path or os.path.expanduser("~"))
@@ -990,10 +1012,15 @@ class TeslaCamViewer(QWidget):
     def update_slider_and_time_display(self):
         try:
             if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
-            
-            ref_player = self.get_active_players()[self.camera_name_to_index["front"]]
+
+            # Get active players with bounds checking
+            active_players = self.get_active_players()
+            if not active_players or len(active_players) <= self.camera_name_to_index["front"]:
+                return
+
+            ref_player = active_players[self.camera_name_to_index["front"]]
             if not (ref_player.source() and ref_player.source().isValid()):
-                ref_player = next((p for i, p in enumerate(self.get_active_players()) if p.source() and p.source().isValid()), None)
+                ref_player = next((p for i, p in enumerate(active_players) if p.source() and p.source().isValid()), None)
 
             if not ref_player:
                 # Don't jump to end when no valid player is available
@@ -1364,11 +1391,13 @@ class TeslaCamViewer(QWidget):
             self.video_manager = VideoPlaybackManager(self, self.container)
             self.export_manager = ExportManager(self, self.container)
             self.layout_manager = LayoutManager(self, self.container)
+            self.clip_manager = ClipManager(self, self.container)
 
             # Register managers in container
             self.container.register_service('video_playback', self.video_manager)
             self.container.register_service('export', self.export_manager)
             self.container.register_service('layout', self.layout_manager)
+            self.container.register_service('clip', self.clip_manager)
 
             # Initialize managers
             if not self._initialize_all_managers():
@@ -1391,6 +1420,7 @@ class TeslaCamViewer(QWidget):
             ('VideoPlaybackManager', self.video_manager),
             ('ExportManager', self.export_manager),
             ('LayoutManager', self.layout_manager),
+            ('ClipManager', self.clip_manager),
         ]
 
         for name, manager in managers:
@@ -1435,6 +1465,13 @@ class TeslaCamViewer(QWidget):
             self.layout_manager.signals.grid_configuration_changed.connect(self._on_grid_configuration_changed)
             self.layout_manager.signals.layout_validation_failed.connect(self._on_layout_validation_failed)
             self.layout_manager.signals.camera_drop_completed.connect(self._on_camera_drop_completed)
+
+            # Clip manager signals (Week 6 implementation)
+            self.clip_manager.signals.folder_scan_completed.connect(self._on_folder_scan_completed)
+            self.clip_manager.signals.clip_loading_started.connect(self._on_clip_loading_started)
+            self.clip_manager.signals.clip_loading_progress.connect(self._on_clip_loading_progress)
+            self.clip_manager.signals.clip_loading_completed.connect(self._on_clip_loading_completed)
+            self.clip_manager.signals.clip_loading_failed.connect(self._on_clip_loading_failed)
 
             print("✓ Manager signals connected")
 
@@ -1599,10 +1636,185 @@ class TeslaCamViewer(QWidget):
     def _on_camera_visibility_changed(self, camera_index: int, is_visible: bool) -> None:
         """Handle camera visibility change from LayoutManager."""
         try:
-            # Visibility change is handled by LayoutManager
-            pass
+            # If camera is being made visible, synchronize it with other cameras
+            if is_visible:
+                self._synchronize_newly_visible_camera(camera_index)
         except Exception as e:
             print(f"Error handling camera visibility change: {e}")
+
+    def _synchronize_newly_visible_camera(self, camera_index: int) -> None:
+        """
+        Synchronize a newly visible camera with the current playback state.
+
+        This is a fallback synchronization method used when the VideoPlaybackManager
+        is not available or not initialized. It provides the same functionality as
+        the manager-based synchronization but operates directly on UI components.
+
+        The method performs the following steps:
+        1. Gets the current playback state (playing/paused)
+        2. Finds a reference position from currently visible cameras
+        3. Loads the appropriate video segment for the target camera
+        4. Sets up a callback to seek to the correct position when media loads
+        5. Resumes playback if other cameras were playing
+
+        Args:
+            camera_index (int): Index of the camera to synchronize (0-5)
+
+        Note:
+            This method is automatically called by the camera visibility change
+            handler when the VideoPlaybackManager is not available. It uses
+            Qt's signal/slot mechanism to ensure proper timing of the seek
+            operation after media loading completes.
+
+        See Also:
+            VideoPlaybackManager.synchronize_camera_to_current_position():
+            The preferred synchronization method when managers are available.
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return
+
+            # Get current playback state
+            was_playing = self.play_btn.text() == "⏸️ Pause"
+
+            # Get reference position from currently visible cameras
+            reference_position = self._get_reference_playback_position()
+            if reference_position is None:
+                return
+
+            current_segment_index = reference_position['segment_index']
+            current_local_ms = reference_position['local_ms']
+
+            # Get active players
+            active_players = self.get_active_players()
+            target_player = active_players[camera_index]
+
+            # Check if we need to load a different segment for this camera
+            camera_clips = self.app_state.daily_clip_collections[camera_index]
+            if not camera_clips or current_segment_index >= len(camera_clips):
+                # No clips available for this camera at current segment
+                target_player.setSource(QUrl())
+                return
+
+            # Load the correct segment for this camera
+            target_clip_path = camera_clips[current_segment_index]
+            target_player.setSource(QUrl.fromLocalFile(target_clip_path))
+
+            # Set up synchronization when media is loaded
+            def on_media_loaded():
+                try:
+                    if target_player.mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                        # Seek to the correct position
+                        target_player.setPosition(current_local_ms)
+
+                        # Resume playback if other cameras were playing
+                        if was_playing:
+                            target_player.play()
+
+                        # Disconnect the signal to avoid multiple calls
+                        target_player.mediaStatusChanged.disconnect(on_media_loaded)
+
+                except Exception as e:
+                    print(f"Error in media loaded callback for camera {camera_index}: {e}")
+
+            # Connect to media status change to sync when loaded
+            target_player.mediaStatusChanged.connect(on_media_loaded)
+
+        except Exception as e:
+            print(f"Error synchronizing newly visible camera {camera_index}: {e}")
+
+    def _get_reference_playback_position(self) -> dict:
+        """
+        Get the current playback position from visible cameras as reference.
+
+        This method finds a suitable reference camera from currently visible cameras
+        and extracts the current playback position information needed for synchronization.
+        It prioritizes the front camera but will use any available camera as fallback.
+
+        The method attempts to get position information in this order:
+        1. Front camera (preferred reference)
+        2. Any other visible camera with valid media
+        3. Returns None if no suitable reference is found
+
+        Returns:
+            dict or None: Dictionary containing position information with keys:
+                - 'global_ms' (int): Global timeline position in milliseconds
+                - 'segment_index' (int): Current video segment index
+                - 'local_ms' (int): Position within current segment in milliseconds
+
+                Returns None if:
+                - Daily view is not active
+                - No cameras are currently visible
+                - No visible cameras have valid media loaded
+
+        Note:
+            This method is used by the fallback UI synchronization when the
+            VideoPlaybackManager is not available. The returned position data
+            is used to synchronize newly visible cameras to the current playback state.
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return None
+
+            # Get currently visible cameras
+            visible_cameras = []
+            if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+                visible_cameras = self.layout_manager.get_visible_cameras()
+            else:
+                visible_cameras = self.ordered_visible_player_indices
+
+            if not visible_cameras:
+                return None
+
+            # Get active players
+            active_players = self.get_active_players()
+
+            # Find a reference player that has loaded media
+            reference_player = None
+            reference_camera_index = None
+
+            # Prefer front camera as reference if visible and loaded
+            front_idx = self.camera_name_to_index["front"]
+            if front_idx in visible_cameras:
+                front_player = active_players[front_idx]
+                if (front_player.source() and front_player.source().isValid() and
+                    front_player.mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia):
+                    reference_player = front_player
+                    reference_camera_index = front_idx
+
+            # If front camera not available, use any other visible camera
+            if not reference_player:
+                for camera_idx in visible_cameras:
+                    player = active_players[camera_idx]
+                    if (player.source() and player.source().isValid() and
+                        player.mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia):
+                        reference_player = player
+                        reference_camera_index = camera_idx
+                        break
+
+            if not reference_player:
+                return None
+
+            # Get current position information
+            local_ms = reference_player.position()
+            segment_start_ms = getattr(self.app_state.playback_state, 'segment_start_ms', 0)
+            global_ms = segment_start_ms + local_ms
+
+            # Get current segment index
+            segment_index = 0
+            if hasattr(self.app_state.playback_state, 'clip_indices'):
+                segment_index = self.app_state.playback_state.clip_indices.get(reference_camera_index, 0)
+
+            return {
+                'global_ms': global_ms,
+                'local_ms': local_ms,
+                'segment_index': segment_index,
+                'reference_camera': reference_camera_index
+            }
+
+        except Exception as e:
+            print(f"Error getting reference playback position: {e}")
+            return None
 
     def _on_camera_order_changed(self, new_order: list) -> None:
         """Handle camera order change from LayoutManager."""
@@ -1639,6 +1851,91 @@ class TeslaCamViewer(QWidget):
         """Show error message to user (fallback for managers without error handler)."""
         QMessageBox.warning(self, "Error", message)
 
+    # ========================================
+    # ClipManager Signal Handlers (Week 6 Implementation)
+    # ========================================
+
+    def _on_folder_scan_completed(self, available_dates: list) -> None:
+        """Handle folder scan completion from ClipManager."""
+        try:
+            # Update date selector with available dates
+            self.date_selector.blockSignals(True)
+            self.date_selector.clear()
+            self.date_selector.setEnabled(False)
+
+            for date_str in available_dates:
+                try:
+                    display_text = datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
+                    self.date_selector.addItem(display_text, date_str)
+                except ValueError:
+                    continue
+
+            if available_dates:
+                self.date_selector.setEnabled(True)
+
+            self.date_selector.blockSignals(False)
+
+        except Exception as e:
+            print(f"Error handling folder scan completed: {e}")
+
+    def _on_clip_loading_started(self, date_str: str) -> None:
+        """Handle clip loading start from ClipManager."""
+        try:
+            self.set_ui_loading(True)
+        except Exception as e:
+            print(f"Error handling clip loading started: {e}")
+
+    def _on_clip_loading_progress(self, percentage: int, status: str) -> None:
+        """Handle clip loading progress from ClipManager."""
+        try:
+            # Progress updates are handled by ClipManager
+            # Could update a progress bar here if needed
+            pass
+        except Exception as e:
+            print(f"Error handling clip loading progress: {e}")
+
+    def _on_clip_loading_completed(self, timeline_data: TimelineData) -> None:
+        """Handle clip loading completion from ClipManager."""
+        try:
+            self.set_ui_loading(False)
+
+            if timeline_data.error:
+                QMessageBox.warning(self, "Could Not Load Date", timeline_data.error)
+                return
+
+            if timeline_data.first_timestamp_of_day is None:
+                QMessageBox.warning(self, "No Videos", "No valid video files found.")
+                return
+
+            # Update app state with loaded data
+            self.app_state.is_daily_view_active = True
+            self.app_state.first_timestamp_of_day = timeline_data.first_timestamp_of_day
+            self.app_state.daily_clip_collections = timeline_data.daily_clip_collections
+
+            # Update UI components
+            self.scrubber.setRange(0, timeline_data.total_duration_ms)
+            self.scrubber.set_events(timeline_data.events)
+
+            # Load first segment
+            self._load_and_set_segment(0)
+            self.update_layout()
+
+            # Ensure LayoutManager updates UI after clips are loaded
+            if hasattr(self, 'layout_manager') and self.layout_manager.is_initialized():
+                self.layout_manager._acquire_ui_components()
+                self.layout_manager.update_ui_layout()
+
+        except Exception as e:
+            print(f"Error handling clip loading completed: {e}")
+
+    def _on_clip_loading_failed(self, error_message: str) -> None:
+        """Handle clip loading failure from ClipManager."""
+        try:
+            self.set_ui_loading(False)
+            QMessageBox.warning(self, "Clip Loading Failed", error_message)
+        except Exception as e:
+            print(f"Error handling clip loading failed: {e}")
+
     def cleanup_managers(self) -> None:
         """Clean up all managers when application closes."""
         try:
@@ -1648,6 +1945,8 @@ class TeslaCamViewer(QWidget):
                 self.export_manager.cleanup()
             if hasattr(self, 'layout_manager'):
                 self.layout_manager.cleanup()
+            if hasattr(self, 'clip_manager'):
+                self.clip_manager.cleanup()
             if hasattr(self, 'container'):
                 self.container.clear()
             print("✓ Managers cleaned up successfully")
