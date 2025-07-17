@@ -12,6 +12,9 @@ specific aspects of the application functionality:
 - LayoutManager: Camera layout and UI management
 - ClipManager: File discovery and clip loading
 - ConfigurationManager: Application settings and user preferences
+- LoggingManager: Centralized logging with file rotation and debugging
+- CacheManager: Intelligent caching for thumbnails, metadata, and data
+- PluginManager: Extensible plugin architecture for functionality expansion
 """
 
 from .base import BaseManager
@@ -22,6 +25,9 @@ from .export import ExportManager
 from .layout import LayoutManager
 from .clip import ClipManager
 from .configuration import ConfigurationManager
+from .logging import LoggingManager
+from .cache import CacheManager
+from .plugin import PluginManager, PluginInterface
 
 __all__ = [
     'BaseManager',
@@ -33,5 +39,9 @@ __all__ = [
     'ExportManager',
     'LayoutManager',
     'ClipManager',
-    'ConfigurationManager'
+    'ConfigurationManager',
+    'LoggingManager',
+    'CacheManager',
+    'PluginManager',
+    'PluginInterface'
 ]

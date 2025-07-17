@@ -4,4 +4,5 @@ PyQt6-sip>=13.0
 ffmpeg-python>=0.2
 setuptools>=65.5.0
 wheel>=0.37.0
+psutil>=5.8.0  # Optional: Enhanced memory monitoring for LoggingManager
 # Ensure ffmpeg is installed separately and in system PATH

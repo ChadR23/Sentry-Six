@@ -109,6 +109,37 @@ class ConfigurationManager(BaseManager):
             'background_processing': True,
             'cpu_threads': -1,  # -1 = auto-detect
             'memory_limit_mb': 1024,
+        },
+
+        # Logging settings
+        'logging': {
+            'default_level': 'INFO',
+            'debug_mode': False,
+            'console_enabled': True,
+            'file_enabled': True,
+            'max_file_size_mb': 10,
+            'max_backup_count': 5,
+            'retention_days': 30,
+            'performance_logging': True,
+        },
+
+        # Cache settings
+        'cache': {
+            'thumbnails_enabled': True,
+            'metadata_enabled': True,
+            'video_info_enabled': True,
+            'user_data_enabled': True,
+            'temp_enabled': True,
+            'cleanup_interval_minutes': 30,
+            'memory_cache_limit': 100,
+        },
+
+        # Plugin settings
+        'plugins': {
+            'auto_load': True,
+            'enable_third_party': True,
+            'security_enabled': True,
+            'discovery_enabled': True,
         }
     }
 

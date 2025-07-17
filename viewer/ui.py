@@ -28,7 +28,7 @@ from .ffmpeg_manager import FFMPEG_EXE
 from .hwacc_detector import hwacc_detector
 from .managers import (DependencyContainer, ErrorHandler, VideoPlaybackManager,
                       ExportManager, LayoutManager, ClipManager, ConfigurationManager,
-                      ErrorContext, ErrorSeverity)
+                      LoggingManager, CacheManager, PluginManager, ErrorContext, ErrorSeverity)
 
 
 class WelcomeDialog(QDialog):
@@ -1390,6 +1390,9 @@ class TeslaCamViewer(QWidget):
 
             # Create managers
             self.config_manager = ConfigurationManager(self, self.container)
+            self.logging_manager = LoggingManager(self, self.container)
+            self.cache_manager = CacheManager(self, self.container)
+            self.plugin_manager = PluginManager(self, self.container)
             self.video_manager = VideoPlaybackManager(self, self.container)
             self.export_manager = ExportManager(self, self.container)
             self.layout_manager = LayoutManager(self, self.container)
@@ -1397,6 +1400,9 @@ class TeslaCamViewer(QWidget):
 
             # Register managers in container
             self.container.register_service('configuration', self.config_manager)
+            self.container.register_service('logging', self.logging_manager)
+            self.container.register_service('cache', self.cache_manager)
+            self.container.register_service('plugin', self.plugin_manager)
             self.container.register_service('video_playback', self.video_manager)
             self.container.register_service('export', self.export_manager)
             self.container.register_service('layout', self.layout_manager)
@@ -1421,6 +1427,9 @@ class TeslaCamViewer(QWidget):
         """Initialize all managers in correct order."""
         managers = [
             ('ConfigurationManager', self.config_manager),
+            ('LoggingManager', self.logging_manager),
+            ('CacheManager', self.cache_manager),
+            ('PluginManager', self.plugin_manager),
             ('VideoPlaybackManager', self.video_manager),
             ('ExportManager', self.export_manager),
             ('LayoutManager', self.layout_manager),
@@ -1451,6 +1460,23 @@ class TeslaCamViewer(QWidget):
             self.config_manager.signals.theme_changed.connect(self._on_theme_changed)
             self.config_manager.signals.language_changed.connect(self._on_language_changed)
             self.config_manager.signals.profile_loaded.connect(self._on_profile_loaded)
+
+            # Logging manager signals (Week 7 implementation)
+            self.logging_manager.signals.log_level_changed.connect(self._on_log_level_changed)
+            self.logging_manager.signals.debug_mode_changed.connect(self._on_debug_mode_changed)
+            self.logging_manager.signals.critical_error_logged.connect(self._on_critical_error_logged)
+            self.logging_manager.signals.log_cleanup_completed.connect(self._on_log_cleanup_completed)
+
+            # Cache manager signals (Week 7 implementation)
+            self.cache_manager.signals.cache_cleanup_completed.connect(self._on_cache_cleanup_completed)
+            self.cache_manager.signals.cache_size_warning.connect(self._on_cache_size_warning)
+            self.cache_manager.signals.cache_hit_rate_updated.connect(self._on_cache_hit_rate_updated)
+
+            # Plugin manager signals (Week 7 implementation)
+            self.plugin_manager.signals.plugin_loaded.connect(self._on_plugin_loaded)
+            self.plugin_manager.signals.plugin_unloaded.connect(self._on_plugin_unloaded)
+            self.plugin_manager.signals.plugin_error.connect(self._on_plugin_error)
+            self.plugin_manager.signals.plugins_discovered.connect(self._on_plugins_discovered)
 
             # Video playback manager signals (Week 2 Implementation)
             self.video_manager.signals.playback_state_changed.connect(self._on_playback_state_changed)
@@ -1547,6 +1573,106 @@ class TeslaCamViewer(QWidget):
             print(f"Profile '{profile_name}' loaded")
         except Exception as e:
             print(f"Error handling profile load: {e}")
+
+    # ========================================
+    # LoggingManager Signal Handlers (Week 7 Implementation)
+    # ========================================
+
+    def _on_log_level_changed(self, level: str) -> None:
+        """Handle log level changes from LoggingManager."""
+        try:
+            print(f"Log level changed to: {level}")
+            # Update UI elements that show current log level
+        except Exception as e:
+            print(f"Error handling log level change: {e}")
+
+    def _on_debug_mode_changed(self, enabled: bool) -> None:
+        """Handle debug mode changes from LoggingManager."""
+        try:
+            print(f"Debug mode {'enabled' if enabled else 'disabled'}")
+            # Update UI to reflect debug mode state
+        except Exception as e:
+            print(f"Error handling debug mode change: {e}")
+
+    def _on_critical_error_logged(self, logger_name: str, message: str) -> None:
+        """Handle critical errors from LoggingManager."""
+        try:
+            # Show critical error notification to user
+            QMessageBox.critical(self, "Critical Error",
+                               f"Critical error in {logger_name}:\n{message}")
+        except Exception as e:
+            print(f"Error handling critical error notification: {e}")
+
+    def _on_log_cleanup_completed(self, files_removed: int) -> None:
+        """Handle log cleanup completion from LoggingManager."""
+        try:
+            if files_removed > 0:
+                print(f"Log cleanup completed: {files_removed} files removed")
+        except Exception as e:
+            print(f"Error handling log cleanup notification: {e}")
+
+    # ========================================
+    # CacheManager Signal Handlers (Week 7 Implementation)
+    # ========================================
+
+    def _on_cache_cleanup_completed(self, files_removed: int, bytes_freed: int) -> None:
+        """Handle cache cleanup completion from CacheManager."""
+        try:
+            if files_removed > 0:
+                mb_freed = bytes_freed / (1024 * 1024)
+                print(f"Cache cleanup completed: {files_removed} files removed, {mb_freed:.2f} MB freed")
+        except Exception as e:
+            print(f"Error handling cache cleanup notification: {e}")
+
+    def _on_cache_size_warning(self, current_size_mb: int, limit_mb: int) -> None:
+        """Handle cache size warnings from CacheManager."""
+        try:
+            print(f"Cache size warning: {current_size_mb} MB / {limit_mb} MB limit")
+            # Could show a notification to user about high cache usage
+        except Exception as e:
+            print(f"Error handling cache size warning: {e}")
+
+    def _on_cache_hit_rate_updated(self, cache_type: str, hit_rate: float) -> None:
+        """Handle cache hit rate updates from CacheManager."""
+        try:
+            print(f"Cache hit rate for {cache_type}: {hit_rate:.2%}")
+        except Exception as e:
+            print(f"Error handling cache hit rate update: {e}")
+
+    # ========================================
+    # PluginManager Signal Handlers (Week 7 Implementation)
+    # ========================================
+
+    def _on_plugin_loaded(self, plugin_id: str, plugin_name: str) -> None:
+        """Handle plugin loading from PluginManager."""
+        try:
+            print(f"Plugin loaded: {plugin_name} ({plugin_id})")
+            # Could update plugin menu or toolbar here
+        except Exception as e:
+            print(f"Error handling plugin load notification: {e}")
+
+    def _on_plugin_unloaded(self, plugin_id: str) -> None:
+        """Handle plugin unloading from PluginManager."""
+        try:
+            print(f"Plugin unloaded: {plugin_id}")
+            # Could update plugin menu or toolbar here
+        except Exception as e:
+            print(f"Error handling plugin unload notification: {e}")
+
+    def _on_plugin_error(self, plugin_id: str, error_message: str) -> None:
+        """Handle plugin errors from PluginManager."""
+        try:
+            print(f"Plugin error in {plugin_id}: {error_message}")
+            # Could show error notification to user
+        except Exception as e:
+            print(f"Error handling plugin error notification: {e}")
+
+    def _on_plugins_discovered(self, plugin_count: int) -> None:
+        """Handle plugin discovery completion from PluginManager."""
+        try:
+            print(f"Plugin discovery completed: {plugin_count} plugins found")
+        except Exception as e:
+            print(f"Error handling plugin discovery notification: {e}")
 
     # ========================================
     # VideoPlaybackManager Signal Handlers (Week 2 Implementation)
@@ -1996,6 +2122,12 @@ class TeslaCamViewer(QWidget):
         try:
             if hasattr(self, 'config_manager'):
                 self.config_manager.cleanup()
+            if hasattr(self, 'logging_manager'):
+                self.logging_manager.cleanup()
+            if hasattr(self, 'cache_manager'):
+                self.cache_manager.cleanup()
+            if hasattr(self, 'plugin_manager'):
+                self.plugin_manager.cleanup()
             if hasattr(self, 'video_manager'):
                 self.video_manager.cleanup()
             if hasattr(self, 'export_manager'):
@@ -2121,6 +2253,193 @@ class TeslaCamViewer(QWidget):
 
         except Exception as e:
             print(f"Error refreshing UI from config: {e}")
+
+    # ========================================
+    # LoggingManager Wrapper Methods (Week 7 Implementation)
+    # ========================================
+
+    def get_logger(self, name: str):
+        """Get a logger instance (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            return self.logging_manager.get_logger(name)
+        else:
+            # Fallback to standard logging
+            import logging
+            return logging.getLogger(name)
+
+    def set_log_level(self, level: str) -> bool:
+        """Set log level (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            return self.logging_manager.set_log_level(level)
+        else:
+            # Fallback to standard logging
+            import logging
+            try:
+                numeric_level = getattr(logging, level.upper())
+                logging.getLogger().setLevel(numeric_level)
+                return True
+            except AttributeError:
+                return False
+
+    def set_debug_mode(self, enabled: bool) -> None:
+        """Enable/disable debug mode (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            self.logging_manager.set_debug_mode(enabled)
+        else:
+            # Fallback behavior
+            level = 'DEBUG' if enabled else 'INFO'
+            self.set_log_level(level)
+
+    def log_performance_metric(self, metric_name: str, value: float, unit: str = 'ms') -> None:
+        """Log performance metric (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            self.logging_manager.log_performance_metric(metric_name, value, unit)
+        else:
+            # Fallback to print
+            print(f"PERF: {metric_name}: {value}{unit}")
+
+    def get_log_file_info(self) -> dict:
+        """Get log file information (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            return self.logging_manager.get_log_file_info()
+        else:
+            return {}
+
+    def cleanup_old_logs(self, days: int = None) -> int:
+        """Clean up old log files (delegated to LoggingManager)."""
+        if hasattr(self, 'logging_manager') and self.logging_manager.is_initialized():
+            return self.logging_manager.cleanup_old_logs(days)
+        else:
+            return 0
+
+    # ========================================
+    # CacheManager Wrapper Methods (Week 7 Implementation)
+    # ========================================
+
+    def get_cache(self, cache_type: str, key: str, default=None):
+        """Get item from cache (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.get(cache_type, key, default)
+        else:
+            return default
+
+    def set_cache(self, cache_type: str, key: str, value, ttl_days=None) -> bool:
+        """Set item in cache (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.set(cache_type, key, value, ttl_days)
+        else:
+            return False
+
+    def get_thumbnail(self, video_path: str, timestamp: float = 0.0):
+        """Get thumbnail for video (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.get_thumbnail(video_path, timestamp)
+        else:
+            return None
+
+    def store_thumbnail(self, video_path: str, thumbnail, timestamp: float = 0.0) -> bool:
+        """Store thumbnail for video (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.store_thumbnail(video_path, thumbnail, timestamp)
+        else:
+            return False
+
+    def get_video_metadata(self, video_path: str) -> dict:
+        """Get cached video metadata (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.get_video_metadata(video_path) or {}
+        else:
+            return {}
+
+    def store_video_metadata(self, video_path: str, metadata: dict) -> bool:
+        """Store video metadata in cache (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.store_video_metadata(video_path, metadata)
+        else:
+            return False
+
+    def get_cache_stats(self) -> dict:
+        """Get cache statistics (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.get_cache_stats()
+        else:
+            return {}
+
+    def cleanup_cache(self, cache_type: str = None) -> tuple:
+        """Clean up cache entries (delegated to CacheManager)."""
+        if hasattr(self, 'cache_manager') and self.cache_manager.is_initialized():
+            return self.cache_manager.cleanup_expired(cache_type)
+        else:
+            return 0, 0
+
+    # ========================================
+    # PluginManager Wrapper Methods (Week 7 Implementation)
+    # ========================================
+
+    def load_plugin(self, plugin_path: str) -> bool:
+        """Load a plugin (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            from pathlib import Path
+            return self.plugin_manager.load_plugin(Path(plugin_path))
+        else:
+            return False
+
+    def unload_plugin(self, plugin_id: str) -> bool:
+        """Unload a plugin (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.unload_plugin(plugin_id)
+        else:
+            return False
+
+    def get_loaded_plugins(self) -> dict:
+        """Get loaded plugins (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.get_loaded_plugins()
+        else:
+            return {}
+
+    def enable_plugin(self, plugin_id: str) -> bool:
+        """Enable a plugin (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.enable_plugin(plugin_id)
+        else:
+            return False
+
+    def disable_plugin(self, plugin_id: str) -> bool:
+        """Disable a plugin (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.disable_plugin(plugin_id)
+        else:
+            return False
+
+    def notify_plugins_video_loaded(self, video_path: str) -> None:
+        """Notify plugins that a video was loaded (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            self.plugin_manager.notify_video_loaded(video_path)
+
+    def notify_plugins_export_started(self, export_settings: dict) -> None:
+        """Notify plugins that export started (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            self.plugin_manager.notify_export_started(export_settings)
+
+    def notify_plugins_export_completed(self, export_path: str) -> None:
+        """Notify plugins that export completed (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            self.plugin_manager.notify_export_completed(export_path)
+
+    def get_plugin_info(self) -> dict:
+        """Get plugin system information (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.get_plugin_info()
+        else:
+            return {}
+
+    def create_sample_plugin(self, plugin_name: str) -> bool:
+        """Create a sample plugin (delegated to PluginManager)."""
+        if hasattr(self, 'plugin_manager') and self.plugin_manager.is_initialized():
+            return self.plugin_manager.create_sample_plugin(plugin_name)
+        else:
+            return False
 
     def closeEvent(self, event):
         """Override close event to ensure proper cleanup."""
