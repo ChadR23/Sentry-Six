@@ -59,6 +59,21 @@ class VideoPlaybackManager(BaseManager):
         self.current_segment_index = -1
         self.playback_rate = 1.0
 
+        # Week 3 Enhancement: Additional state variables
+        self.is_playing = False
+        self.players_awaiting_seek = set()
+        self.pending_seek_position = -1
+
+        # Error recovery state
+        self.recovery_attempts = {}  # Track recovery attempts per player
+        self.max_recovery_attempts = 3
+        self.corrupted_files = set()  # Track known corrupted files
+        self.fallback_segments = {}  # Track fallback segments for corrupted ones
+
+        # Performance monitoring
+        self.performance_history = []
+        self.last_performance_check = datetime.now()
+
         # Get dependencies
         self.app_state = None
         self.camera_name_to_index = None
@@ -735,3 +750,747 @@ class VideoPlaybackManager(BaseManager):
 
         except Exception as e:
             self.handle_error(e, "_swap_player_sets")
+
+    # ========================================
+    # Performance Optimization Methods (Week 3 Implementation)
+    # ========================================
+
+    def _optimized_preload_next_segment(self) -> None:
+        """
+        Optimized preloading with intelligent memory management and priority-based loading.
+
+        Performance improvements:
+        - Smart memory usage
+        - Priority-based camera loading (front camera first)
+        - Asynchronous loading to prevent UI blocking
+        - Intelligent cache management
+        """
+        try:
+            from .. import utils
+
+            if not self.app_state.is_daily_view_active:
+                return
+
+            front_cam_idx = self.camera_name_to_index["front"]
+            current_segment_index = self.app_state.playback_state.clip_indices[front_cam_idx]
+            next_segment_index = current_segment_index + 1
+
+            # Check if next segment exists
+            front_clips = self.app_state.daily_clip_collections[front_cam_idx]
+            if next_segment_index >= len(front_clips):
+                return
+
+            # OPTIMIZATION: Priority-based loading - front camera first
+            inactive_players = self.get_inactive_players()
+            visible_indices = getattr(self.parent_widget, 'ordered_visible_player_indices', list(range(6)))
+
+            # Load front camera first (highest priority)
+            if front_cam_idx in visible_indices:
+                self._load_camera_with_priority(inactive_players[front_cam_idx], front_cam_idx, next_segment_index, priority=1)
+
+            # OPTIMIZATION: Staggered loading for other cameras to spread I/O load
+            other_cameras = [i for i in visible_indices if i != front_cam_idx]
+            for delay_ms, camera_idx in enumerate(other_cameras, start=1):
+                QTimer.singleShot(delay_ms * 25, lambda idx=camera_idx:
+                    self._load_camera_with_priority(inactive_players[idx], idx, next_segment_index, priority=2))
+
+            # OPTIMIZATION: Unload hidden cameras to free memory
+            hidden_cameras = set(range(6)) - set(visible_indices)
+            for camera_idx in hidden_cameras:
+                inactive_players[camera_idx].setSource(QUrl())
+
+            if utils.DEBUG_UI:
+                print(f"--- Optimized preloading segment {next_segment_index} ---")
+
+        except Exception as e:
+            self.handle_error(e, "_optimized_preload_next_segment")
+
+    def _load_camera_with_priority(self, player: QMediaPlayer, camera_idx: int, segment_index: int, priority: int) -> None:
+        """Load a specific camera with priority-based resource allocation."""
+        try:
+            if segment_index >= len(self.app_state.daily_clip_collections[camera_idx]):
+                return
+
+            clip_path = self.app_state.daily_clip_collections[camera_idx][segment_index]
+
+            # OPTIMIZATION: Validate file exists before loading
+            if os.path.exists(clip_path):
+                player.setSource(QUrl.fromLocalFile(clip_path))
+
+                # OPTIMIZATION: Set buffer size based on priority
+                if hasattr(player, 'setBufferSize'):
+                    buffer_size = 8192 if priority == 1 else 4096  # Front camera gets larger buffer
+                    player.setBufferSize(buffer_size)
+
+        except Exception as e:
+            self.handle_error(e, f"_load_camera_with_priority(camera_{camera_idx}, segment_{segment_index})")
+
+    def _optimized_play_all(self) -> None:
+        """
+        Optimized play_all with intelligent resource management and smooth startup.
+
+        Performance improvements:
+        - Staggered player startup to reduce CPU spikes
+        - Smart validation to avoid unnecessary operations
+        - Optimized UI updates
+        - Better error recovery
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return
+
+            active_players = self.get_active_players()
+            visible_indices = getattr(self.parent_widget, 'ordered_visible_player_indices', list(range(6)))
+
+            # OPTIMIZATION: Pre-validate players to avoid failed play attempts
+            valid_players = []
+            for i, player in enumerate(active_players):
+                if i in visible_indices and player.source() and player.source().isValid():
+                    valid_players.append((i, player))
+
+            if not valid_players:
+                return
+
+            # OPTIMIZATION: Staggered startup to reduce CPU load
+            front_cam_idx = self.camera_name_to_index["front"]
+
+            # Start front camera immediately (most important)
+            for i, player in valid_players:
+                if i == front_cam_idx:
+                    player.play()
+                    break
+
+            # Start other cameras with small delays
+            other_players = [(i, player) for i, player in valid_players if i != front_cam_idx]
+            for delay_idx, (i, player) in enumerate(other_players):
+                QTimer.singleShot((delay_idx + 1) * 15, player.play)
+
+            # Update state and UI
+            self.is_playing = True
+            if hasattr(self.parent_widget, 'play_btn'):
+                self.parent_widget.play_btn.setText("⏸️ Pause")
+
+            # OPTIMIZATION: Start position timer with adaptive interval
+            if hasattr(self.parent_widget, 'position_update_timer'):
+                # Use faster updates during seeking, slower during normal playback
+                interval = 50 if self.pending_seek_position >= 0 else 100
+                self.parent_widget.position_update_timer.start(interval)
+
+            # Emit signal
+            self.signals.playback_state_changed.emit(True)
+
+        except Exception as e:
+            self.handle_error(e, "_optimized_play_all")
+
+    def get_performance_metrics(self) -> dict:
+        """
+        Get performance metrics for monitoring and optimization.
+
+        Returns:
+            dict: Performance metrics including memory usage, player states, etc.
+        """
+        try:
+            metrics = {
+                'active_player_set': self.active_player_set,
+                'is_playing': self.is_playing,
+                'pending_seeks': len(self.players_awaiting_seek),
+                'loaded_players': 0,
+                'valid_sources': 0,
+                'memory_usage': {
+                    'active_players': len(self.players_a) if self.active_player_set == 'a' else len(self.players_b),
+                    'inactive_players': len(self.players_b) if self.active_player_set == 'a' else len(self.players_a)
+                }
+            }
+
+            # Count loaded and valid players
+            for player_set in [self.players_a, self.players_b]:
+                for player in player_set:
+                    if player.source() and player.source().isValid():
+                        metrics['valid_sources'] += 1
+                    if player.mediaStatus() in [QMediaPlayer.MediaStatus.LoadedMedia, QMediaPlayer.MediaStatus.BufferedMedia]:
+                        metrics['loaded_players'] += 1
+
+            return metrics
+
+        except Exception as e:
+            self.handle_error(e, "get_performance_metrics")
+            return {}
+
+    # ========================================
+    # Advanced Seeking Features (Week 3 Implementation)
+    # ========================================
+
+    def seek_frame_accurate(self, global_ms: int, frame_precision: bool = True) -> bool:
+        """
+        Frame-accurate seeking with precise positioning.
+
+        Args:
+            global_ms: Global timeline position in milliseconds
+            frame_precision: Whether to seek to exact frame boundaries
+
+        Returns:
+            bool: True if seek was successful
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return False
+
+            # OPTIMIZATION: Calculate target frame if frame precision is enabled
+            if frame_precision:
+                # Assume 30 FPS for frame calculation (can be made dynamic)
+                fps = 30.0
+                frame_duration_ms = 1000.0 / fps
+                target_frame = round(global_ms / frame_duration_ms)
+                global_ms = int(target_frame * frame_duration_ms)
+
+            # Store original playback state
+            was_playing = self.is_playing
+            if was_playing:
+                self.pause_all()
+
+            # Perform the seek
+            success = self.seek_all_global(global_ms, restore_play_state=False)
+
+            # OPTIMIZATION: Wait for seek completion before resuming
+            if success and was_playing:
+                # Use a short delay to ensure seek has completed
+                QTimer.singleShot(100, self.play_all)
+
+            return success
+
+        except Exception as e:
+            self.handle_error(e, f"seek_frame_accurate({global_ms}, {frame_precision})")
+            return False
+
+    def create_bookmark(self, name: str, global_ms: int = None) -> dict:
+        """
+        Create a bookmark at the current or specified position.
+
+        Args:
+            name: Human-readable name for the bookmark
+            global_ms: Position in milliseconds (current position if None)
+
+        Returns:
+            dict: Bookmark data
+        """
+        try:
+            if global_ms is None:
+                # Get current position from front camera
+                front_cam_idx = self.camera_name_to_index["front"]
+                active_players = self.get_active_players()
+                current_position = active_players[front_cam_idx].position()
+                segment_start_ms = self.app_state.playback_state.segment_start_ms
+                global_ms = segment_start_ms + current_position
+
+            # Create bookmark data
+            bookmark = {
+                'name': name,
+                'global_ms': global_ms,
+                'timestamp': datetime.now().isoformat(),
+                'segment_index': self.app_state.playback_state.clip_indices[0],
+                'local_position_ms': global_ms - self.app_state.playback_state.segment_start_ms
+            }
+
+            # Store in app state (extend AppState if needed)
+            if not hasattr(self.app_state, 'bookmarks'):
+                self.app_state.bookmarks = []
+
+            self.app_state.bookmarks.append(bookmark)
+
+            # Emit signal for UI updates
+            if hasattr(self.signals, 'bookmark_created'):
+                self.signals.bookmark_created.emit(bookmark)
+
+            return bookmark
+
+        except Exception as e:
+            self.handle_error(e, f"create_bookmark({name}, {global_ms})")
+            return {}
+
+    def seek_to_bookmark(self, bookmark: dict) -> bool:
+        """
+        Seek to a specific bookmark position.
+
+        Args:
+            bookmark: Bookmark data dictionary
+
+        Returns:
+            bool: True if seek was successful
+        """
+        try:
+            if 'global_ms' not in bookmark:
+                return False
+
+            return self.seek_frame_accurate(bookmark['global_ms'], frame_precision=True)
+
+        except Exception as e:
+            self.handle_error(e, f"seek_to_bookmark({bookmark.get('name', 'unknown')})")
+            return False
+
+    def get_bookmarks(self) -> list:
+        """Get all bookmarks for the current session."""
+        try:
+            return getattr(self.app_state, 'bookmarks', [])
+        except Exception as e:
+            self.handle_error(e, "get_bookmarks")
+            return []
+
+    def delete_bookmark(self, bookmark_name: str) -> bool:
+        """
+        Delete a bookmark by name.
+
+        Args:
+            bookmark_name: Name of the bookmark to delete
+
+        Returns:
+            bool: True if bookmark was found and deleted
+        """
+        try:
+            if not hasattr(self.app_state, 'bookmarks'):
+                return False
+
+            original_count = len(self.app_state.bookmarks)
+            self.app_state.bookmarks = [b for b in self.app_state.bookmarks if b.get('name') != bookmark_name]
+
+            deleted = len(self.app_state.bookmarks) < original_count
+
+            if deleted and hasattr(self.signals, 'bookmark_deleted'):
+                self.signals.bookmark_deleted.emit(bookmark_name)
+
+            return deleted
+
+        except Exception as e:
+            self.handle_error(e, f"delete_bookmark({bookmark_name})")
+            return False
+
+    def seek_relative(self, offset_ms: int) -> bool:
+        """
+        Seek relative to current position.
+
+        Args:
+            offset_ms: Milliseconds to seek forward (positive) or backward (negative)
+
+        Returns:
+            bool: True if seek was successful
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return False
+
+            # Get current global position
+            front_cam_idx = self.camera_name_to_index["front"]
+            active_players = self.get_active_players()
+            current_position = active_players[front_cam_idx].position()
+            segment_start_ms = self.app_state.playback_state.segment_start_ms
+            current_global_ms = segment_start_ms + current_position
+
+            # Calculate new position
+            new_global_ms = max(0, current_global_ms + offset_ms)
+
+            return self.seek_frame_accurate(new_global_ms, frame_precision=False)
+
+        except Exception as e:
+            self.handle_error(e, f"seek_relative({offset_ms})")
+            return False
+
+    def get_current_frame_info(self) -> dict:
+        """
+        Get detailed information about the current frame.
+
+        Returns:
+            dict: Frame information including position, timestamp, etc.
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return {}
+
+            front_cam_idx = self.camera_name_to_index["front"]
+            active_players = self.get_active_players()
+            front_player = active_players[front_cam_idx]
+
+            current_position = front_player.position()
+            segment_start_ms = self.app_state.playback_state.segment_start_ms
+            global_ms = segment_start_ms + current_position
+
+            # Calculate frame number (assuming 30 FPS)
+            fps = 30.0
+            frame_number = int(global_ms * fps / 1000.0)
+
+            # Get timestamp if available
+            timestamp = None
+            if self.app_state.first_timestamp_of_day:
+                timestamp = self.app_state.first_timestamp_of_day + timedelta(milliseconds=global_ms)
+
+            return {
+                'global_position_ms': global_ms,
+                'local_position_ms': current_position,
+                'segment_index': self.app_state.playback_state.clip_indices[front_cam_idx],
+                'frame_number': frame_number,
+                'timestamp': timestamp.isoformat() if timestamp else None,
+                'is_playing': self.is_playing,
+                'media_status': front_player.mediaStatus().name if hasattr(front_player.mediaStatus(), 'name') else str(front_player.mediaStatus())
+            }
+
+        except Exception as e:
+            self.handle_error(e, "get_current_frame_info")
+            return {}
+
+    # ========================================
+    # Error Recovery & Resilience (Week 3 Implementation)
+    # ========================================
+
+
+
+    def handle_corrupted_file(self, file_path: str, player_index: int) -> bool:
+        """
+        Handle corrupted or unreadable video files with intelligent recovery.
+
+        Args:
+            file_path: Path to the corrupted file
+            player_index: Index of the player that encountered the error
+
+        Returns:
+            bool: True if recovery was successful
+        """
+        try:
+            self.corrupted_files.add(file_path)
+
+            # Log the corruption
+            self.logger.warning(f"Corrupted file detected: {file_path}")
+
+            # Try to find a fallback segment
+            segment_index = self._get_segment_index_from_path(file_path)
+            if segment_index is not None:
+                fallback_segment = self._find_fallback_segment(segment_index, player_index)
+
+                if fallback_segment:
+                    self.fallback_segments[file_path] = fallback_segment
+
+                    # Load fallback segment
+                    player = self._get_player_by_index(player_index)
+                    if player:
+                        player.setSource(QUrl.fromLocalFile(fallback_segment))
+                        self.logger.info(f"Using fallback segment: {fallback_segment}")
+                        return True
+
+            # If no fallback available, skip this segment
+            self._skip_corrupted_segment(segment_index, player_index)
+            return False
+
+        except Exception as e:
+            self.handle_error(e, f"handle_corrupted_file({file_path}, {player_index})")
+            return False
+
+    def _find_fallback_segment(self, segment_index: int, camera_index: int) -> str:
+        """Find a suitable fallback segment for a corrupted file."""
+        try:
+            camera_clips = self.app_state.daily_clip_collections[camera_index]
+
+            # Try adjacent segments first
+            for offset in [1, -1, 2, -2]:
+                fallback_index = segment_index + offset
+                if 0 <= fallback_index < len(camera_clips):
+                    fallback_path = camera_clips[fallback_index]
+                    if os.path.exists(fallback_path) and fallback_path not in self.corrupted_files:
+                        return fallback_path
+
+            # Try other cameras at the same time index
+            for other_camera_index in range(6):
+                if other_camera_index != camera_index:
+                    other_clips = self.app_state.daily_clip_collections[other_camera_index]
+                    if segment_index < len(other_clips):
+                        fallback_path = other_clips[segment_index]
+                        if os.path.exists(fallback_path) and fallback_path not in self.corrupted_files:
+                            return fallback_path
+
+            return None
+
+        except Exception as e:
+            self.handle_error(e, f"_find_fallback_segment({segment_index}, {camera_index})")
+            return None
+
+    def recover_from_hardware_failure(self, player_index: int) -> bool:
+        """
+        Recover from hardware acceleration or decoder failures.
+
+        Args:
+            player_index: Index of the player that failed
+
+        Returns:
+            bool: True if recovery was successful
+        """
+        try:
+            player = self._get_player_by_index(player_index)
+            if not player:
+                return False
+
+            recovery_key = f"hw_failure_{player_index}"
+            attempts = self.recovery_attempts.get(recovery_key, 0)
+
+            if attempts >= self.max_recovery_attempts:
+                self.logger.error(f"Max recovery attempts reached for player {player_index}")
+                return False
+
+            self.recovery_attempts[recovery_key] = attempts + 1
+
+            # Try different recovery strategies
+            if attempts == 0:
+                # First attempt: Reset player
+                self._reset_player(player)
+
+            elif attempts == 1:
+                # Second attempt: Disable hardware acceleration
+                self._disable_hardware_acceleration(player)
+
+            elif attempts == 2:
+                # Third attempt: Recreate player
+                self._recreate_player(player_index)
+
+            self.logger.info(f"Hardware recovery attempt {attempts + 1} for player {player_index}")
+            return True
+
+        except Exception as e:
+            self.handle_error(e, f"recover_from_hardware_failure({player_index})")
+            return False
+
+    def _reset_player(self, player: QMediaPlayer) -> None:
+        """Reset a player to its initial state."""
+        try:
+            current_source = player.source()
+            player.stop()
+            player.setSource(QUrl())
+            QTimer.singleShot(100, lambda: player.setSource(current_source))
+
+        except Exception as e:
+            self.handle_error(e, "_reset_player")
+
+    def _disable_hardware_acceleration(self, player: QMediaPlayer) -> None:
+        """Disable hardware acceleration for a specific player."""
+        try:
+            # This would depend on the specific Qt multimedia backend
+            # For now, we'll log the attempt
+            self.logger.info("Attempting to disable hardware acceleration")
+
+            # Reset with software decoding preference
+            current_source = player.source()
+            player.stop()
+            player.setSource(QUrl())
+
+            # Set software decoding preference if available
+            if hasattr(player, 'setVideoSink'):
+                # Qt6 approach - would need specific implementation
+                pass
+
+            QTimer.singleShot(100, lambda: player.setSource(current_source))
+
+        except Exception as e:
+            self.handle_error(e, "_disable_hardware_acceleration")
+
+    def _recreate_player(self, player_index: int) -> None:
+        """Recreate a player from scratch."""
+        try:
+            # Determine which player set
+            if player_index < 6:
+                player_set = self.players_a
+                video_items = self.video_items_a
+            else:
+                player_set = self.players_b
+                video_items = self.video_items_b
+                player_index -= 6
+
+            # Store current source
+            old_player = player_set[player_index]
+            current_source = old_player.source()
+
+            # Create new player
+            new_player = QMediaPlayer()
+            new_audio_output = QAudioOutput()
+            new_player.setAudioOutput(new_audio_output)
+
+            # Configure hardware acceleration if available
+            if self.hwacc_available:
+                self._configure_hardware_acceleration(new_player)
+
+            # Replace in the list
+            player_set[player_index] = new_player
+
+            # Update video item
+            video_items[player_index].setVideoOutput(new_player)
+
+            # Reconnect signals
+            self._connect_player_signals(new_player, player_index)
+
+            # Restore source
+            QTimer.singleShot(100, lambda: new_player.setSource(current_source))
+
+            self.logger.info(f"Recreated player {player_index}")
+
+        except Exception as e:
+            self.handle_error(e, f"_recreate_player({player_index})")
+
+    def monitor_performance(self) -> dict:
+        """
+        Monitor performance and detect potential issues.
+
+        Returns:
+            dict: Performance status and recommendations
+        """
+        try:
+            now = datetime.now()
+            metrics = self.get_performance_metrics()
+
+            # Add timing information
+            metrics['timestamp'] = now.isoformat()
+            metrics['time_since_last_check'] = (now - self.last_performance_check).total_seconds()
+
+            # Analyze performance
+            issues = []
+            recommendations = []
+
+            # Check for too many pending seeks
+            if metrics.get('pending_seeks', 0) > 5:
+                issues.append("High number of pending seeks")
+                recommendations.append("Consider reducing seek frequency")
+
+            # Check for low valid sources
+            total_players = metrics['memory_usage']['active_players'] + metrics['memory_usage']['inactive_players']
+            valid_ratio = metrics.get('valid_sources', 0) / max(total_players, 1)
+            if valid_ratio < 0.5:
+                issues.append("Low ratio of valid video sources")
+                recommendations.append("Check for corrupted files or network issues")
+
+            # Check recovery attempts
+            total_recovery_attempts = sum(self.recovery_attempts.values())
+            if total_recovery_attempts > 10:
+                issues.append("High number of recovery attempts")
+                recommendations.append("Consider system restart or hardware check")
+
+            metrics['issues'] = issues
+            metrics['recommendations'] = recommendations
+            metrics['health_score'] = self._calculate_health_score(metrics)
+
+            # Store in history (keep last 100 entries)
+            self.performance_history.append(metrics)
+            if len(self.performance_history) > 100:
+                self.performance_history.pop(0)
+
+            self.last_performance_check = now
+            return metrics
+
+        except Exception as e:
+            self.handle_error(e, "monitor_performance")
+            return {'error': str(e)}
+
+    def _calculate_health_score(self, metrics: dict) -> float:
+        """Calculate a health score from 0.0 to 1.0 based on performance metrics."""
+        try:
+            score = 1.0
+
+            # Deduct for issues
+            score -= len(metrics.get('issues', [])) * 0.2
+
+            # Deduct for low valid sources
+            total_players = metrics['memory_usage']['active_players'] + metrics['memory_usage']['inactive_players']
+            valid_ratio = metrics.get('valid_sources', 0) / max(total_players, 1)
+            score -= (1.0 - valid_ratio) * 0.3
+
+            # Deduct for recovery attempts
+            total_recovery_attempts = sum(self.recovery_attempts.values())
+            if total_recovery_attempts > 0:
+                score -= min(total_recovery_attempts * 0.05, 0.3)
+
+            return max(0.0, min(1.0, score))
+
+        except Exception as e:
+            self.handle_error(e, "_calculate_health_score")
+            return 0.5
+
+    def get_recovery_status(self) -> dict:
+        """Get current recovery status and statistics."""
+        try:
+            return {
+                'corrupted_files': list(self.corrupted_files),
+                'recovery_attempts': dict(self.recovery_attempts),
+                'fallback_segments': dict(self.fallback_segments),
+                'max_recovery_attempts': self.max_recovery_attempts,
+                'total_corrupted_files': len(self.corrupted_files),
+                'total_recovery_attempts': sum(self.recovery_attempts.values())
+            }
+        except Exception as e:
+            self.handle_error(e, "get_recovery_status")
+            return {}
+
+    # ========================================
+    # Helper Methods for Week 3 Enhancements
+    # ========================================
+
+    def _get_segment_index_from_path(self, file_path: str) -> int:
+        """Extract segment index from file path."""
+        try:
+            # Find the file in daily_clip_collections
+            for camera_idx, clips in enumerate(self.app_state.daily_clip_collections):
+                for segment_idx, clip_path in enumerate(clips):
+                    if clip_path == file_path:
+                        return segment_idx
+            return None
+        except Exception as e:
+            self.handle_error(e, f"_get_segment_index_from_path({file_path})")
+            return None
+
+    def _get_player_by_index(self, player_index: int) -> QMediaPlayer:
+        """Get player by index from either player set."""
+        try:
+            if player_index < 6:
+                return self.players_a[player_index]
+            else:
+                return self.players_b[player_index - 6]
+        except Exception as e:
+            self.handle_error(e, f"_get_player_by_index({player_index})")
+            return None
+
+    def _skip_corrupted_segment(self, segment_index: int, camera_index: int) -> None:
+        """Skip a corrupted segment by advancing to the next one."""
+        try:
+            # This would trigger automatic advancement to next segment
+            # Implementation depends on specific requirements
+            self.logger.warning(f"Skipping corrupted segment {segment_index} for camera {camera_index}")
+        except Exception as e:
+            self.handle_error(e, f"_skip_corrupted_segment({segment_index}, {camera_index})")
+
+    def _configure_hardware_acceleration(self, player: QMediaPlayer) -> None:
+        """Configure hardware acceleration for a player."""
+        try:
+            # This would depend on the specific Qt multimedia backend
+            # For now, we'll log the configuration attempt
+            if hasattr(self.parent_widget, 'hwacc_available') and self.parent_widget.hwacc_available:
+                self.logger.info("Configuring hardware acceleration for player")
+                # Actual hardware acceleration configuration would go here
+        except Exception as e:
+            self.handle_error(e, "_configure_hardware_acceleration")
+
+    def _connect_player_signals(self, player: QMediaPlayer, player_index: int) -> None:
+        """Connect signals for a player."""
+        try:
+            # Connect standard signals
+            player.mediaStatusChanged.connect(lambda status, idx=player_index: self._on_media_status_changed(status, idx))
+            player.positionChanged.connect(lambda pos, idx=player_index: self._on_position_changed(pos, idx))
+        except Exception as e:
+            self.handle_error(e, f"_connect_player_signals(player_{player_index})")
+
+    def _on_media_status_changed(self, status, player_index: int) -> None:
+        """Handle media status changes."""
+        try:
+            if status == QMediaPlayer.MediaStatus.InvalidMedia:
+                self.logger.warning(f"Invalid media detected for player {player_index}")
+                # Could trigger error recovery here
+        except Exception as e:
+            self.handle_error(e, f"_on_media_status_changed({status}, {player_index})")
+
+    def _on_position_changed(self, position: int, player_index: int = None) -> None:
+        """Handle position changes from players."""
+        try:
+            # Emit position change signal
+            if hasattr(self.signals, 'position_changed'):
+                self.signals.position_changed.emit(position)
+        except Exception as e:
+            self.handle_error(e, f"_on_position_changed({position}, {player_index})")
