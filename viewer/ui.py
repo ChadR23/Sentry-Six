@@ -22,6 +22,26 @@ from . import widgets
 from . import workers
 from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
+from .ffmpeg_manager import FFMPEG_EXE
+from .hwacc_detector import hwacc_detector
+from .constants import (
+    APP_TITLE, CAMERA_NAMES, get_camera_index_to_name_map, NUM_CAMERAS,
+    MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
+    DEFAULT_WINDOW_X, DEFAULT_WINDOW_Y, PLAYBACK_RATES, DEFAULT_PLAYBACK_RATE,
+    PLAY_BUTTON_TEXT, PAUSE_BUTTON_TEXT, EXPORT_FILE_FILTER, LAYOUT_SPACING,
+    LAYOUT_MARGINS, SETTINGS_WINDOW_GEOMETRY, SETTINGS_LAST_ROOT_FOLDER,
+    SETTINGS_LAST_SPEED_TEXT, SETTINGS_CAMERA_VISIBILITY, SETTINGS_CAMERA_ORDER,
+    SETTINGS_DONT_SHOW_WELCOME
+)
+from .logging_config import get_logger, LoggedOperation, log_errors
+from .resource_manager import (
+    get_resource_tracker, temporary_file, ManagedMediaPlayer, ManagedThread,
+    safe_cleanup_media_player, safe_remove_file
+)
+from .input_validation import (
+    InputValidator, ValidationResult, validate_clips_folder, validate_time_input,
+    validate_export_settings, sanitize_filename
+)
 
 
 class WelcomeDialog(QDialog):
@@ -51,10 +71,19 @@ class WelcomeDialog(QDialog):
 class TeslaCamViewer(QWidget):
     def __init__(self, show_welcome: bool = True):
         super().__init__()
+        self.logger = get_logger(__name__)
+        self.logger.info("Initializing TeslaCamViewer")
+
         self.settings = QSettings()
         self.app_state = AppState()
-        self.camera_name_to_index = {"front":0, "left_repeater":1, "right_repeater":2, "back":3, "left_pillar":4, "right_pillar":5}
-        self.camera_index_to_name = {v: k for k, v in self.camera_name_to_index.items()}
+        self.camera_name_to_index = CAMERA_NAMES
+        self.camera_index_to_name = get_camera_index_to_name_map()
+
+        self.logger.debug(f"Camera configuration: {len(CAMERA_NAMES)} cameras")
+
+        # Register cleanup callback with resource tracker
+        self.resource_tracker = get_resource_tracker()
+        self.resource_tracker.register_cleanup_callback(self._cleanup_ui_resources)
 
         self.go_to_time_dialog_instance = None
         self.event_tooltip = widgets.EventToolTip(self)
@@ -72,12 +101,17 @@ class TeslaCamViewer(QWidget):
         self.pending_seek_position = -1
         self.players_awaiting_seek = set()
 
-        self.setWindowTitle("Sentry Six")
-        self.setMinimumSize(1280, 720)
+        # Hardware acceleration detection
+        self.hwacc_gpu_type = None
+        self.hwacc_available = False
+        self._detect_hardware_acceleration()
+
+        self.setWindowTitle(APP_TITLE)
+        self.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._layout = QVBoxLayout(self)
-        self._layout.setSpacing(8)
-        self._layout.setContentsMargins(8, 8, 8, 8)
+        self._layout.setSpacing(LAYOUT_SPACING)
+        self._layout.setContentsMargins(LAYOUT_MARGINS, LAYOUT_MARGINS, LAYOUT_MARGINS, LAYOUT_MARGINS)
 
         self._create_top_controls()
         self._create_video_grid()
@@ -98,6 +132,25 @@ class TeslaCamViewer(QWidget):
             self._maybe_show_welcome_dialog()
         self.update_layout()
 
+        self.logger.info("TeslaCamViewer initialization completed")
+
+    def _start_ffmpeg_check_with_progress(self):
+        from PyQt6.QtWidgets import QProgressDialog
+        self.ffmpeg_progress_dialog = QProgressDialog("Checking for FFmpeg updates...", None, 0, 0, self)
+        self.ffmpeg_progress_dialog.setWindowTitle("Please Wait")
+        self.ffmpeg_progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.ffmpeg_progress_dialog.setMinimumDuration(0)
+        self.ffmpeg_progress_dialog.setCancelButton(None)
+        self.ffmpeg_progress_dialog.show()
+        self.ffmpeg_check_thread = QThread()
+        self.ffmpeg_check_worker = FFmpegCheckWorker(parent_widget=self)
+        self.ffmpeg_check_worker.moveToThread(self.ffmpeg_check_thread)
+        self.ffmpeg_check_thread.started.connect(self.ffmpeg_check_worker.run)
+        self.ffmpeg_check_worker.finished.connect(self._on_ffmpeg_check_done)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_thread.quit)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_worker.deleteLater)
+        self.ffmpeg_check_thread.finished.connect(self.ffmpeg_check_thread.deleteLater)
+        self.ffmpeg_check_thread.start()
 
     def _maybe_show_welcome_dialog(self):
         if self.app_state.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
@@ -180,7 +233,7 @@ class TeslaCamViewer(QWidget):
         
         self.skip_bwd_15_btn = QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() - 15000, restore_play_state=True))
         self.frame_back_btn = QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action(-33))
-        self.play_btn = QPushButton("▶️ Play"); self.play_btn.clicked.connect(self.toggle_play_pause_all)
+        self.play_btn = QPushButton(PLAY_BUTTON_TEXT); self.play_btn.clicked.connect(self.toggle_play_pause_all)
         self.frame_forward_btn = QPushButton("FR ⏩"); self.frame_forward_btn.clicked.connect(lambda: self.frame_action(33))
         self.skip_fwd_15_btn = QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() + 15000, restore_play_state=True))
         
@@ -199,7 +252,7 @@ class TeslaCamViewer(QWidget):
             
         control_layout.addSpacing(20)
         self.speed_selector = QComboBox()
-        self.playback_rates = {"0.25x":0.25, "0.5x":0.5, "1x":1.0, "1.5x":1.5, "2x":2.0, "4x":4.0}
+        self.playback_rates = PLAYBACK_RATES
         self.speed_selector.addItems(self.playback_rates.keys())
         self.speed_selector.currentTextChanged.connect(self.set_playback_speed)
         control_layout.addWidget(QLabel("Speed:"))
@@ -270,8 +323,32 @@ class TeslaCamViewer(QWidget):
     def reset_to_default_layout(self):
         self.settings.remove("cameraOrder") # Remove saved order to reset
         for checkbox in self.camera_visibility_checkboxes:
-            checkbox.blockSignals(True); checkbox.setChecked(True); checkbox.blockSignals(False)
-        self.update_layout_from_visibility_change()
+            checkbox.blockSignals(True)
+            checkbox.setChecked(True)
+            checkbox.blockSignals(False)
+        # Reset the ordered_visible_player_indices to default order (all indices from checkbox_info)
+        self.ordered_visible_player_indices = [idx for _, _, idx in self.checkbox_info]
+        self.update_layout()
+        # Reload video sources for all visible cameras
+        current_segment_index = self.app_state.playback_state.clip_indices[0]
+        active_players = self.get_active_players()
+        reference_player = None
+        for idx in self.ordered_visible_player_indices:
+            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                reference_player = active_players[idx]
+                break
+        current_time = reference_player.position() if reference_player else 0
+        is_playing = self.play_btn.text() == PAUSE_BUTTON_TEXT
+        for i in self.ordered_visible_player_indices:
+            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+            active_players[i].setPosition(current_time)
+            if is_playing:
+                active_players[i].play()
+        for i in set(range(6)) - set(self.ordered_visible_player_indices):
+            active_players[i].setSource(QUrl())
+        self.video_grid_widget.update()
+        self.video_grid_widget.adjustSize()
+        self.save_settings()
 
     def update_layout_from_visibility_change(self):
         # Update the list of visible player indices based on checkboxes
@@ -284,29 +361,98 @@ class TeslaCamViewer(QWidget):
         last_visible = getattr(self, '_last_visible_player_indices', [])
         newly_visible = set(new_visible) - set(last_visible)
         newly_hidden = set(last_visible) - set(new_visible)
+
+        if newly_visible:
+            self.logger.info(f"Cameras becoming visible: {list(newly_visible)}")
+        if newly_hidden:
+            self.logger.info(f"Cameras becoming hidden: {list(newly_hidden)}")
+
         self.ordered_visible_player_indices = new_visible
         self.update_layout()
-        # Only load/seek newly visible cameras
-        current_segment_index = self.app_state.playback_state.clip_indices[0]
-        active_players = self.get_active_players()
-        # Use the first active visible player's position as reference (if any)
-        reference_player = None
-        for idx in new_visible:
-            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
-                reference_player = active_players[idx]
-                break
-        current_time = reference_player.position() if reference_player else 0
-        is_playing = self.play_btn.text() == "⏸️ Pause"
-        for i in newly_visible:
-            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
-            active_players[i].setPosition(current_time)
+        # Sync newly visible cameras to current timeline position
+        if newly_visible and self.app_state.is_daily_view_active:
+            self.logger.debug(f"Syncing newly visible cameras {list(newly_visible)} to current timeline position")
+
+            # Get current global timeline position
+            current_global_ms = self.scrubber.value()
+            is_playing = self.play_btn.text() == PAUSE_BUTTON_TEXT
+
+            # Pause all players temporarily to avoid sync issues
             if is_playing:
-                active_players[i].play()
+                self.pause_all()
+
+            # Load and sync newly visible cameras
+            for camera_idx in newly_visible:
+                self.logger.debug(f"Syncing camera {camera_idx} to {current_global_ms}ms")
+                # This will load the correct clip and seek to the right position
+                self._load_and_seek_player_to_global_time(camera_idx, current_global_ms)
+
+            # Resume playback if it was playing
+            if is_playing:
+                # Small delay to ensure all players are loaded before resuming
+                QTimer.singleShot(100, self.play_all)
+
+        # Clean up newly hidden cameras
+        active_players = self.get_active_players()
         for i in newly_hidden:
+            self.logger.debug(f"Hiding camera {i}")
             active_players[i].setSource(QUrl())
         self.save_settings()
         # Update for next time
         self._last_visible_player_indices = list(new_visible)
+
+    def _load_and_seek_player_to_global_time(self, camera_idx: int, global_ms: int):
+        """Load the correct clip for a camera and seek to the specified global timeline position."""
+        if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day:
+            return
+
+        try:
+            # Find which clip should be playing at this global time
+            target_datetime = self.app_state.first_timestamp_of_day + timedelta(milliseconds=global_ms)
+
+            # Get the clips for this camera
+            camera_clips = self.app_state.daily_clip_collections[camera_idx]
+            if not camera_clips:
+                self.logger.debug(f"No clips available for camera {camera_idx}")
+                return
+
+            # Find the appropriate clip and calculate local position
+            target_clip_path = None
+            local_position_ms = 0
+
+            for clip_path in camera_clips:
+                clip_info = utils.parse_tesla_filename(clip_path)
+                if clip_info:
+                    clip_start_time = clip_info['datetime']
+                    clip_duration_ms = utils.get_video_duration_ms(clip_path)
+                    clip_end_time = clip_start_time + timedelta(milliseconds=clip_duration_ms)
+
+                    # Check if target time falls within this clip
+                    if clip_start_time <= target_datetime < clip_end_time:
+                        target_clip_path = clip_path
+                        local_position_ms = int((target_datetime - clip_start_time).total_seconds() * 1000)
+                        break
+
+            if target_clip_path:
+                # Load the clip and seek to position
+                active_players = self.get_active_players()
+                player = active_players[camera_idx]
+
+                self.logger.debug(f"Loading clip {target_clip_path} for camera {camera_idx}, seeking to {local_position_ms}ms")
+
+                # Set up a one-time connection to seek when media is loaded
+                def on_media_loaded():
+                    if player.mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                        player.setPosition(local_position_ms)
+                        player.mediaStatusChanged.disconnect(on_media_loaded)
+
+                player.mediaStatusChanged.connect(on_media_loaded)
+                player.setSource(QUrl.fromLocalFile(target_clip_path))
+            else:
+                self.logger.debug(f"No clip found for camera {camera_idx} at time {target_datetime}")
+
+        except Exception as e:
+            self.logger.error(f"Error loading and seeking camera {camera_idx} to {global_ms}ms: {e}")
     
     def handle_widget_swap(self, dragged_index, dropped_on_index):
         if utils.DEBUG_UI:
@@ -343,20 +489,25 @@ class TeslaCamViewer(QWidget):
             QApplication.restoreOverrideCursor()
 
     def load_settings(self):
-        geom = self.settings.value("windowGeometry"); self.restoreGeometry(geom) if geom else self.setGeometry(50, 50, 1600, 950)
-        self.speed_selector.setCurrentText(self.settings.value("lastSpeedText", "1x", type=str))
-        
+        geom = self.settings.value(SETTINGS_WINDOW_GEOMETRY)
+        if geom:
+            self.restoreGeometry(geom)
+        else:
+            self.setGeometry(DEFAULT_WINDOW_X, DEFAULT_WINDOW_Y, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+
+        self.speed_selector.setCurrentText(self.settings.value(SETTINGS_LAST_SPEED_TEXT, DEFAULT_PLAYBACK_RATE, type=str))
+
         # Load visibility first
-        vis_states = self.settings.value("cameraVisibility")
+        vis_states = self.settings.value(SETTINGS_CAMERA_VISIBILITY)
         if vis_states and len(vis_states) == len(self.camera_visibility_checkboxes):
-            for i, cb in enumerate(self.camera_visibility_checkboxes): 
+            for i, cb in enumerate(self.camera_visibility_checkboxes):
                 cb.setChecked(vis_states[i] == 'true')
-        
+
         # Build the initial ordered list from the checkboxes
         visible_from_checkboxes = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
 
         # Load custom order and validate it
-        saved_order_str = self.settings.value("cameraOrder", type=list)
+        saved_order_str = self.settings.value(SETTINGS_CAMERA_ORDER, type=list)
         if saved_order_str:
             saved_order = [int(i) for i in saved_order_str]
             # Ensure the saved order only contains currently visible cameras
@@ -369,42 +520,111 @@ class TeslaCamViewer(QWidget):
         else:
             self.ordered_visible_player_indices = visible_from_checkboxes
 
-        last_folder = self.settings.value("lastRootFolder", "", type=str)
+        last_folder = self.settings.value(SETTINGS_LAST_ROOT_FOLDER, "", type=str)
         if last_folder and os.path.isdir(last_folder):
             self.app_state.root_clips_path = last_folder
             self.repopulate_date_selector_from_path(last_folder)
             self.date_selector.setCurrentIndex(-1)
         
-        if not self.app_state.is_daily_view_active: 
-            self.clear_all_players()
+        if not self.app_state.is_daily_view_active:
+            # Only clear players if they have been used, not during initial setup
+            if hasattr(self, '_players_initialized') and self._players_initialized:
+                self.clear_all_players()
+            else:
+                # Mark that players are now initialized
+                self._players_initialized = True
 
     def save_settings(self):
-        self.settings.setValue("windowGeometry", self.saveGeometry())
-        self.settings.setValue("lastRootFolder", self.app_state.root_clips_path or "")
-        self.settings.setValue("lastSpeedText", self.speed_selector.currentText())
-        self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
+        self.settings.setValue(SETTINGS_WINDOW_GEOMETRY, self.saveGeometry())
+        self.settings.setValue(SETTINGS_LAST_ROOT_FOLDER, self.app_state.root_clips_path or "")
+        self.settings.setValue(SETTINGS_LAST_SPEED_TEXT, self.speed_selector.currentText())
+        self.settings.setValue(SETTINGS_CAMERA_VISIBILITY, [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
         # Save the custom order of visible indices
-        self.settings.setValue("cameraOrder", [str(i) for i in self.ordered_visible_player_indices])
+        self.settings.setValue(SETTINGS_CAMERA_ORDER, [str(i) for i in self.ordered_visible_player_indices])
 
-    def closeEvent(self, event): 
+    def closeEvent(self, event):
+        self.logger.info("Application closing, performing cleanup")
+
+        # Stop timers first to prevent them from triggering during cleanup
+        try:
+            if hasattr(self, 'position_update_timer'):
+                self.position_update_timer.stop()
+        except (RuntimeError, AttributeError):
+            pass
+
+        try:
+            if hasattr(self, 'tooltip_timer'):
+                self.tooltip_timer.stop()
+        except (RuntimeError, AttributeError):
+            pass
+
         self.save_settings()
         self.clear_all_players() # Safely stop any running workers
+
+        # Clean up export operations
         if self.export_thread and self.export_thread.isRunning() and self.export_worker:
-            self.export_worker.stop(); self.export_thread.quit(); self.export_thread.wait()
-        
+            self.logger.debug("Stopping export operation")
+            self.export_worker.stop()
+            self.export_thread.quit()
+            self.export_thread.wait(5000)  # Wait up to 5 seconds
+
+        # Clean up any remaining temporary files
+        for file_path in self.files_to_cleanup_after_export:
+            safe_remove_file(file_path)
+        self.files_to_cleanup_after_export.clear()
+
+        # Final cleanup of media players
         for p_set in [self.players_a, self.players_b]:
-            for p in p_set: p.setSource(QUrl())
+            for p in p_set:
+                safe_cleanup_media_player(p)
+
+        self.logger.info("Application cleanup completed")
         super().closeEvent(event)
+
+    def _cleanup_ui_resources(self):
+        """Cleanup callback for UI-specific resources."""
+        self.logger.debug("Cleaning up UI-specific resources")
+
+        # Stop any running timers safely
+        try:
+            if hasattr(self, 'position_update_timer') and self.position_update_timer is not None:
+                self.position_update_timer.stop()
+        except (RuntimeError, AttributeError) as e:
+            # Timer may have been deleted by Qt already
+            self.logger.debug(f"Could not stop position_update_timer: {e}")
+
+        try:
+            if hasattr(self, 'tooltip_timer') and self.tooltip_timer is not None:
+                self.tooltip_timer.stop()
+        except (RuntimeError, AttributeError) as e:
+            # Timer may have been deleted by Qt already
+            self.logger.debug(f"Could not stop tooltip_timer: {e}")
+
+        # Clean up any remaining temporary files
+        if hasattr(self, 'files_to_cleanup_after_export'):
+            for file_path in self.files_to_cleanup_after_export:
+                safe_remove_file(file_path)
+            self.files_to_cleanup_after_export.clear()
+
+        # Clean up media players
+        if hasattr(self, 'players_a') and hasattr(self, 'players_b'):
+            for p_set in [self.players_a, self.players_b]:
+                for p in p_set:
+                    safe_cleanup_media_player(p)
 
     def handle_date_selection_change(self):
         if self.date_selector.currentIndex() < 0:
             return # Don't clear if nothing is selected
-            
+
         selected_date_str = self.date_selector.currentData()
+        self.logger.info(f"User selected date: {selected_date_str}")
+
         if not selected_date_str or not self.app_state.root_clips_path:
+            self.logger.warning("Invalid date selection or no root path set")
             self.clear_all_players()
             return
-        
+
+        self.logger.info(f"Loading clips for date: {selected_date_str}")
         self.clear_all_players() # Clean up any previous worker first
         self.set_ui_loading(True)
 
@@ -447,16 +667,31 @@ class TeslaCamViewer(QWidget):
 
     def _apply_root_folder(self, folder):
         """Set root clips folder and refresh date selector."""
-        if folder and os.path.isdir(folder):
-            self.app_state.root_clips_path = folder
-            self.clear_all_players()
-            if not self.repopulate_date_selector_from_path(folder):
-                QMessageBox.information(self, "No Dates", "No date folders found.")
-            else:
-                self.date_selector.setCurrentIndex(-1)
+        if not folder:
+            return
 
-    def select_root_folder(self): 
+        # Validate the clips directory
+        validation_result = validate_clips_folder(folder)
+        if not validation_result.is_valid:
+            self.logger.warning(f"Invalid clips folder selected: {validation_result.error_message}")
+            QMessageBox.warning(self, "Invalid Folder",
+                              f"The selected folder is not a valid Tesla clips directory:\n\n{validation_result.error_message}")
+            return
+
+        self.app_state.root_clips_path = str(validation_result.value)
+        self.clear_all_players()
+        if not self.repopulate_date_selector_from_path(folder):
+            QMessageBox.information(self, "No Dates", "No date folders found.")
+        else:
+            self.date_selector.setCurrentIndex(-1)
+
+    def select_root_folder(self):
+        self.logger.info("User selecting root folder")
         folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.app_state.root_clips_path or os.path.expanduser("~"))
+        if folder:
+            self.logger.info(f"User selected folder: {folder}")
+        else:
+            self.logger.debug("User cancelled folder selection")
         self._apply_root_folder(folder)
 
     def repopulate_date_selector_from_path(self, folder_path):
@@ -470,22 +705,22 @@ class TeslaCamViewer(QWidget):
         self.date_selector.blockSignals(False); return bool(dates)
 
     def generate_and_set_thumbnail(self, video_path, timestamp_seconds):
-        if not utils.FFMPEG_FOUND or not self.go_to_time_dialog_instance: return
-        
-        temp_fd, temp_file_path = tempfile.mkstemp(suffix=".jpg"); os.close(temp_fd)
-        try:
-            cmd = [utils.FFMPEG_PATH, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", temp_file_path]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-            
-            pixmap = QPixmap(temp_file_path) if os.path.exists(temp_file_path) else QPixmap()
-            if self.go_to_time_dialog_instance: self.go_to_time_dialog_instance.set_thumbnail(pixmap)
-            
-        except Exception:
-            if self.go_to_time_dialog_instance: self.go_to_time_dialog_instance.set_thumbnail(QPixmap())
-        finally:
-            if os.path.exists(temp_file_path):
-                try: os.remove(temp_file_path)
-                except OSError: pass
+        if not os.path.exists(FFMPEG_EXE) or not self.go_to_time_dialog_instance:
+            return
+
+        with temporary_file(suffix=".jpg") as temp_file_path:
+            try:
+                cmd = [FFMPEG_EXE, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", str(temp_file_path)]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+
+                pixmap = QPixmap(str(temp_file_path)) if temp_file_path.exists() else QPixmap()
+                if self.go_to_time_dialog_instance:
+                    self.go_to_time_dialog_instance.set_thumbnail(pixmap)
+                self.logger.debug(f"Generated thumbnail for {video_path} at {timestamp_seconds}s")
+            except Exception as e:
+                self.logger.error(f"Failed to generate thumbnail: {e}")
+                if self.go_to_time_dialog_instance:
+                    self.go_to_time_dialog_instance.set_thumbnail(QPixmap())
             
     def show_go_to_time_dialog(self):
         if not self.app_state.is_daily_view_active:
@@ -496,13 +731,28 @@ class TeslaCamViewer(QWidget):
         self.go_to_time_dialog_instance.request_thumbnail.connect(self.generate_and_set_thumbnail)
         if self.go_to_time_dialog_instance.exec():
             time_str = self.go_to_time_dialog_instance.get_time_string().strip()
-            if not time_str: return
-            try: target_dt = datetime.strptime(f"{current_date_data} {time_str}", "%Y-%m-%d %H:%M:%S")
-            except (ValueError, TypeError): QMessageBox.warning(self,"Invalid Time","Please use HH:MM:SS format."); return
+            if not time_str:
+                return
+
+            # Validate time input
+            time_validation = validate_time_input(time_str)
+            if not time_validation.is_valid:
+                self.logger.warning(f"Invalid time input: {time_validation.error_message}")
+                QMessageBox.warning(self, "Invalid Time", time_validation.error_message)
+                return
+
+            try:
+                target_dt = datetime.strptime(f"{current_date_data} {time_str}", "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                QMessageBox.warning(self, "Invalid Time", "Please use HH:MM:SS format.")
+                return
+
             if self.app_state.first_timestamp_of_day:
                 global_ms = (target_dt - self.app_state.first_timestamp_of_day).total_seconds()*1000
-                if 0 <= global_ms <= self.scrubber.maximum(): self.seek_all_global(int(global_ms))
-                else: QMessageBox.information(self,"Out of Range","The specified time is outside the range of the current day's clips.")
+                if 0 <= global_ms <= self.scrubber.maximum():
+                    self.seek_all_global(int(global_ms))
+                else:
+                    QMessageBox.information(self, "Out of Range", "The specified time is outside the range of the current day's clips.")
         self.go_to_time_dialog_instance = None
     
     def toggle_play_pause_all(self):
@@ -510,16 +760,25 @@ class TeslaCamViewer(QWidget):
         if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.get_active_players()): self.pause_all()
         else: self.play_all()
 
-    def play_all(self): 
-        self.play_btn.setText("⏸️ Pause"); rate = self.playback_rates.get(self.speed_selector.currentText(), 1.0)
+    def play_all(self):
+        # Validate playback rate
+        rate_str = self.speed_selector.currentText()
+        rate_validation = InputValidator.validate_playback_rate(rate_str, self.playback_rates)
+        if not rate_validation.is_valid:
+            self.logger.warning(f"Invalid playback rate: {rate_validation.error_message}")
+            rate = 1.0  # Fallback to normal speed
+        else:
+            rate = rate_validation.value
+
+        self.play_btn.setText(PAUSE_BUTTON_TEXT)
         any_playing = False
         for i, p in enumerate(self.get_active_players()):
             if i in self.ordered_visible_player_indices and p.source() and p.source().isValid():
                 p.setPlaybackRate(rate); p.play(); any_playing = True
         if any_playing: self.position_update_timer.start()
 
-    def pause_all(self): 
-        self.play_btn.setText("▶️ Play"); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
+    def pause_all(self):
+        self.play_btn.setText(PLAY_BUTTON_TEXT); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
     
     def frame_action(self, offset_ms): 
         if not self.app_state.is_daily_view_active: return
@@ -527,7 +786,7 @@ class TeslaCamViewer(QWidget):
 
     def _handle_scrubber_press(self):
         if not self.app_state.is_daily_view_active: return
-        self.was_playing_before_scrub = self.play_btn.text() == "⏸️ Pause"
+        self.was_playing_before_scrub = self.play_btn.text() == PAUSE_BUTTON_TEXT
         self.pause_all()
 
     def handle_scrubber_release(self):
@@ -539,7 +798,7 @@ class TeslaCamViewer(QWidget):
     def seek_all_global(self, global_ms, restore_play_state=False):
         if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
         
-        was_playing = self.play_btn.text() == "⏸️ Pause"
+        was_playing = self.play_btn.text() == PAUSE_BUTTON_TEXT
         if was_playing:
             self.pause_all()
 
@@ -584,17 +843,51 @@ class TeslaCamViewer(QWidget):
             self.play_all()
 
     def mark_start_time(self):
-        if not self.app_state.is_daily_view_active: return
-        self.app_state.export_state.start_ms = self.scrubber.value()
+        if not self.app_state.is_daily_view_active:
+            return
+
+        start_ms = self.scrubber.value()
+
+        # Validate start time
+        if start_ms < 0:
+            QMessageBox.warning(self, "Invalid Start Time", "Start time cannot be negative")
+            return
+
+        if start_ms > self.scrubber.maximum():
+            QMessageBox.warning(self, "Invalid Start Time", "Start time is beyond the available timeline")
+            return
+
+        self.app_state.export_state.start_ms = start_ms
+
+        # Auto-adjust end time if needed
         if self.app_state.export_state.end_ms is not None and self.app_state.export_state.start_ms >= self.app_state.export_state.end_ms:
-            self.app_state.export_state.end_ms = self.app_state.export_state.start_ms + 1000 
+            self.app_state.export_state.end_ms = self.app_state.export_state.start_ms + 1000
+
+        self.logger.debug(f"Start time marked: {start_ms}ms")
         self.update_export_ui()
 
     def mark_end_time(self):
-        if not self.app_state.is_daily_view_active: return
-        self.app_state.export_state.end_ms = self.scrubber.value()
+        if not self.app_state.is_daily_view_active:
+            return
+
+        end_ms = self.scrubber.value()
+
+        # Validate end time
+        if end_ms < 0:
+            QMessageBox.warning(self, "Invalid End Time", "End time cannot be negative")
+            return
+
+        if end_ms > self.scrubber.maximum():
+            QMessageBox.warning(self, "Invalid End Time", "End time is beyond the available timeline")
+            return
+
+        self.app_state.export_state.end_ms = end_ms
+
+        # Auto-adjust start time if needed
         if self.app_state.export_state.start_ms is not None and self.app_state.export_state.end_ms <= self.app_state.export_state.start_ms:
             self.app_state.export_state.start_ms = self.app_state.export_state.end_ms - 1000
+
+        self.logger.debug(f"End time marked: {end_ms}ms")
         self.update_export_ui()
 
     def handle_marker_drag(self, marker_type, value):
@@ -647,13 +940,32 @@ class TeslaCamViewer(QWidget):
         full_res_rb.setChecked(True); layout.addWidget(full_res_rb); layout.addWidget(mobile_rb)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
         if dialog.exec():
-            output_path, _ = QFileDialog.getSaveFileName(self, "Save Exported Clip", f"{self.date_selector.currentData()}_clip.mp4", "MP4 Videos (*.mp4)")
-            if output_path: self.start_export(output_path, mobile_rb.isChecked())
+            # Generate a safe default filename
+            date_str = self.date_selector.currentData() or "unknown_date"
+            safe_filename = sanitize_filename(f"{date_str}_clip.mp4")
+
+            output_path, _ = QFileDialog.getSaveFileName(self, "Save Exported Clip", safe_filename, EXPORT_FILE_FILTER)
+            if output_path:
+                # Validate export settings before starting
+                validation_result = validate_export_settings(
+                    self.app_state.export_state.start_ms,
+                    self.app_state.export_state.end_ms,
+                    output_path
+                )
+
+                if not validation_result.is_valid:
+                    self.logger.warning(f"Export validation failed: {validation_result.error_message}")
+                    QMessageBox.warning(self, "Export Error", validation_result.error_message)
+                    return
+
+                self.start_export(output_path, mobile_rb.isChecked())
 
     def start_export(self, output_path, is_mobile):
+        self.logger.info(f"Starting export to: {output_path}, mobile: {is_mobile}")
         self.pause_all()
         result = self._build_ffmpeg_command(output_path, is_mobile)
         if not result or not result[0]:
+            self.logger.error("Failed to generate FFmpeg command for export")
             QMessageBox.critical(self, "Export Failed", "Could not generate FFmpeg command. No visible cameras or clips found for the selected range."); return
         
         ffmpeg_cmd, self.files_to_cleanup_after_export, duration_s = result
@@ -677,7 +989,10 @@ class TeslaCamViewer(QWidget):
 
     def on_export_finished(self, success, message):
         if success:
+            self.logger.info(f"Export completed successfully: {message}")
             self.progress_dialog.setValue(100)
+        else:
+            self.logger.error(f"Export failed: {message}")
         self.progress_dialog.close()
         
         if self.export_thread:
@@ -688,10 +1003,11 @@ class TeslaCamViewer(QWidget):
             QMessageBox.information(self, "Export Complete", message)
         else:
             QMessageBox.critical(self, "Export Failed", message)
-            
+
+        # Clean up temporary files using safe removal
         for path in self.files_to_cleanup_after_export:
-            try: os.remove(path)
-            except OSError as e: print(f"Error removing temp file {path}: {e}")
+            if not safe_remove_file(path):
+                self.logger.warning(f"Failed to remove temporary export file: {path}")
         self.files_to_cleanup_after_export.clear()
         self.export_thread, self.export_worker = None, None
 
@@ -716,10 +1032,10 @@ class TeslaCamViewer(QWidget):
             
             ref_player = self.get_active_players()[self.camera_name_to_index["front"]]
             if not (ref_player.source() and ref_player.source().isValid()):
-                ref_player = next((p for i, p in enumerate(self.get_active_players()) if p.source() and p.source().isValid()), None)
+                ref_player = next((p for p in self.get_active_players() if p.source() and p.source().isValid()), None)
 
             if not ref_player:
-                if self.play_btn.text() != "▶️ Play":
+                if self.play_btn.text() != PLAY_BUTTON_TEXT:
                      if self.scrubber.value() < self.scrubber.maximum(): self.scrubber.setValue(self.scrubber.maximum())
                      self.pause_all()
                 return
@@ -731,7 +1047,7 @@ class TeslaCamViewer(QWidget):
                 self.scrubber.blockSignals(True); self.scrubber.setValue(global_position); self.scrubber.blockSignals(False)
             
             current_time = time.time()
-            if current_time - self.last_text_update_time > 1 or self.play_btn.text() == "▶️ Play":
+            if current_time - self.last_text_update_time > 1 or self.play_btn.text() == PLAY_BUTTON_TEXT:
                 clip_duration = ref_player.duration()
                 global_time = self.app_state.first_timestamp_of_day + timedelta(milliseconds=global_position)
                 self.time_label.setText(f"{global_time.strftime('%m/%d/%Y %I:%M:%S %p')} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)})")
@@ -741,11 +1057,13 @@ class TeslaCamViewer(QWidget):
             if utils.DEBUG_UI: print(f"Error in update_slider_and_time_display: {e}"); traceback.print_exc()
     
     def clear_all_players(self):
+        self.logger.debug("Clearing all players and stopping background operations")
+
         if self.clip_loader_thread and self.clip_loader_thread.isRunning() and self.clip_loader_worker:
             self.clip_loader_worker.stop()
             self.clip_loader_thread.quit()
             self.clip_loader_thread.wait() # Wait for thread to fully terminate
-        
+
         self.clip_loader_thread = None
         self.clip_loader_worker = None
 
@@ -755,8 +1073,11 @@ class TeslaCamViewer(QWidget):
         self.pending_seek_position = -1
         self.players_awaiting_seek.clear()
         self.position_update_timer.stop()
+
+        # Use safe cleanup for media players
         for p_set in [self.players_a, self.players_b]:
-            for p in p_set: p.stop(); p.setSource(QUrl())
+            for p in p_set:
+                safe_cleanup_media_player(p)
         
         root_path = self.app_state.root_clips_path
         self.app_state = AppState()
@@ -764,7 +1085,7 @@ class TeslaCamViewer(QWidget):
         
         self.time_label.setText("MM/DD/YYYY HH:MM:SS (Clip: 00:00 / 00:00)")
         self.scrubber.setValue(0); self.scrubber.setMaximum(1000)
-        self.play_btn.setText("▶️ Play"); self.speed_selector.setCurrentText("1x") 
+        self.play_btn.setText(PLAY_BUTTON_TEXT); self.speed_selector.setCurrentText(DEFAULT_PLAYBACK_RATE)
         self.scrubber.set_events([]); self.update_export_ui()
 
     def preview_at_global_ms(self, global_ms):
@@ -917,7 +1238,7 @@ class TeslaCamViewer(QWidget):
         self.players_awaiting_seek.clear()
         
         if utils.DEBUG_UI: print(f"--- Swapping player sets. New active set: {'b' if self.active_player_set == 'a' else 'a'} ---")
-        was_playing = self.play_btn.text() == "⏸️ Pause"
+        was_playing = self.play_btn.text() == PAUSE_BUTTON_TEXT
         [p.stop() for p in self.get_active_players()]
         
         self.active_player_set = 'b' if self.active_player_set == 'a' else 'a'

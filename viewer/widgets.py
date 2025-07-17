@@ -10,6 +10,13 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QRect, QTimer, QMimeData
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QTransform, QWheelEvent, QMouseEvent, QDrag
 
 from . import utils
+from .constants import (
+    CAMERA_ICON, HAND_ICON, HORN_ICON, ICON_SIZE_SMALL, DRAG_DROP_MIME_TYPE,
+    MIN_ZOOM_FACTOR, MAX_ZOOM_FACTOR, ZOOM_STEP, get_assets_path
+)
+from .logging_config import get_logger
+from .resource_manager import safe_cleanup_media_player
+from .input_validation import validate_time_input
 
 class ExportScrubber(QSlider):
     export_marker_moved = pyqtSignal(str, int)
@@ -25,9 +32,10 @@ class ExportScrubber(QSlider):
         self.events = []
         self.setMouseTracking(True)
         
-        self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg"))
-        self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg"))
-        self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg"))
+        assets_dir = get_assets_path()
+        self.icon_camera = QPixmap(str(assets_dir / CAMERA_ICON)).scaled(ICON_SIZE_SMALL, ICON_SIZE_SMALL, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_hand = QPixmap(str(assets_dir / HAND_ICON)).scaled(ICON_SIZE_SMALL, ICON_SIZE_SMALL, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_horn = QPixmap(str(assets_dir / HORN_ICON)).scaled(ICON_SIZE_SMALL, ICON_SIZE_SMALL, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.hovered_event = None
 
     def set_export_range(self, start_ms, end_ms):
@@ -159,7 +167,7 @@ class EventToolTip(QWidget):
             self.thumbnail_label.setText("  No Preview Available")
 
 class VideoPlayerItemWidget(QGraphicsView):
-    MIME_TYPE = "application/x-teslacam-widget-index"
+    MIME_TYPE = DRAG_DROP_MIME_TYPE
     swap_requested = pyqtSignal(int, int) # dragged_index, dropped_on_index
 
     def __init__(self, player_index: int, parent=None):
@@ -195,10 +203,10 @@ class VideoPlayerItemWidget(QGraphicsView):
             self.fitInView(self.video_item, Qt.AspectRatioMode.KeepAspectRatio)
 
     def wheelEvent(self, event: QWheelEvent):
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
-        if self.transform().m11() * factor < 1.0:
+        factor = ZOOM_STEP if event.angleDelta().y() > 0 else 1 / ZOOM_STEP
+        if self.transform().m11() * factor < MIN_ZOOM_FACTOR:
             self.reset_view()
-        elif self.transform().m11() * factor > 7.0:
+        elif self.transform().m11() * factor > MAX_ZOOM_FACTOR:
             return
         else:
             self.scale(factor, factor)
@@ -340,6 +348,12 @@ class GoToTimeDialog(QDialog):
         if not original_date_str:
             self.thumbnail_label.setText("Invalid date for preview")
             return
+        # Validate time input first
+        time_validation = validate_time_input(time_str)
+        if not time_validation.is_valid:
+            self.thumbnail_label.setText("Invalid time format for preview")
+            return
+
         try:
             target_dt = datetime.strptime(f"{original_date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
         except (ValueError, TypeError):
