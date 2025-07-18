@@ -368,6 +368,48 @@ class VideoPlaybackManager(BaseManager):
         except Exception as e:
             self.handle_error(e, f"frame_action({offset_ms})")
 
+    def frame_action_precise(self, direction: int) -> None:
+        """
+        Frame-accurate navigation using Tesla camera specifications.
+
+        Args:
+            direction: -1 for backward, +1 for forward
+        """
+        try:
+            if not self.app_state.is_daily_view_active:
+                return
+
+            # Tesla cameras record at 36.02 FPS
+            tesla_fps = 36.02
+            frame_duration_ms = 1000.0 / tesla_fps  # ≈ 27.8ms per frame
+
+            # Calculate precise frame offset
+            offset_ms = direction * frame_duration_ms
+
+            # Pause playback first
+            self.pause_all()
+
+            # Apply frame-accurate offset to all active players
+            for player in self.get_active_players():
+                if player.source() and player.source().isValid():
+                    current_position = player.position()
+
+                    # Calculate target frame
+                    current_frame = round(current_position / frame_duration_ms)
+                    target_frame = max(0, current_frame + direction)
+                    target_position = target_frame * frame_duration_ms
+
+                    player.setPosition(int(target_position))
+
+            # Update slider and time display
+            if hasattr(self.parent_widget, 'update_slider_and_time_display'):
+                self.parent_widget.update_slider_and_time_display()
+
+            self.logger.debug(f"Frame-accurate navigation: {direction} frame(s), {offset_ms:.1f}ms")
+
+        except Exception as e:
+            self.handle_error(e, f"frame_action_precise({direction})")
+
     def set_playback_rate(self, rate: float) -> None:
         """Set playback rate for all players."""
         try:
@@ -381,6 +423,28 @@ class VideoPlaybackManager(BaseManager):
 
         except Exception as e:
             self.handle_error(e, f"set_playback_rate({rate})")
+
+    def set_playback_rate_smooth(self, rate: float) -> None:
+        """
+        Set playback rate with smooth transitions without interrupting playback.
+
+        Args:
+            rate: New playback rate (0.1x to 8x)
+        """
+        try:
+            self.playback_rate = rate
+
+            # Apply to all players (both active and inactive sets)
+            # This ensures rate is applied when players become active
+            for player_set in [self.players_a, self.players_b]:
+                for player in player_set:
+                    if player.source() and player.source().isValid():
+                        player.setPlaybackRate(rate)
+
+            self.logger.debug(f"Playback rate changed smoothly to {rate}x")
+
+        except Exception as e:
+            self.handle_error(e, f"set_playback_rate_smooth({rate})")
 
     # ========================================
     # Complex Seeking Logic (Extracted from TeslaCamViewer)

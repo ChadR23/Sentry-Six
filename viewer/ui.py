@@ -265,9 +265,9 @@ class TeslaCamViewer(QWidget):
         control_layout = QHBoxLayout(); control_layout.setSpacing(8); control_layout.addStretch()
         
         self.skip_bwd_15_btn = QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() - 15000, restore_play_state=True))
-        self.frame_back_btn = QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action(-33))
+        self.frame_back_btn = QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action_precise(-1))
         self.play_btn = QPushButton("▶️ Play"); self.play_btn.clicked.connect(self.toggle_play_pause_all)
-        self.frame_forward_btn = QPushButton("FR ⏩"); self.frame_forward_btn.clicked.connect(lambda: self.frame_action(33))
+        self.frame_forward_btn = QPushButton("FR ⏩"); self.frame_forward_btn.clicked.connect(lambda: self.frame_action_precise(1))
         self.skip_fwd_15_btn = QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() + 15000, restore_play_state=True))
         
         for btn in [self.skip_bwd_15_btn, self.frame_back_btn, self.play_btn, self.frame_forward_btn, self.skip_fwd_15_btn]:
@@ -285,9 +285,15 @@ class TeslaCamViewer(QWidget):
             
         control_layout.addSpacing(20)
         self.speed_selector = QComboBox()
-        self.playback_rates = {"0.25x":0.25, "0.5x":0.5, "1x":1.0, "1.5x":1.5, "2x":2.0, "4x":4.0}
+        # Enhanced speed options with more granular control
+        self.playback_rates = {
+            "0.1x": 0.1, "0.25x": 0.25, "0.5x": 0.5, "0.75x": 0.75,
+            "1x": 1.0, "1.25x": 1.25, "1.5x": 1.5, "2x": 2.0,
+            "3x": 3.0, "4x": 4.0, "8x": 8.0
+        }
         self.speed_selector.addItems(self.playback_rates.keys())
-        self.speed_selector.currentTextChanged.connect(self.set_playback_speed)
+        self.speed_selector.setCurrentText("1x")  # Set default
+        self.speed_selector.currentTextChanged.connect(self.set_playback_speed_smooth)
         control_layout.addWidget(QLabel("Speed:"))
         control_layout.addWidget(self.speed_selector)
         
@@ -305,6 +311,7 @@ class TeslaCamViewer(QWidget):
         self.scrubber.export_marker_moved.connect(self.handle_marker_drag)
         self.scrubber.event_marker_clicked.connect(self.handle_event_click)
         self.scrubber.event_marker_hovered.connect(self.handle_event_hover)
+        self.scrubber.bookmark_added.connect(self.handle_bookmark_added)
         self.scrubber.drag_started.connect(self._handle_scrubber_press)
         self.scrubber.drag_finished.connect(self._handle_marker_drag_finished)
         
@@ -319,16 +326,16 @@ class TeslaCamViewer(QWidget):
         play_pause_action.triggered.connect(self.toggle_play_pause_all)
         self.addAction(play_pause_action)
 
-        # Frame Back Action
+        # Frame Back Action (Precise)
         frame_back_action = QAction("Frame Back", self)
         frame_back_action.setShortcut(QKeySequence(Qt.Key.Key_Left))
-        frame_back_action.triggered.connect(lambda: self.frame_action(-33))
+        frame_back_action.triggered.connect(lambda: self.frame_action_precise(-1))
         self.addAction(frame_back_action)
 
-        # Frame Forward Action
+        # Frame Forward Action (Precise)
         frame_forward_action = QAction("Frame Forward", self)
         frame_forward_action.setShortcut(QKeySequence(Qt.Key.Key_Right))
-        frame_forward_action.triggered.connect(lambda: self.frame_action(33))
+        frame_forward_action.triggered.connect(lambda: self.frame_action_precise(1))
         self.addAction(frame_forward_action)
 
         # Mark Start Action
@@ -348,6 +355,12 @@ class TeslaCamViewer(QWidget):
         export_action.setShortcut(QKeySequence(Qt.Key.Key_E))
         export_action.triggered.connect(self.show_export_dialog)
         self.addAction(export_action)
+
+        # Add Bookmark Action
+        add_bookmark_action = QAction("Add Bookmark", self)
+        add_bookmark_action.setShortcut(QKeySequence(Qt.Key.Key_B))
+        add_bookmark_action.triggered.connect(self.add_manual_bookmark)
+        self.addAction(add_bookmark_action)
 
     # ========================================
     # Backward Compatibility Wrappers (Week 2 & Week 4 Implementation)
@@ -760,6 +773,17 @@ class TeslaCamViewer(QWidget):
             if not self.app_state.is_daily_view_active: return
             self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
 
+    def frame_action_precise(self, direction):
+        """Frame-accurate navigation using Tesla camera specifications (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            self.video_manager.frame_action_precise(direction)
+        else:
+            # Fallback to legacy frame action with Tesla FPS calculation
+            tesla_fps = 36.02
+            frame_duration_ms = 1000.0 / tesla_fps  # ≈ 27.8ms per frame
+            offset_ms = direction * frame_duration_ms
+            self.frame_action(int(offset_ms))
+
     def _handle_scrubber_press(self):
         if not self.app_state.is_daily_view_active: return
         self.was_playing_before_scrub = self.play_btn.text() == "⏸️ Pause"
@@ -891,10 +915,39 @@ class TeslaCamViewer(QWidget):
     def show_event_tooltip(self, event_data, global_pos):
         self.event_tooltip.move(global_pos.x() - self.event_tooltip.width() // 2, global_pos.y() - self.event_tooltip.height() - 20)
         self.event_tooltip.show()
-        
+
         thumb_path = os.path.join(event_data['folder_path'], 'thumb.png')
         pixmap = QPixmap(thumb_path) if os.path.exists(thumb_path) else QPixmap()
         self.event_tooltip.update_content(event_data['reason'], pixmap)
+
+    def add_manual_bookmark(self):
+        """Add a manual bookmark at the current playback position."""
+        try:
+            if not self.app_state.is_daily_view_active:
+                return
+
+            current_position = self.scrubber.value()
+            self.scrubber.add_manual_bookmark(current_position)
+
+            # Show confirmation message
+            global_time = self.app_state.first_timestamp_of_day + timedelta(milliseconds=current_position)
+            timestamp_str = global_time.strftime('%I:%M:%S %p')
+            print(f"Bookmark added at {timestamp_str}")
+
+        except Exception as e:
+            print(f"Error adding bookmark: {e}")
+
+    def handle_bookmark_added(self, position_ms):
+        """Handle bookmark added signal from scrubber."""
+        try:
+            # Could add bookmark to a persistent list or database here
+            # For now, just log the bookmark
+            global_time = self.app_state.first_timestamp_of_day + timedelta(milliseconds=position_ms)
+            timestamp_str = global_time.strftime('%I:%M:%S %p')
+            self.logger.info(f"Manual bookmark added at {timestamp_str} ({position_ms}ms)")
+
+        except Exception as e:
+            print(f"Error handling bookmark: {e}")
 
     def update_export_ui(self):
         self.start_time_label.setText(f"Start: {utils.format_time(self.app_state.export_state.start_ms)}")
@@ -1006,9 +1059,20 @@ class TeslaCamViewer(QWidget):
         return builder.build()
     
     def set_playback_speed(self, speed_text):
-        rate = self.playback_rates.get(speed_text,1.0)
+        """Legacy speed setting method (kept for compatibility)."""
+        rate = self.playback_rates.get(speed_text, 1.0)
         for p_set in [self.players_a, self.players_b]:
-            for p in p_set: p.setPlaybackRate(rate)
+            for p in p_set:
+                p.setPlaybackRate(rate)
+
+    def set_playback_speed_smooth(self, speed_text):
+        """Enhanced speed setting with smooth transitions (delegated to VideoPlaybackManager)."""
+        if hasattr(self, 'video_manager') and self.video_manager.is_initialized():
+            rate = self.playback_rates.get(speed_text, 1.0)
+            self.video_manager.set_playback_rate_smooth(rate)
+        else:
+            # Fallback to original method
+            self.set_playback_speed(speed_text)
 
     def update_slider_and_time_display(self):
         try:
@@ -1038,7 +1102,17 @@ class TeslaCamViewer(QWidget):
             if current_time - self.last_text_update_time > 1 or self.play_btn.text() == "▶️ Play":
                 clip_duration = ref_player.duration()
                 global_time = self.app_state.first_timestamp_of_day + timedelta(milliseconds=global_position)
-                self.time_label.setText(f"{global_time.strftime('%m/%d/%Y %I:%M:%S %p')} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)})")
+
+                # Enhanced timestamp display with milliseconds for precision
+                timestamp_str = global_time.strftime('%m/%d/%Y %I:%M:%S')
+                milliseconds = global_time.microsecond // 1000
+                timestamp_with_ms = f"{timestamp_str}.{milliseconds:03d} {global_time.strftime('%p')}"
+
+                # Calculate current frame number for Tesla cameras (36.02 FPS)
+                tesla_fps = 36.02
+                current_frame = int(current_pos / (1000.0 / tesla_fps))
+
+                self.time_label.setText(f"{timestamp_with_ms} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)}) [Frame: {current_frame}]")
                 self.last_text_update_time = current_time
         
         except Exception as e:

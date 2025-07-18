@@ -15,6 +15,7 @@ class ExportScrubber(QSlider):
     export_marker_moved = pyqtSignal(str, int)
     event_marker_clicked = pyqtSignal(object)
     event_marker_hovered = pyqtSignal(object, QPoint)
+    bookmark_added = pyqtSignal(int)  # New signal for manual bookmarks
     drag_started = pyqtSignal()
     drag_finished = pyqtSignal()
 
@@ -23,11 +24,14 @@ class ExportScrubber(QSlider):
         self.start_ms, self.end_ms = None, None
         self.dragging_marker = None
         self.events = []
+        self.manual_bookmarks = []  # List of manual bookmark positions
         self.setMouseTracking(True)
         
         self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        # Create a simple bookmark icon if assets don't exist
+        self.icon_bookmark = self._create_bookmark_icon()
         self.hovered_event = None
 
     def set_export_range(self, start_ms, end_ms):
@@ -37,6 +41,48 @@ class ExportScrubber(QSlider):
     def set_events(self, events):
         self.events = events
         self.update()
+
+    def add_manual_bookmark(self, position_ms):
+        """Add a manual bookmark at the specified position."""
+        if position_ms not in self.manual_bookmarks:
+            self.manual_bookmarks.append(position_ms)
+            self.manual_bookmarks.sort()  # Keep sorted for efficient rendering
+            self.bookmark_added.emit(position_ms)
+            self.update()
+
+    def remove_manual_bookmark(self, position_ms):
+        """Remove a manual bookmark at the specified position."""
+        if position_ms in self.manual_bookmarks:
+            self.manual_bookmarks.remove(position_ms)
+            self.update()
+
+    def clear_manual_bookmarks(self):
+        """Clear all manual bookmarks."""
+        self.manual_bookmarks.clear()
+        self.update()
+
+    def _create_bookmark_icon(self):
+        """Create a simple bookmark icon."""
+        pixmap = QPixmap(28, 28)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw a simple bookmark shape
+        painter.setBrush(QColor(255, 215, 0))  # Gold color
+        painter.setPen(QPen(QColor(200, 170, 0), 2))
+
+        # Bookmark shape points
+        points = [
+            QPoint(8, 4), QPoint(20, 4), QPoint(20, 24),
+            QPoint(14, 18), QPoint(8, 24), QPoint(8, 4)
+        ]
+
+        painter.drawPolygon(points)
+        painter.end()
+
+        return pixmap
     
     def _value_to_pixel(self, value):
         if value is None:
@@ -82,6 +128,15 @@ class ExportScrubber(QSlider):
             draw_x = max(0, min(ideal_x, self.width() - icon.width()))
             
             painter.drawPixmap(draw_x, icon_y, icon)
+
+        # Draw manual bookmarks
+        for bookmark_ms in self.manual_bookmarks:
+            bookmark_pixel = self._value_to_pixel(bookmark_ms)
+            icon_y = groove_rect.center().y() - self.icon_bookmark.height() // 2
+            ideal_x = bookmark_pixel - self.icon_bookmark.width() // 2
+            draw_x = max(0, min(ideal_x, self.width() - self.icon_bookmark.width()))
+
+            painter.drawPixmap(draw_x, icon_y, self.icon_bookmark)
 
     def mousePressEvent(self, event: QMouseEvent):
         pos_x = event.pos().x()
