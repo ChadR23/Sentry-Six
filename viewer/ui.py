@@ -1097,10 +1097,22 @@ class TeslaCamViewer(QWidget):
                 return
 
             current_pos = ref_player.position()
-            global_position = min(self.app_state.playback_state.segment_start_ms + current_pos, self.scrubber.maximum())
-            
-            if not self.scrubber.isSliderDown(): 
-                self.scrubber.blockSignals(True); self.scrubber.setValue(global_position); self.scrubber.blockSignals(False)
+            global_position = self.app_state.playback_state.segment_start_ms + current_pos
+
+            # Bounds checking to prevent erratic scrubber behavior
+            global_position = max(0, min(global_position, self.scrubber.maximum()))
+
+            # Only update scrubber if not being dragged and position is valid
+            if not self.scrubber.isSliderDown() and global_position >= 0:
+                # Prevent rapid updates that could cause jumping
+                current_scrubber_value = self.scrubber.value()
+                position_diff = abs(global_position - current_scrubber_value)
+
+                # Only update if position changed significantly (>100ms) or we're paused
+                if position_diff > 100 or self.play_btn.text() == "▶️ Play":
+                    self.scrubber.blockSignals(True)
+                    self.scrubber.setValue(global_position)
+                    self.scrubber.blockSignals(False)
             
             current_time = time.time()
             if current_time - self.last_text_update_time > 1 or self.play_btn.text() == "▶️ Play":
@@ -1112,11 +1124,8 @@ class TeslaCamViewer(QWidget):
                 milliseconds = global_time.microsecond // 1000
                 timestamp_with_ms = f"{timestamp_str}.{milliseconds:03d} {global_time.strftime('%p')}"
 
-                # Calculate current frame number for Tesla cameras (36.02 FPS)
-                tesla_fps = 36.02
-                current_frame = int(current_pos / (1000.0 / tesla_fps))
-
-                self.time_label.setText(f"{timestamp_with_ms} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)}) [Frame: {current_frame}]")
+                # Clean timeline display without frame number to prevent layout issues
+                self.time_label.setText(f"{timestamp_with_ms} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)})")
                 self.last_text_update_time = current_time
         
         except Exception as e:
@@ -1776,11 +1785,22 @@ class TeslaCamViewer(QWidget):
         """Handle position changes from VideoPlaybackManager."""
         try:
             # Update scrubber position if not being dragged by user
-            if not getattr(self, '_scrubber_being_dragged', False):
+            if not getattr(self, '_scrubber_being_dragged', False) and not self.scrubber.isSliderDown():
                 # Calculate global timeline position
                 if self.app_state.playback_state and self.app_state.playback_state.segment_start_ms >= 0:
                     global_ms = self.app_state.playback_state.segment_start_ms + position_ms
-                    self.scrubber.setValue(global_ms)
+
+                    # Bounds checking and validation
+                    if 0 <= global_ms <= self.scrubber.maximum():
+                        # Prevent rapid updates that could cause jumping
+                        current_value = self.scrubber.value()
+                        position_diff = abs(global_ms - current_value)
+
+                        # Only update if position changed significantly (>50ms) to reduce jitter
+                        if position_diff > 50:
+                            self.scrubber.blockSignals(True)
+                            self.scrubber.setValue(global_ms)
+                            self.scrubber.blockSignals(False)
         except Exception as e:
             print(f"Error handling position change: {e}")
 

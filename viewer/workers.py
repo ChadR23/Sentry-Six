@@ -257,10 +257,23 @@ class RecentClipsLoaderWorker(QObject):
             total_duration = 0
 
             if first_ts and last_ts:
-                # Estimate total duration based on time span + typical clip duration
+                # Calculate accurate duration using actual video file duration (same as ClipLoaderWorker)
                 time_span_ms = int((last_ts - first_ts).total_seconds() * 1000)
-                typical_clip_duration_ms = 60000  # 1 minute per clip
-                total_duration = time_span_ms + typical_clip_duration_ms
+
+                # Find the last clip file to get its actual duration
+                last_clip_path = None
+                for files in raw_files.values():
+                    for file_path, timestamp in files:
+                        if timestamp == last_ts:
+                            last_clip_path = file_path
+                            break
+                    if last_clip_path:
+                        break
+
+                total_duration = time_span_ms
+                if last_clip_path:
+                    # Add actual duration of the last clip for precise timeline
+                    total_duration += utils.get_video_duration_ms(last_clip_path)
 
             self.progress.emit(90, "Organizing clip collections...")
 

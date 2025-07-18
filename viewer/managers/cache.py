@@ -846,6 +846,11 @@ class CacheManager(BaseManager):
     def _load_cache_metadata(self) -> None:
         """Load cache metadata from previous sessions."""
         try:
+            # Skip loading if cache directory is not initialized
+            if not self.cache_directory:
+                self.logger.debug("Cache directory not initialized, skipping metadata load")
+                return
+
             metadata_file = self.cache_directory / 'cache_metadata.json'
             if metadata_file.exists():
                 with open(metadata_file, 'r', encoding='utf-8') as f:
@@ -863,6 +868,11 @@ class CacheManager(BaseManager):
     def _save_cache_metadata(self) -> None:
         """Save cache metadata for next session."""
         try:
+            # Skip saving if cache directory is not initialized
+            if not self.cache_directory:
+                self.logger.debug("Cache directory not initialized, skipping metadata save")
+                return
+
             metadata = {
                 'last_cleanup': time.time(),
                 'stats': self.cache_stats,
