@@ -418,6 +418,7 @@ class ClipManager(BaseManager):
 
             else:
                 # For SavedClips/SentryClips, scan date folders
+                unique_dates = set()
                 for item in os.listdir(self.root_clips_path):
                     item_path = os.path.join(self.root_clips_path, item)
                     if os.path.isdir(item_path):
@@ -427,9 +428,11 @@ class ClipManager(BaseManager):
                             # Validate date format
                             try:
                                 datetime.strptime(date_str, "%Y-%m-%d")
-                                date_folders.append(date_str)
+                                unique_dates.add(date_str)
                             except ValueError:
                                 continue
+
+                date_folders = list(unique_dates)
 
             # Sort dates in descending order (newest first)
             date_folders.sort(reverse=True)
