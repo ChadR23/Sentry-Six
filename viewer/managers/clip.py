@@ -16,6 +16,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QThread
 from .base import BaseManager
 from ..state import TimelineData
 from .. import utils
+from ..workers import ClipLoaderWorker, RecentClipsLoaderWorker
 
 
 class ClipManagerSignals(QObject):
@@ -45,17 +46,7 @@ class ClipManagerSignals(QObject):
     corrupted_files_detected = pyqtSignal(list)  # corrupted_file_paths
 
 
-class ClipLoaderWorker(QObject):
-    """Worker to scan for and process video files asynchronously (extracted from workers.py)."""
-    finished = pyqtSignal(object)  # TimelineData
-    progress = pyqtSignal(int, str)  # percentage, status_message
 
-    def __init__(self, root_path: str, selected_date: str, camera_map: Dict[str, int], parent=None):
-        super().__init__(parent)
-        self.root_path = root_path
-        self.selected_date = selected_date
-        self.camera_map = camera_map
-        self._is_running = True
 
     def run(self):
         """Run the clip loading process."""
@@ -196,10 +187,12 @@ class ClipManager(BaseManager):
         self.root_clips_path: Optional[str] = None
         self.available_dates: List[str] = []
         self.date_folder_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+        self.is_recent_clips_folder: bool = False
 
         # Clip loading state
         self.current_timeline_data: Optional[TimelineData] = None
         self.clip_loader_worker: Optional[ClipLoaderWorker] = None
+        self.recent_clips_worker: Optional[RecentClipsLoaderWorker] = None
         self.clip_loader_thread: Optional[QThread] = None
         self.is_loading: bool = False
 
@@ -273,8 +266,13 @@ class ClipManager(BaseManager):
     def stop_clip_loading(self) -> None:
         """Stop any running clip loading operation."""
         try:
+            # Stop regular clip loader worker
             if self.clip_loader_worker:
                 self.clip_loader_worker.stop()
+
+            # Stop RecentClips worker
+            if self.recent_clips_worker:
+                self.recent_clips_worker.stop()
 
             # Check if thread exists and is still valid before calling methods
             if self.clip_loader_thread:
@@ -288,6 +286,7 @@ class ClipManager(BaseManager):
 
             self.clip_loader_thread = None
             self.clip_loader_worker = None
+            self.recent_clips_worker = None
             self.is_loading = False
 
         except Exception as e:
@@ -308,6 +307,48 @@ class ClipManager(BaseManager):
     # File Discovery Methods (Week 6 Implementation)
     # ========================================
 
+    def _detect_folder_type(self, path: str) -> bool:
+        """
+        Detect if the folder is a RecentClips folder (flat structure) or regular clips folder.
+
+        Args:
+            path: Directory path to analyze
+
+        Returns:
+            bool: True if RecentClips folder detected
+        """
+        try:
+            if not os.path.isdir(path):
+                return False
+
+            # Check if folder name contains "RecentClips"
+            folder_name = os.path.basename(path).lower()
+            if "recentclips" in folder_name:
+                return True
+
+            # Check folder structure - RecentClips has video files directly in root
+            has_video_files_in_root = False
+            has_date_subfolders = False
+
+            for item in os.listdir(path):
+                item_path = os.path.join(path, item)
+
+                # Check for video files in root
+                if os.path.isfile(item_path) and utils.filename_pattern.match(item):
+                    has_video_files_in_root = True
+
+                # Check for date subfolders
+                elif os.path.isdir(item_path) and self.date_folder_pattern.match(item):
+                    has_date_subfolders = True
+
+            # RecentClips: has video files in root, no date subfolders
+            # SavedClips/SentryClips: has date subfolders, no video files in root
+            return has_video_files_in_root and not has_date_subfolders
+
+        except Exception as e:
+            self.logger.warning(f"Error detecting folder type for {path}: {e}")
+            return False
+
     def set_root_clips_path(self, path: str) -> bool:
         """
         Set the root clips path and scan for available dates.
@@ -325,6 +366,9 @@ class ClipManager(BaseManager):
 
             self.root_clips_path = path
 
+            # Detect folder type
+            self.is_recent_clips_folder = self._detect_folder_type(path)
+
             # Update app state
             if self.app_state:
                 self.app_state.root_clips_path = path
@@ -332,7 +376,8 @@ class ClipManager(BaseManager):
             # Scan for available dates
             self.scan_for_dates()
 
-            self.logger.info(f"Root clips path set to: {path}")
+            folder_type = "RecentClips" if self.is_recent_clips_folder else "SavedClips/SentryClips"
+            self.logger.info(f"Root clips path set to: {path} (detected as {folder_type})")
             return True
 
         except Exception as e:
@@ -353,27 +398,46 @@ class ClipManager(BaseManager):
 
             self.signals.folder_scan_started.emit(self.root_clips_path)
 
-            # Find all date folders
             date_folders = []
-            for item in os.listdir(self.root_clips_path):
-                item_path = os.path.join(self.root_clips_path, item)
-                if os.path.isdir(item_path):
-                    match = self.date_folder_pattern.match(item)
-                    if match:
-                        date_str = match.group(1)
-                        # Validate date format
-                        try:
-                            datetime.strptime(date_str, "%Y-%m-%d")
-                            date_folders.append(date_str)
-                        except ValueError:
-                            continue
+
+            if self.is_recent_clips_folder:
+                # For RecentClips, extract dates from video filenames
+                unique_dates = set()
+                for filename in os.listdir(self.root_clips_path):
+                    if os.path.isfile(os.path.join(self.root_clips_path, filename)):
+                        match = utils.filename_pattern.match(filename)
+                        if match:
+                            date_str = match.group(1)
+                            try:
+                                datetime.strptime(date_str, "%Y-%m-%d")
+                                unique_dates.add(date_str)
+                            except ValueError:
+                                continue
+
+                date_folders = list(unique_dates)
+
+            else:
+                # For SavedClips/SentryClips, scan date folders
+                for item in os.listdir(self.root_clips_path):
+                    item_path = os.path.join(self.root_clips_path, item)
+                    if os.path.isdir(item_path):
+                        match = self.date_folder_pattern.match(item)
+                        if match:
+                            date_str = match.group(1)
+                            # Validate date format
+                            try:
+                                datetime.strptime(date_str, "%Y-%m-%d")
+                                date_folders.append(date_str)
+                            except ValueError:
+                                continue
 
             # Sort dates in descending order (newest first)
             date_folders.sort(reverse=True)
             self.available_dates = date_folders
 
             self.signals.folder_scan_completed.emit(self.available_dates)
-            self.logger.debug(f"Found {len(self.available_dates)} date folders")
+            folder_type = "RecentClips" if self.is_recent_clips_folder else "date folders"
+            self.logger.debug(f"Found {len(self.available_dates)} {folder_type}")
 
             return self.available_dates
 
@@ -401,23 +465,32 @@ class ClipManager(BaseManager):
             if not self.root_clips_path:
                 return False
 
-            # Find folders matching the date
-            potential_folders = []
-            for item in os.listdir(self.root_clips_path):
-                item_path = os.path.join(self.root_clips_path, item)
-                if os.path.isdir(item_path) and item.startswith(date_str):
-                    potential_folders.append(item_path)
-
-            if not potential_folders:
+            if self.is_recent_clips_folder:
+                # For RecentClips, check if any video files exist for the date
+                for filename in os.listdir(self.root_clips_path):
+                    if os.path.isfile(os.path.join(self.root_clips_path, filename)):
+                        match = utils.filename_pattern.match(filename)
+                        if match and match.group(1) == date_str:
+                            return True
                 return False
+            else:
+                # For SavedClips/SentryClips, find folders matching the date
+                potential_folders = []
+                for item in os.listdir(self.root_clips_path):
+                    item_path = os.path.join(self.root_clips_path, item)
+                    if os.path.isdir(item_path) and item.startswith(date_str):
+                        potential_folders.append(item_path)
 
-            # Check if any folder contains video files
-            for folder in potential_folders:
-                for filename in os.listdir(folder):
-                    if utils.filename_pattern.match(filename):
-                        return True
+                if not potential_folders:
+                    return False
 
-            return False
+                # Check if any folder contains video files
+                for folder in potential_folders:
+                    for filename in os.listdir(folder):
+                        if utils.filename_pattern.match(filename):
+                            return True
+
+                return False
 
         except Exception as e:
             self.handle_error(e, f"validate_date_folder({date_str})")
@@ -462,23 +535,37 @@ class ClipManager(BaseManager):
             self.is_loading = True
             self.signals.clip_loading_started.emit(date_str)
 
-            # Create worker and thread
-            self.clip_loader_worker = ClipLoaderWorker(
-                self.root_clips_path,
-                date_str,
-                self.camera_name_to_index
-            )
+            # Create appropriate worker based on folder type
+            self.logger.debug(f"Creating worker for folder type: {'RecentClips' if self.is_recent_clips_folder else 'Regular'}")
+            if self.is_recent_clips_folder:
+                # Use RecentClips worker for flat file structure
+                self.recent_clips_worker = RecentClipsLoaderWorker(
+                    self.root_clips_path,
+                    self.camera_name_to_index
+                )
+                worker = self.recent_clips_worker
+                self.logger.debug(f"Created RecentClipsLoaderWorker")
+            else:
+                # Use regular worker for date folder structure
+                self.clip_loader_worker = ClipLoaderWorker(
+                    self.root_clips_path,
+                    date_str,
+                    self.camera_name_to_index
+                )
+                worker = self.clip_loader_worker
+                self.logger.debug(f"Created ClipLoaderWorker for date {date_str}")
+
             self.clip_loader_thread = QThread()
 
             # Move worker to thread
-            self.clip_loader_worker.moveToThread(self.clip_loader_thread)
+            worker.moveToThread(self.clip_loader_thread)
 
             # Connect signals
-            self.clip_loader_thread.started.connect(self.clip_loader_worker.run)
-            self.clip_loader_worker.finished.connect(self._on_clip_loading_finished)
-            self.clip_loader_worker.progress.connect(self._on_clip_loading_progress)
-            self.clip_loader_worker.finished.connect(self.clip_loader_thread.quit)
-            self.clip_loader_worker.finished.connect(self.clip_loader_worker.deleteLater)
+            self.clip_loader_thread.started.connect(worker.run)
+            worker.finished.connect(self._on_clip_loading_finished)
+            worker.progress.connect(self._on_clip_loading_progress)
+            worker.finished.connect(self.clip_loader_thread.quit)
+            worker.finished.connect(worker.deleteLater)
             self.clip_loader_thread.finished.connect(self.clip_loader_thread.deleteLater)
 
             # Start the thread
@@ -652,25 +739,39 @@ class ClipManager(BaseManager):
             # Build index
             file_index = {name: [] for name in self.camera_name_to_index.keys()}
 
-            # Find folders for the date
-            potential_folders = []
-            for item in os.listdir(self.root_clips_path):
-                item_path = os.path.join(self.root_clips_path, item)
-                if os.path.isdir(item_path) and item.startswith(date_str):
-                    potential_folders.append(item_path)
+            if self.is_recent_clips_folder:
+                # For RecentClips, scan files directly in root folder
+                for filename in os.listdir(self.root_clips_path):
+                    if os.path.isfile(os.path.join(self.root_clips_path, filename)):
+                        match = utils.filename_pattern.match(filename)
+                        if match and match.group(1) == date_str:
+                            try:
+                                camera_name = match.group(3)
+                                if camera_name in file_index:
+                                    file_path = os.path.join(self.root_clips_path, filename)
+                                    file_index[camera_name].append(file_path)
+                            except (ValueError, KeyError):
+                                continue
+            else:
+                # For SavedClips/SentryClips, find folders for the date
+                potential_folders = []
+                for item in os.listdir(self.root_clips_path):
+                    item_path = os.path.join(self.root_clips_path, item)
+                    if os.path.isdir(item_path) and item.startswith(date_str):
+                        potential_folders.append(item_path)
 
-            # Scan files in each folder
-            for folder in potential_folders:
-                for filename in os.listdir(folder):
-                    match = utils.filename_pattern.match(filename)
-                    if match:
-                        try:
-                            camera_name = match.group(3)
-                            if camera_name in file_index:
-                                file_path = os.path.join(folder, filename)
-                                file_index[camera_name].append(file_path)
-                        except (ValueError, KeyError):
-                            continue
+                # Scan files in each folder
+                for folder in potential_folders:
+                    for filename in os.listdir(folder):
+                        match = utils.filename_pattern.match(filename)
+                        if match:
+                            try:
+                                camera_name = match.group(3)
+                                if camera_name in file_index:
+                                    file_path = os.path.join(folder, filename)
+                                    file_index[camera_name].append(file_path)
+                            except (ValueError, KeyError):
+                                continue
 
             # Sort files by timestamp
             for camera_name in file_index:

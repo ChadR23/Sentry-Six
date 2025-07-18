@@ -38,7 +38,7 @@ class WelcomeDialog(QDialog):
         self.setWindowTitle("Welcome to Sentry-Six")
         self.setModal(True)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("It looks like this is your first time running Sentry-Six.\nPlease choose your TeslaCam clips folder to get started."))
+        layout.addWidget(QLabel("It looks like this is your first time running Sentry-Six.\nPlease choose your TeslaCam clips folder to get started.\n\nSupported folders: SavedClips, SentryClips, or RecentClips"))
         self.choose_btn = QPushButton("Select Clips Folder")
         layout.addWidget(self.choose_btn)
         self.dont_show_cb = QCheckBox("Don't show this again")
@@ -51,7 +51,7 @@ class WelcomeDialog(QDialog):
         self.selected_folder = None
 
     def _choose_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select TeslaCam Folder")
+        folder = QFileDialog.getExistingDirectory(self, "Select Tesla Clips Folder (SavedClips, SentryClips, or RecentClips)")
         if folder:
             self.selected_folder = folder
 
@@ -681,8 +681,12 @@ class TeslaCamViewer(QWidget):
                 else:
                     self.date_selector.setCurrentIndex(-1)
 
-    def select_root_folder(self): 
-        folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.app_state.root_clips_path or os.path.expanduser("~"))
+    def select_root_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Tesla Clips Folder (SavedClips, SentryClips, or RecentClips)",
+            self.app_state.root_clips_path or os.path.expanduser("~")
+        )
         self._apply_root_folder(folder)
 
     def repopulate_date_selector_from_path(self, folder_path):
@@ -2130,8 +2134,36 @@ class TeslaCamViewer(QWidget):
 
             self.date_selector.blockSignals(False)
 
+            # Update window title and UI to indicate folder type
+            self._update_folder_type_indicator()
+
         except Exception as e:
             print(f"Error handling folder scan completed: {e}")
+
+    def _update_folder_type_indicator(self) -> None:
+        """Update UI elements to indicate the current folder type."""
+        try:
+            if hasattr(self, 'clip_manager') and self.clip_manager.is_initialized():
+                if self.clip_manager.is_recent_clips_folder:
+                    # Update window title for RecentClips
+                    self.setWindowTitle("SentrySix - RecentClips Viewer")
+                    # Update select folder button text
+                    self.select_folder_btn.setText("📂 Select Clips (RecentClips)")
+                    self.select_folder_btn.setToolTip("Currently viewing RecentClips - continuous recording without event markers")
+                else:
+                    # Update window title for SavedClips/SentryClips
+                    self.setWindowTitle("SentrySix - Tesla Dashcam Viewer")
+                    # Update select folder button text
+                    self.select_folder_btn.setText("📂 Select Clips")
+                    self.select_folder_btn.setToolTip("Currently viewing SavedClips/SentryClips with event markers")
+            else:
+                # Default state
+                self.setWindowTitle("SentrySix - Tesla Dashcam Viewer")
+                self.select_folder_btn.setText("📂 Select Clips")
+                self.select_folder_btn.setToolTip("Select your Tesla clips folder")
+
+        except Exception as e:
+            print(f"Error updating folder type indicator: {e}")
 
     def _on_clip_loading_started(self, date_str: str) -> None:
         """Handle clip loading start from ClipManager."""

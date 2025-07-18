@@ -4,6 +4,7 @@ import subprocess
 import traceback
 import json
 from datetime import datetime
+from typing import Dict
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -84,6 +85,7 @@ class ExportWorker(QObject):
 class ClipLoaderWorker(QObject):
     """Worker to scan for and process video files asynchronously."""
     finished = pyqtSignal(TimelineData)
+    progress = pyqtSignal(int, str)  # percentage, status_message
 
     def __init__(self, root_path, selected_date, camera_map, parent=None):
         super().__init__(parent)
@@ -94,19 +96,29 @@ class ClipLoaderWorker(QObject):
 
     def run(self):
         try:
+            self.progress.emit(0, "Initializing clip scan...")
+
             raw_files = {cam_idx: [] for cam_idx in range(len(self.camera_map))}
             all_ts = []
             events = []
-            
+
+            self.progress.emit(10, "Scanning for date folders...")
             potential_folders = [p for p in [os.path.join(self.root_path, d) for d in os.listdir(self.root_path)] if os.path.isdir(p) and os.path.basename(p).startswith(self.selected_date)]
-            
+
             if not self._is_running: return
             if not potential_folders:
                 self.finished.emit(TimelineData([], [], None, 0, f"No clip folders found for {self.selected_date}"))
                 return
 
-            for folder in potential_folders:
+            self.progress.emit(20, f"Found {len(potential_folders)} folders, scanning files...")
+
+            total_folders = len(potential_folders)
+            for folder_idx, folder in enumerate(potential_folders):
                 if not self._is_running: return
+
+                folder_progress = 20 + (folder_idx / total_folders) * 60
+                self.progress.emit(int(folder_progress), f"Scanning folder {os.path.basename(folder)}...")
+
                 for filename in os.listdir(folder):
                     if not self._is_running: return
                         
@@ -134,6 +146,7 @@ class ClipLoaderWorker(QObject):
                 self.finished.emit(TimelineData([], [], None, 0, f"No valid video files found for {self.selected_date}."))
                 return
 
+            self.progress.emit(85, "Calculating timeline data...")
             first_ts, last_ts = min(all_ts), max(all_ts)
             last_clip_path = next((f[0] for files in raw_files.values() for f in files if f[1] == last_ts), None)
             
@@ -143,13 +156,16 @@ class ClipLoaderWorker(QObject):
 
             for evt in events:
                 evt['ms_in_timeline'] = (evt['timestamp_dt'] - first_ts).total_seconds() * 1000
-            
+
+            self.progress.emit(90, "Organizing clip collections...")
             final_clip_collections = [[] for _ in range(len(self.camera_map))]
             for i in range(len(self.camera_map)):
                 raw_files[i].sort(key=lambda x: x[1])
                 final_clip_collections[i] = [f[0] for f in raw_files[i]]
 
             if not self._is_running: return
+
+            self.progress.emit(100, "Clip loading completed")
             
             result = TimelineData(
                 daily_clip_collections=final_clip_collections,
@@ -161,6 +177,114 @@ class ClipLoaderWorker(QObject):
 
         except Exception as e:
             error_msg = f"Error loading date videos: {e}\n{traceback.format_exc()}"
+            if self._is_running:
+                self.finished.emit(TimelineData([], [], None, 0, error_msg))
+
+    def stop(self):
+        self._is_running = False
+
+
+class RecentClipsLoaderWorker(QObject):
+    """Worker to scan and process RecentClips files (flat structure, no date folders)."""
+    finished = pyqtSignal(TimelineData)
+    progress = pyqtSignal(int, str)  # percentage, status_message
+
+    def __init__(self, root_path: str, camera_map: Dict[str, int], parent=None):
+        super().__init__(parent)
+        self.root_path = root_path
+        self.camera_map = camera_map
+        self._is_running = True
+
+    def run(self):
+        """Run the RecentClips loading process."""
+        try:
+            self.progress.emit(0, "Initializing RecentClips scan...")
+
+            raw_files = {cam_idx: [] for cam_idx in range(len(self.camera_map))}
+            all_ts = []
+            events = []  # RecentClips typically have no events
+
+            self.progress.emit(20, "Scanning RecentClips files...")
+
+            if not self._is_running:
+                return
+
+            # Scan files directly in root folder (flat structure)
+            total_files = 0
+            processed_files = 0
+
+            # Count total files first for progress tracking
+            for filename in os.listdir(self.root_path):
+                if utils.filename_pattern.match(filename):
+                    total_files += 1
+
+            if total_files == 0:
+                self.finished.emit(TimelineData([], [], None, 0, "No video files found in RecentClips"))
+                return
+
+            self.progress.emit(30, f"Processing {total_files} RecentClips files...")
+
+            for filename in os.listdir(self.root_path):
+                if not self._is_running:
+                    return
+
+                # Process video files
+                m = utils.filename_pattern.match(filename)
+                if m:
+                    try:
+                        ts = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-',':')}", "%Y-%m-%d %H:%M:%S")
+                        cam_idx = self.camera_map[m.group(3)]
+                        file_path = os.path.join(self.root_path, filename)
+                        raw_files[cam_idx].append((file_path, ts))
+                        all_ts.append(ts)
+                        processed_files += 1
+
+                        # Update progress
+                        progress = 30 + int((processed_files / total_files) * 50)
+                        self.progress.emit(progress, f"Processed {processed_files}/{total_files} files...")
+
+                    except (ValueError, KeyError):
+                        pass
+
+            if not self._is_running:
+                return
+
+            self.progress.emit(85, "Calculating timeline data...")
+
+            # Calculate timeline data
+            first_ts = min(all_ts) if all_ts else None
+            last_ts = max(all_ts) if all_ts else None
+            total_duration = 0
+
+            if first_ts and last_ts:
+                # Estimate total duration based on time span + typical clip duration
+                time_span_ms = int((last_ts - first_ts).total_seconds() * 1000)
+                typical_clip_duration_ms = 60000  # 1 minute per clip
+                total_duration = time_span_ms + typical_clip_duration_ms
+
+            self.progress.emit(90, "Organizing clip collections...")
+
+            # Create final clip collections
+            final_clip_collections = [[] for _ in range(len(self.camera_map))]
+            for i in range(len(self.camera_map)):
+                raw_files[i].sort(key=lambda x: x[1])
+                final_clip_collections[i] = [f[0] for f in raw_files[i]]
+
+            if not self._is_running:
+                return
+
+            self.progress.emit(100, "RecentClips loading completed")
+
+            result = TimelineData(
+                daily_clip_collections=final_clip_collections,
+                events=events,  # Empty for RecentClips
+                first_timestamp_of_day=first_ts,
+                total_duration_ms=total_duration
+            )
+            self.finished.emit(result)
+
+        except Exception as e:
+            error_msg = f"Error loading RecentClips: {e}\n{traceback.format_exc()}"
             if self._is_running:
                 self.finished.emit(TimelineData([], [], None, 0, error_msg))
 
