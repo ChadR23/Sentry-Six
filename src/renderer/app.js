@@ -6,20 +6,29 @@
 class SentrySixApp {
     constructor() {
         this.currentClipGroup = null;
-        this.clipGroups = [];
+        this.clipSections = {};
+        this.currentTimeline = null;
         this.isPlaying = false;
         this.currentTime = 0;
         this.duration = 0;
-        this.videos = {};
-        this.config = {};
-        this.currentTimeline = null;
-        this.isLoadingClip = false; // Flag to prevent timeline updates during clip loading
-        this.isAutoAdvancing = false; // Flag to prevent multiple rapid auto-advancements
-        this.isSeekingTimeline = false; // Flag to prevent timeline updates during manual seeking
-        this.isDraggingMarker = false; // Flag to prevent timeline updates during marker dragging
-        this.seekTimeout = null; // Debounce timer for seeking
-        this.eventMarkers = []; // Store event markers for timeline
-        this.eventTooltip = null; // Event tooltip element
+        this.volume = 1;
+        this.playbackSpeed = 1;
+        this.isMuted = false;
+        this.currentClipIndex = 0;
+        this.clipGroups = [];
+        this.eventMarkers = [];
+        this.debugManager = null;
+        this.exportDialog = null;
+        this.durationLoadingIndicator = null;
+        
+        // New properties for background duration processing
+        this.durationProcessingStatus = {}; // Track processing status for each date
+        this.isProcessingDurations = false; // Global processing flag
+        this.durationProcessingQueue = []; // Queue of dates to process
+        this.currentlyProcessingDate = null; // Currently processing date
+        this.zeroProbeOnLoad = false; // Probe on folder load; cache-complete dates are skipped
+        
+        // Camera zoom and pan properties
         this.cameraZoomLevels = {}; // Store zoom levels for each camera
         this.cameraPanOffsets = {}; // Store pan offsets for each camera
         this.cameraVisibility = {
@@ -30,6 +39,17 @@ class SentrySixApp {
             back: true,
             right_repeater: true
         };
+        
+        // Video players storage
+        this.videos = {};
+        
+        // Timeline and playback control flags
+        this.isLoadingClip = false; // Flag to prevent timeline updates during clip loading
+        this.isAutoAdvancing = false; // Flag to prevent multiple rapid auto-advancements
+        this.isSeekingTimeline = false; // Flag to prevent timeline updates during manual seeking
+        this.isDraggingMarker = false; // Flag to prevent timeline updates during marker dragging
+        this.isUpdatingTimeline = false; // Flag to prevent timeline updates during updates
+        this.seekTimeout = null; // Debounce timer for seeking
 
         this.initializeApp();
     }
@@ -62,11 +82,11 @@ class SentrySixApp {
         // Set up event markers
         this.setupEventMarkers();
 
-        // Set up camera zoom functionality
-        this.setupCameraZoom();
+        // Initialize video players
+        this.initializeVideoPlayers();
 
-            // Initialize video players
-            this.initializeVideoPlayers();
+        // Set up camera zoom functionality (after video players are initialized)
+        this.setupCameraZoom();
 
             // Initialize debug manager
             this.initializeDebugManager();
@@ -91,8 +111,17 @@ class SentrySixApp {
             this.config = {
                 defaultVolume: 0.5,
                 playbackSpeed: 1.0,
-                autoPlay: false
+                autoPlay: false,
+                zeroProbeOnLoad: false
             };
+            // Load persisted settings
+            try {
+                const savedZeroProbe = localStorage.getItem('settings.zeroProbeOnLoad');
+                if (savedZeroProbe !== null) {
+                    this.config.zeroProbeOnLoad = JSON.parse(savedZeroProbe) === true;
+                    this.zeroProbeOnLoad = this.config.zeroProbeOnLoad;
+                }
+            } catch {}
             console.log('Configuration loaded:', this.config);
         } catch (error) {
             console.error('Failed to load configuration:', error);
@@ -129,6 +158,30 @@ class SentrySixApp {
         const speedSelect = document.getElementById('speed-select');
         if (speedSelect && this.config.playbackSpeed !== undefined) {
             speedSelect.value = this.config.playbackSpeed;
+        }
+
+        // Settings modal wiring
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const settingsCloseBtn = document.getElementById('settings-close-btn');
+        const settingsCloseX = document.getElementById('close-settings-modal');
+        const zeroProbeToggle = document.getElementById('zero-probe-toggle');
+
+        if (settingsBtn && settingsModal) {
+            settingsBtn.addEventListener('click', () => {
+                if (zeroProbeToggle) zeroProbeToggle.checked = !!this.config.zeroProbeOnLoad;
+                settingsModal.classList.remove('hidden');
+            });
+        }
+        if (settingsCloseBtn) settingsCloseBtn.addEventListener('click', () => settingsModal?.classList.add('hidden'));
+        if (settingsCloseX) settingsCloseX.addEventListener('click', () => settingsModal?.classList.add('hidden'));
+        if (zeroProbeToggle) {
+            zeroProbeToggle.addEventListener('change', (e) => {
+                const enabled = !!e.target.checked;
+                this.config.zeroProbeOnLoad = enabled;
+                try { localStorage.setItem('settings.zeroProbeOnLoad', JSON.stringify(enabled)); } catch {}
+                this.zeroProbeOnLoad = enabled; // keep flag in sync
+            });
         }
 
         // Enable drag-and-drop for camera grid
@@ -360,6 +413,10 @@ class SentrySixApp {
 
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
+                
+                // Initialize duration processing status for all dates
+                this.initializeDurationProcessingStatus();
+                
                 this.renderCollapsibleClipList();
 
                 // Load event markers for the selected folder
@@ -388,6 +445,16 @@ class SentrySixApp {
 
                 console.log(`Loaded ${totalClips} clips organized into sections from ${result.path}`);
                 this.showStatus(`Found ${totalClips} Tesla video clips`);
+                
+                // Prefill durations/status from cache (instant green when fully cached)
+                await this.prefillDurationsFromCache();
+
+                // Start background duration processing unless zero-probe is enabled
+                if (!this.zeroProbeOnLoad) {
+                    this.startBackgroundDurationProcessing();
+                } else {
+                    console.log('Zero-probe mode enabled: not starting background probing');
+                }
             } else {
                 console.log('No folder selected or no videos found');
                 this.showStatus('No Tesla videos found in selected folder');
@@ -419,6 +486,394 @@ class SentrySixApp {
         } finally {
             this.showLoadingIndicator(false);
         }
+    }
+
+    // Initialize duration processing status for all dates
+    initializeDurationProcessingStatus() {
+        this.durationProcessingStatus = {};
+        this.durationProcessingQueue = [];
+        
+        for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
+            for (let dateIndex = 0; dateIndex < dateGroups.length; dateIndex++) {
+                const dateKey = `${sectionName}-${dateIndex}`;
+                this.durationProcessingStatus[dateKey] = {
+                    status: 'pending', // 'pending', 'processing', 'completed', 'error'
+                    progress: 0,
+                    totalClips: dateGroups[dateIndex].clips.length,
+                    processedClips: 0,
+                    error: null
+                };
+                this.durationProcessingQueue.push({ sectionName, dateIndex });
+            }
+        }
+        
+        console.log(`Initialized duration processing for ${this.durationProcessingQueue.length} dates`);
+    }
+
+    // Start background duration processing
+    async startBackgroundDurationProcessing() {
+        if (this.isProcessingDurations) {
+            console.log('Duration processing already in progress');
+            return;
+        }
+
+        this.isProcessingDurations = true;
+        console.log('Starting background duration processing...');
+
+        try {
+            // Process dates in the background
+            while (this.durationProcessingQueue.length > 0) {
+                const { sectionName, dateIndex } = this.durationProcessingQueue.shift();
+                
+                try {
+                    await this.processDateDurations(sectionName, dateIndex);
+                } catch (error) {
+                    console.error(`Error processing durations for ${sectionName}-${dateIndex}:`, error);
+                    // Continue with next date even if one fails
+                }
+                
+                // Small delay to prevent blocking the UI
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error('Background duration processing failed:', error);
+        } finally {
+            this.isProcessingDurations = false;
+            console.log('Background duration processing completed');
+        }
+    }
+
+    // Process durations for a specific date
+    async processDateDurations(sectionName, dateIndex) {
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const dateGroup = this.clipSections[sectionName][dateIndex];
+        
+        if (!dateGroup || !dateGroup.clips) {
+            console.log(`No clips found for date ${dateKey}`);
+            return;
+        }
+
+        // Respect zero-probe mode and skip probing if disabled globally
+        if (this.zeroProbeOnLoad) {
+            console.log(`Zero-probe enabled: skipping probing for ${dateKey}`);
+            return;
+        }
+
+        // Skip probing if cache has already completed this date
+        const status = this.durationProcessingStatus[dateKey];
+        if (status && status.status === 'completed') {
+            console.log(`Skipping probing for ${dateKey}: already completed from cache`);
+            return;
+        }
+
+        console.log(`Processing durations for ${dateKey}: ${dateGroup.clips.length} clips`);
+        
+        // Update status to processing
+        this.durationProcessingStatus[dateKey].status = 'processing';
+        this.currentlyProcessingDate = dateKey;
+        this.updateDateStatusIndicator(sectionName, dateIndex);
+
+        try {
+            // Sort clips by timestamp
+            const sortedClips = [...dateGroup.clips].sort((a, b) => 
+                new Date(a.timestamp) - new Date(b.timestamp)
+            );
+
+            // Initialize actualDurations array
+            const actualDurations = [];
+            let totalDurationMs = 0;
+
+            // Process each clip
+            for (let i = 0; i < sortedClips.length; i++) {
+                const clip = sortedClips[i];
+                
+                // Update progress
+                this.durationProcessingStatus[dateKey].processedClips = i + 1;
+                this.durationProcessingStatus[dateKey].progress = ((i + 1) / sortedClips.length) * 100;
+                this.updateDateStatusIndicator(sectionName, dateIndex);
+
+                // Get the front camera file for duration measurement
+                const frontCameraFile = clip.files?.front;
+                if (!frontCameraFile) {
+                    console.log(`No front camera file found for clip ${i + 1}, using default duration`);
+                    actualDurations.push(60000); // Default 60 seconds
+                    totalDurationMs += 60000;
+                    continue;
+                }
+
+                try {
+                    console.log(`Processing duration for clip ${i + 1}/${sortedClips.length}: ${frontCameraFile.path}`);
+                    
+                    // Request duration from main process
+                    const duration = await window.electronAPI.getVideoDuration(frontCameraFile.path);
+                    
+                    if (duration && duration > 0) {
+                        const durationMs = Math.round(duration * 1000); // Convert to milliseconds
+                        actualDurations.push(durationMs);
+                        totalDurationMs += durationMs;
+                        
+                        // Also update the clip's duration property for consistency
+                        clip.duration = durationMs;
+                        
+                        console.log(`✅ Got duration for clip ${i + 1}: ${duration}s (${durationMs}ms)`);
+                    } else {
+                        console.log(`❌ Invalid duration received for clip ${i + 1}: ${duration}, using default`);
+                        actualDurations.push(60000); // Default 60 seconds
+                        totalDurationMs += 60000;
+                        clip.duration = 60000;
+                    }
+                } catch (error) {
+                    console.error(`❌ Error getting duration for clip ${i + 1} (${frontCameraFile.path}):`, error);
+                    console.log(`❌ Using default duration for clip ${i + 1}`);
+                    actualDurations.push(60000); // Default 60 seconds
+                    totalDurationMs += 60000;
+                    clip.duration = 60000;
+                }
+            }
+
+            // Store the results
+            dateGroup.actualDurations = actualDurations;
+            dateGroup.actualTotalDuration = totalDurationMs;
+            dateGroup.sortedClips = sortedClips;
+
+            // Update status to completed
+            this.durationProcessingStatus[dateKey].status = 'completed';
+            this.durationProcessingStatus[dateKey].progress = 100;
+            this.durationProcessingStatus[dateKey].processedClips = sortedClips.length;
+            
+            console.log(`✅ Completed duration processing for ${dateKey}: ${totalDurationMs}ms total duration`);
+
+        } catch (error) {
+            console.error(`❌ Error processing durations for ${dateKey}:`, error);
+            
+            // Update status to error
+            this.durationProcessingStatus[dateKey].status = 'error';
+            this.durationProcessingStatus[dateKey].error = error.message;
+        }
+
+        this.currentlyProcessingDate = null;
+        this.updateDateStatusIndicator(sectionName, dateIndex);
+    }
+
+    // Update the status indicator for a specific date
+    updateDateStatusIndicator(sectionName, dateIndex) {
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const status = this.durationProcessingStatus[dateKey];
+        
+        if (!status) return;
+
+        const dateItem = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"]`);
+        if (!dateItem) return;
+
+        // Remove existing status indicator
+        const existingIndicator = dateItem.querySelector('.duration-status-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+
+        // Create new status indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'duration-status-indicator';
+        
+        switch (status.status) {
+            case 'pending':
+                indicator.innerHTML = '<div class="status-dot status-red"></div>';
+                break;
+            case 'processing':
+                indicator.innerHTML = '<div class="status-dot status-amber pulse"></div>';
+                break;
+            case 'completed':
+                indicator.innerHTML = '<div class="status-dot status-green"></div>';
+                break;
+            case 'error':
+                indicator.innerHTML = '<div class="status-dot status-red blink"></div>';
+                break;
+        }
+
+        // Add tooltip with status info
+        let tooltipText = '';
+        switch (status.status) {
+            case 'pending':
+                tooltipText = 'Duration analysis pending';
+                break;
+            case 'processing':
+                tooltipText = `Processing durations: ${status.processedClips}/${status.totalClips} clips`;
+                break;
+            case 'completed':
+                tooltipText = `Duration analysis complete: ${Math.round(status.totalClips * 45 / 60)}m estimated`;
+                break;
+            case 'error':
+                tooltipText = `Error: ${status.error}`;
+                break;
+        }
+        indicator.title = tooltipText;
+
+        // Insert indicator at the beginning of the date item
+        dateItem.insertBefore(indicator, dateItem.firstChild);
+
+        // Also update the duration text to reflect estimate vs real
+        try {
+            const dateGroup = this.clipSections?.[sectionName]?.[dateIndex];
+            const durationEl = dateItem.querySelector('.date-duration');
+            if (dateGroup && durationEl) {
+                const isCompleted = status.status === 'completed' && (
+                    !!dateGroup.actualTotalDuration || (Array.isArray(dateGroup.actualDurations) && dateGroup.actualDurations.length > 0)
+                );
+
+                let totalDurationMs = 0;
+                if (isCompleted) {
+                    if (dateGroup.actualTotalDuration) {
+                        totalDurationMs = dateGroup.actualTotalDuration;
+                    } else if (Array.isArray(dateGroup.actualDurations)) {
+                        totalDurationMs = dateGroup.actualDurations.reduce((a, b) => a + (b || 60000), 0);
+                    }
+                } else {
+                    const clipCount = dateGroup.clips?.length || 0;
+                    const estimatedSecondsPerClip = clipCount === 1 ? 35 : 45;
+                    totalDurationMs = clipCount * estimatedSecondsPerClip * 1000;
+                }
+
+                // Format duration
+                const totalMinutes = Math.floor(totalDurationMs / 60000);
+                const totalHours = Math.floor(totalMinutes / 60);
+                const remainingMinutes = totalMinutes % 60;
+                let durationText;
+                if (totalHours > 0) {
+                    durationText = `${totalHours}h ${remainingMinutes}m`;
+                } else if (totalMinutes > 0) {
+                    durationText = `${totalMinutes}m`;
+                } else {
+                    const totalSeconds = Math.floor(totalDurationMs / 1000);
+                    durationText = `${totalSeconds}s`;
+                }
+
+                const tildePrefix = isCompleted ? '' : '<span class="duration-tilde">~</span>';
+                durationEl.innerHTML = `${tildePrefix}${durationText}`;
+            }
+        } catch (e) {
+            console.warn('Failed to update duration text for', sectionName, dateIndex, e);
+        }
+    }
+
+    // Add status indicators to all dates after rendering
+    addStatusIndicatorsToAllDates() {
+        for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
+            for (let dateIndex = 0; dateIndex < dateGroups.length; dateIndex++) {
+                this.updateDateStatusIndicator(sectionName, dateIndex);
+            }
+        }
+    }
+
+    // Prefill durations and statuses using cache without probing
+    async prefillDurationsFromCache() {
+        if (!window.electronAPI || !window.electronAPI.getCachedDurations) return;
+
+        for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
+            for (let dateIndex = 0; dateIndex < dateGroups.length; dateIndex++) {
+                const dateGroup = dateGroups[dateIndex];
+                if (!dateGroup || !dateGroup.clips) continue;
+
+                // Build file list using front camera to derive durations
+                const files = [];
+                const sortedClips = [...dateGroup.clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                for (const clip of sortedClips) {
+                    const front = clip.files && clip.files.front;
+                    if (front && front.path) files.push(front.path);
+                }
+
+                if (files.length === 0) continue;
+
+                try {
+                    const { durations, allCached } = await window.electronAPI.getCachedDurations(files, true);
+                    // If all cached, set actual durations and mark completed immediately
+                    if (durations && durations.length === files.length && durations.every(d => typeof d === 'number' && d > 0)) {
+                        const durationsMs = durations.map(s => Math.round(s * 1000));
+                        dateGroup.actualDurations = durationsMs;
+                        dateGroup.sortedClips = sortedClips;
+                        dateGroup.actualTotalDuration = durationsMs.reduce((a, b) => a + b, 0);
+                        // Critically, stamp per-clip duration so timeline math uses real values
+                        for (let i = 0; i < sortedClips.length; i++) {
+                            if (sortedClips[i]) sortedClips[i].duration = durationsMs[i];
+                        }
+
+                        const dateKey = `${sectionName}-${dateIndex}`;
+                        if (!this.durationProcessingStatus[dateKey]) this.durationProcessingStatus[dateKey] = {};
+                        this.durationProcessingStatus[dateKey].status = 'completed';
+                        this.durationProcessingStatus[dateKey].progress = 100;
+                        this.durationProcessingStatus[dateKey].totalClips = sortedClips.length;
+                        this.durationProcessingStatus[dateKey].processedClips = sortedClips.length;
+                        this.updateDateStatusIndicator(sectionName, dateIndex);
+                    } else {
+                        // Not fully cached: mark pending; in zero-probe mode we don't probe, so stay red
+                        const dateKey = `${sectionName}-${dateIndex}`;
+                        if (!this.durationProcessingStatus[dateKey]) this.durationProcessingStatus[dateKey] = {};
+                        this.durationProcessingStatus[dateKey].status = 'pending';
+                        this.durationProcessingStatus[dateKey].totalClips = sortedClips.length;
+                        this.durationProcessingStatus[dateKey].processedClips = 0;
+                        this.durationProcessingStatus[dateKey].progress = 0;
+                        this.updateDateStatusIndicator(sectionName, dateIndex);
+                    }
+                } catch (_) {
+                    // Ignore; background processing will handle
+                }
+            }
+        }
+    }
+
+    // Wait for duration processing to complete for a specific date
+    async waitForDurationProcessing(sectionName, dateIndex) {
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const maxWaitTime = 30000; // 30 seconds timeout
+        const checkInterval = 100; // Check every 100ms
+        let elapsedTime = 0;
+
+        // If zero-probe is enabled or already completed from cache, don't wait
+        if (this.zeroProbeOnLoad) {
+            console.log(`Zero-probe enabled: not waiting for processing for ${dateKey}`);
+            return;
+        }
+        const statusNow = this.durationProcessingStatus[dateKey];
+        if (statusNow && statusNow.status === 'completed') {
+            return;
+        }
+
+        while (elapsedTime < maxWaitTime) {
+            const status = this.durationProcessingStatus[dateKey];
+            
+            if (status && status.status === 'completed') {
+                console.log(`Duration processing completed for ${dateKey}`);
+                return;
+            }
+            
+            if (status && status.status === 'error') {
+                console.log(`Duration processing failed for ${dateKey}: ${status.error}`);
+                throw new Error(`Duration processing failed: ${status.error}`);
+            }
+
+            // Update loading progress if processing
+            if (status && status.status === 'processing') {
+                const progress = status.progress || 0;
+                this.updateDurationLoadingProgress(status.processedClips, status.totalClips);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            elapsedTime += checkInterval;
+        }
+
+        throw new Error('Duration processing timeout');
+    }
+
+    // Check if duration processing is complete for a specific date
+    isDurationProcessingComplete(sectionName, dateIndex) {
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const status = this.durationProcessingStatus[dateKey];
+        return status && status.status === 'completed';
+    }
+
+    // Get duration processing status for a specific date
+    getDurationProcessingStatus(sectionName, dateIndex) {
+        const dateKey = `${sectionName}-${dateIndex}`;
+        return this.durationProcessingStatus[dateKey] || null;
     }
 
     renderClipList() {
@@ -499,23 +954,30 @@ class SentrySixApp {
 
         clipList.innerHTML = sectionsHtml;
         this.setupCollapsibleHandlers();
+        
+        // Add status indicators for all dates
+        this.addStatusIndicatorsToAllDates();
     }
 
     renderDateGroups(dateGroups, sectionName) {
         return dateGroups.map((dateGroup, dateIndex) => {
-            // Calculate total duration for the day using actual clip analysis
+            const dateKey = `${sectionName}-${dateIndex}`;
+            const statusObj = this.durationProcessingStatus?.[dateKey];
+            const isCompleted = !!(statusObj && statusObj.status === 'completed' && (
+                dateGroup.actualTotalDuration || (Array.isArray(dateGroup.actualDurations) && dateGroup.actualDurations.length > 0)
+            ));
+
+            // Choose duration: real (from cache/probe) if completed, else estimate
             let totalDurationMs = 0;
-
-            // Try to get actual duration from clip analysis if available
-            if (dateGroup.actualTotalDuration) {
-                totalDurationMs = dateGroup.actualTotalDuration;
+            if (isCompleted) {
+                if (dateGroup.actualTotalDuration) {
+                    totalDurationMs = dateGroup.actualTotalDuration;
+                } else if (Array.isArray(dateGroup.actualDurations)) {
+                    totalDurationMs = dateGroup.actualDurations.reduce((a, b) => a + (b || 60000), 0);
+                }
             } else {
-                // Use filtered clip count for more accurate estimation
                 const clipCount = dateGroup.clips.length;
-
-                // Use more realistic estimation for Tesla clips
-                // Many Tesla clips are shorter than 60s, especially after corruption filtering
-                const estimatedSecondsPerClip = clipCount === 1 ? 35 : 45; // Single clips often shorter
+                const estimatedSecondsPerClip = clipCount === 1 ? 35 : 45;
                 totalDurationMs = clipCount * estimatedSecondsPerClip * 1000;
             }
 
@@ -529,17 +991,17 @@ class SentrySixApp {
             } else if (totalMinutes > 0) {
                 durationText = `${totalMinutes}m`;
             } else {
-                // Show seconds for very short timelines
                 const totalSeconds = Math.floor(totalDurationMs / 1000);
                 durationText = `${totalSeconds}s`;
             }
 
-            // Create a single selectable date item (no collapsible clips)
+            const tildePrefix = isCompleted ? '' : '<span class="duration-tilde">~</span>';
+
             return `
                 <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}">
                     <div class="date-title">${dateGroup.displayDate}</div>
                     <div class="date-info">
-                        <span class="date-duration">${durationText}</span>
+                        <span class="date-duration">${tildePrefix}${durationText}</span>
                         <span class="date-count">${dateGroup.totalClips} clips</span>
                     </div>
                 </div>
@@ -592,16 +1054,30 @@ class SentrySixApp {
             selectedItem.classList.add('active');
         }
 
-        // Show loading indicator
-        this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
-
-        try {
-            // Create continuous timeline from all clips in the day
+        // Check if duration processing is complete for this date
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const status = this.durationProcessingStatus[dateKey];
+        
+        if (status && status.status === 'completed') {
+            // Duration processing is complete, load timeline directly
+            console.log('Duration processing complete, loading timeline directly');
             await this.loadDailyTimeline(dateGroup, sectionName);
-            console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
-        } finally {
-            // Hide loading indicator
-            this.hideDurationLoadingIndicator();
+        } else {
+            // Duration processing not complete, show loading indicator and wait
+            console.log('Duration processing not complete, showing loading indicator');
+            this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
+            
+            try {
+                // Wait for duration processing to complete
+                await this.waitForDurationProcessing(sectionName, dateIndex);
+                
+                // Create continuous timeline from all clips in the day
+                await this.loadDailyTimeline(dateGroup, sectionName);
+                console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
+            } finally {
+                // Hide loading indicator
+                this.hideDurationLoadingIndicator();
+            }
         }
     }
 
@@ -625,13 +1101,41 @@ class SentrySixApp {
             eventMarkersRendered: false // Flag to track if event markers have been rendered
         };
 
-        // Analyze clip timestamps and calculate accurate timeline
-        this.analyzeClipTimestamps();
-        
-        // Populate all durations with accurate data
-        console.log('🔍 loadDailyTimeline: About to call populateAllDurations...');
-        await this.populateAllDurations();
-        console.log('🔍 loadDailyTimeline: populateAllDurations called');
+        // Use pre-processed duration data if available
+        if (dateGroup.actualDurations && dateGroup.sortedClips) {
+            console.log('Using pre-processed duration data');
+            this.currentTimeline.actualDurations = dateGroup.actualDurations;
+            this.currentTimeline.sortedClips = dateGroup.sortedClips;
+            // Propagate cached durations onto the base clips so subsequent analysis uses them
+            try {
+                const byKey = new Map();
+                for (let i = 0; i < dateGroup.sortedClips.length; i++) {
+                    const c = dateGroup.sortedClips[i];
+                    const key = c?.files?.front?.path || c?.filename || `${c.timestamp}`;
+                    if (key) byKey.set(key, dateGroup.actualDurations[i]);
+                }
+                for (const clip of this.currentTimeline.clips) {
+                    const key = clip?.files?.front?.path || clip?.filename || `${clip.timestamp}`;
+                    const d = key ? byKey.get(key) : undefined;
+                    if (typeof d === 'number' && d > 0) {
+                        clip.duration = d;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to propagate cached durations to clips:', e);
+            }
+            
+            // Analyze clip timestamps and calculate accurate timeline
+            this.analyzeClipTimestamps();
+            
+            // Calculate timeline duration with pre-processed data
+            this.calculateAccurateTimelineDuration();
+        } else {
+            // Fallback to original method if pre-processed data not available
+            console.log('Pre-processed duration data not available, using fallback method');
+            this.analyzeClipTimestamps();
+            await this.populateAllDurations();
+        }
 
         // Notify debug manager of timeline load
         if (this.debugManager) {
@@ -4721,9 +5225,10 @@ class SentrySixApp {
 
     // Settings
     openSettings() {
-        // Placeholder for settings dialog
-        console.log('Settings dialog would open here');
-        alert('Settings dialog coming soon!');
+        const settingsModal = document.getElementById('settings-modal');
+        const zeroProbeToggle = document.getElementById('zero-probe-toggle');
+        if (zeroProbeToggle) zeroProbeToggle.checked = !!this.config.zeroProbeOnLoad;
+        if (settingsModal) settingsModal.classList.remove('hidden');
     }
     // Test function for debugging timeline positioning
     testTimelinePositioning() {
@@ -5534,24 +6039,28 @@ class SentrySixApp {
     setupCameraZoom() {
         console.log('Setting up camera zoom system...');
 
-        // Initialize zoom and pan for all cameras
-        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
-        cameras.forEach(camera => {
-            this.cameraZoomLevels[camera] = 1.0; // Default zoom level
-            this.cameraPanOffsets[camera] = { x: 0, y: 0 }; // Default pan offset
+        try {
+            // Initialize zoom and pan for all cameras
+            const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+            cameras.forEach(camera => {
+                this.cameraZoomLevels[camera] = 1.0; // Default zoom level
+                this.cameraPanOffsets[camera] = { x: 0, y: 0 }; // Default pan offset
 
-            // Add wheel event listener to each video container
-            const container = document.querySelector(`[data-camera="${camera}"]`);
-            const video = document.getElementById(`video-${camera}`);
-            if (container) {
-                container.addEventListener('wheel', (e) => this.handleCameraZoom(e, camera), { passive: false });
-            }
-            if (video) {
-                this.setupCameraPan(video, camera);
-            }
-        });
+                // Add wheel event listener to each video container
+                const container = document.querySelector(`[data-camera="${camera}"]`);
+                const video = document.getElementById(`video-${camera}`);
+                if (container) {
+                    container.addEventListener('wheel', (e) => this.handleCameraZoom(e, camera), { passive: false });
+                }
+                if (video) {
+                    this.setupCameraPan(video, camera);
+                }
+            });
 
-        console.log('Camera zoom system initialized');
+            console.log('Camera zoom system initialized');
+        } catch (error) {
+            console.error('Error setting up camera zoom system:', error);
+        }
     }
 
     setupCameraPan(video, camera) {

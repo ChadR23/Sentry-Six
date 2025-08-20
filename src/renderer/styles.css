@@ -765,6 +765,11 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* Settings modal tweaks */
+#settings-modal .modal-content {
+    max-width: 720px;
+}
+
 .modal-header {
     display: flex;
     justify-content: between;
@@ -1521,6 +1526,7 @@ body {
 
 /* Date Items (Direct Selection) */
 .date-item {
+    position: relative;
     padding: 12px 16px;
     margin: 4px 0;
     background: #2d2d2d;
@@ -1563,6 +1569,12 @@ body {
 .date-duration {
     font-weight: 500;
     color: #4CAF50;
+}
+
+/* Red tilde prefix when showing estimated duration */
+.duration-tilde {
+    color: #dd5555;
+    margin-right: 4px;
 }
 
 .date-count {
@@ -2193,3 +2205,65 @@ body {
         font-size: 13px;
     }
 }
+
+/* Duration Status Indicators */
+.duration-status-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.status-red {
+    background-color: #ff4444;
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+
+.status-amber {
+    background-color: #ffaa00;
+    box-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+}
+
+.status-green {
+    background-color: #44ff44;
+    box-shadow: 0 0 8px rgba(68, 255, 68, 0.6);
+}
+
+/* Animation for processing status */
+.pulse {
+    animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+    from {
+        opacity: 0.6;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+/* Animation for error status */
+.blink {
+    animation: blink 1s ease-in-out infinite alternate;
+}
+
+@keyframes blink {
+    from {
+        opacity: 0.3;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+

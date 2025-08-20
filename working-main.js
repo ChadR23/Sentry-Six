@@ -106,6 +106,133 @@ function getVideoDuration(filePath, ffmpegPath) {
     return 0;
 }
 
+// ---- Clip metadata caching helpers ----
+const CACHE_FILENAME = 'Sen6ClipsInfo.json';
+
+function isEligibleVideoFilename(name) {
+    if (!name || typeof name !== 'string') return false;
+    const lower = name.toLowerCase();
+    if (!lower.endsWith('.mp4')) return false;
+    const skip = ['event.mp4', 'temp_scaled.mp4'];
+    if (skip.includes(lower)) return false;
+    if (lower.startsWith('._') || lower === '.ds_store') return false;
+    return true;
+}
+
+function getCachePath(folderPath) {
+    return path.join(folderPath, CACHE_FILENAME);
+}
+
+function readFolderCache(folderPath) {
+    try {
+        const cachePath = getCachePath(folderPath);
+        if (!fs.existsSync(cachePath)) return null;
+        const raw = fs.readFileSync(cachePath, 'utf8');
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (!data.files || typeof data.files !== 'object') data.files = {};
+        return data;
+    } catch (e) {
+        console.warn('⚠️ Failed to read cache for', folderPath, e.message);
+        return null;
+    }
+}
+
+function writeFolderCache(folderPath, cache) {
+    try {
+        const cachePath = getCachePath(folderPath);
+        const safe = {
+            version: cache.version || 1,
+            folderPath,
+            createdAt: cache.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            totalClips: cache.totalClips || 0,
+            files: cache.files || {}
+        };
+        fs.writeFileSync(cachePath, JSON.stringify(safe, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.warn('⚠️ Failed to write cache for', folderPath, e.message);
+        return false;
+    }
+}
+
+function listEligibleFolderFiles(folderPath) {
+    try {
+        if (!fs.existsSync(folderPath)) return [];
+        const items = fs.readdirSync(folderPath);
+        const files = [];
+        for (const name of items) {
+            if (!isEligibleVideoFilename(name)) continue;
+            const p = path.join(folderPath, name);
+            const stat = fs.statSync(p);
+            if (!stat.isFile()) continue;
+            files.push({ name, path: p, size: stat.size, mtimeMs: stat.mtimeMs });
+        }
+        return files;
+    } catch (e) {
+        console.warn('⚠️ Failed to list files for cache in', folderPath, e.message);
+        return [];
+    }
+}
+
+function getDurationWithCache(filePath, ffmpegPath) {
+    const folderPath = path.dirname(filePath);
+    const filename = path.basename(filePath);
+
+    // Load cache
+    let cache = readFolderCache(folderPath);
+    const actualFiles = listEligibleFolderFiles(folderPath);
+    const actualCount = actualFiles.length;
+
+    if (!cache) {
+        cache = {
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            totalClips: actualCount,
+            files: {}
+        };
+    } else {
+        // Update totalClips if changed
+        if (cache.totalClips !== actualCount) {
+            console.log(`📦 Cache count mismatch in ${folderPath}: cache=${cache.totalClips} actual=${actualCount}. Will update as we probe.`);
+            cache.totalClips = actualCount;
+        }
+    }
+
+    if (!cache.files[filename]) cache.files[filename] = {};
+
+    // Validate cache entry against size/mtime
+    try {
+        const stat = fs.statSync(filePath);
+        const entry = cache.files[filename];
+        const hasMatchingMeta = entry && entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1;
+        if (hasMatchingMeta && typeof entry.duration === 'number' && entry.duration > 0) {
+            // Fast path: return cached duration
+            return entry.duration;
+        }
+    } catch (e) {
+        // If stat fails, fall back to probing
+    }
+
+    // Probe and update cache
+    const duration = getVideoDuration(filePath, ffmpegPath) || 0;
+    try {
+        const stat = fs.statSync(filePath);
+        cache.files[filename] = {
+            path: filePath,
+            duration,
+            size: stat.size,
+            mtimeMs: stat.mtimeMs
+        };
+        writeFolderCache(folderPath, cache);
+    } catch (e) {
+        console.warn('⚠️ Failed to update cache entry for', filePath, e.message);
+    }
+    return duration;
+}
+
 class SentrySixApp {
     constructor() {
         this.mainWindow = null;
@@ -235,7 +362,7 @@ class SentrySixApp {
             return app.getVersion();
         });
 
-        // Get video duration
+        // Get video duration (with caching)
         ipcMain.handle('get-video-duration', async (_, filePath) => {
             console.log('🔍 get-video-duration IPC handler called with filePath:', filePath);
             try {
@@ -244,13 +371,62 @@ class SentrySixApp {
                     console.log('❌ FFmpeg not found in get-video-duration handler');
                     throw new Error('FFmpeg not found');
                 }
-                console.log('🔍 Calling getVideoDuration with ffmpegPath:', ffmpegPath);
-                const duration = getVideoDuration(filePath, ffmpegPath);
+                console.log('🔍 Calling getDurationWithCache with ffmpegPath:', ffmpegPath);
+                const duration = getDurationWithCache(filePath, ffmpegPath);
                 console.log('🔍 getVideoDuration returned:', duration);
                 return duration;
             } catch (error) {
                 console.error('Error getting video duration:', error);
                 return null;
+            }
+        });
+
+        // Bulk get durations from cache without probing (fast prefill)
+        ipcMain.handle('cache:get-durations', async (_, payload) => {
+            try {
+                const { filePaths, onlyFromCache } = payload || {};
+                if (!Array.isArray(filePaths) || filePaths.length === 0) {
+                    return { durations: [], allCached: false };
+                }
+
+                const durations = [];
+                let allCached = true;
+
+                for (const filePath of filePaths) {
+                    try {
+                        const folderPath = path.dirname(filePath);
+                        const filename = path.basename(filePath);
+                        const cache = readFolderCache(folderPath);
+                        const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+
+                        if (cache && cache.files && cache.files[filename] && stat) {
+                            const entry = cache.files[filename];
+                            const valid = entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1 && typeof entry.duration === 'number' && entry.duration > 0;
+                            if (valid) {
+                                durations.push(entry.duration);
+                                continue;
+                            }
+                        }
+
+                        // Not cached or invalid
+                        allCached = false;
+                        if (onlyFromCache) {
+                            durations.push(null);
+                        } else {
+                            const ffmpegPath = this.findFFmpegPath();
+                            const d = ffmpegPath ? getDurationWithCache(filePath, ffmpegPath) : 0;
+                            durations.push(d || null);
+                        }
+                    } catch (e) {
+                        allCached = false;
+                        durations.push(null);
+                    }
+                }
+
+                return { durations, allCached };
+            } catch (e) {
+                console.error('cache:get-durations failed:', e);
+                return { durations: [], allCached: false };
             }
         });
 

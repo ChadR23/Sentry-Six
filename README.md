@@ -44,6 +44,10 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 - **Debug & Diagnostics**:
   - Built‑in **Timeline Debug Panel** (gap detection, missing camera data, file size anomalies)
   - **Export terminal logs** for support
+- **Background Duration Processing**:
+  - **Automatic ffprobe analysis** of all video clips at startup
+  - **Visual status indicators** showing processing progress (red = pending, amber = processing, green = complete)
+  - **Faster timeline loading** with pre-calculated durations
 
 ## 📸 Layouts & UI
 
