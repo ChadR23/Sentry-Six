@@ -460,6 +460,22 @@ class SentrySixApp {
             return videoFiles;
         });
 
+        ipcMain.handle('tesla:refilter-clips', async (_, clipData) => {
+            console.log('Re-filtering clips after corruption detection');
+            try {
+                const filteredClips = this.filterCorruptedTimestampGroups(clipData.clips);
+                return {
+                    success: true,
+                    filteredClips: filteredClips,
+                    originalCount: clipData.clips.length,
+                    filteredCount: filteredClips.length
+                };
+            } catch (error) {
+                console.error('Error re-filtering clips:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
         // Simple file system check
         ipcMain.handle('fs:exists', async (_, filePath) => {
             return fs.existsSync(filePath);

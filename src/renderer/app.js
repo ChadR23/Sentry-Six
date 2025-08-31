@@ -643,6 +643,28 @@ class SentrySixApp {
             
             console.log(`✅ Completed batch duration processing for ${dateKey}: ${totalDurationMs}ms total duration, ${batchResult.cacheUpdatedFolders} folders updated`);
 
+            if (batchResult.cacheUpdatedFolders > 0) {
+                console.log(`🔄 Re-filtering clips for ${dateKey} after corruption detection`);
+                try {
+                    const refilterResult = await window.electronAPI.tesla.refilterClips({
+                        clips: dateGroup.clips
+                    });
+                    
+                    if (refilterResult.success && refilterResult.filteredClips) {
+                        // Update the date group with filtered clips
+                        dateGroup.clips = refilterResult.filteredClips;
+                        dateGroup.totalClips = refilterResult.filteredClips.length;
+                        dateGroup.filteredClipCount = refilterResult.filteredClips.length;
+                        
+                        console.log(`✅ Re-filtered ${dateKey}: ${refilterResult.originalCount} → ${refilterResult.filteredCount} clips`);
+                        
+                        this.renderCollapsibleClipList();
+                    }
+                } catch (error) {
+                    console.error(`❌ Error re-filtering clips for ${dateKey}:`, error);
+                }
+            }
+
         } catch (error) {
             console.error(`❌ Error processing durations for ${dateKey}:`, error);
             
