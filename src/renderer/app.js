@@ -622,7 +622,8 @@ class SentrySixApp {
             clipTimestamps: [], // Store actual start timestamps for each clip
             timelineGaps: [], // Store detected gaps between clips
             accurateTimeline: true, // Flag to indicate we're using accurate timeline
-            eventMarkersRendered: false // Flag to track if event markers have been rendered
+            eventMarkersRendered: false, // Flag to track if event markers have been rendered
+            sortedClipsCache: null
         };
 
         // Analyze clip timestamps and calculate accurate timeline
@@ -654,6 +655,7 @@ class SentrySixApp {
         setTimeout(() => {
             this.isUpdatingTimeline = true;
         }, 100);
+        
     }
 
     analyzeClipTimestamps() {
@@ -665,6 +667,7 @@ class SentrySixApp {
 
         // Sort clips by timestamp to ensure chronological order
         const sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        this.currentTimeline.sortedClipsCache = sortedClips;
 
         console.log(`🔍 Analyzing ${sortedClips.length} clips for accurate timeline`);
 
@@ -1137,7 +1140,15 @@ class SentrySixApp {
             clipCount: 1
         };
 
-        const sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        let sortedClips;
+        if (this.currentTimeline && this.currentTimeline.sortedClipsCache) {
+            sortedClips = this.currentTimeline.sortedClipsCache;
+        } else {
+            sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            if (this.currentTimeline) {
+                this.currentTimeline.sortedClipsCache = sortedClips;
+            }
+        }
 
         for (let i = 1; i < sortedClips.length; i++) {
             const prevTime = new Date(sortedClips[i - 1].timestamp);
@@ -1202,7 +1213,16 @@ class SentrySixApp {
 
     detectTimelineGaps(clips) {
         const gaps = [];
-        const sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        let sortedClips;
+        if (this.currentTimeline && this.currentTimeline.sortedClipsCache) {
+            sortedClips = this.currentTimeline.sortedClipsCache;
+        } else {
+            sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            if (this.currentTimeline) {
+                this.currentTimeline.sortedClipsCache = sortedClips;
+            }
+        }
 
         for (let i = 0; i < sortedClips.length - 1; i++) {
             const currentClip = sortedClips[i];
