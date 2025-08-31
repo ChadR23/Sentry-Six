@@ -1857,7 +1857,9 @@ class SentrySixApp {
             if (isDirectClipFolder) {
                 // Scan the selected folder directly
                 const files = await this.scanVideoFiles(folderPath, path.basename(folderPath));
-                allVideoFiles.push(...files);
+                if (files && files.length) {
+                    for (const f of files) allVideoFiles.push(f);
+                }
             } else {
                 // Scan for Tesla subfolders
                 const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
@@ -1867,7 +1869,9 @@ class SentrySixApp {
                     if (fs.existsSync(subFolderPath)) {
                         console.log(`Scanning ${subFolder}...`);
                         const files = await this.scanVideoFiles(subFolderPath, subFolder);
-                        allVideoFiles.push(...files);
+                        if (files && files.length) {
+                            for (const f of files) allVideoFiles.push(f);
+                        }
                     }
                 }
             }
