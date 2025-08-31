@@ -451,7 +451,7 @@ class SentrySixApp {
 
                 // Start background duration processing unless zero-probe is enabled
                 if (!this.zeroProbeOnLoad) {
-                    this.startBackgroundDurationProcessing();
+                    // this.startBackgroundDurationProcessing();
                 } else {
                     console.log('Zero-probe mode enabled: not starting background probing');
                 }
@@ -510,8 +510,11 @@ class SentrySixApp {
         console.log(`Initialized duration processing for ${this.durationProcessingQueue.length} dates`);
     }
 
-    // Start background duration processing
+    // Start background duration processing (disabled for on-demand processing)
     async startBackgroundDurationProcessing() {
+        console.log('Background duration processing disabled - using on-demand processing instead');
+        return; // Exit early to disable background processing
+        
         if (this.isProcessingDurations) {
             console.log('Duration processing already in progress');
             return;
@@ -650,6 +653,28 @@ class SentrySixApp {
 
         this.currentlyProcessingDate = null;
         this.updateDateStatusIndicator(sectionName, dateIndex);
+    }
+
+    // Process durations for a specific date asynchronously without blocking UI
+    async processDateDurationsAsync(sectionName, dateIndex) {
+        try {
+            // Process durations using the existing batched approach
+            await this.processDateDurations(sectionName, dateIndex);
+            
+            const currentlySelected = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"].active`);
+            if (currentlySelected && this.currentTimeline && this.currentTimeline.sectionName === sectionName) {
+                console.log(`Duration processing completed for selected date ${sectionName}-${dateIndex}, refreshing timeline`);
+                
+                // Get the updated date group with new duration data
+                const dateGroup = this.clipSections[sectionName][dateIndex];
+                
+                await this.loadDailyTimeline(dateGroup, sectionName);
+                
+                console.log(`Timeline refreshed with accurate durations for ${sectionName}-${dateIndex}`);
+            }
+        } catch (error) {
+            console.error(`Error in async duration processing for ${sectionName}-${dateIndex}:`, error);
+        }
     }
 
     // Update the status indicator for a specific date
@@ -1051,31 +1076,21 @@ class SentrySixApp {
             selectedItem.classList.add('active');
         }
 
-        // Check if duration processing is complete for this date
+        // Always load timeline immediately (non-blocking)
+        console.log('Loading timeline immediately with available data');
+        await this.loadDailyTimeline(dateGroup, sectionName);
+        
+        // Check if duration processing is needed for this date
         const dateKey = `${sectionName}-${dateIndex}`;
         const status = this.durationProcessingStatus[dateKey];
         
-        if (status && status.status === 'completed') {
-            // Duration processing is complete, load timeline directly
-            console.log('Duration processing complete, loading timeline directly');
-            await this.loadDailyTimeline(dateGroup, sectionName);
-        } else {
-            // Duration processing not complete, show loading indicator and wait
-            console.log('Duration processing not complete, showing loading indicator');
-            this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
-            
-            try {
-                // Wait for duration processing to complete
-                await this.waitForDurationProcessing(sectionName, dateIndex);
-                
-                // Create continuous timeline from all clips in the day
-                await this.loadDailyTimeline(dateGroup, sectionName);
-                console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
-            } finally {
-                // Hide loading indicator
-                this.hideDurationLoadingIndicator();
-            }
+        if (!status || status.status !== 'completed') {
+            // Start non-blocking duration processing for this date only
+            console.log(`Starting non-blocking duration processing for ${dateKey}`);
+            this.processDateDurationsAsync(sectionName, dateIndex);
         }
+        
+        console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
     }
 
     async loadDailyTimeline(dateGroup, sectionName) {
@@ -1128,10 +1143,9 @@ class SentrySixApp {
             // Calculate timeline duration with pre-processed data
             this.calculateAccurateTimelineDuration();
         } else {
-            // Fallback to original method if pre-processed data not available
-            console.log('Pre-processed duration data not available, using fallback method');
+            console.log('Pre-processed duration data not available, using default durations for immediate loading');
             this.analyzeClipTimestamps();
-            await this.populateAllDurations();
+            this.setDefaultClipDurations();
         }
 
         // Notify debug manager of timeline load
@@ -1311,6 +1325,32 @@ class SentrySixApp {
         this.currentTimeline.endTime = lastClipEnd;
 
         console.log(`⏱️ Continuous timeline duration: ${Math.round(continuousDuration / 1000)}s (${knownClips}/${clips.length} clips) | Total timeline: ${Math.round(totalTimelineDuration / 1000)}s | Gaps: ${Math.round(totalGapDuration / 1000)}s`);
+    }
+
+    setDefaultClipDurations() {
+        if (!this.currentTimeline || !this.currentTimeline.clips) return;
+
+        const clips = this.currentTimeline.clips;
+        console.log(`Setting default durations for ${clips.length} clips`);
+
+        // Initialize actualDurations array with defaults
+        this.currentTimeline.actualDurations = [];
+        let totalDurationMs = 0;
+
+        for (let i = 0; i < clips.length; i++) {
+            const defaultDuration = 60000; // 60 seconds default
+            this.currentTimeline.actualDurations[i] = defaultDuration;
+            totalDurationMs += defaultDuration;
+            
+            // Also set duration on the clip object for consistency
+            clips[i].duration = defaultDuration;
+        }
+
+        // Set timeline durations
+        this.currentTimeline.totalDuration = totalDurationMs;
+        this.currentTimeline.displayDuration = totalDurationMs;
+
+        console.log(`Set default timeline duration: ${Math.round(totalDurationMs / 1000)}s for ${clips.length} clips`);
     }
 
     showDurationLoadingIndicator(selectedItem, totalClips) {
