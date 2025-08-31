@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Video duration operations
     getVideoDuration: (filePath) => ipcRenderer.invoke('get-video-duration', filePath),
     getCachedDurations: (filePaths, onlyFromCache = true) => ipcRenderer.invoke('cache:get-durations', { filePaths, onlyFromCache }),
+    batchProcessDurations: (filePaths) => ipcRenderer.invoke('cache:batch-process-durations', { filePaths }),
 
     // Event listeners
     on: (channel, callback) => {

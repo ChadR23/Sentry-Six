@@ -543,7 +543,7 @@ class SentrySixApp {
         }
     }
 
-    // Process durations for a specific date
+    // Process durations for a specific date using batched approach
     async processDateDurations(sectionName, dateIndex) {
         const dateKey = `${sectionName}-${dateIndex}`;
         const dateGroup = this.clipSections[sectionName][dateIndex];
@@ -579,11 +579,30 @@ class SentrySixApp {
                 new Date(a.timestamp) - new Date(b.timestamp)
             );
 
-            // Initialize actualDurations array
+            // Collect all front camera file paths for batch processing
+            const filePaths = [];
+            for (const clip of sortedClips) {
+                const frontCameraFile = clip.files?.front;
+                if (frontCameraFile && frontCameraFile.path) {
+                    filePaths.push(frontCameraFile.path);
+                } else {
+                    filePaths.push(null);
+                }
+            }
+
+            console.log(`📦 Batch processing ${filePaths.filter(p => p).length} files for ${dateKey}`);
+
+            // Process all durations in batch
+            const batchResult = await window.electronAPI.batchProcessDurations(filePaths.filter(p => p));
+            
+            if (!batchResult.success) {
+                throw new Error(batchResult.error || 'Batch processing failed');
+            }
+
             const actualDurations = [];
             let totalDurationMs = 0;
+            let batchIndex = 0;
 
-            // Process each clip
             for (let i = 0; i < sortedClips.length; i++) {
                 const clip = sortedClips[i];
                 
@@ -592,40 +611,18 @@ class SentrySixApp {
                 this.durationProcessingStatus[dateKey].progress = ((i + 1) / sortedClips.length) * 100;
                 this.updateDateStatusIndicator(sectionName, dateIndex);
 
-                // Get the front camera file for duration measurement
-                const frontCameraFile = clip.files?.front;
-                if (!frontCameraFile) {
+                if (filePaths[i]) {
+                    const duration = batchResult.durations[batchIndex] || 0;
+                    const durationMs = Math.round(duration * 1000);
+                    actualDurations.push(durationMs);
+                    totalDurationMs += durationMs;
+                    clip.duration = durationMs;
+                    batchIndex++;
+                    
+                    console.log(`✅ Got duration for clip ${i + 1}: ${duration}s (${durationMs}ms)`);
+                } else {
                     console.log(`No front camera file found for clip ${i + 1}, using default duration`);
-                    actualDurations.push(60000); // Default 60 seconds
-                    totalDurationMs += 60000;
-                    continue;
-                }
-
-                try {
-                    console.log(`Processing duration for clip ${i + 1}/${sortedClips.length}: ${frontCameraFile.path}`);
-                    
-                    // Request duration from main process
-                    const duration = await window.electronAPI.getVideoDuration(frontCameraFile.path);
-                    
-                    if (duration && duration > 0) {
-                        const durationMs = Math.round(duration * 1000); // Convert to milliseconds
-                        actualDurations.push(durationMs);
-                        totalDurationMs += durationMs;
-                        
-                        // Also update the clip's duration property for consistency
-                        clip.duration = durationMs;
-                        
-                        console.log(`✅ Got duration for clip ${i + 1}: ${duration}s (${durationMs}ms)`);
-                    } else {
-                        console.log(`❌ Invalid duration received for clip ${i + 1}: ${duration}, using default`);
-                        actualDurations.push(60000); // Default 60 seconds
-                        totalDurationMs += 60000;
-                        clip.duration = 60000;
-                    }
-                } catch (error) {
-                    console.error(`❌ Error getting duration for clip ${i + 1} (${frontCameraFile.path}):`, error);
-                    console.log(`❌ Using default duration for clip ${i + 1}`);
-                    actualDurations.push(60000); // Default 60 seconds
+                    actualDurations.push(60000);
                     totalDurationMs += 60000;
                     clip.duration = 60000;
                 }
@@ -641,7 +638,7 @@ class SentrySixApp {
             this.durationProcessingStatus[dateKey].progress = 100;
             this.durationProcessingStatus[dateKey].processedClips = sortedClips.length;
             
-            console.log(`✅ Completed duration processing for ${dateKey}: ${totalDurationMs}ms total duration`);
+            console.log(`✅ Completed batch duration processing for ${dateKey}: ${totalDurationMs}ms total duration, ${batchResult.cacheUpdatedFolders} folders updated`);
 
         } catch (error) {
             console.error(`❌ Error processing durations for ${dateKey}:`, error);

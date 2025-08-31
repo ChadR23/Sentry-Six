@@ -233,6 +233,78 @@ function getDurationWithCache(filePath, ffmpegPath) {
     return duration;
 }
 
+
+function getDurationWithoutCacheWrite(filePath, ffmpegPath) {
+    const folderPath = path.dirname(filePath);
+    const filename = path.basename(filePath);
+
+    // Load cache to check if already cached
+    const cache = readFolderCache(folderPath);
+    if (cache && cache.files && cache.files[filename]) {
+        try {
+            const stat = fs.statSync(filePath);
+            const entry = cache.files[filename];
+            const hasMatchingMeta = entry && entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1;
+            if (hasMatchingMeta && typeof entry.duration === 'number' && entry.duration > 0) {
+                return { duration: entry.duration, fromCache: true };
+            }
+        } catch (e) {
+            // If stat fails, fall back to probing
+        }
+    }
+
+    const duration = getVideoDuration(filePath, ffmpegPath) || 0;
+    return { duration, fromCache: false };
+}
+
+function batchUpdateFolderCache(folderPath, fileUpdates, ffmpegPath) {
+    try {
+        let cache = readFolderCache(folderPath);
+        const actualFiles = listEligibleFolderFiles(folderPath);
+        const actualCount = actualFiles.length;
+
+        if (!cache) {
+            cache = {
+                version: 1,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                totalClips: actualCount,
+                files: {}
+            };
+        } else {
+            // Update totalClips if changed
+            if (cache.totalClips !== actualCount) {
+                console.log(`📦 Cache count mismatch in ${folderPath}: cache=${cache.totalClips} actual=${actualCount}. Updating.`);
+                cache.totalClips = actualCount;
+            }
+        }
+
+        let updatedCount = 0;
+        for (const { filePath, duration } of fileUpdates) {
+            const filename = path.basename(filePath);
+            try {
+                const stat = fs.statSync(filePath);
+                cache.files[filename] = {
+                    path: filePath,
+                    duration,
+                    size: stat.size,
+                    mtimeMs: stat.mtimeMs
+                };
+                updatedCount++;
+            } catch (e) {
+                console.warn('⚠️ Failed to stat file for batch cache update:', filePath, e.message);
+            }
+        }
+
+        const success = writeFolderCache(folderPath, cache);
+        console.log(`📦 Batch updated cache for ${folderPath}: ${updatedCount} files updated, write ${success ? 'successful' : 'failed'}`);
+        return success;
+    } catch (e) {
+        console.warn('⚠️ Failed to batch update cache for', folderPath, e.message);
+        return false;
+    }
+}
+
 class SentrySixApp {
     constructor() {
         this.mainWindow = null;
@@ -427,6 +499,67 @@ class SentrySixApp {
             } catch (e) {
                 console.error('cache:get-durations failed:', e);
                 return { durations: [], allCached: false };
+            }
+        });
+
+        ipcMain.handle('cache:batch-process-durations', async (_, payload) => {
+            try {
+                const { filePaths } = payload || {};
+                if (!Array.isArray(filePaths) || filePaths.length === 0) {
+                    return { durations: [], success: false, error: 'No file paths provided' };
+                }
+
+                const ffmpegPath = this.findFFmpegPath();
+                if (!ffmpegPath) {
+                    return { durations: [], success: false, error: 'FFmpeg not found' };
+                }
+
+                console.log(`📦 Batch processing ${filePaths.length} files for durations`);
+                
+                const results = [];
+                const folderUpdates = new Map();
+
+                for (const filePath of filePaths) {
+                    try {
+                        const result = getDurationWithoutCacheWrite(filePath, ffmpegPath);
+                        results.push(result.duration);
+
+                        if (!result.fromCache) {
+                            const folderPath = path.dirname(filePath);
+                            if (!folderUpdates.has(folderPath)) {
+                                folderUpdates.set(folderPath, []);
+                            }
+                            folderUpdates.get(folderPath).push({
+                                filePath,
+                                duration: result.duration
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Failed to process duration for', filePath, e.message);
+                        results.push(0);
+                    }
+                }
+
+                let allUpdatesSuccessful = true;
+                for (const [folderPath, fileUpdates] of folderUpdates) {
+                    const success = batchUpdateFolderCache(folderPath, fileUpdates, ffmpegPath);
+                    if (!success) {
+                        allUpdatesSuccessful = false;
+                        console.warn('Failed to batch update cache for folder:', folderPath);
+                    }
+                }
+
+                console.log(`📦 Batch processing completed: ${results.length} durations processed, cache updates ${allUpdatesSuccessful ? 'successful' : 'had errors'}`);
+                
+                return { 
+                    durations: results, 
+                    success: allUpdatesSuccessful,
+                    processedCount: results.length,
+                    cacheUpdatedFolders: folderUpdates.size
+                };
+            } catch (e) {
+                console.error('cache:batch-process-durations failed:', e);
+                return { durations: [], success: false, error: e.message };
             }
         });
 
