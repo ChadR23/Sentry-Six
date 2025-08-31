@@ -209,11 +209,6 @@ function getDurationWithCache(filePath, ffmpegPath) {
         const entry = cache.files[filename];
         const hasMatchingMeta = entry && entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1;
         if (hasMatchingMeta && typeof entry.duration === 'number' && entry.duration > 0) {
-            // Check if this cached entry indicates corruption
-            const isCorrupted = entry.isCorrupted || (entry.duration < 4);
-            if (isCorrupted) {
-                console.log(`🔍 Cached corrupted clip: ${filename} (${entry.duration}s)`);
-            }
             // Fast path: return cached duration
             return entry.duration;
         }
@@ -223,26 +218,13 @@ function getDurationWithCache(filePath, ffmpegPath) {
 
     // Probe and update cache
     const duration = getVideoDuration(filePath, ffmpegPath) || 0;
-    const stat = fs.statSync(filePath);
-    const isCorrupted = (duration > 0 && duration < 4) || stat.size < 5 * 1024 * 1024; // Corrupted if duration < 4 seconds OR file size < 5MB
-    
-    if (isCorrupted) {
-        console.log(`🔍 Corrupted clip detected during probing: ${filename} (${duration}s)`);
-        
-        // If this is a front camera clip, mark all 6 cameras for this timestamp as corrupted
-        if (filename.includes('-front.mp4')) {
-            markTimestampGroupAsCorrupted(folderPath, null, filename);
-        }
-    }
-    
     try {
         const stat = fs.statSync(filePath);
         cache.files[filename] = {
             path: filePath,
             duration,
             size: stat.size,
-            mtimeMs: stat.mtimeMs,
-            isCorrupted: isCorrupted
+            mtimeMs: stat.mtimeMs
         };
         writeFolderCache(folderPath, cache);
     } catch (e) {
@@ -306,8 +288,7 @@ function batchUpdateFolderCache(folderPath, fileUpdates, ffmpegPath) {
                     path: filePath,
                     duration,
                     size: stat.size,
-                    mtimeMs: stat.mtimeMs,
-                    isCorrupted: (duration > 0 && duration < 4) || stat.size < 5 * 1024 * 1024
+                    mtimeMs: stat.mtimeMs
                 };
                 updatedCount++;
             } catch (e) {
@@ -320,43 +301,6 @@ function batchUpdateFolderCache(folderPath, fileUpdates, ffmpegPath) {
         return success;
     } catch (e) {
         console.warn('⚠️ Failed to batch update cache for', folderPath, e.message);
-        return false;
-    }
-}
-
-function markTimestampGroupAsCorrupted(folderPath, timestamp, frontCameraFilename) {
-    try {
-        let cache = readFolderCache(folderPath);
-        if (!cache) return false;
-
-        const allCameras = ['front', 'back', 'left_repeater', 'right_repeater', 'left_pillar', 'right_pillar'];
-        
-        // Parse the front camera filename to get the timestamp pattern
-        const match = frontCameraFilename.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})-front\.mp4$/);
-        if (!match) return false;
-        
-        const timestampPattern = match[1];
-        
-        // Mark all 6 cameras for this timestamp as corrupted
-        let updatedCount = 0;
-        for (const camera of allCameras) {
-            const expectedFilename = `${timestampPattern}-${camera}.mp4`;
-            if (cache.files[expectedFilename]) {
-                cache.files[expectedFilename].isCorrupted = true;
-                updatedCount++;
-                console.log(`🔍 Marked ${expectedFilename} as corrupted (group corruption)`);
-            }
-        }
-        
-        if (updatedCount > 0) {
-            const success = writeFolderCache(folderPath, cache);
-            console.log(`📦 Marked ${updatedCount} cameras as corrupted for timestamp ${timestampPattern}, write ${success ? 'successful' : 'failed'}`);
-            return success;
-        }
-        
-        return false;
-    } catch (e) {
-        console.warn('⚠️ Failed to mark timestamp group as corrupted:', e.message);
         return false;
     }
 }
@@ -2094,13 +2038,21 @@ class SentrySixApp {
 
         const stats = fs.statSync(filePath);
 
+        // Mark file as potentially corrupted but don't skip yet
+        // We'll do group-based filtering later
+        const isCorrupted = this.isClipCorrupted(stats.size, filename);
+        if (isCorrupted) {
+            console.log(`🔍 Potentially corrupted: ${filename} (${Math.round(stats.size/1024)}KB)`);
+        }
+
         return {
             path: filePath,
             filename,
             camera,
             timestamp,
             size: stats.size,
-            type: folderType
+            type: folderType,
+            isCorrupted: isCorrupted // Mark corruption status
         };
     }
 
@@ -2134,11 +2086,7 @@ class SentrySixApp {
         return cameraMap[cameraPart] || null;
     }
 
-    isClipCorrupted(fileSize, filename, duration = null) {
-        if (duration !== null && duration > 0 && duration < 4) {
-            return true;
-        }
-        
+    isClipCorrupted(fileSize, filename) {
         // Tesla clips are typically 40-80MB for 60-second recordings
         // Corrupted clips are usually under 5MB
         const MIN_VALID_SIZE = 5 * 1024 * 1024; // 5MB threshold
@@ -2178,13 +2126,7 @@ class SentrySixApp {
 
             for (const [camera, file] of Object.entries(clip.files)) {
                 totalCameras++;
-                // Check corruption status from cache if available
-                const folderPath = path.dirname(file.path);
-                const cache = readFolderCache(folderPath);
-                const cacheEntry = cache?.files?.[file.filename];
-                const isCorrupted = cacheEntry?.isCorrupted || false;
-                
-                if (isCorrupted) {
+                if (file.isCorrupted) {
                     corruptedCameras++;
                 }
             }
@@ -2202,12 +2144,7 @@ class SentrySixApp {
                 };
 
                 for (const [camera, file] of Object.entries(clip.files)) {
-                    const folderPath = path.dirname(file.path);
-                    const cache = readFolderCache(folderPath);
-                    const cacheEntry = cache?.files?.[file.filename];
-                    const isCorrupted = cacheEntry?.isCorrupted || false;
-                    
-                    if (!isCorrupted) {
+                    if (!file.isCorrupted) {
                         cleanClip.files[camera] = file;
                     }
                 }
