@@ -613,6 +613,7 @@ class SentrySixApp {
                 this.durationProcessingStatus[dateKey].processedClips = i + 1;
                 this.durationProcessingStatus[dateKey].progress = ((i + 1) / sortedClips.length) * 100;
                 this.updateDateStatusIndicator(sectionName, dateIndex);
+                this.updateDurationLoadingProgress(i + 1, sortedClips.length);
 
                 if (filePaths[i]) {
                     const duration = batchResult.durations[batchIndex] || 0;
@@ -657,7 +658,15 @@ class SentrySixApp {
 
     // Process durations for a specific date asynchronously without blocking UI
     async processDateDurationsAsync(sectionName, dateIndex) {
+        const selectedItem = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"].active`);
+        const dateGroup = this.clipSections[sectionName][dateIndex];
+        
         try {
+            // Show loading indicator with progress
+            if (selectedItem && dateGroup) {
+                this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
+            }
+            
             // Process durations using the existing batched approach
             await this.processDateDurations(sectionName, dateIndex);
             
@@ -666,14 +675,17 @@ class SentrySixApp {
                 console.log(`Duration processing completed for selected date ${sectionName}-${dateIndex}, refreshing timeline`);
                 
                 // Get the updated date group with new duration data
-                const dateGroup = this.clipSections[sectionName][dateIndex];
+                const updatedDateGroup = this.clipSections[sectionName][dateIndex];
                 
-                await this.loadDailyTimeline(dateGroup, sectionName);
+                await this.loadDailyTimeline(updatedDateGroup, sectionName);
                 
                 console.log(`Timeline refreshed with accurate durations for ${sectionName}-${dateIndex}`);
             }
         } catch (error) {
             console.error(`Error in async duration processing for ${sectionName}-${dateIndex}:`, error);
+        } finally {
+            // Always hide loading indicator when done
+            this.hideDurationLoadingIndicator();
         }
     }
 
