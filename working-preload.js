@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tesla: {
         selectFolder: () => ipcRenderer.invoke('tesla:select-folder'),
         getVideoFiles: (folderPath) => ipcRenderer.invoke('tesla:get-video-files', folderPath),
+        refilterClips: (clipData) => ipcRenderer.invoke('tesla:refilter-clips', clipData),
         getEventData: (folderPath) => ipcRenderer.invoke('tesla:get-event-data', folderPath),
         getEventThumbnail: (thumbnailPath) => ipcRenderer.invoke('tesla:get-event-thumbnail', thumbnailPath),
         exportVideo: (exportId, exportData) => ipcRenderer.invoke('tesla:export-video', exportId, exportData),
