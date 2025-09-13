@@ -17,6 +17,7 @@ class SentrySixApp {
         this.currentClipIndex = 0;
         this.clipGroups = [];
         this.eventMarkers = [];
+        this.eventMarkersCache = {}; // Cache for lazy-loaded event markers per date
         this.debugManager = null;
         this.exportDialog = null;
         this.durationLoadingIndicator = null;
@@ -56,6 +57,9 @@ class SentrySixApp {
 
     async initializeApp() {
         console.log('Initializing Sentry-Six Electron...');
+        
+        // Set up scan progress listener for optimized folder scanning
+        this.setupScanProgressListener();
         
         try {
             // Show loading screen
@@ -407,9 +411,11 @@ class SentrySixApp {
 
     async selectTeslaFolder(fromOnboarding = false, dontShow = false) {
         try {
+            console.log('🔄 Starting Tesla folder selection...');
             this.showLoadingIndicator(true);
 
             const result = await window.electronAPI.tesla.selectFolder();
+            console.log('📁 Folder selection result:', result);
 
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
@@ -419,8 +425,9 @@ class SentrySixApp {
                 
                 this.renderCollapsibleClipList();
 
-                // Load event markers for the selected folder
-                await this.loadEventMarkers(result.path);
+                // Skip loading all events upfront - they'll be loaded on-demand per date
+                // This dramatically speeds up initial folder loading!
+                console.log('📁 Folder structure loaded - events will load on-demand');
 
                 // Save folder path for onboarding persistence
                 localStorage.setItem('teslaFolder', result.path);
@@ -443,11 +450,22 @@ class SentrySixApp {
                     }
                 }
 
-                console.log(`Loaded ${totalClips} clips organized into sections from ${result.path}`);
+                console.log(`✅ Loaded ${totalClips} clips organized into sections from ${result.path}`);
                 this.showStatus(`Found ${totalClips} Tesla video clips`);
                 
                 // Prefill durations/status from cache (instant green when fully cached)
-                await this.prefillDurationsFromCache();
+                console.log('🔄 Starting to prefill durations from cache...');
+                
+                // TEMPORARY: Skip prefill for large datasets to prevent hanging
+                const totalClipsCount = Object.values(this.clipSections).reduce((sum, dateGroups) => 
+                    sum + dateGroups.reduce((groupSum, dateGroup) => groupSum + (dateGroup.clips?.length || 0), 0), 0);
+                
+                if (totalClipsCount > 10000) {
+                    console.log(`⚠️ Large dataset detected (${totalClipsCount} clips) - skipping prefill to prevent hanging`);
+                } else {
+                    await this.prefillDurationsFromCache();
+                    console.log('✅ Finished prefilling durations from cache');
+                }
 
                 // Start background duration processing unless zero-probe is enabled
                 if (!this.zeroProbeOnLoad) {
@@ -455,16 +473,20 @@ class SentrySixApp {
                 } else {
                     console.log('Zero-probe mode enabled: not starting background probing');
                 }
+                
+                console.log('🎯 selectTeslaFolder try block completed successfully');
             } else {
-                console.log('No folder selected or no videos found');
+                console.log('❌ No folder selected or no videos found');
                 this.showStatus('No Tesla videos found in selected folder');
             }
 
         } catch (error) {
-            console.error('Failed to select Tesla folder:', error);
+            console.error('❌ Failed to select Tesla folder:', error);
             this.showError('Failed to load Tesla folder', error.message);
         } finally {
+            console.log('🏁 FINALLY BLOCK: Hiding loading indicator...');
             this.showLoadingIndicator(false);
+            console.log('🏁 FINALLY BLOCK: Loading indicator hidden successfully');
         }
     }
 
@@ -812,10 +834,25 @@ class SentrySixApp {
     async prefillDurationsFromCache() {
         if (!window.electronAPI || !window.electronAPI.getCachedDurations) return;
 
+        console.log('🔄 prefillDurationsFromCache: Starting to process sections...');
+        let totalDateGroups = 0;
+        let processedDateGroups = 0;
+
+        // Count total date groups first
         for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
+            totalDateGroups += dateGroups.length;
+        }
+        console.log(`🔄 prefillDurationsFromCache: Found ${totalDateGroups} date groups across ${Object.keys(this.clipSections).length} sections`);
+
+        for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
+            console.log(`🔄 Processing section: ${sectionName} (${dateGroups.length} date groups)`);
+            
             for (let dateIndex = 0; dateIndex < dateGroups.length; dateIndex++) {
                 const dateGroup = dateGroups[dateIndex];
                 if (!dateGroup || !dateGroup.clips) continue;
+
+                processedDateGroups++;
+                console.log(`🔄 Processing date group ${processedDateGroups}/${totalDateGroups} in ${sectionName}: ${dateGroup.clips.length} clips`);
 
                 // Build file list using front camera to derive durations
                 const files = [];
@@ -828,7 +865,9 @@ class SentrySixApp {
                 if (files.length === 0) continue;
 
                 try {
+                    console.log(`🔄 Calling getCachedDurations for ${files.length} files...`);
                     const { durations, allCached } = await window.electronAPI.getCachedDurations(files, true);
+                    console.log(`✅ getCachedDurations completed for ${files.length} files`);
                     // If all cached, set actual durations and mark completed immediately
                     if (durations && durations.length === files.length && durations.every(d => typeof d === 'number' && d > 0)) {
                         const durationsMs = durations.map(s => Math.round(s * 1000));
@@ -857,11 +896,14 @@ class SentrySixApp {
                         this.durationProcessingStatus[dateKey].progress = 0;
                         this.updateDateStatusIndicator(sectionName, dateIndex);
                     }
-                } catch (_) {
+                } catch (error) {
+                    console.warn(`⚠️ Error processing date group ${processedDateGroups}/${totalDateGroups}:`, error);
                     // Ignore; background processing will handle
                 }
             }
         }
+        
+        console.log('✅ prefillDurationsFromCache: Completed processing all date groups');
     }
 
     // Wait for duration processing to complete for a specific date
@@ -1101,6 +1143,13 @@ class SentrySixApp {
         // Always load timeline immediately (non-blocking)
         console.log('Loading timeline immediately with available data');
         await this.loadDailyTimeline(dateGroup, sectionName);
+        
+        // Load events on-demand for SavedClips and SentryClips only (RecentClips have no events)
+        if (sectionName === 'User Saved' || sectionName === 'Sentry Detection') {
+            await this.loadEventMarkersForDate(dateGroup.date, sectionName);
+        } else {
+            console.log(`📭 Skipping event loading for ${sectionName} (no events expected)`);
+        }
         
         // Check if duration processing is needed for this date
         const dateKey = `${sectionName}-${dateIndex}`;
@@ -5194,9 +5243,58 @@ class SentrySixApp {
         const loadingIndicator = document.getElementById('loading-indicator');
 
         if (show) {
+            console.log('📤 Showing loading indicator');
             loadingIndicator.classList.remove('hidden');
         } else {
+            console.log('📥 Hiding loading indicator');
             loadingIndicator.classList.add('hidden');
+        }
+    }
+
+    setupScanProgressListener() {
+        // Listen for scan progress events from our optimized folder scanning
+        if (window.electronAPI && window.electronAPI.on) {
+            try {
+                // Progress updates during scanning
+                window.electronAPI.on('scan-progress', (event, progressData) => {
+                    console.log(`📊 Scan progress: ${progressData.folder} - Status: ${progressData.status} - ${progressData.filesFound} files (Total: ${progressData.totalFiles})`);
+                    
+                    // Update loading text with progress info
+                    const loadingIndicator = document.getElementById('loading-indicator');
+                    const loadingSpan = loadingIndicator?.querySelector('span');
+                    if (loadingSpan) {
+                        if (progressData.status === 'scanning') {
+                            // Show when we START scanning a folder
+                            loadingSpan.textContent = `Scanning ${progressData.folder}... (${progressData.totalFiles} files found so far)`;
+                        } else if (progressData.status === 'completed') {
+                            // Show completion briefly, but the next folder will update this
+                            loadingSpan.textContent = `Scanned ${progressData.folder}: ${progressData.filesFound} files (Total: ${progressData.totalFiles})`;
+                        }
+                    }
+                });
+
+                // Scan completion event - this is crucial for hiding the loading indicator
+                window.electronAPI.on('scan-complete', (event, completionData) => {
+                    console.log(`🏁 Main folder scan complete:`, completionData);
+                    
+                    // Reset loading text back to default since we're not loading events upfront anymore
+                    const loadingIndicator = document.getElementById('loading-indicator');
+                    const loadingSpan = loadingIndicator?.querySelector('span');
+                    if (loadingSpan) {
+                        loadingSpan.textContent = 'Loading Tesla files...';
+                    }
+                    
+                    // The loading indicator will be hidden by the selectTeslaFolder finally block
+                    // Events will be loaded on-demand when user clicks on dates
+                    console.log('📥 Main scan complete - ready for user interaction!');
+                });
+
+                console.log('✅ Scan progress and completion listeners set up successfully');
+            } catch (error) {
+                console.warn('⚠️ Could not set up scan listeners:', error);
+            }
+        } else {
+            console.warn('⚠️ electronAPI.on not available for scan listeners');
         }
     }
 
@@ -5623,7 +5721,7 @@ class SentrySixApp {
         console.log('Loading event markers for:', folderPath);
 
         try {
-            // Get event data from main process
+            // Get event data from main process (legacy method - loads all events)
             const events = await window.electronAPI.tesla.getEventData(folderPath);
             console.log(`Found ${events.length} events`);
 
@@ -5641,6 +5739,55 @@ class SentrySixApp {
         } catch (error) {
             console.error('Error loading event markers:', error);
         }
+    }
+
+    async loadEventMarkersForDate(targetDate, sectionName) {
+        try {
+            // Get the folder path from localStorage (saved during folder selection)
+            const folderPath = localStorage.getItem('teslaFolder');
+            if (!folderPath) {
+                console.warn('No folder path found for event loading');
+                return;
+            }
+
+            // Always reload events from backend to ensure we get the latest data
+            // This prevents issues with stale cache data
+            const events = await window.electronAPI.tesla.getEventsForDate(folderPath, targetDate, sectionName);
+
+            // Process events and create markers
+            const eventMarkers = events.map(event => this.createEventMarkerData(event));
+
+            // Cache the results
+            if (!this.eventMarkersCache) {
+                this.eventMarkersCache = {};
+            }
+            const cacheKey = `${sectionName}-${targetDate}`;
+            this.eventMarkersCache[cacheKey] = eventMarkers;
+
+            // Set markers for current timeline
+            this.setEventMarkersForCurrentTimeline(eventMarkers);
+
+            console.log(`📍 Loaded ${eventMarkers.length} event markers for ${targetDate}`);
+
+        } catch (error) {
+            console.error(`Error loading event markers for ${targetDate}:`, error);
+        }
+    }
+
+    setEventMarkersForCurrentTimeline(eventMarkers) {
+        // Clear existing markers from display
+        this.clearEventMarkers();
+
+        // Reset the rendered flag to allow re-rendering for new date
+        if (this.currentTimeline) {
+            this.currentTimeline.eventMarkersRendered = false;
+        }
+
+        // Set the markers for the current timeline only
+        this.eventMarkers = eventMarkers;
+
+        // Render markers on timeline
+        this.renderEventMarkers();
     }
 
     createEventMarkerData(event) {
@@ -5720,11 +5867,8 @@ class SentrySixApp {
         const selectedDateStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate()).getTime();
         const selectedDateEnd = selectedDateStart + (24 * 60 * 60 * 1000); // End of the selected date
 
-        console.log(`🔍 Rendering event markers for accurate timeline: ${new Date(timelineStart).toLocaleTimeString()} - ${new Date(timelineEnd).toLocaleTimeString()}`);
-        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()}) and section: ${selectedSection}`);
-
         // Filter events by the selected date, section type, AND timeline bounds
-        const visibleEvents = this.eventMarkers.filter(eventMarker => {
+        const visibleEvents = this.eventMarkers.filter((eventMarker, index) => {
             const eventTime = eventMarker.timestamp.getTime();
             const eventDate = eventMarker.timestamp.getTime();
             
@@ -5740,17 +5884,8 @@ class SentrySixApp {
             return isFromSelectedDate && isFromCorrectSection && isWithinTimeline;
         });
 
-        console.log(`📊 Found ${visibleEvents.length} events for selected date and section (${this.eventMarkers.length} total events)`);
-        
-        // Map section names to folder types for logging
-        const sectionToFolderType = {
-            'Sentry Detection': 'SentryClips',
-            'User Saved': 'SavedClips'
-        };
-        console.log(`🔍 Section filtering: ${selectedSection} → ${sectionToFolderType[selectedSection] || 'unknown'}`);
-
         // Create and position event markers using continuous timeline positioning
-        visibleEvents.forEach(eventMarker => {
+        visibleEvents.forEach((eventMarker, index) => {
             const eventTime = eventMarker.timestamp.getTime();
             let actualRelativePosition = eventTime - timelineStart;
             

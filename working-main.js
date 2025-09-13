@@ -718,7 +718,7 @@ class SentrySixApp {
             return false; // Not currently exporting
         });
 
-        // Tesla event data
+        // Tesla event data (legacy - loads all events)
         ipcMain.handle('tesla:get-event-data', async (_, folderPath) => {
             console.log('📅 Getting event data for:', folderPath);
             try {
@@ -727,6 +727,19 @@ class SentrySixApp {
                 return events;
             } catch (error) {
                 console.error('Error getting event data:', error);
+                return [];
+            }
+        });
+
+        // Tesla event data for specific date (optimized)
+        ipcMain.handle('tesla:get-events-for-date', async (_, folderPath, targetDate, folderType) => {
+            console.log(`📅 Getting events for date ${targetDate} in ${folderType} folder:`, folderPath);
+            try {
+                const events = await this.scanEventsForSpecificDate(folderPath, targetDate, folderType);
+                console.log(`Found ${events.length} events for ${targetDate}`);
+                return events;
+            } catch (error) {
+                console.error('Error getting events for date:', error);
                 return [];
             }
         });
@@ -1929,11 +1942,33 @@ class SentrySixApp {
 
             if (isDirectClipFolder) {
                 // Scan the selected folder directly
-                console.log(`📂 Scanning direct folder: ${path.basename(folderPath)}`);
-                const files = await this.scanVideoFiles(folderPath, path.basename(folderPath));
+                const folderName = path.basename(folderPath);
+                console.log(`📂 Scanning direct folder: ${folderName}`);
+                
+                // Send "start scanning" progress update for direct folder
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.webContents.send('scan-progress', {
+                        folder: folderName,
+                        filesFound: 0,
+                        totalFiles: 0,
+                        status: 'scanning'
+                    });
+                }
+                
+                const files = await this.scanVideoFiles(folderPath, folderName);
                 if (files && files.length) {
                     allVideoFiles.push(...files);
-                    console.log(`✅ Found ${files.length} files in ${path.basename(folderPath)}`);
+                    console.log(`✅ Found ${files.length} files in ${folderName}`);
+                    
+                    // Send "completed scanning" progress update for direct folder
+                    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                        this.mainWindow.webContents.send('scan-progress', {
+                            folder: folderName,
+                            filesFound: files.length,
+                            totalFiles: files.length,
+                            status: 'completed'
+                        });
+                    }
                 }
             } else {
                 // Scan for Tesla subfolders with progress reporting
@@ -1944,22 +1979,44 @@ class SentrySixApp {
                     const subFolderPath = path.join(folderPath, subFolder);
                     if (fs.existsSync(subFolderPath)) {
                         console.log(`📂 Scanning ${subFolder}...`);
+                        
+                        // Send "start scanning" progress update to renderer
+                        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                            this.mainWindow.webContents.send('scan-progress', {
+                                folder: subFolder,
+                                filesFound: 0,
+                                totalFiles: totalFilesFound,
+                                status: 'scanning'
+                            });
+                        }
+                        
                         const files = await this.scanVideoFiles(subFolderPath, subFolder);
                         if (files && files.length) {
                             allVideoFiles.push(...files);
                             totalFilesFound += files.length;
                             console.log(`✅ Found ${files.length} files in ${subFolder} (Total so far: ${totalFilesFound})`);
                             
-                            // Send progress update to renderer
+                            // Send "completed scanning" progress update to renderer
                             if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                                 this.mainWindow.webContents.send('scan-progress', {
                                     folder: subFolder,
                                     filesFound: files.length,
-                                    totalFiles: totalFilesFound
+                                    totalFiles: totalFilesFound,
+                                    status: 'completed'
                                 });
                             }
                         } else {
                             console.log(`📭 No files found in ${subFolder}`);
+                            
+                            // Send "completed scanning" even for empty folders
+                            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                                this.mainWindow.webContents.send('scan-progress', {
+                                    folder: subFolder,
+                                    filesFound: 0,
+                                    totalFiles: totalFilesFound,
+                                    status: 'completed'
+                                });
+                            }
                         }
                     }
                 }
@@ -1977,11 +2034,30 @@ class SentrySixApp {
             console.log(`✅ Organized into ${sectionCount} sections with ${totalDays} date groups`);
             console.timeEnd('Total folder scan time');
 
+            // Send scan completion event to renderer
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send('scan-complete', {
+                    success: true,
+                    totalFiles: allVideoFiles.length,
+                    sections: sectionCount,
+                    totalDays: totalDays
+                });
+            }
+
             return groupedByDateAndType;
 
         } catch (error) {
             console.error('❌ Error scanning Tesla folder:', error);
             console.timeEnd('Total folder scan time');
+            
+            // Send scan completion event even on error
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send('scan-complete', {
+                    success: false,
+                    error: error.message
+                });
+            }
+            
             return {};
         }
     }
@@ -2339,66 +2415,8 @@ class SentrySixApp {
     }
 
     filterCorruptedTimestampGroups(clips) {
-        const validClips = [];
-        let totalClipsScanned = 0;
-        let corruptedGroupsRemoved = 0;
-
-        for (const clip of clips) {
-            totalClipsScanned++;
-
-            // Count corrupted vs valid cameras for this timestamp
-            let corruptedCameras = 0;
-            let totalCameras = 0;
-
-            for (const [camera, file] of Object.entries(clip.files)) {
-                totalCameras++;
-                // Check corruption status from cache if available
-                const folderPath = path.dirname(file.path);
-                const cache = readFolderCache(folderPath);
-                const cacheEntry = cache?.files?.[file.filename];
-                const isCorrupted = cacheEntry?.isCorrupted || false;
-                
-                if (isCorrupted) {
-                    corruptedCameras++;
-                }
-            }
-
-            // Apply majority rule: if more than half the cameras are corrupted, skip entire group
-            const corruptionRatio = corruptedCameras / totalCameras;
-            if (corruptionRatio > 0.5) { // More than 50% corrupted
-                console.warn(`⚠️ Skipping timestamp group ${clip.timestamp.toISOString()}: ${corruptedCameras}/${totalCameras} cameras corrupted`);
-                corruptedGroupsRemoved++;
-            } else {
-                // Keep the group, but remove corrupted individual files
-                const cleanClip = {
-                    ...clip,
-                    files: {}
-                };
-
-                for (const [camera, file] of Object.entries(clip.files)) {
-                    const folderPath = path.dirname(file.path);
-                    const cache = readFolderCache(folderPath);
-                    const cacheEntry = cache?.files?.[file.filename];
-                    const isCorrupted = cacheEntry?.isCorrupted || false;
-                    
-                    if (!isCorrupted) {
-                        cleanClip.files[camera] = file;
-                    }
-                }
-
-                validClips.push(cleanClip);
-
-                if (corruptedCameras > 0) {
-                    console.log(`🔧 Cleaned timestamp group ${clip.timestamp.toISOString()}: removed ${corruptedCameras} corrupted cameras, kept ${totalCameras - corruptedCameras}`);
-                }
-            }
-        }
-
-        if (corruptedGroupsRemoved > 0) {
-            console.log(`📊 Corruption filtering: ${corruptedGroupsRemoved}/${totalClipsScanned} timestamp groups removed due to majority corruption`);
-        }
-
-        return validClips;
+        // Return all clips without any corruption filtering
+        return clips;
     }
 
     groupVideosByDateAndType(videoFiles) {
@@ -2584,6 +2602,121 @@ class SentrySixApp {
 
         } catch (error) {
             console.error('Error scanning Tesla events:', error);
+            return [];
+        }
+    }
+
+    async scanEventsForSpecificDate(folderPath, targetDate, folderType) {
+        const events = [];
+
+        try {
+            // Determine the correct folder type name for the path
+            const folderTypeMap = {
+                'User Saved': 'SavedClips',
+                'Sentry Detection': 'SentryClips'
+            };
+            
+            const actualFolderType = folderTypeMap[folderType] || folderType;
+            
+            // Check if this is a direct SavedClips/SentryClips folder
+            const isDirectClipFolder = actualFolderType && 
+                folderPath.toLowerCase().includes(actualFolderType.toLowerCase());
+
+            let searchPath;
+            if (isDirectClipFolder) {
+                // User selected a specific SavedClips or SentryClips folder
+                searchPath = folderPath;
+            } else {
+                // User selected the root TeslaCam folder, look in subfolder
+                searchPath = path.join(folderPath, actualFolderType);
+                if (!fs.existsSync(searchPath)) {
+                    return [];
+                }
+            }
+
+            // Look for all folders that start with the target date (YYYY-MM-DD format)
+            // This handles cases like "2025-07-28", "2025-07-28_14-50-51", "2025-07-28_15-30-22", etc.
+            const entries = fs.readdirSync(searchPath, { withFileTypes: true });
+            const dateFolders = entries.filter(entry => 
+                entry.isDirectory() && entry.name.startsWith(targetDate)
+            );
+
+            if (dateFolders.length === 0) {
+                return [];
+            }
+
+            // Scan for event.json files in all date folders
+            for (const dateFolder of dateFolders) {
+                const dateFolderPath = path.join(searchPath, dateFolder.name);
+                const subEntries = fs.readdirSync(dateFolderPath, { withFileTypes: true });
+                
+                // First, check for event.json directly in the date folder
+                const directEventJsonPath = path.join(dateFolderPath, 'event.json');
+                if (fs.existsSync(directEventJsonPath)) {
+                    try {
+                        const eventData = JSON.parse(fs.readFileSync(directEventJsonPath, 'utf8'));
+
+                        if (eventData.timestamp && eventData.reason) {
+                            const thumbnailPath = path.join(dateFolderPath, 'thumb.png');
+                            const hasThumbnail = fs.existsSync(thumbnailPath);
+
+                            events.push({
+                                timestamp: eventData.timestamp,
+                                reason: eventData.reason,
+                                city: eventData.city,
+                                est_lat: eventData.est_lat,
+                                est_lon: eventData.est_lon,
+                                camera: eventData.camera,
+                                folderPath: dateFolderPath,
+                                thumbnailPath: hasThumbnail ? thumbnailPath : null,
+                                timestampDate: new Date(eventData.timestamp),
+                                type: actualFolderType
+                            });
+                        }
+                    } catch (parseError) {
+                        console.warn(`Error parsing event.json in ${dateFolderPath}:`, parseError);
+                    }
+                }
+
+                // Also check subdirectories for event.json files (for other folder structures)
+                for (const entry of subEntries) {
+                    if (entry.isDirectory()) {
+                        const clipFolderPath = path.join(dateFolderPath, entry.name);
+                        const eventJsonPath = path.join(clipFolderPath, 'event.json');
+
+                        if (fs.existsSync(eventJsonPath)) {
+                            try {
+                                const eventData = JSON.parse(fs.readFileSync(eventJsonPath, 'utf8'));
+
+                                if (eventData.timestamp && eventData.reason) {
+                                    const thumbnailPath = path.join(clipFolderPath, 'thumb.png');
+                                    const hasThumbnail = fs.existsSync(thumbnailPath);
+
+                                    events.push({
+                                        timestamp: eventData.timestamp,
+                                        reason: eventData.reason,
+                                        city: eventData.city,
+                                        est_lat: eventData.est_lat,
+                                        est_lon: eventData.est_lon,
+                                        camera: eventData.camera,
+                                        folderPath: clipFolderPath,
+                                        thumbnailPath: hasThumbnail ? thumbnailPath : null,
+                                        timestampDate: new Date(eventData.timestamp),
+                                        type: actualFolderType
+                                    });
+                                }
+                            } catch (parseError) {
+                                console.warn(`Error parsing event.json in ${clipFolderPath}:`, parseError);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        } catch (error) {
+            console.error(`Error scanning events for ${targetDate}:`, error);
             return [];
         }
     }

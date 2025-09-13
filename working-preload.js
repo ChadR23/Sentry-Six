@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getVideoFiles: (folderPath) => ipcRenderer.invoke('tesla:get-video-files', folderPath),
         refilterClips: (clipData) => ipcRenderer.invoke('tesla:refilter-clips', clipData),
         getEventData: (folderPath) => ipcRenderer.invoke('tesla:get-event-data', folderPath),
+        getEventsForDate: (folderPath, targetDate, folderType) => ipcRenderer.invoke('tesla:get-events-for-date', folderPath, targetDate, folderType),
         getEventThumbnail: (thumbnailPath) => ipcRenderer.invoke('tesla:get-event-thumbnail', thumbnailPath),
         exportVideo: (exportId, exportData) => ipcRenderer.invoke('tesla:export-video', exportId, exportData),
         cancelExport: (exportId) => ipcRenderer.invoke('tesla:cancel-export', exportId),
@@ -40,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Event listeners
     on: (channel, callback) => {
-        const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress'];
+        const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress', 'scan-progress', 'scan-complete'];
         if (allowedChannels.includes(channel)) {
             ipcRenderer.on(channel, callback);
         }
