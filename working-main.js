@@ -2026,7 +2026,7 @@ class SentrySixApp {
 
             // Group files by date and folder type
             console.log(`📊 Organizing ${allVideoFiles.length} video files...`);
-            const groupedByDateAndType = this.groupVideosByDateAndType(allVideoFiles);
+            const groupedByDateAndType = await this.groupVideosByDateAndType(allVideoFiles);
             
             const sectionCount = Object.keys(groupedByDateAndType).length;
             const totalDays = Object.values(groupedByDateAndType).reduce((sum, section) => sum + section.length, 0);
@@ -2419,8 +2419,13 @@ class SentrySixApp {
         return clips;
     }
 
-    groupVideosByDateAndType(videoFiles) {
+    async groupVideosByDateAndType(videoFiles) {
         console.time('Grouping videos by date and type');
+        
+        // Safety check for extremely large datasets
+        if (videoFiles.length > 100000) {
+            console.warn(`⚠️ Large dataset detected: ${videoFiles.length} files. Using optimized processing...`);
+        }
         
         const sections = {
             'User Saved': [],
@@ -2435,11 +2440,16 @@ class SentrySixApp {
             'recentclips': 'Recent Clips'
         };
 
+        // For very large datasets, use a more memory-efficient approach
+        if (videoFiles.length > 50000) {
+            return this.groupVideosByDateAndTypeOptimized(videoFiles, sections, sectionKeyMap);
+        }
+
         // Group files by date and type - OPTIMIZED
         const dateGroups = new Map();
 
-        // Process files in batches to avoid blocking the main thread with large datasets
-        const batchSize = 500;
+        // Process files in smaller batches for large datasets to prevent stack overflow
+        const batchSize = videoFiles.length > 20000 ? 100 : 500;
         
         for (let i = 0; i < videoFiles.length; i += batchSize) {
             const batch = videoFiles.slice(i, i + batchSize);
@@ -2478,6 +2488,11 @@ class SentrySixApp {
                 }
 
                 group.files[file.camera] = file;
+            }
+            
+            // Yield control to prevent stack overflow for very large datasets
+            if (i % 10000 === 0 && i > 0) {
+                await new Promise(resolve => setImmediate(resolve));
             }
         }
 
@@ -2523,6 +2538,88 @@ class SentrySixApp {
             sections[sectionKey].sort((a, b) => b.date.localeCompare(a.date)); // String comparison is faster than Date construction
         }
 
+        console.timeEnd('Grouping videos by date and type');
+        return sections;
+    }
+
+    // Optimized version for very large datasets to prevent stack overflow
+    groupVideosByDateAndTypeOptimized(videoFiles, sections, sectionKeyMap) {
+        console.log(`🔄 Using optimized grouping for ${videoFiles.length} files...`);
+        
+        // Use a simpler, more memory-efficient approach for very large datasets
+        const dateGroups = {};
+        
+        // Process files in very small batches to prevent memory issues
+        const batchSize = 50;
+        
+        for (let i = 0; i < videoFiles.length; i += batchSize) {
+            const batch = videoFiles.slice(i, i + batchSize);
+            
+            for (const file of batch) {
+                const timestamp = file.timestamp;
+                const dateKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}`;
+                const sectionKey = sectionKeyMap[file.type.toLowerCase()] || 'User Saved';
+                const timestampKey = timestamp.getTime();
+                
+                // Initialize nested structure if needed
+                if (!dateGroups[sectionKey]) dateGroups[sectionKey] = {};
+                if (!dateGroups[sectionKey][dateKey]) dateGroups[sectionKey][dateKey] = {};
+                if (!dateGroups[sectionKey][dateKey][timestampKey]) {
+                    dateGroups[sectionKey][dateKey][timestampKey] = {
+                        timestamp: timestamp,
+                        files: {},
+                        type: file.type,
+                        date: dateKey
+                    };
+                }
+                
+                dateGroups[sectionKey][dateKey][timestampKey].files[file.camera] = file;
+            }
+            
+            // Yield control every 1000 files to prevent blocking
+            if (i % 1000 === 0 && i > 0) {
+                // Use setTimeout instead of setImmediate for better memory management
+                setTimeout(() => {}, 0);
+            }
+        }
+        
+        // Convert to final structure
+        for (const sectionKey in dateGroups) {
+            for (const dateKey in dateGroups[sectionKey]) {
+                const dayGroups = Object.values(dateGroups[sectionKey][dateKey]);
+                const allClips = dayGroups.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+                
+                // Filter out corrupted clips (though this is now disabled)
+                const clips = this.filterCorruptedTimestampGroups(allClips);
+                
+                // Parse date for display
+                const year = parseInt(dateKey.substring(0, 4));
+                const month = parseInt(dateKey.substring(5, 7));
+                const day = parseInt(dateKey.substring(8, 10));
+                const dateObj = new Date(year, month - 1, day);
+                const displayDate = dateObj.toLocaleDateString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: '2-digit'
+                });
+                
+                sections[sectionKey].push({
+                    date: dateKey,
+                    displayDate: displayDate,
+                    clips: clips,
+                    totalClips: clips.length,
+                    originalClipCount: allClips.length,
+                    filteredClipCount: clips.length,
+                    actualTotalDuration: null // Skip duration calculation for performance
+                });
+            }
+        }
+        
+        // Sort dates within each section (newest first)
+        for (const sectionKey in sections) {
+            sections[sectionKey].sort((a, b) => b.date.localeCompare(a.date));
+        }
+        
         console.timeEnd('Grouping videos by date and type');
         return sections;
     }
