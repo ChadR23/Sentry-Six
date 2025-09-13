@@ -744,6 +744,18 @@ class SentrySixApp {
             }
         });
 
+        // Clear Tesla folder cache
+        ipcMain.handle('tesla:clear-cache', async (_, folderPath) => {
+            console.log('🗑️ Clearing Tesla folder cache for:', folderPath);
+            try {
+                await this.clearFolderCache(folderPath);
+                return { success: true };
+            } catch (error) {
+                console.error('Error clearing cache:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
         // Tesla event thumbnail
         ipcMain.handle('tesla:get-event-thumbnail', async (_, thumbnailPath) => {
             console.log('🖼️ Getting event thumbnail:', thumbnailPath);
@@ -1928,13 +1940,112 @@ class SentrySixApp {
         Menu.setApplicationMenu(menu);
     }
 
+    // Cache management for folder structure and metadata
+    getCacheFilePath(folderPath) {
+        return path.join(folderPath, 'Sen6GUIinfo.json');
+    }
+
+    async loadFolderCache(folderPath) {
+        const cachePath = this.getCacheFilePath(folderPath);
+        try {
+            if (fs.existsSync(cachePath)) {
+                const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+                console.log(`📁 Loaded folder cache: ${cacheData.totalFiles} files, ${cacheData.sections} sections`);
+                return cacheData;
+            }
+        } catch (error) {
+            console.warn('Failed to load folder cache:', error.message);
+        }
+        return null;
+    }
+
+    async saveFolderCache(folderPath, cacheData) {
+        const cachePath = this.getCacheFilePath(folderPath);
+        try {
+            fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2));
+            console.log(`💾 Saved folder cache: ${cacheData.totalFiles} files, ${cacheData.sections} sections`);
+        } catch (error) {
+            console.warn('Failed to save folder cache:', error.message);
+        }
+    }
+
+    async validateCacheIntegrity(folderPath, cacheData) {
+        if (!cacheData || !cacheData.folderStats) return false;
+        
+        try {
+            const currentStats = {};
+            const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
+            
+            for (const subFolder of subFolders) {
+                const subFolderPath = path.join(folderPath, subFolder);
+                if (fs.existsSync(subFolderPath)) {
+                    const stats = fs.statSync(subFolderPath);
+                    currentStats[subFolder] = {
+                        mtime: stats.mtime.getTime(),
+                        size: stats.size
+                    };
+                }
+            }
+            
+            // Check if any folder has been modified
+            for (const [folder, currentStat] of Object.entries(currentStats)) {
+                const cachedStat = cacheData.folderStats[folder];
+                if (!cachedStat || 
+                    cachedStat.mtime !== currentStat.mtime || 
+                    cachedStat.size !== currentStat.size) {
+                    console.log(`🔄 Cache invalidated: ${folder} folder has changed`);
+                    return false;
+                }
+            }
+            
+            console.log('✅ Cache validation passed - no changes detected');
+            return true;
+        } catch (error) {
+            console.warn('Cache validation failed:', error.message);
+            return false;
+        }
+    }
+
+    async clearFolderCache(folderPath) {
+        const cachePath = this.getCacheFilePath(folderPath);
+        try {
+            if (fs.existsSync(cachePath)) {
+                fs.unlinkSync(cachePath);
+                console.log('🗑️ Cleared folder cache');
+            }
+        } catch (error) {
+            console.warn('Failed to clear folder cache:', error.message);
+        }
+    }
+
     // Tesla file scanning functionality
     async scanTeslaFolder(folderPath) {
         console.log(`📁 Scanning Tesla folder: ${folderPath}`);
         console.time('Total folder scan time');
-        let allVideoFiles = [];
 
         try {
+            // Try to load from cache first
+            const cachedData = await this.loadFolderCache(folderPath);
+            if (cachedData && await this.validateCacheIntegrity(folderPath, cachedData)) {
+                console.log('🚀 Using cached folder data - skipping full scan');
+                console.timeEnd('Total folder scan time');
+                
+                // Send scan completion event with cached data
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.webContents.send('scan-complete', {
+                        success: true,
+                        totalFiles: cachedData.totalFiles,
+                        sections: cachedData.sections,
+                        totalDays: cachedData.totalDays,
+                        fromCache: true
+                    });
+                }
+                
+                return cachedData.groupedByDateAndType;
+            }
+
+            console.log('🔄 Cache invalid or missing - performing full scan');
+            let allVideoFiles = [];
             // Check if this is a direct SavedClips/RecentClips/SentryClips folder
             const isDirectClipFolder = ['SavedClips', 'RecentClips', 'SentryClips'].some(folder =>
                 folderPath.toLowerCase().includes(folder.toLowerCase())
@@ -2036,13 +2147,48 @@ class SentrySixApp {
             console.log(`✅ Organized into ${sectionCount} sections with ${totalDays} date groups`);
             console.timeEnd('Total folder scan time');
 
-            // Send scan completion event to renderer
+            // Save cache for future use
+            const folderStats = {};
+            const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
+            for (const subFolder of subFolders) {
+                const subFolderPath = path.join(folderPath, subFolder);
+                if (fs.existsSync(subFolderPath)) {
+                    const stats = fs.statSync(subFolderPath);
+                    folderStats[subFolder] = {
+                        mtime: stats.mtime.getTime(),
+                        size: stats.size
+                    };
+                }
+            }
+
+            const cacheData = {
+                timestamp: Date.now(),
+                totalFiles: allVideoFiles.length,
+                sections: sectionCount,
+                totalDays: totalDays,
+                groupedByDateAndType: groupedByDateAndType,
+                folderStats: folderStats
+            };
+
+            // Send scan completion event to renderer FIRST
             if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                 this.mainWindow.webContents.send('scan-complete', {
                     success: true,
                     totalFiles: allVideoFiles.length,
                     sections: sectionCount,
-                    totalDays: totalDays
+                    totalDays: totalDays,
+                    fromCache: false
+                });
+            }
+
+            // Save cache AFTER scan completion event (at the very end)
+            await this.saveFolderCache(folderPath, cacheData);
+            
+            // Send cache completion event
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send('cache-complete', {
+                    success: true,
+                    totalFiles: allVideoFiles.length
                 });
             }
 

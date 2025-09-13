@@ -5289,6 +5289,12 @@ class SentrySixApp {
                     console.log('📥 Main scan complete - ready for user interaction!');
                 });
 
+                // Cache completion event - cache is written after everything is done
+                window.electronAPI.on('cache-complete', (event, cacheData) => {
+                    console.log(`💾 Cache write complete:`, cacheData);
+                    console.log('✅ All folder loading and caching operations finished!');
+                });
+
                 console.log('✅ Scan progress and completion listeners set up successfully');
             } catch (error) {
                 console.warn('⚠️ Could not set up scan listeners:', error);

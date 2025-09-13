@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Event listeners
     on: (channel, callback) => {
-        const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress', 'scan-progress', 'scan-complete'];
+        const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress', 'scan-progress', 'scan-complete', 'cache-complete'];
         if (allowedChannels.includes(channel)) {
             ipcRenderer.on(channel, callback);
         }
