@@ -1917,7 +1917,8 @@ class SentrySixApp {
 
     // Tesla file scanning functionality
     async scanTeslaFolder(folderPath) {
-        console.log('Scanning Tesla folder:', folderPath);
+        console.log(`📁 Scanning Tesla folder: ${folderPath}`);
+        console.time('Total folder scan time');
         const allVideoFiles = [];
 
         try {
@@ -1928,121 +1929,163 @@ class SentrySixApp {
 
             if (isDirectClipFolder) {
                 // Scan the selected folder directly
+                console.log(`📂 Scanning direct folder: ${path.basename(folderPath)}`);
                 const files = await this.scanVideoFiles(folderPath, path.basename(folderPath));
                 if (files && files.length) {
-                    for (const f of files) allVideoFiles.push(f);
+                    allVideoFiles.push(...files);
+                    console.log(`✅ Found ${files.length} files in ${path.basename(folderPath)}`);
                 }
             } else {
-                // Scan for Tesla subfolders
+                // Scan for Tesla subfolders with progress reporting
                 const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
+                let totalFilesFound = 0;
 
                 for (const subFolder of subFolders) {
                     const subFolderPath = path.join(folderPath, subFolder);
                     if (fs.existsSync(subFolderPath)) {
-                        console.log(`Scanning ${subFolder}...`);
+                        console.log(`📂 Scanning ${subFolder}...`);
                         const files = await this.scanVideoFiles(subFolderPath, subFolder);
                         if (files && files.length) {
-                            for (const f of files) allVideoFiles.push(f);
+                            allVideoFiles.push(...files);
+                            totalFilesFound += files.length;
+                            console.log(`✅ Found ${files.length} files in ${subFolder} (Total so far: ${totalFilesFound})`);
+                            
+                            // Send progress update to renderer
+                            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                                this.mainWindow.webContents.send('scan-progress', {
+                                    folder: subFolder,
+                                    filesFound: files.length,
+                                    totalFiles: totalFilesFound
+                                });
+                            }
+                        } else {
+                            console.log(`📭 No files found in ${subFolder}`);
                         }
                     }
                 }
             }
 
+            console.log(`🔍 Total video files found: ${allVideoFiles.length}`);
+
             // Group files by date and folder type
+            console.log(`📊 Organizing ${allVideoFiles.length} video files...`);
             const groupedByDateAndType = this.groupVideosByDateAndType(allVideoFiles);
-            console.log(`Organized into ${Object.keys(groupedByDateAndType).length} sections`);
+            
+            const sectionCount = Object.keys(groupedByDateAndType).length;
+            const totalDays = Object.values(groupedByDateAndType).reduce((sum, section) => sum + section.length, 0);
+            
+            console.log(`✅ Organized into ${sectionCount} sections with ${totalDays} date groups`);
+            console.timeEnd('Total folder scan time');
 
             return groupedByDateAndType;
 
         } catch (error) {
-            console.error('Error scanning Tesla folder:', error);
+            console.error('❌ Error scanning Tesla folder:', error);
+            console.timeEnd('Total folder scan time');
             return {};
         }
     }
 
     async scanVideoFiles(folderPath, folderType) {
         const videoFiles = [];
+        console.time(`Scanning ${folderType}`);
 
         try {
             if (folderType.toLowerCase() === 'recentclips') {
                 // RecentClips can have either direct MP4 files OR date subfolders
-                const items = fs.readdirSync(folderPath);
+                const items = await this.readDirAsync(folderPath);
 
-                // Check if RecentClips has date subfolders (YYYY-MM-DD pattern)
-                const hasDateSubfolders = items.some(item => {
-                    const itemPath = path.join(folderPath, item);
-                    const stats = fs.statSync(itemPath);
-                    return stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(item);
-                });
+                // Check if RecentClips has date subfolders (YYYY-MM-DD pattern) - optimized check
+                const hasDateSubfolders = await this.checkForDateSubfolders(items, folderPath);
 
                 if (hasDateSubfolders) {
                     console.log('RecentClips with date subfolders detected');
-                    // Handle RecentClips with date subfolders (like SavedClips/SentryClips)
-                    for (const item of items) {
-                        const itemPath = path.join(folderPath, item);
-                        const stats = fs.statSync(itemPath);
-
-                        if (stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(item)) {
+                    // Handle RecentClips with date subfolders (like SavedClips/SentryClips) - OPTIMIZED
+                    const dateDirectories = items.filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item));
+                    
+                    // Sort directories by date (newest first) for early loading of recent content
+                    dateDirectories.sort((a, b) => b.localeCompare(a));
+                    
+                    // Process directories in batches to avoid blocking
+                    const batchSize = 3;
+                    for (let i = 0; i < dateDirectories.length; i += batchSize) {
+                        const batch = dateDirectories.slice(i, i + batchSize);
+                        const batchPromises = batch.map(async (item) => {
+                            const itemPath = path.join(folderPath, item);
                             console.log(`Scanning RecentClips date folder: ${item}`);
-                            // Scan date subfolder
-                            const subFiles = fs.readdirSync(itemPath);
-
-                            for (const filename of subFiles) {
-                                if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
-                                    const filePath = path.join(itemPath, filename);
-                                    const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
-
-                                    if (videoFile) {
-                                        videoFiles.push(videoFile);
-                                    }
-                                }
+                            
+                            try {
+                                const subFiles = await this.readDirAsync(itemPath);
+                                const mp4Files = subFiles.filter(filename => 
+                                    filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)
+                                );
+                                
+                                return await this.processBatchFiles(mp4Files, itemPath, folderType);
+                            } catch (error) {
+                                console.warn(`Failed to scan date folder ${item}:`, error.message);
+                                return [];
                             }
-                        }
+                        });
+                        
+                        const batchResults = await Promise.all(batchPromises);
+                        batchResults.forEach(result => videoFiles.push(...result));
+                        
+                        // Yield control back to event loop between batches
+                        await new Promise(resolve => setImmediate(resolve));
                     }
                 } else {
                     console.log('RecentClips with direct files detected');
-                    // Handle RecentClips with direct MP4 files (original behavior)
-                    for (const filename of items) {
-                        if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
-                            const filePath = path.join(folderPath, filename);
-                            const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
-
-                            if (videoFile) {
-                                videoFiles.push(videoFile);
-                            }
-                        }
-                    }
+                    // Handle RecentClips with direct MP4 files (original behavior) - OPTIMIZED
+                    const mp4Files = items.filter(filename => 
+                        filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)
+                    );
+                    
+                    const directFiles = await this.processBatchFiles(mp4Files, folderPath, folderType);
+                    videoFiles.push(...directFiles);
                 }
             } else {
-                // SavedClips and SentryClips have date subfolders
-                const items = fs.readdirSync(folderPath);
-
-                for (const item of items) {
-                    const itemPath = path.join(folderPath, item);
-                    const stats = fs.statSync(itemPath);
-
-                    if (stats.isDirectory()) {
-                        // Scan date subfolder
-                        const subFiles = fs.readdirSync(itemPath);
-
-                        for (const filename of subFiles) {
-                            if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
-                                const filePath = path.join(itemPath, filename);
-                                const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
-
-                                if (videoFile) {
-                                    videoFiles.push(videoFile);
-                                }
-                            }
+                // SavedClips and SentryClips have date subfolders - OPTIMIZED
+                const items = await this.readDirAsync(folderPath);
+                const { directories, files } = await this.separateDirectoriesAndFiles(items, folderPath);
+                
+                // Process direct MP4 files first (if any)
+                const directMp4Files = files.filter(item => 
+                    item.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(item)
+                );
+                
+                if (directMp4Files.length > 0) {
+                    const directFiles = await this.processBatchFiles(directMp4Files, folderPath, folderType);
+                    videoFiles.push(...directFiles);
+                }
+                
+                // Sort directories by date (newest first)
+                directories.sort((a, b) => b.localeCompare(a));
+                
+                // Process directories in batches
+                const batchSize = 3;
+                for (let i = 0; i < directories.length; i += batchSize) {
+                    const batch = directories.slice(i, i + batchSize);
+                    const batchPromises = batch.map(async (item) => {
+                        const itemPath = path.join(folderPath, item);
+                        
+                        try {
+                            const subFiles = await this.readDirAsync(itemPath);
+                            const mp4Files = subFiles.filter(filename => 
+                                filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)
+                            );
+                            
+                            return await this.processBatchFiles(mp4Files, itemPath, folderType);
+                        } catch (error) {
+                            console.warn(`Failed to scan directory ${item}:`, error.message);
+                            return [];
                         }
-                    } else if (item.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(item)) {
-                        // Direct MP4 file in main folder
-                        const videoFile = this.parseTeslaFilename(itemPath, item, folderType);
-
-                        if (videoFile) {
-                            videoFiles.push(videoFile);
-                        }
-                    }
+                    });
+                    
+                    const batchResults = await Promise.all(batchPromises);
+                    batchResults.forEach(result => videoFiles.push(...result));
+                    
+                    // Yield control back to event loop between batches
+                    await new Promise(resolve => setImmediate(resolve));
                 }
             }
 
@@ -2050,6 +2093,8 @@ class SentrySixApp {
             console.error(`Error scanning ${folderPath}:`, error);
         }
 
+        console.timeEnd(`Scanning ${folderType}`);
+        console.log(`Found ${videoFiles.length} video files in ${folderType}`);
         return videoFiles;
     }
 
@@ -2065,6 +2110,91 @@ class SentrySixApp {
         return skipPatterns.some(pattern =>
             lowerFilename === pattern || lowerFilename.startsWith(pattern)
         );
+    }
+
+    // Async wrapper for fs.readdir to avoid blocking main thread
+    async readDirAsync(folderPath) {
+        return new Promise((resolve, reject) => {
+            fs.readdir(folderPath, (err, files) => {
+                if (err) reject(err);
+                else resolve(files);
+            });
+        });
+    }
+
+    // Optimized check for date subfolders without multiple statSync calls
+    async checkForDateSubfolders(items, folderPath) {
+        const checkPromises = items.slice(0, 10).map(async (item) => { // Only check first 10 items for efficiency
+            return new Promise((resolve) => {
+                const itemPath = path.join(folderPath, item);
+                fs.stat(itemPath, (err, stats) => {
+                    if (err) {
+                        resolve(false);
+                    } else {
+                        resolve(stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(item));
+                    }
+                });
+            });
+        });
+
+        const results = await Promise.all(checkPromises);
+        return results.some(result => result);
+    }
+
+    // Separate directories and files in one pass to avoid multiple stat calls
+    async separateDirectoriesAndFiles(items, folderPath) {
+        const statPromises = items.map(async (item) => {
+            return new Promise((resolve) => {
+                const itemPath = path.join(folderPath, item);
+                fs.stat(itemPath, (err, stats) => {
+                    if (err) {
+                        resolve({ item, isDirectory: false, error: true });
+                    } else {
+                        resolve({ item, isDirectory: stats.isDirectory(), error: false });
+                    }
+                });
+            });
+        });
+
+        const results = await Promise.all(statPromises);
+        const directories = [];
+        const files = [];
+
+        results.forEach(({ item, isDirectory, error }) => {
+            if (!error) {
+                if (isDirectory) {
+                    directories.push(item);
+                } else {
+                    files.push(item);
+                }
+            }
+        });
+
+        return { directories, files };
+    }
+
+    // Process files in batches to avoid blocking and improve performance
+    async processBatchFiles(filenames, folderPath, folderType) {
+        const batchSize = 20; // Process 20 files at a time
+        const results = [];
+
+        for (let i = 0; i < filenames.length; i += batchSize) {
+            const batch = filenames.slice(i, i + batchSize);
+            const batchPromises = batch.map(async (filename) => {
+                const filePath = path.join(folderPath, filename);
+                return this.parseTeslaFilenameAsync(filePath, filename, folderType);
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults.filter(result => result !== null));
+
+            // Yield control to prevent blocking
+            if (i + batchSize < filenames.length) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
+        }
+
+        return results;
     }
 
     parseTeslaFilename(filePath, filename, folderType) {
@@ -2093,6 +2223,50 @@ class SentrySixApp {
         }
 
         const stats = fs.statSync(filePath);
+
+        return {
+            path: filePath,
+            filename,
+            camera,
+            timestamp,
+            size: stats.size,
+            type: folderType
+        };
+    }
+
+    // Async version of parseTeslaFilename to avoid blocking
+    async parseTeslaFilenameAsync(filePath, filename, folderType) {
+        // Parse Tesla filename format: YYYY-MM-DD_HH-MM-SS-camera.mp4
+        const match = filename.match(/^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})-(.+)\.mp4$/);
+
+        if (!match) {
+            console.warn(`Invalid Tesla filename format: ${filename}`);
+            return null;
+        }
+
+        const [, datePart, timePart, cameraPart] = match;
+
+        // Parse timestamp
+        const timestamp = this.parseTimestamp(datePart, timePart);
+        if (!timestamp) {
+            console.warn(`Could not parse timestamp from: ${filename}`);
+            return null;
+        }
+
+        // Parse camera type
+        const camera = this.parseCamera(cameraPart);
+        if (!camera) {
+            console.warn(`Unknown camera type: ${cameraPart}`);
+            return null;
+        }
+
+        // Use async stat to avoid blocking
+        const stats = await new Promise((resolve, reject) => {
+            fs.stat(filePath, (err, stats) => {
+                if (err) reject(err);
+                else resolve(stats);
+            });
+        });
 
         return {
             path: filePath,
@@ -2228,50 +2402,68 @@ class SentrySixApp {
     }
 
     groupVideosByDateAndType(videoFiles) {
+        console.time('Grouping videos by date and type');
+        
         const sections = {
             'User Saved': [],
             'Sentry Detection': [],
             'Recent Clips': []
         };
 
-        // Group files by date and type
+        // Pre-calculate section keys to avoid repeated function calls
+        const sectionKeyMap = {
+            'savedclips': 'User Saved',
+            'sentryclips': 'Sentry Detection', 
+            'recentclips': 'Recent Clips'
+        };
+
+        // Group files by date and type - OPTIMIZED
         const dateGroups = new Map();
 
-        for (const file of videoFiles) {
-            // Create date key using local time (not UTC)
-            const year = file.timestamp.getFullYear();
-            const month = String(file.timestamp.getMonth() + 1).padStart(2, '0');
-            const day = String(file.timestamp.getDate()).padStart(2, '0');
-            const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD in local time
-            const sectionKey = this.getSectionKey(file.type);
+        // Process files in batches to avoid blocking the main thread with large datasets
+        const batchSize = 500;
+        
+        for (let i = 0; i < videoFiles.length; i += batchSize) {
+            const batch = videoFiles.slice(i, i + batchSize);
+            
+            for (const file of batch) {
+                // Create date key using local time (not UTC) - optimized string construction
+                const timestamp = file.timestamp;
+                const dateKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}`;
+                const sectionKey = sectionKeyMap[file.type.toLowerCase()] || 'User Saved';
 
-            if (!dateGroups.has(sectionKey)) {
-                dateGroups.set(sectionKey, new Map());
+                // Optimized nested map access
+                let sectionMap = dateGroups.get(sectionKey);
+                if (!sectionMap) {
+                    sectionMap = new Map();
+                    dateGroups.set(sectionKey, sectionMap);
+                }
+
+                let dayMap = sectionMap.get(dateKey);
+                if (!dayMap) {
+                    dayMap = new Map();
+                    sectionMap.set(dateKey, dayMap);
+                }
+
+                // Create timestamp key using local time (not UTC)
+                const timestampKey = timestamp.getTime(); // Use number instead of string for better performance
+
+                let group = dayMap.get(timestampKey);
+                if (!group) {
+                    group = {
+                        timestamp: timestamp,
+                        files: {},
+                        type: file.type,
+                        date: dateKey
+                    };
+                    dayMap.set(timestampKey, group);
+                }
+
+                group.files[file.camera] = file;
             }
-
-            const sectionMap = dateGroups.get(sectionKey);
-            if (!sectionMap.has(dateKey)) {
-                sectionMap.set(dateKey, new Map());
-            }
-
-            const dayMap = sectionMap.get(dateKey);
-            // Create timestamp key using local time (not UTC)
-            const timestampKey = file.timestamp.getTime().toString(); // Use milliseconds as key
-
-            if (!dayMap.has(timestampKey)) {
-                dayMap.set(timestampKey, {
-                    timestamp: file.timestamp,
-                    files: {},
-                    type: file.type,
-                    date: dateKey
-                });
-            }
-
-            const group = dayMap.get(timestampKey);
-            group.files[file.camera] = file;
         }
 
-        // Convert to organized structure
+        // Convert to organized structure - OPTIMIZED
         for (const [sectionKey, sectionMap] of dateGroups) {
             for (const [dateKey, dayMap] of sectionMap) {
                 const allClips = Array.from(dayMap.values()).sort((a, b) =>
@@ -2281,8 +2473,10 @@ class SentrySixApp {
                 // Filter out timestamp groups where majority of cameras are corrupted
                 const clips = this.filterCorruptedTimestampGroups(allClips);
 
-                // Parse date key as local time (not UTC)
-                const [year, month, day] = dateKey.split('-').map(Number);
+                // Optimized date parsing - avoid string splitting and multiple Date constructions
+                const year = parseInt(dateKey.substring(0, 4));
+                const month = parseInt(dateKey.substring(5, 7));
+                const day = parseInt(dateKey.substring(8, 10));
                 const dateObj = new Date(year, month - 1, day); // Local time
                 const displayDate = dateObj.toLocaleDateString('en-US', {
                     month: '2-digit',
@@ -2290,26 +2484,9 @@ class SentrySixApp {
                     year: '2-digit'
                 });
 
-                // Calculate actual total duration from filtered clips if possible
-                let actualTotalDuration = null;
-                let hasAllDurations = true;
-                let totalDurationMs = 0;
-
-                for (const clip of clips) {
-                    // Check if we have actual durations for all cameras in this clip
-                    let clipDuration = 0;
-                    let cameraCount = 0;
-
-                    for (const [camera, file] of Object.entries(clip.files)) {
-                        cameraCount++;
-                        // For now, we don't have actual durations during initial scan
-                        // This will be calculated when the timeline is loaded
-                        hasAllDurations = false;
-                        break;
-                    }
-
-                    if (!hasAllDurations) break;
-                }
+                // Skip expensive duration calculation during initial scan - will be calculated on-demand
+                // This significantly improves performance for large folders
+                const actualTotalDuration = null;
 
                 sections[sectionKey].push({
                     date: dateKey,
@@ -2323,11 +2500,12 @@ class SentrySixApp {
             }
         }
 
-        // Sort dates within each section (newest first)
+        // Sort dates within each section (newest first) - optimized comparison
         for (const sectionKey in sections) {
-            sections[sectionKey].sort((a, b) => new Date(b.date) - new Date(a.date));
+            sections[sectionKey].sort((a, b) => b.date.localeCompare(a.date)); // String comparison is faster than Date construction
         }
 
+        console.timeEnd('Grouping videos by date and type');
         return sections;
     }
 
