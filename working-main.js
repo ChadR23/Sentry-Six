@@ -1932,7 +1932,7 @@ class SentrySixApp {
     async scanTeslaFolder(folderPath) {
         console.log(`📁 Scanning Tesla folder: ${folderPath}`);
         console.time('Total folder scan time');
-        const allVideoFiles = [];
+        let allVideoFiles = [];
 
         try {
             // Check if this is a direct SavedClips/RecentClips/SentryClips folder
@@ -1957,7 +1957,8 @@ class SentrySixApp {
                 
                 const files = await this.scanVideoFiles(folderPath, folderName);
                 if (files && files.length) {
-                    allVideoFiles.push(...files);
+                    // Use concat instead of spread operator to avoid stack overflow with large arrays
+                    allVideoFiles = allVideoFiles.concat(files);
                     console.log(`✅ Found ${files.length} files in ${folderName}`);
                     
                     // Send "completed scanning" progress update for direct folder
@@ -1992,7 +1993,8 @@ class SentrySixApp {
                         
                         const files = await this.scanVideoFiles(subFolderPath, subFolder);
                         if (files && files.length) {
-                            allVideoFiles.push(...files);
+                            // Use concat instead of spread operator to avoid stack overflow with large arrays
+                            allVideoFiles = allVideoFiles.concat(files);
                             totalFilesFound += files.length;
                             console.log(`✅ Found ${files.length} files in ${subFolder} (Total so far: ${totalFilesFound})`);
                             
@@ -2063,7 +2065,7 @@ class SentrySixApp {
     }
 
     async scanVideoFiles(folderPath, folderType) {
-        const videoFiles = [];
+        let videoFiles = [];
         console.time(`Scanning ${folderType}`);
 
         try {
@@ -2104,7 +2106,11 @@ class SentrySixApp {
                         });
                         
                         const batchResults = await Promise.all(batchPromises);
-                        batchResults.forEach(result => videoFiles.push(...result));
+                        batchResults.forEach(result => {
+                            if (result && result.length > 0) {
+                                videoFiles = videoFiles.concat(result);
+                            }
+                        });
                         
                         // Yield control back to event loop between batches
                         await new Promise(resolve => setImmediate(resolve));
@@ -2117,7 +2123,7 @@ class SentrySixApp {
                     );
                     
                     const directFiles = await this.processBatchFiles(mp4Files, folderPath, folderType);
-                    videoFiles.push(...directFiles);
+                    videoFiles = videoFiles.concat(directFiles);
                 }
             } else {
                 // SavedClips and SentryClips have date subfolders - OPTIMIZED
@@ -2131,7 +2137,7 @@ class SentrySixApp {
                 
                 if (directMp4Files.length > 0) {
                     const directFiles = await this.processBatchFiles(directMp4Files, folderPath, folderType);
-                    videoFiles.push(...directFiles);
+                    videoFiles = videoFiles.concat(directFiles);
                 }
                 
                 // Sort directories by date (newest first)
@@ -2158,7 +2164,11 @@ class SentrySixApp {
                     });
                     
                     const batchResults = await Promise.all(batchPromises);
-                    batchResults.forEach(result => videoFiles.push(...result));
+                    batchResults.forEach(result => {
+                        if (result && result.length > 0) {
+                            videoFiles = videoFiles.concat(result);
+                        }
+                    });
                     
                     // Yield control back to event loop between batches
                     await new Promise(resolve => setImmediate(resolve));
@@ -2252,7 +2262,7 @@ class SentrySixApp {
     // Process files in batches to avoid blocking and improve performance
     async processBatchFiles(filenames, folderPath, folderType) {
         const batchSize = 20; // Process 20 files at a time
-        const results = [];
+        let results = [];
 
         for (let i = 0; i < filenames.length; i += batchSize) {
             const batch = filenames.slice(i, i + batchSize);
@@ -2262,7 +2272,8 @@ class SentrySixApp {
             });
 
             const batchResults = await Promise.all(batchPromises);
-            results.push(...batchResults.filter(result => result !== null));
+            const validResults = batchResults.filter(result => result !== null);
+            results = results.concat(validResults);
 
             // Yield control to prevent blocking
             if (i + batchSize < filenames.length) {
