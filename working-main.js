@@ -1970,10 +1970,11 @@ class SentrySixApp {
     }
 
     async validateCacheIntegrity(folderPath, cacheData) {
-        if (!cacheData || !cacheData.folderStats) return false;
+        if (!cacheData || !cacheData.folderStats) return { isValid: false, changedFolders: ['SavedClips', 'RecentClips', 'SentryClips'] };
         
         try {
             const currentStats = {};
+            const changedFolders = [];
             const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
             
             for (const subFolder of subFolders) {
@@ -1987,22 +1988,27 @@ class SentrySixApp {
                 }
             }
             
-            // Check if any folder has been modified
+            // Check which specific folders have been modified
             for (const [folder, currentStat] of Object.entries(currentStats)) {
                 const cachedStat = cacheData.folderStats[folder];
                 if (!cachedStat || 
                     cachedStat.mtime !== currentStat.mtime || 
                     cachedStat.size !== currentStat.size) {
                     console.log(`🔄 Cache invalidated: ${folder} folder has changed`);
-                    return false;
+                    changedFolders.push(folder);
                 }
             }
             
-            console.log('✅ Cache validation passed - no changes detected');
-            return true;
+            if (changedFolders.length === 0) {
+                console.log('✅ Cache validation passed - no changes detected');
+                return { isValid: true, changedFolders: [] };
+            } else {
+                console.log(`🔄 Cache partially invalid - changed folders: ${changedFolders.join(', ')}`);
+                return { isValid: false, changedFolders: changedFolders };
+            }
         } catch (error) {
             console.warn('Cache validation failed:', error.message);
-            return false;
+            return { isValid: false, changedFolders: ['SavedClips', 'RecentClips', 'SentryClips'] };
         }
     }
 
@@ -2026,7 +2032,9 @@ class SentrySixApp {
         try {
             // Try to load from cache first
             const cachedData = await this.loadFolderCache(folderPath);
-            if (cachedData && await this.validateCacheIntegrity(folderPath, cachedData)) {
+            const validationResult = cachedData ? await this.validateCacheIntegrity(folderPath, cachedData) : { isValid: false, changedFolders: ['SavedClips', 'RecentClips', 'SentryClips'] };
+            
+            if (validationResult.isValid) {
                 console.log('🚀 Using cached folder data - skipping full scan');
                 console.timeEnd('Total folder scan time');
                 
@@ -2044,8 +2052,24 @@ class SentrySixApp {
                 return cachedData.groupedByDateAndType;
             }
 
-            console.log('🔄 Cache invalid or missing - performing full scan');
+            // Determine if we need full scan or incremental scan
+            const needsFullScan = !cachedData || validationResult.changedFolders.length === 3;
+            
+            if (needsFullScan) {
+                console.log('🔄 Cache invalid or missing - performing full scan');
+            } else {
+                console.log(`🔄 Cache partially invalid - performing incremental scan for: ${validationResult.changedFolders.join(', ')}`);
+            }
             let allVideoFiles = [];
+            let groupedByDateAndType = {};
+            
+            // If we have cached data and doing incremental scan, start with cached data
+            if (cachedData && !needsFullScan) {
+                allVideoFiles = cachedData.allVideoFiles || [];
+                groupedByDateAndType = { ...cachedData.groupedByDateAndType };
+                console.log(`📦 Starting with ${allVideoFiles.length} cached files`);
+            }
+            
             // Check if this is a direct SavedClips/RecentClips/SentryClips folder
             const isDirectClipFolder = ['SavedClips', 'RecentClips', 'SentryClips'].some(folder =>
                 folderPath.toLowerCase().includes(folder.toLowerCase())
@@ -2084,8 +2108,8 @@ class SentrySixApp {
                 }
             } else {
                 // Scan for Tesla subfolders with progress reporting
-                const subFolders = ['SavedClips', 'RecentClips', 'SentryClips'];
-                let totalFilesFound = 0;
+                const subFolders = needsFullScan ? ['SavedClips', 'RecentClips', 'SentryClips'] : validationResult.changedFolders;
+                let totalFilesFound = allVideoFiles.length; // Start with cached count if doing incremental scan
 
                 for (const subFolder of subFolders) {
                     const subFolderPath = path.join(folderPath, subFolder);
@@ -2102,11 +2126,18 @@ class SentrySixApp {
                             });
                         }
                         
+                        // For incremental scan, remove old files from this folder first
+                        if (!needsFullScan && cachedData) {
+                            const oldFiles = allVideoFiles.filter(file => file.folderType === subFolder);
+                            allVideoFiles = allVideoFiles.filter(file => file.folderType !== subFolder);
+                            console.log(`🗑️ Removed ${oldFiles.length} old files from ${subFolder} cache`);
+                        }
+                        
                         const files = await this.scanVideoFiles(subFolderPath, subFolder);
                         if (files && files.length) {
                             // Use concat instead of spread operator to avoid stack overflow with large arrays
                             allVideoFiles = allVideoFiles.concat(files);
-                            totalFilesFound += files.length;
+                            totalFilesFound = allVideoFiles.length; // Update total count
                             console.log(`✅ Found ${files.length} files in ${subFolder} (Total so far: ${totalFilesFound})`);
                             
                             // Send "completed scanning" progress update to renderer
@@ -2138,8 +2169,30 @@ class SentrySixApp {
             console.log(`🔍 Total video files found: ${allVideoFiles.length}`);
 
             // Group files by date and folder type
-            console.log(`📊 Organizing ${allVideoFiles.length} video files...`);
-            const groupedByDateAndType = await this.groupVideosByDateAndType(allVideoFiles);
+            if (needsFullScan) {
+                console.log(`📊 Organizing ${allVideoFiles.length} video files...`);
+                groupedByDateAndType = await this.groupVideosByDateAndType(allVideoFiles);
+            } else {
+                console.log(`📊 Incremental update: regrouping only changed folders...`);
+                // For incremental scan, only regroup the changed folders
+                for (const changedFolder of validationResult.changedFolders) {
+                    const changedFiles = allVideoFiles.filter(file => file.folderType === changedFolder);
+                    if (changedFiles.length > 0) {
+                        const newGrouping = await this.groupVideosByDateAndType(changedFiles);
+                        // Merge the new grouping with existing cached grouping
+                        for (const [section, dates] of Object.entries(newGrouping)) {
+                            if (!groupedByDateAndType[section]) {
+                                groupedByDateAndType[section] = [];
+                            }
+                            // Remove old dates for this section and add new ones
+                            groupedByDateAndType[section] = groupedByDateAndType[section].filter(dateGroup => 
+                                !changedFiles.some(file => file.date === dateGroup.date)
+                            );
+                            groupedByDateAndType[section] = groupedByDateAndType[section].concat(dates);
+                        }
+                    }
+                }
+            }
             
             const sectionCount = Object.keys(groupedByDateAndType).length;
             const totalDays = Object.values(groupedByDateAndType).reduce((sum, section) => sum + section.length, 0);
@@ -2167,6 +2220,7 @@ class SentrySixApp {
                 sections: sectionCount,
                 totalDays: totalDays,
                 groupedByDateAndType: groupedByDateAndType,
+                allVideoFiles: allVideoFiles, // Store all files for incremental scanning
                 folderStats: folderStats
             };
 

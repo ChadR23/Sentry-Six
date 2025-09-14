@@ -1017,22 +1017,44 @@ class SentrySixApp {
             return;
         }
 
+        // Preserve current section states before re-rendering
+        const currentSectionStates = {};
+        document.querySelectorAll('.section-header').forEach(header => {
+            const sectionName = header.dataset.section;
+            const content = document.querySelector(`[data-section-content="${sectionName}"]`);
+            currentSectionStates[sectionName] = !content.classList.contains('collapsed');
+        });
+
+        // Preserve currently selected date
+        const currentlySelectedDate = document.querySelector('.date-item.active');
+        let selectedSectionName = null;
+        let selectedDateIndex = null;
+        if (currentlySelectedDate) {
+            selectedSectionName = currentlySelectedDate.dataset.section;
+            selectedDateIndex = parseInt(currentlySelectedDate.dataset.dateIndex);
+        }
+
         let sectionsHtml = '';
 
         for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
             if (dateGroups.length === 0) continue;
 
             const totalClips = dateGroups.reduce((sum, group) => sum + group.totalClips, 0);
+            
+            // Use preserved state or default to collapsed for new sections
+            const isExpanded = currentSectionStates[sectionName] || false;
+            const headerClass = isExpanded ? '' : 'collapsed';
+            const contentClass = isExpanded ? 'expanded' : 'collapsed';
 
             sectionsHtml += `
                 <div class="clip-section">
-                    <div class="section-header collapsed" data-section="${sectionName}">
+                    <div class="section-header ${headerClass}" data-section="${sectionName}">
                         <span class="section-toggle">▼</span>
                         <span class="section-title">${sectionName}</span>
                         <span class="section-count">${totalClips}</span>
                     </div>
-                    <div class="section-content collapsed" data-section-content="${sectionName}">
-                        ${this.renderDateGroups(dateGroups, sectionName)}
+                    <div class="section-content ${contentClass}" data-section-content="${sectionName}">
+                        ${this.renderDateGroups(dateGroups, sectionName, selectedSectionName, selectedDateIndex)}
                     </div>
                 </div>
             `;
@@ -1043,9 +1065,17 @@ class SentrySixApp {
         
         // Add status indicators for all dates
         this.addStatusIndicatorsToAllDates();
+        
+        // Scroll selected date into view if it exists
+        if (selectedSectionName && selectedDateIndex !== null) {
+            const selectedItem = document.querySelector(`[data-section="${selectedSectionName}"][data-date-index="${selectedDateIndex}"].active`);
+            if (selectedItem) {
+                selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
     }
 
-    renderDateGroups(dateGroups, sectionName) {
+    renderDateGroups(dateGroups, sectionName, selectedSectionName = null, selectedDateIndex = null) {
         return dateGroups.map((dateGroup, dateIndex) => {
             const dateKey = `${sectionName}-${dateIndex}`;
             const statusObj = this.durationProcessingStatus?.[dateKey];
@@ -1083,8 +1113,12 @@ class SentrySixApp {
 
             const tildePrefix = isCompleted ? '' : '<span class="duration-tilde">~</span>';
 
+            // Check if this date should be marked as active
+            const isActive = selectedSectionName === sectionName && selectedDateIndex === dateIndex;
+            const activeClass = isActive ? 'active' : '';
+
             return `
-                <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}">
+                <div class="date-item ${activeClass}" data-section="${sectionName}" data-date-index="${dateIndex}">
                     <div class="date-title">${dateGroup.displayDate}</div>
                     <div class="date-info">
                         <span class="date-duration">${tildePrefix}${durationText}</span>
