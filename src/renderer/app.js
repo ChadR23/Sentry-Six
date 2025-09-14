@@ -424,6 +424,9 @@ class SentrySixApp {
                 this.initializeDurationProcessingStatus();
                 
                 this.renderCollapsibleClipList();
+                
+                // Update status indicators for all dates to show green for cached ones
+                this.addStatusIndicatorsToAllDates();
 
                 // Skip loading all events upfront - they'll be loaded on-demand per date
                 // This dramatically speeds up initial folder loading!
@@ -518,18 +521,32 @@ class SentrySixApp {
         for (const [sectionName, dateGroups] of Object.entries(this.clipSections)) {
             for (let dateIndex = 0; dateIndex < dateGroups.length; dateIndex++) {
                 const dateKey = `${sectionName}-${dateIndex}`;
+                const dateGroup = dateGroups[dateIndex];
+                
+                // Check if this date already has cached durations
+                const hasCachedDurations = dateGroup.actualDurations && 
+                    Array.isArray(dateGroup.actualDurations) && 
+                    dateGroup.actualDurations.length > 0 &&
+                    dateGroup.actualDurations.every(d => typeof d === 'number' && d > 0);
+                
+                const initialStatus = hasCachedDurations ? 'completed' : 'pending';
+                
                 this.durationProcessingStatus[dateKey] = {
-                    status: 'pending', // 'pending', 'processing', 'completed', 'error'
-                    progress: 0,
-                    totalClips: dateGroups[dateIndex].clips.length,
-                    processedClips: 0,
+                    status: initialStatus,
+                    progress: hasCachedDurations ? 100 : 0,
+                    totalClips: dateGroup.clips.length,
+                    processedClips: hasCachedDurations ? dateGroup.clips.length : 0,
                     error: null
                 };
-                this.durationProcessingQueue.push({ sectionName, dateIndex });
+                
+                // Only add to queue if not already completed
+                if (!hasCachedDurations) {
+                    this.durationProcessingQueue.push({ sectionName, dateIndex });
+                }
             }
         }
         
-        console.log(`Initialized duration processing for ${this.durationProcessingQueue.length} dates`);
+        console.log(`Initialized duration processing for ${this.durationProcessingQueue.length} dates (${Object.keys(this.durationProcessingStatus).length - this.durationProcessingQueue.length} already completed from cache)`);
     }
 
     // Start background duration processing (disabled for on-demand processing)
