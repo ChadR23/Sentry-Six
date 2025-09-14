@@ -420,7 +420,10 @@ class SentrySixApp {
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
                 
-                // Initialize duration processing status for all dates
+                // Prefill durations from cache BEFORE initializing status
+                await this.prefillDurationsFromCache();
+                
+                // Initialize duration processing status for all dates (now with cache data)
                 this.initializeDurationProcessingStatus();
                 
                 this.renderCollapsibleClipList();
@@ -459,16 +462,8 @@ class SentrySixApp {
                 // Prefill durations/status from cache (instant green when fully cached)
                 console.log('🔄 Starting to prefill durations from cache...');
                 
-                // TEMPORARY: Skip prefill for large datasets to prevent hanging
-                const totalClipsCount = Object.values(this.clipSections).reduce((sum, dateGroups) => 
-                    sum + dateGroups.reduce((groupSum, dateGroup) => groupSum + (dateGroup.clips?.length || 0), 0), 0);
-                
-                if (totalClipsCount > 10000) {
-                    console.log(`⚠️ Large dataset detected (${totalClipsCount} clips) - skipping prefill to prevent hanging`);
-                } else {
-                    await this.prefillDurationsFromCache();
-                    console.log('✅ Finished prefilling durations from cache');
-                }
+                // Cache prefilling already done above during folder selection
+                console.log('✅ Cache prefilling completed during folder selection');
 
                 // Start background duration processing unless zero-probe is enabled
                 if (!this.zeroProbeOnLoad) {
