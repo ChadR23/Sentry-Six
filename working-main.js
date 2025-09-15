@@ -541,25 +541,37 @@ class SentrySixApp {
                         const folderPath = path.dirname(filePath);
                         const filename = path.basename(filePath);
                         const cache = readFolderCache(folderPath);
-                        const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
 
-                        if (cache && cache.files && cache.files[filename] && stat) {
-                            const entry = cache.files[filename];
-                            const valid = entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1 && typeof entry.duration === 'number' && entry.duration > 0;
-                            if (valid) {
-                                durations.push(entry.duration);
-                                continue;
+                        if (onlyFromCache) {
+                            // Strictly trust cache when onlyFromCache is true (no fs.stat, no probing)
+                            if (cache && cache.files && cache.files[filename] && typeof cache.files[filename].duration === 'number' && cache.files[filename].duration > 0) {
+                                durations.push(cache.files[filename].duration);
+                            } else {
+                                durations.push(null);
+                                allCached = false;
+                            }
+                            continue;
+                        } else {
+                            // Validate against filesystem only when probing is allowed
+                            const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+                            if (cache && cache.files && cache.files[filename] && stat) {
+                                const entry = cache.files[filename];
+                                const valid = entry.size === stat.size && Math.abs((entry.mtimeMs || 0) - stat.mtimeMs) < 1 && typeof entry.duration === 'number' && entry.duration > 0;
+                                if (valid) {
+                                    durations.push(entry.duration);
+                                    continue;
+                                }
                             }
                         }
 
                         // Not cached or invalid
                         allCached = false;
-                        if (onlyFromCache) {
-                            durations.push(null);
-                        } else {
+                        if (!onlyFromCache) {
                             const ffmpegPath = this.findFFmpegPath();
                             const d = ffmpegPath ? getDurationWithCache(filePath, ffmpegPath) : 0;
                             durations.push(d || null);
+                        } else {
+                            durations.push(null);
                         }
                     } catch (e) {
                         allCached = false;

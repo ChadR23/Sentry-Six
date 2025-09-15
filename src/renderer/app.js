@@ -419,16 +419,14 @@ class SentrySixApp {
 
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
-                
-                // Prefill durations from cache BEFORE initializing status
-                await this.prefillDurationsFromCache();
-                
-                // Initialize duration processing status for all dates (now with cache data)
+
+                // Initialize duration processing status first (will be updated by prefill later)
                 this.initializeDurationProcessingStatus();
-                
+
+                // Render UI immediately for fast first paint
                 this.renderCollapsibleClipList();
-                
-                // Update status indicators for all dates to show green for cached ones
+
+                // Update status indicators for all dates
                 this.addStatusIndicatorsToAllDates();
 
                 // Skip loading all events upfront - they'll be loaded on-demand per date
@@ -452,18 +450,25 @@ class SentrySixApp {
                 let totalClips = 0;
                 for (const sectionName in this.clipSections) {
                     for (const dateGroup of this.clipSections[sectionName]) {
-                        totalClips += dateGroup.totalClips;
+                        totalClips += (dateGroup?.totalClips || (dateGroup?.clips?.length || 0));
                     }
                 }
 
                 console.log(`✅ Loaded ${totalClips} clips organized into sections from ${result.path}`);
                 this.showStatus(`Found ${totalClips} Tesla video clips`);
                 
-                // Prefill durations/status from cache (instant green when fully cached)
-                console.log('🔄 Starting to prefill durations from cache...');
-                
-                // Cache prefilling already done above during folder selection
-                console.log('✅ Cache prefilling completed during folder selection');
+                // Prefill durations/status from cache without blocking UI
+                // Skip for very large datasets to avoid UI stalls
+                const PREFILL_CLIP_THRESHOLD = 12000;
+                if (totalClips <= PREFILL_CLIP_THRESHOLD) {
+                    console.log('🔄 Scheduling cache-only prefill of durations...');
+                    setTimeout(() => {
+                        // Fire and forget; updates indicators per date
+                        this.prefillDurationsFromCache().catch(err => console.warn('prefillDurationsFromCache error:', err));
+                    }, 0);
+                } else {
+                    console.log(`⚠️ Large dataset detected (${totalClips} clips) - skipping initial prefill to prevent hanging`);
+                }
 
                 // Start background duration processing unless zero-probe is enabled
                 if (!this.zeroProbeOnLoad) {
@@ -912,6 +917,9 @@ class SentrySixApp {
                     console.warn(`⚠️ Error processing date group ${processedDateGroups}/${totalDateGroups}:`, error);
                     // Ignore; background processing will handle
                 }
+
+                // Yield to UI thread between date groups to keep app responsive
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
         
