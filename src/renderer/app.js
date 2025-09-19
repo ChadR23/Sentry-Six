@@ -724,10 +724,9 @@ class SentrySixApp {
             for (let i = 0; i < sortedClips.length; i++) {
                 const clip = sortedClips[i];
                 
-                // Update progress
+                // Update progress tracking (status will be updated by progress events)
                 this.durationProcessingStatus[dateKey].processedClips = i + 1;
                 this.durationProcessingStatus[dateKey].progress = ((i + 1) / sortedClips.length) * 100;
-                this.updateDateStatusIndicator(sectionName, dateIndex);
 
                 if (filePaths[i]) {
                     const duration = batchResult.durations[batchIndex] || 0;
@@ -798,6 +797,9 @@ class SentrySixApp {
             // Process durations using the existing batched approach
             await this.processDateDurations(sectionName, dateIndex);
             
+            // Hide the loading indicator when processing completes
+            this.hideDurationLoadingIndicator();
+            
             const currentlySelected = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"].active`);
             if (currentlySelected && this.currentTimeline && this.currentTimeline.sectionName === sectionName) {
                 console.log(`Duration processing completed for selected date ${sectionName}-${dateIndex}, refreshing timeline`);
@@ -811,6 +813,8 @@ class SentrySixApp {
             }
         } catch (error) {
             console.error(`Error in async duration processing for ${sectionName}-${dateIndex}:`, error);
+            // Hide loading indicator even on error
+            this.hideDurationLoadingIndicator();
         }
     }
 
@@ -1286,6 +1290,9 @@ class SentrySixApp {
         const status = this.durationProcessingStatus[dateKey];
         
         if (!status || status.status !== 'completed') {
+            // Show loading indicator for uncached dates
+            this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
+            
             // Start non-blocking duration processing for this date only
             console.log(`Starting non-blocking duration processing for ${dateKey}`);
             this.processDateDurationsAsync(sectionName, dateIndex);
@@ -5423,6 +5430,14 @@ class SentrySixApp {
                 window.electronAPI.on('cache-complete', (event, cacheData) => {
                     console.log(`💾 Cache write complete:`, cacheData);
                     console.log('✅ All folder loading and caching operations finished!');
+                });
+
+                // Duration processing progress updates
+                window.electronAPI.on('duration-processing-progress', (event, progressData) => {
+                    console.log(`⏱️ Duration progress: ${progressData.current}/${progressData.total} - ${progressData.filename}`);
+                    
+                    // Update the loading indicator progress
+                    this.updateDurationLoadingProgress(progressData.current, progressData.total);
                 });
 
                 console.log('✅ Scan progress and completion listeners set up successfully');

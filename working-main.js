@@ -586,7 +586,7 @@ class SentrySixApp {
             }
         });
 
-        ipcMain.handle('cache:batch-process-durations', async (_, payload) => {
+        ipcMain.handle('cache:batch-process-durations', async (event, payload) => {
             try {
                 const { filePaths } = payload || {};
                 if (!Array.isArray(filePaths) || filePaths.length === 0) {
@@ -603,10 +603,18 @@ class SentrySixApp {
                 const results = [];
                 const folderUpdates = new Map();
 
-                for (const filePath of filePaths) {
+                for (let i = 0; i < filePaths.length; i++) {
+                    const filePath = filePaths[i];
                     try {
                         const result = getDurationWithoutCacheWrite(filePath, ffmpegPath);
                         results.push(result.duration);
+
+                        // Send progress update to renderer
+                        event.sender.send('duration-processing-progress', {
+                            current: i + 1,
+                            total: filePaths.length,
+                            filename: path.basename(filePath)
+                        });
 
                         if (!result.fromCache) {
                             const folderPath = path.dirname(filePath);
@@ -621,6 +629,14 @@ class SentrySixApp {
                     } catch (e) {
                         console.warn('Failed to process duration for', filePath, e.message);
                         results.push(0);
+                        
+                        // Send progress update even on error
+                        event.sender.send('duration-processing-progress', {
+                            current: i + 1,
+                            total: filePaths.length,
+                            filename: path.basename(filePath),
+                            error: true
+                        });
                     }
                 }
 
