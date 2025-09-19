@@ -768,6 +768,66 @@ class SentrySixApp {
             }
         });
 
+        // Clear GUI cache (Sen6GUIinfo.json)
+        ipcMain.handle('cache:clear-gui-cache', async (_, folderPath) => {
+            console.log('🗑️ Clearing GUI cache for:', folderPath);
+            try {
+                await this.clearFolderCache(folderPath);
+                return { success: true, message: 'GUI cache cleared successfully' };
+            } catch (error) {
+                console.error('Error clearing GUI cache:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
+        // Clear all video clips cache (Sen6ClipsInfo.json from all video folders)
+        ipcMain.handle('cache:clear-clips-cache', async (_, rootFolderPath) => {
+            console.log('🗑️ Clearing all clips cache for root folder:', rootFolderPath);
+            try {
+                let clearedCount = 0;
+                const folders = ['SentryClips', 'SavedClips', 'RecentClips'];
+                
+                for (const folderName of folders) {
+                    const folderPath = path.join(rootFolderPath, folderName);
+                    if (fs.existsSync(folderPath)) {
+                        const cachePath = path.join(folderPath, 'Sen6ClipsInfo.json');
+                        if (fs.existsSync(cachePath)) {
+                            fs.unlinkSync(cachePath);
+                            clearedCount++;
+                            console.log(`🗑️ Cleared clips cache: ${cachePath}`);
+                        }
+                        
+                        // Also check date subfolders for RecentClips and other nested structures
+                        try {
+                            const items = fs.readdirSync(folderPath);
+                            for (const item of items) {
+                                const itemPath = path.join(folderPath, item);
+                                if (fs.statSync(itemPath).isDirectory()) {
+                                    const nestedCachePath = path.join(itemPath, 'Sen6ClipsInfo.json');
+                                    if (fs.existsSync(nestedCachePath)) {
+                                        fs.unlinkSync(nestedCachePath);
+                                        clearedCount++;
+                                        console.log(`🗑️ Cleared nested clips cache: ${nestedCachePath}`);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // Skip if unable to read subdirectories
+                        }
+                    }
+                }
+                
+                return { 
+                    success: true, 
+                    message: `Cleared ${clearedCount} clips cache files`,
+                    clearedCount 
+                };
+            } catch (error) {
+                console.error('Error clearing clips cache:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
         // Tesla event thumbnail
         ipcMain.handle('tesla:get-event-thumbnail', async (_, thumbnailPath) => {
             console.log('🖼️ Getting event thumbnail:', thumbnailPath);

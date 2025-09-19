@@ -188,6 +188,82 @@ class SentrySixApp {
             });
         }
 
+        // Cache deletion button handlers
+        const clearGuiCacheBtn = document.getElementById('clear-gui-cache-btn');
+        const clearClipsCacheBtn = document.getElementById('clear-clips-cache-btn');
+        
+        if (clearGuiCacheBtn) {
+            clearGuiCacheBtn.addEventListener('click', async () => {
+                const folderPath = localStorage.getItem('teslaFolder');
+                if (!folderPath) {
+                    this.showStatus('No Tesla folder selected', 'error');
+                    return;
+                }
+                
+                // Store original content
+                const originalContent = clearGuiCacheBtn.innerHTML;
+                
+                try {
+                    // Add loading state
+                    clearGuiCacheBtn.disabled = true;
+                    clearGuiCacheBtn.classList.add('loading');
+                    clearGuiCacheBtn.innerHTML = '<span class="btn-spinner"></span>🗑️ Clearing GUI Cache...';
+                    
+                    this.showStatus('Clearing GUI cache...', 'info');
+                    
+                    const result = await window.electronAPI.clearGuiCache(folderPath);
+                    if (result.success) {
+                        this.showStatus('GUI cache cleared successfully', 'success');
+                    } else {
+                        this.showStatus(`Failed to clear GUI cache: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.showStatus(`Error clearing GUI cache: ${error.message}`, 'error');
+                } finally {
+                    // Restore original state
+                    clearGuiCacheBtn.disabled = false;
+                    clearGuiCacheBtn.classList.remove('loading');
+                    clearGuiCacheBtn.innerHTML = originalContent;
+                }
+            });
+        }
+        
+        if (clearClipsCacheBtn) {
+            clearClipsCacheBtn.addEventListener('click', async () => {
+                const folderPath = localStorage.getItem('teslaFolder');
+                if (!folderPath) {
+                    this.showStatus('No Tesla folder selected', 'error');
+                    return;
+                }
+                
+                // Store original content
+                const originalContent = clearClipsCacheBtn.innerHTML;
+                
+                try {
+                    // Add loading state
+                    clearClipsCacheBtn.disabled = true;
+                    clearClipsCacheBtn.classList.add('loading');
+                    clearClipsCacheBtn.innerHTML = '<span class="btn-spinner"></span>🗑️ Clearing Video Clips Cache...';
+                    
+                    this.showStatus('Clearing video clips cache...', 'info');
+                    
+                    const result = await window.electronAPI.clearClipsCache(folderPath);
+                    if (result.success) {
+                        this.showStatus(`${result.message}`, 'success');
+                    } else {
+                        this.showStatus(`Failed to clear clips cache: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.showStatus(`Error clearing clips cache: ${error.message}`, 'error');
+                } finally {
+                    // Restore original state
+                    clearClipsCacheBtn.disabled = false;
+                    clearClipsCacheBtn.classList.remove('loading');
+                    clearClipsCacheBtn.innerHTML = originalContent;
+                }
+            });
+        }
+
         // Enable drag-and-drop for camera grid
         this.setupCameraGridDragAndDrop();
         // Setup reset layout button

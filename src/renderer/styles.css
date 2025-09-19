@@ -1388,10 +1388,41 @@ body {
     background: #666666;
 }
 
+.btn.danger {
+    background: #cc3333;
+    color: #ffffff;
+}
+
+.btn.danger:hover {
+    background: #aa2222;
+}
+
 .btn:disabled {
     background: #333333;
     color: #666666;
     cursor: not-allowed;
+}
+
+/* Inline button spinner */
+.btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.btn.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn.loading .btn-spinner {
+    display: inline-block;
 }
 
 /* Export Markers */

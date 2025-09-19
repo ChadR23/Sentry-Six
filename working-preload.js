@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCachedDurations: (filePaths, onlyFromCache = true) => ipcRenderer.invoke('cache:get-durations', { filePaths, onlyFromCache }),
     batchProcessDurations: (filePaths) => ipcRenderer.invoke('cache:batch-process-durations', { filePaths }),
 
+    // Cache management operations
+    clearGuiCache: (folderPath) => ipcRenderer.invoke('cache:clear-gui-cache', folderPath),
+    clearClipsCache: (rootFolderPath) => ipcRenderer.invoke('cache:clear-clips-cache', rootFolderPath),
+
     // Event listeners
     on: (channel, callback) => {
         const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress', 'scan-progress', 'scan-complete', 'cache-complete'];

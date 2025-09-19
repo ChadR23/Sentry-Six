@@ -573,6 +573,22 @@
                             <div style="font-size:12px; color:#888; margin-top:6px; line-height:1.4;">
                                 When enabled, the app will not run ffprobe after folder load. Dates that are fully cached turn green immediately; red dates stay pending until you manually trigger analysis. Default: off.
                             </div>
+                            
+                            <h4 style="margin-top: 20px; margin-bottom: 10px;">Cache Management</h4>
+                            <div style="display: flex; flex-direction: column; gap: 15px;">
+                                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                    <button id="clear-gui-cache-btn" class="btn secondary">
+                                        🗑️ Clear GUI Cache
+                                    </button>
+                                    <button id="clear-clips-cache-btn" class="btn danger">
+                                        🗑️ Clear All Video Clips Cache
+                                    </button>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size:12px; color:#888;">
+                                    <div>• <strong>GUI Cache:</strong> Deletes Sen6GUIinfo.json file containing folder structure cache</div>
+                                    <div>• <strong>Video Clips Cache:</strong> Deletes all Sen6ClipsInfo.json files from SentryClips, SavedClips, and RecentClips folders</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
