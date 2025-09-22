@@ -29,6 +29,11 @@ class SentrySixApp {
         this.currentlyProcessingDate = null; // Currently processing date
         this.zeroProbeOnLoad = false; // Probe on folder load; cache-complete dates are skipped
         
+        // Sidebar view mode: 'day' or 'folder'
+        this.viewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('viewMode')) || 'day';
+        // Currently active folder filter for event markers (when selecting a folder)
+        this.currentFolderFilter = null;
+        
         // Camera zoom and pan properties
         this.cameraZoomLevels = {}; // Store zoom levels for each camera
         this.cameraPanOffsets = {}; // Store pan offsets for each camera
@@ -191,6 +196,67 @@ class SentrySixApp {
         // Cache deletion button handlers
         const clearGuiCacheBtn = document.getElementById('clear-gui-cache-btn');
         const clearClipsCacheBtn = document.getElementById('clear-clips-cache-btn');
+        
+        // View mode toggle wiring
+        const viewDayBtn = document.getElementById('view-day-btn');
+        const viewFolderBtn = document.getElementById('view-folder-btn');
+        const viewToggle = document.getElementById('view-toggle');
+        const openFolderBtn = document.getElementById('open-folder-btn');
+        const syncOpenFolderWidth = () => {
+            try {
+                if (viewToggle && openFolderBtn) {
+                    // total width = left button + gap + right button
+                    const buttons = Array.from(viewToggle.querySelectorAll('button'));
+                    let width = 0;
+                    if (buttons.length === 2) {
+                        const rect1 = buttons[0].getBoundingClientRect();
+                        const rect2 = buttons[1].getBoundingClientRect();
+                        const style = getComputedStyle(viewToggle);
+                        const gap = parseFloat(style.gap || '8');
+                        width = rect1.width + rect2.width + gap;
+                    } else {
+                        const rect = viewToggle.getBoundingClientRect();
+                        width = rect.width;
+                    }
+                    if (width > 0) {
+                        openFolderBtn.style.width = `${Math.round(width)}px`;
+                        openFolderBtn.style.maxWidth = `${Math.round(width)}px`;
+                    }
+                }
+            } catch {}
+        };
+        const applyViewModeActive = () => {
+            if (viewDayBtn && viewFolderBtn) {
+                viewDayBtn.classList.toggle('active', this.viewMode === 'day');
+                viewFolderBtn.classList.toggle('active', this.viewMode === 'folder');
+            }
+        };
+        applyViewModeActive();
+        // Sync button widths initially and on resize
+        syncOpenFolderWidth();
+        window.addEventListener('resize', () => syncOpenFolderWidth());
+        if (viewDayBtn) {
+            viewDayBtn.addEventListener('click', () => {
+                if (this.viewMode !== 'day') {
+                    this.viewMode = 'day';
+                    try { localStorage.setItem('viewMode', 'day'); } catch {}
+                    applyViewModeActive();
+                    this.renderCollapsibleClipList();
+                    syncOpenFolderWidth();
+                }
+            });
+        }
+        if (viewFolderBtn) {
+            viewFolderBtn.addEventListener('click', () => {
+                if (this.viewMode !== 'folder') {
+                    this.viewMode = 'folder';
+                    try { localStorage.setItem('viewMode', 'folder'); } catch {}
+                    applyViewModeActive();
+                    this.renderCollapsibleClipList();
+                    syncOpenFolderWidth();
+                }
+            });
+        }
         
         if (clearGuiCacheBtn) {
             clearGuiCacheBtn.addEventListener('click', async () => {
@@ -1146,6 +1212,10 @@ class SentrySixApp {
             const headerClass = isExpanded ? '' : 'collapsed';
             const contentClass = isExpanded ? 'expanded' : 'collapsed';
 
+            const innerHtml = this.viewMode === 'folder'
+                ? this.renderDateGroupsByFolder(dateGroups, sectionName, selectedSectionName, selectedDateIndex)
+                : this.renderDateGroups(dateGroups, sectionName, selectedSectionName, selectedDateIndex);
+
             sectionsHtml += `
                 <div class="clip-section">
                     <div class="section-header ${headerClass}" data-section="${sectionName}">
@@ -1154,7 +1224,7 @@ class SentrySixApp {
                         <span class="section-count">${totalClips}</span>
                     </div>
                     <div class="section-content ${contentClass}" data-section-content="${sectionName}">
-                        ${this.renderDateGroups(dateGroups, sectionName, selectedSectionName, selectedDateIndex)}
+                        ${innerHtml}
                     </div>
                 </div>
             `;
@@ -1163,7 +1233,7 @@ class SentrySixApp {
         clipList.innerHTML = sectionsHtml;
         this.setupCollapsibleHandlers();
         
-        // Add status indicators for all dates
+        // Add status indicators for all dates (works for both views; indicators attach to date containers)
         this.addStatusIndicatorsToAllDates();
         
         // Scroll selected date into view if it exists
@@ -1171,6 +1241,23 @@ class SentrySixApp {
             const selectedItem = document.querySelector(`[data-section="${selectedSectionName}"][data-date-index="${selectedDateIndex}"].active`);
             if (selectedItem) {
                 selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Re-apply sub-folder highlight after re-render in folder view (use starts-with to be resilient to path normalization)
+        if (this.viewMode === 'folder' && this.currentFolderFilter) {
+            let folderItem = document.querySelector(`.date-item[data-folder-key="${this.currentFolderFilter}"]`);
+            if (!folderItem) {
+                const candidates = Array.from(document.querySelectorAll('.date-item[data-folder-key]'));
+                folderItem = candidates.find(el => (el.dataset.folderKey || '').startsWith(this.currentFolderFilter));
+            }
+            if (folderItem) {
+                // Ensure parent date is marked active
+                const sectionName = folderItem.dataset.section;
+                const dateIndex = folderItem.dataset.dateIndex;
+                const parent = document.querySelector(`.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"]:not([data-folder-key])`);
+                if (parent && !parent.classList.contains('active')) parent.classList.add('active');
+                folderItem.classList.add('sub-active');
             }
         }
     }
@@ -1229,6 +1316,185 @@ class SentrySixApp {
         }).join('');
     }
 
+    // Render with nested folder groups under each date while preserving indicators and counts
+    renderDateGroupsByFolder(dateGroups, sectionName, selectedSectionName = null, selectedDateIndex = null) {
+        const buildDurationAndCount = (dateGroup, dateIndex) => {
+            const dateKey = `${sectionName}-${dateIndex}`;
+            const statusObj = this.durationProcessingStatus?.[dateKey];
+            const isCompleted = !!(statusObj && statusObj.status === 'completed' && (
+                dateGroup.actualTotalDuration || (Array.isArray(dateGroup.actualDurations) && dateGroup.actualDurations.length > 0)
+            ));
+
+            let totalDurationMs = 0;
+            if (isCompleted) {
+                if (dateGroup.actualTotalDuration) {
+                    totalDurationMs = dateGroup.actualTotalDuration;
+                } else if (Array.isArray(dateGroup.actualDurations)) {
+                    totalDurationMs = dateGroup.actualDurations.reduce((a, b) => a + (b || 60000), 0);
+                }
+            } else {
+                const clipCount = dateGroup.clips.length;
+                const estimatedSecondsPerClip = clipCount === 1 ? 35 : 45;
+                totalDurationMs = clipCount * estimatedSecondsPerClip * 1000;
+            }
+
+            const totalMinutes = Math.floor(totalDurationMs / 60000);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const remainingMinutes = totalMinutes % 60;
+            let durationText = '';
+            if (totalHours > 0) {
+                durationText = `${totalHours}h ${remainingMinutes}m`;
+            } else if (totalMinutes > 0) {
+                durationText = `${totalMinutes}m`;
+            } else {
+                const totalSeconds = Math.floor(totalDurationMs / 1000);
+                durationText = `${totalSeconds}s`;
+            }
+            const tildePrefix = isCompleted ? '' : '<span class="duration-tilde">~</span>';
+            return { durationText, tildePrefix };
+        };
+
+        const html = dateGroups.map((dateGroup, dateIndex) => {
+            const { durationText, tildePrefix } = buildDurationAndCount(dateGroup, dateIndex);
+
+            // Group clips by their containing folder path (derive from any available camera file path)
+            const folderMap = new Map();
+            for (const clip of dateGroup.clips) {
+                const anyFile = clip.files?.front || clip.files?.back || clip.files?.left_repeater || clip.files?.right_repeater || clip.files?.left_pillar || clip.files?.right_pillar;
+                const fullPath = anyFile?.path || '';
+                // Folder key = parent directory of the file
+                let folderKey = '';
+                if (fullPath) {
+                    const idx = Math.max(fullPath.lastIndexOf('\\'), fullPath.lastIndexOf('/'));
+                    folderKey = idx > 0 ? fullPath.substring(0, idx) : fullPath;
+                }
+                if (!folderMap.has(folderKey)) folderMap.set(folderKey, []);
+                folderMap.get(folderKey).push(clip);
+            }
+
+            // Build nested folder items
+            const folderItems = Array.from(folderMap.entries()).map(([folderKey, clips]) => {
+                const count = clips.length;
+                // Prefer human-readable timestamp derived from the earliest clip in the folder
+                let humanLabel = '';
+                try {
+                    let earliest = Infinity;
+                    for (const c of clips) {
+                        const t = new Date(c.timestamp).getTime();
+                        if (!isNaN(t) && t < earliest) earliest = t;
+                    }
+                    if (earliest !== Infinity) {
+                        const d = new Date(earliest);
+                        const datePart = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                        const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace('AM', 'am').replace('PM', 'pm');
+                        humanLabel = `${datePart} ${timePart}`;
+                    }
+                } catch {}
+                if (!humanLabel) {
+                    // Fallback to folder basename if timestamp not available
+                    const nameIdx = Math.max(folderKey.lastIndexOf('\\'), folderKey.lastIndexOf('/'));
+                    humanLabel = nameIdx > -1 ? folderKey.substring(nameIdx + 1) : (folderKey || 'Unknown Folder');
+                }
+                return `
+                    <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}" data-folder-key="${folderKey}">
+                        <div class="date-title">${humanLabel}</div>
+                        <div class="date-info">
+                            <span class="date-count">${count} clips</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Date header (clickable in folder view to load entire day as usual)
+            return `
+                <div>
+                    <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}">
+                        <div class="date-title">${dateGroup.displayDate}</div>
+                        <div class="date-info">
+                            <span class="date-duration">${tildePrefix}${durationText}</span>
+                            <span class="date-count">${dateGroup.totalClips} clips</span>
+                        </div>
+                    </div>
+                    <div class="date-clips expanded">
+                        ${folderItems}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return html;
+    }
+
+    async selectFolderTimeline(sectionName, dateIndex, folderKey, clickedEl = null) {
+        const dateGroup = this.clipSections[sectionName][dateIndex];
+        if (!dateGroup) return;
+        // Filter clips within the date to only those that match the folderKey
+        const filteredClips = dateGroup.clips.filter(clip => {
+            const anyFile = clip.files?.front || clip.files?.back || clip.files?.left_repeater || clip.files?.right_repeater || clip.files?.left_pillar || clip.files?.right_pillar;
+            const path = anyFile?.path || '';
+            return folderKey && path.startsWith(folderKey);
+        });
+
+        // Build a synthetic dateGroup to reuse existing timeline loader and keep event/cache plumbing
+        const syntheticDateGroup = {
+            ...dateGroup,
+            clips: filteredClips,
+            totalClips: filteredClips.length
+        };
+
+        // Update selection UI: keep parent date highlighted, add secondary highlight to selected folder
+        // Clear previous sub-folder highlights within this date group only
+        const subItemsInDate = document.querySelectorAll(`.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"][data-folder-key]`);
+        subItemsInDate.forEach(el => el.classList.remove('sub-active'));
+        // Ensure parent date is active
+        const parentSelector = `.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"]:not([data-folder-key])`;
+        const parentItem = document.querySelector(parentSelector);
+        if (parentItem && !parentItem.classList.contains('active')) parentItem.classList.add('active');
+        // Highlight the selected folder item
+        let selectedItem = clickedEl;
+        if (!selectedItem) {
+            const selector = `.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"][data-folder-key="${folderKey}"]`;
+            selectedItem = document.querySelector(selector);
+        }
+        if (selectedItem) selectedItem.classList.add('sub-active');
+
+        // Set active folder filter for subsequent renders
+        this.currentFolderFilter = folderKey;
+        await this.loadDailyTimeline(syntheticDateGroup, sectionName);
+
+        // Event markers are per date; reuse existing loader
+        if (sectionName === 'User Saved' || sectionName === 'Sentry Detection') {
+            await this.loadEventMarkersForDate(dateGroup.date, sectionName);
+            // After loading, filter to the chosen folder subset
+            await this.applyFolderEventFilter(sectionName, dateGroup.date, folderKey);
+        }
+
+        // Use same duration processing indicator behavior for the parent date
+        const dateKey = `${sectionName}-${dateIndex}`;
+        const status = this.durationProcessingStatus[dateKey];
+        if (!status || status.status !== 'completed') {
+            this.showDurationLoadingIndicator(selectedItem, syntheticDateGroup.clips.length);
+            this.processDateDurationsAsync(sectionName, dateIndex);
+        }
+    }
+
+    async applyFolderEventFilter(sectionName, targetDate, folderKey) {
+        try {
+            if (!folderKey) return;
+            const cacheKey = `${sectionName}-${targetDate}`;
+            const allMarkers = this.eventMarkersCache?.[cacheKey];
+            if (!allMarkers || !Array.isArray(allMarkers)) return;
+            const filtered = allMarkers.filter(m => {
+                const p = m.folderPath || '';
+                return folderKey && p.startsWith(folderKey);
+            });
+            this.setEventMarkersForCurrentTimeline(filtered);
+            console.log(`📍 Applied folder filter to event markers: ${filtered.length}/${allMarkers.length}`);
+        } catch (e) {
+            console.warn('Failed to apply folder event filter:', e);
+        }
+    }
+
     setupCollapsibleHandlers() {
         // Section headers
         document.querySelectorAll('.section-header').forEach(header => {
@@ -1255,18 +1521,25 @@ class SentrySixApp {
                 const sectionName = item.dataset.section;
                 const dateIndex = parseInt(item.dataset.dateIndex);
 
-                await this.selectDateTimeline(sectionName, dateIndex);
+                // If folder view and a nested folder item was clicked, it has data-folder-key
+                const folderKey = item.dataset.folderKey;
+                if (this.viewMode === 'folder' && folderKey) {
+                    await this.selectFolderTimeline(sectionName, dateIndex, folderKey, item);
+                } else {
+                    await this.selectDateTimeline(sectionName, dateIndex);
+                }
             });
         });
     }
 
     async selectDateTimeline(sectionName, dateIndex) {
         const dateGroup = this.clipSections[sectionName][dateIndex];
+        // Clear any active folder filter when selecting a whole day
+        this.currentFolderFilter = null;
 
-        // Remove previous selection
-        document.querySelectorAll('.date-item.active').forEach(item => {
-            item.classList.remove('active');
-        });
+        // Remove previous selection for whole days and any sub-folder highlight
+        document.querySelectorAll('.date-item.active').forEach(item => item.classList.remove('active'));
+        document.querySelectorAll('.date-item.sub-active').forEach(item => item.classList.remove('sub-active'));
 
         // Add selection to current item
         const selectedItem = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"]`);
@@ -5934,8 +6207,14 @@ class SentrySixApp {
             this.currentTimeline.eventMarkersRendered = false;
         }
 
+        // Apply persistent folder filter if active
+        let markersToSet = eventMarkers;
+        if (this.currentFolderFilter) {
+            const key = this.currentFolderFilter;
+            markersToSet = eventMarkers.filter(m => (m.folderPath || '').startsWith(key));
+        }
         // Set the markers for the current timeline only
-        this.eventMarkers = eventMarkers;
+        this.eventMarkers = markersToSet;
 
         // Render markers on timeline
         this.renderEventMarkers();

@@ -135,6 +135,10 @@ body {
 .sidebar-header {
     padding: 16px;
     border-bottom: 1px solid #404040;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
 }
 
 .sidebar-header h3 {
@@ -161,6 +165,33 @@ body {
 .btn-primary:hover {
     background: #0066aa;
 }
+
+/* Tertiary button for view toggle */
+.btn-tertiary {
+    background: #3a3a3a;
+    color: #ddd;
+    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.btn-tertiary:hover {
+    background: #4a4a4a;
+}
+
+.btn-tertiary.active {
+    background: #007acc;
+    color: #fff;
+}
+
+/* Sidebar header controls layout */
+.sidebar-header h3 { order: 0; align-self: flex-start; }
+#open-folder-btn { order: 1; align-self: center; }
+.sidebar-header .view-toggle { order: 2; display: inline-flex; gap: 8px; justify-content: center; align-self: center; }
+
+/* Let toggle size to content; JS matches Open Folder width to this container */
 
 .sidebar-content {
     flex: 1;
@@ -1553,6 +1584,7 @@ body {
 
 .date-clips.expanded {
     max-height: 500px;
+    overflow-y: auto;
 }
 
 /* Date Items (Direct Selection) */
@@ -1575,6 +1607,16 @@ body {
 .date-item.active {
     background: #007acc;
     border-color: #0066aa;
+}
+
+/* Secondary highlight for selected sub-folder under a date */
+.date-item.sub-active {
+    background: #353535; /* match hover look */
+    border-color: #505050; /* match hover look */
+}
+.date-item.sub-active:hover {
+    background: #3a3a3a;
+    border-color: #5a5a5a;
 }
 
 .date-item.active .date-title,

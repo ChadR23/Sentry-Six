@@ -21,7 +21,7 @@
   "author": "Sentry-Six Team",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "^38.1.2",
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
