@@ -1538,13 +1538,20 @@ body {
 }
 
 .section-content.expanded {
+    /* Remove inner scroll; let the sidebar handle scrolling */
     max-height: none;
-    overflow-y: auto;
-    max-height: calc(100vh - 200px); /* Allow scrolling within viewport */
+    overflow: visible;
 }
 
 .date-group {
     margin: 4px 0;
+}
+
+/* Sticky date header for By Event (folder) view */
+.date-group.folder-view .date-sticky-header {
+    position: sticky;
+    top: 36px; /* sit just under the sticky section header */
+    z-index: 3; /* above indicators but below section header */
 }
 
 .date-header {
@@ -1592,8 +1599,33 @@ body {
 }
 
 .date-clips.expanded {
-    max-height: 500px;
-    overflow-y: auto;
+    /* Remove inner scroll; allow full expansion and let sidebar scroll */
+    max-height: none;
+    overflow: visible;
+}
+
+/* By-Event: make child folders appear as a centered, narrower "stair" under the date */
+.date-clips {
+    padding-top: 6px; /* breathing room under the blue date row */
+}
+
+.date-clips .date-item {
+    /* slightly narrower and centered under the parent date */
+    width: 92%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* By Event sub-folder item: center title and place clip count at bottom-right */
+.date-clips .date-item .date-title {
+    text-align: center;
+}
+
+.date-clips .date-item .date-info {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    justify-content: flex-end;
 }
 
 /* Date Items (Direct Selection) */
@@ -2293,7 +2325,8 @@ body {
     position: absolute;
     top: 8px;
     right: 8px;
-    z-index: 10;
+    /* Ensure sticky section headers remain above indicators */
+    z-index: 2;
 }
 
 .status-dot {

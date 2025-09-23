@@ -863,12 +863,52 @@ class SentrySixApp {
             const currentlySelected = document.querySelector(`[data-section="${sectionName}"][data-date-index="${dateIndex}"].active`);
             if (currentlySelected && this.currentTimeline && this.currentTimeline.sectionName === sectionName) {
                 console.log(`Duration processing completed for selected date ${sectionName}-${dateIndex}, refreshing timeline`);
-                
+
                 // Get the updated date group with new duration data
                 const dateGroup = this.clipSections[sectionName][dateIndex];
-                
-                await this.loadDailyTimeline(dateGroup, sectionName);
-                
+
+                // If we're in folder view and a folder filter is active, keep the user on that folder
+                if (this.viewMode === 'folder' && this.currentFolderFilter && (this.currentTimeline && (this.currentTimeline.sectionName === 'User Saved' || this.currentTimeline.sectionName === 'Sentry Detection'))) {
+                    const folderKey = this.currentFolderFilter;
+                    const filteredClips = dateGroup.clips.filter(clip => {
+                        const anyFile = clip.files?.front || clip.files?.back || clip.files?.left_repeater || clip.files?.right_repeater || clip.files?.left_pillar || clip.files?.right_pillar;
+                        const path = anyFile?.path || '';
+                        return folderKey && path.startsWith(folderKey);
+                    });
+
+                    const syntheticDateGroup = {
+                        ...dateGroup,
+                        clips: filteredClips,
+                        totalClips: filteredClips.length
+                    };
+
+                    await this.loadDailyTimeline(syntheticDateGroup, sectionName);
+
+                    // Re-filter event markers to the same folder after refresh
+                    if (sectionName === 'User Saved' || sectionName === 'Sentry Detection') {
+                        await this.applyFolderEventFilter(sectionName, dateGroup.date, folderKey);
+                    }
+
+                    // Restore highlights and scroll back into view
+                    try {
+                        const parentSelector = `.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"]:not([data-folder-key])`;
+                        const parentItem = document.querySelector(parentSelector);
+                        const subSelector = `.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"][data-folder-key]`;
+                        const subItems = Array.from(document.querySelectorAll(subSelector));
+                        subItems.forEach(el => el.classList.remove('sub-active'));
+                        if (parentItem) parentItem.classList.add('active');
+                        const clickedSub = subItems.find(el => (el.dataset.folderKey || '').startsWith(folderKey));
+                        if (clickedSub) {
+                            clickedSub.classList.add('sub-active');
+                            clickedSub.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } else if (parentItem) {
+                            parentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    } catch {}
+                } else {
+                    await this.loadDailyTimeline(dateGroup, sectionName);
+                }
+
                 console.log(`Timeline refreshed with accurate durations for ${sectionName}-${dateIndex}`);
             }
         } catch (error) {
@@ -1206,7 +1246,8 @@ class SentrySixApp {
             const headerClass = isExpanded ? '' : 'collapsed';
             const contentClass = isExpanded ? 'expanded' : 'collapsed';
 
-            const innerHtml = this.viewMode === 'folder'
+            const renderFolderView = this.viewMode === 'folder' && (sectionName === 'User Saved' || sectionName === 'Sentry Detection');
+            const innerHtml = renderFolderView
                 ? this.renderDateGroupsByFolder(dateGroups, sectionName, selectedSectionName, selectedDateIndex)
                 : this.renderDateGroups(dateGroups, sectionName, selectedSectionName, selectedDateIndex);
 
@@ -1239,7 +1280,7 @@ class SentrySixApp {
         }
 
         // Re-apply sub-folder highlight after re-render in folder view (use starts-with to be resilient to path normalization)
-        if (this.viewMode === 'folder' && this.currentFolderFilter) {
+        if (this.viewMode === 'folder' && this.currentFolderFilter && (sectionName === 'User Saved' || sectionName === 'Sentry Detection')) {
             let folderItem = document.querySelector(`.date-item[data-folder-key="${this.currentFolderFilter}"]`);
             if (!folderItem) {
                 const candidates = Array.from(document.querySelectorAll('.date-item[data-folder-key]'));
@@ -1350,6 +1391,7 @@ class SentrySixApp {
 
         const html = dateGroups.map((dateGroup, dateIndex) => {
             const { durationText, tildePrefix } = buildDurationAndCount(dateGroup, dateIndex);
+            const isActive = selectedSectionName === sectionName && selectedDateIndex === dateIndex;
 
             // Group clips by their containing folder path (derive from any available camera file path)
             const folderMap = new Map();
@@ -1379,9 +1421,9 @@ class SentrySixApp {
                     }
                     if (earliest !== Infinity) {
                         const d = new Date(earliest);
-                        const datePart = d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                        const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace('AM', 'am').replace('PM', 'pm');
-                        humanLabel = `${datePart} ${timePart}`;
+                        const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            .replace('AM', 'am').replace('PM', 'pm');
+                        humanLabel = `${timePart}`; // show time only in By Event view
                     }
                 } catch {}
                 if (!humanLabel) {
@@ -1389,8 +1431,9 @@ class SentrySixApp {
                     const nameIdx = Math.max(folderKey.lastIndexOf('\\'), folderKey.lastIndexOf('/'));
                     humanLabel = nameIdx > -1 ? folderKey.substring(nameIdx + 1) : (folderKey || 'Unknown Folder');
                 }
+                const subClass = this.currentFolderFilter && (folderKey.startsWith(this.currentFolderFilter)) ? 'sub-active' : '';
                 return `
-                    <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}" data-folder-key="${folderKey}">
+                    <div class="date-item ${subClass}" data-section="${sectionName}" data-date-index="${dateIndex}" data-folder-key="${folderKey}">
                         <div class="date-title">${humanLabel}</div>
                         <div class="date-info">
                             <span class="date-count">${count} clips</span>
@@ -1400,9 +1443,10 @@ class SentrySixApp {
             }).join('');
 
             // Date header (clickable in folder view to load entire day as usual)
+            const activeClass = isActive ? 'active' : '';
             return `
-                <div>
-                    <div class="date-item" data-section="${sectionName}" data-date-index="${dateIndex}">
+                <div class="date-group folder-view">
+                    <div class="date-item ${activeClass} date-sticky-header" data-section="${sectionName}" data-date-index="${dateIndex}">
                         <div class="date-title">${dateGroup.displayDate}</div>
                         <div class="date-info">
                             <span class="date-duration">${tildePrefix}${durationText}</span>
@@ -1436,8 +1480,11 @@ class SentrySixApp {
             totalClips: filteredClips.length
         };
 
-        // Update selection UI: keep parent date highlighted, add secondary highlight to selected folder
-        // Clear previous sub-folder highlights within this date group only
+        // Update selection UI
+        // Clear any previous selections globally so only one date (parent) and one folder are highlighted
+        document.querySelectorAll('.date-item.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.date-item.sub-active').forEach(el => el.classList.remove('sub-active'));
+        // Also clear sub-folder highlights within this date group (redundant but safe)
         const subItemsInDate = document.querySelectorAll(`.date-item[data-section="${sectionName}"][data-date-index="${dateIndex}"][data-folder-key]`);
         subItemsInDate.forEach(el => el.classList.remove('sub-active'));
         // Ensure parent date is active
@@ -1455,6 +1502,15 @@ class SentrySixApp {
         // Set active folder filter for subsequent renders
         this.currentFolderFilter = folderKey;
         await this.loadDailyTimeline(syntheticDateGroup, sectionName);
+
+        // Keep the clicked item in view; avoid jumping to top while probing/caching
+        try {
+            if (clickedEl) {
+                clickedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else if (parentItem) {
+                parentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } catch {}
 
         // Event markers are per date; reuse existing loader
         if (sectionName === 'User Saved' || sectionName === 'Sentry Detection') {
@@ -1517,7 +1573,7 @@ class SentrySixApp {
 
                 // If folder view and a nested folder item was clicked, it has data-folder-key
                 const folderKey = item.dataset.folderKey;
-                if (this.viewMode === 'folder' && folderKey) {
+                if (this.viewMode === 'folder' && folderKey && (sectionName === 'User Saved' || sectionName === 'Sentry Detection')) {
                     await this.selectFolderTimeline(sectionName, dateIndex, folderKey, item);
                 } else {
                     await this.selectDateTimeline(sectionName, dateIndex);
