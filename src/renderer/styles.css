@@ -36,7 +36,14 @@ body {
     border-bottom: 1px solid #404040;
     height: 60px;
     flex-shrink: 0;
+    position: relative; /* for overlay positioning */
 }
+
+/* Width variable for sidebar so we can center overlays relative to main content */
+:root { --sidebar-width: 260px; }
+.sidebar { width: 260px; }
+@media (max-width: 1200px) { :root { --sidebar-width: 250px; } }
+@media (max-width: 900px)  { :root { --sidebar-width: 200px; } }
 
 .header-left {
     display: flex;
@@ -66,6 +73,22 @@ body {
 .header-center {
     display: flex;
     align-items: center;
+}
+
+/* Absolute overlay in header, centered within main content area (to the right of sidebar) */
+.header-overlay-center {
+    position: absolute;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* allow clicks to pass through except on content */
+}
+.header-overlay-center .timestamp-display {
+    pointer-events: auto; /* clickable if needed */
 }
 
 .playback-controls {
@@ -526,6 +549,7 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
+    position: relative; /* allow centering overlay for playback buttons */
 }
 
 .speed-control,
@@ -535,10 +559,18 @@ body {
     gap: 8px;
 }
 
-/* Center playback controls between speed control and export controls */
+/* Center playback controls over the full timeline controls width */
 .playback-controls-timeline {
-    flex: 1;
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
     justify-content: center;
+    pointer-events: none; /* let clicks pass except on buttons */
+}
+.playback-controls-timeline .control-btn {
+    pointer-events: auto;
 }
 
 .speed-control label {
