@@ -529,14 +529,19 @@ body {
 }
 
 .speed-control,
-.volume-control {
+.playback-controls-timeline {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.speed-control label,
-.volume-control label {
+/* Center playback controls between speed control and export controls */
+.playback-controls-timeline {
+    flex: 1;
+    justify-content: center;
+}
+
+.speed-control label {
     font-size: 12px;
     color: #888;
     white-space: nowrap;
@@ -557,35 +562,7 @@ body {
     border-color: #007acc;
 }
 
-.volume-slider {
-    width: 80px;
-    height: 4px;
-    background: #404040;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    background: #007acc;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.volume-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: #007acc;
-    border-radius: 50%;
-    cursor: pointer;
-    border: none;
-}
+/* Volume slider styles removed - no longer needed */
 
 /* Loading Screen */
 .loading-screen {

@@ -19,23 +19,7 @@
                 <span class="app-subtitle">Tesla Dashcam Viewer</span>
             </div>
             <div class="header-center">
-                <div class="playback-controls">
-                    <button id="skip-back-15-btn" class="control-btn" title="Skip Back 15s">
-                        <span class="icon">⏪</span>
-                    </button>
-                    <button id="frame-back-btn" class="control-btn" title="Frame Back">
-                        <span class="icon">⬅️</span>
-                    </button>
-                    <button id="play-pause-btn" class="control-btn" title="Play/Pause">
-                        <span class="icon">⏯️</span>
-                    </button>
-                    <button id="frame-forward-btn" class="control-btn" title="Frame Forward">
-                        <span class="icon">➡️</span>
-                    </button>
-                    <button id="skip-forward-15-btn" class="control-btn" title="Skip Forward 15s">
-                        <span class="icon">⏩</span>
-                    </button>
-                </div>
+                <!-- Playback controls moved to timeline -->
             </div>
             <div class="header-right">
                 <div class="timestamp-display" id="timestamp-display">
@@ -320,17 +304,22 @@
                                     <option value="4">4x</option>
                                 </select>
                             </div>
-                            <div class="volume-control">
-                                <label for="volume-slider">Volume:</label>
-                                <input
-                                    type="range"
-                                    id="volume-slider"
-                                    class="volume-slider"
-                                    min="0"
-                                    max="1"
-                                    value="0.5"
-                                    step="0.1"
-                                >
+                            <div class="playback-controls-timeline">
+                                <button id="skip-back-15-btn-timeline" class="control-btn" title="Skip Back 15s">
+                                    <span class="icon">⏪</span>
+                                </button>
+                                <button id="frame-back-btn-timeline" class="control-btn" title="Frame Back">
+                                    <span class="icon">⬅️</span>
+                                </button>
+                                <button id="play-pause-btn-timeline" class="control-btn" title="Play/Pause">
+                                    <span class="icon">⏯️</span>
+                                </button>
+                                <button id="frame-forward-btn-timeline" class="control-btn" title="Frame Forward">
+                                    <span class="icon">➡️</span>
+                                </button>
+                                <button id="skip-forward-15-btn-timeline" class="control-btn" title="Skip Forward 15s">
+                                    <span class="icon">⏩</span>
+                                </button>
                             </div>
                             <div class="export-controls">
                                 <button id="set-start-marker" class="export-btn" title="Set Start Marker">

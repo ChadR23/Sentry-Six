@@ -157,11 +157,7 @@ class SentrySixApp {
         // Set up timestamp display
         this.updateTimestampDisplay();
         
-        // Set up volume from config
-        const volumeSlider = document.getElementById('volume-slider');
-        if (volumeSlider && this.config.defaultVolume !== undefined) {
-            volumeSlider.value = this.config.defaultVolume;
-        }
+        // Volume control removed - Tesla dashcam clips have no audio
         
         // Set up playback speed from config
         const speedSelect = document.getElementById('speed-select');
@@ -438,20 +434,20 @@ class SentrySixApp {
         if (openFolderBtn) openFolderBtn.addEventListener('click', () => this.selectTeslaFolder());
 
         // Playback controls
-        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn-timeline');
         if (playPauseBtn) playPauseBtn.addEventListener('click', () => this.togglePlayPause());
 
         const stopBtn = document.getElementById('stop-btn');
         if (stopBtn) stopBtn.addEventListener('click', () => this.stopPlayback());
 
         // Frame-by-frame and skip buttons
-        const frameBackBtn = document.getElementById('frame-back-btn');
+        const frameBackBtn = document.getElementById('frame-back-btn-timeline');
         if (frameBackBtn) frameBackBtn.addEventListener('click', () => this.frameStep(-1));
-        const frameForwardBtn = document.getElementById('frame-forward-btn');
+        const frameForwardBtn = document.getElementById('frame-forward-btn-timeline');
         if (frameForwardBtn) frameForwardBtn.addEventListener('click', () => this.frameStep(1));
-        const skipBackBtn = document.getElementById('skip-back-15-btn');
+        const skipBackBtn = document.getElementById('skip-back-15-btn-timeline');
         if (skipBackBtn) skipBackBtn.addEventListener('click', () => this.skipSeconds(-15));
-        const skipForwardBtn = document.getElementById('skip-forward-15-btn');
+        const skipForwardBtn = document.getElementById('skip-forward-15-btn-timeline');
         if (skipForwardBtn) skipForwardBtn.addEventListener('click', () => this.skipSeconds(15));
 
         // Timeline scrubber with debouncing
@@ -480,9 +476,7 @@ class SentrySixApp {
         const speedSelect = document.getElementById('speed-select');
         if (speedSelect) speedSelect.addEventListener('change', (e) => this.setPlaybackSpeed(parseFloat(e.target.value)));
 
-        // Volume control
-        const volumeSlider = document.getElementById('volume-slider');
-        if (volumeSlider) volumeSlider.addEventListener('input', (e) => this.setVolume(parseFloat(e.target.value)));
+        // Volume control removed - Tesla dashcam clips have no audio
 
         // Settings button
         const settingsBtn = document.getElementById('settings-btn');
@@ -2861,18 +2855,7 @@ class SentrySixApp {
         this.config.playbackSpeed = speed;
     }
 
-    setVolume(volume) {
-        Object.keys(this.videos).forEach(camera => {
-            const video = this.videos[camera];
-            if (video) {
-                video.volume = volume;
-                video.muted = volume === 0;
-            }
-        });
-
-        // Save to config (disabled for now)
-        // window.electronAPI.config.set('defaultVolume', volume);
-    }
+    // setVolume method removed - Tesla dashcam clips have no audio
 
     previousClip() {
         if (!this.currentClipGroup) return;
@@ -3046,7 +3029,7 @@ class SentrySixApp {
 
     // UI Update Methods
     updatePlayPauseButton() {
-        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn-timeline');
         const icon = playPauseBtn.querySelector('.icon');
 
         if (this.isPlaying) {
