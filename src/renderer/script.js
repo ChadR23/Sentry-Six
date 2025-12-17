@@ -2997,7 +2997,7 @@ function updateVisualization(sei) {
             // Create arrow using divIcon for full control over HTML/CSS and positioning
             const arrowIcon = L.divIcon({
                 className: 'arrow-marker-icon',
-                html: `<img src="../../arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
+                html: `<img src="../../assets/arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
                 iconSize: [77, 77],
                 iconAnchor: [38, 38], // Center for 77x77 icon
                 popupAnchor: [0, -38]
@@ -3021,7 +3021,7 @@ function updateVisualization(sei) {
                     // If img not found, recreate icon with updated rotation
                     const newArrowIcon = L.divIcon({
                         className: 'arrow-marker-icon',
-                        html: `<img src="../../arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
+                        html: `<img src=\"../../assets/arrow.png\" style=\"width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;\" />`,
                         iconSize: [77, 77],
                         iconAnchor: [38, 38],
                         popupAnchor: [0, -38]
