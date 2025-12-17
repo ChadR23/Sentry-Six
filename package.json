@@ -1,0 +1,40 @@
+{
+  "name": "sentry-six-revamped",
+  "version": "1.0.0",
+  "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": [
+    "tesla",
+    "dashcam",
+    "sentry",
+    "electron"
+  ],
+  "author": "Sentry Six Revamped",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "protobufjs": "^7.5.4"
+  },
+  "build": {
+    "appId": "com.sentrysix.revamped",
+    "productName": "Sentry Six Revamped",
+    "files": [
+      "dist/**",
+      "src/**",
+      "index.html",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  }
+}
