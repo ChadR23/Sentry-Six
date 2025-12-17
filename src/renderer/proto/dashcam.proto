@@ -34,3 +34,4 @@ message SeiMetadata {
   double linear_acceleration_mps2_y = 15;
   double linear_acceleration_mps2_z = 16;
 }
+

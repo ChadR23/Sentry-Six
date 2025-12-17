@@ -1,4 +1,4 @@
-import { CLIPS_MODE_KEY } from './storageKeys.js';
+import { CLIPS_MODE_KEY } from '../lib/storageKeys.js';
 
 // Clips panel mode (floating / collapsed only)
 export function createClipsPanelMode({ map, clipsCollapseBtn } = {}) {
@@ -34,3 +34,4 @@ export function createClipsPanelMode({ map, clipsCollapseBtn } = {}) {
 
   return { initClipsPanelMode, applyClipsMode, toggleCollapsedMode };
 }
+

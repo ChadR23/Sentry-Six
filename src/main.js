@@ -1,8 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 
-const isDev = process.env.NODE_ENV === 'development';
-
 function createWindow() {
   const win = new BrowserWindow({
     width: 1400,

@@ -1,8 +1,8 @@
-import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './src/multiLayouts.js';
-import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY } from './src/storageKeys.js';
-import { createClipsPanelMode } from './src/panelMode.js';
-import { escapeHtml, cssEscape } from './src/utils.js';
-import { state } from './src/state.js';
+import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
+import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY } from './scripts/lib/storageKeys.js';
+import { createClipsPanelMode } from './scripts/ui/panelMode.js';
+import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
+import { state } from './scripts/lib/state.js';
 
 // State
 const player = state.player;
@@ -40,7 +40,6 @@ const skipBackBtn = $('skipBackBtn');
 const skipForwardBtn = $('skipForwardBtn');
 const currentTimeEl = $('currentTime');
 const totalTimeEl = $('totalTime');
-const timeDisplayEl = $('timeDisplay');
 const dashboardVis = $('dashboardVis');
 const videoContainer = $('videoContainer');
 const clipList = $('clipList');
@@ -211,7 +210,6 @@ const GFORCE_HISTORY_MAX = 3;
 const MPS_TO_MPH = 2.23694;
 const MPS_TO_KMH = 3.6;
 let useMetric = localStorage.getItem('useMetric') === 'true';
-const NAL_START_CODE = new Uint8Array([0, 0, 0, 1]);
 
 function notify(message, opts = {}) {
     const type = opts.type || 'info'; // 'info' | 'success' | 'warn' | 'error'
@@ -689,19 +687,6 @@ function initDraggablePanels() {
 // Initialize draggable panels after DOM is ready
 initDraggablePanels();
 
-// Disable Leaflet's built-in drag/scroll so the map panel can be dragged freely
-function disableMapInteraction() {
-    if (typeof map !== 'undefined' && map) {
-        map.dragging.disable();
-        map.touchZoom.disable();
-        map.doubleClickZoom.disable();
-        map.scrollWheelZoom.disable();
-        map.boxZoom.disable();
-        map.keyboard.disable();
-        if (map.tap) map.tap.disable();
-    }
-}
-
 // File Handling
 // Default click = choose folder (streamlined TeslaCam flow).
 dropOverlay.onclick = (e) => {
@@ -753,108 +738,8 @@ dropOverlay.ondrop = e => {
 };
 
 async function handleFile(file) {
-    if (!file || !file.name.toLowerCase().endsWith('.mp4')) {
-        notify('Please select a valid MP4 file.', { type: 'warn' });
-        return;
-    }
-
-    // Any direct MP4 load implies clip mode.
-    setMode('clip');
-
-    // Leaving folder mode? Keep clip list, but update subtitle.
-    clipBrowserSubtitle.textContent = selection.selectedGroupId ? clipBrowserSubtitle.textContent : 'Single MP4 loaded';
-    library.folderLabel = library.folderLabel || null;
-
-    // Reset state
-    pause();
-    if (player.decoder) { try { player.decoder.close(); } catch { } player.decoder = null; }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // UI Reset
-    dropOverlay.classList.add('hidden');
-    dashboardVis.classList.remove('visible');
-    mapVis.classList.remove('visible');
-    playBtn.disabled = true;
-    progressBar.disabled = true;
-
-    try {
-        // If multi-cam is enabled and a group is selected, route through multi loader instead.
-        if (multi.enabled && selection.selectedGroupId) {
-            const g = library.clipGroupById.get(selection.selectedGroupId);
-            if (g) {
-                await loadMultiCamGroup(g, { configureTimeline: true, deferRender: false, autoplay: !!autoplayToggle?.checked });
-                return;
-            }
-        }
-
-        await loadMp4IntoPlayer(file);
-        
-        player.firstKeyframe = player.frames.findIndex(f => f.keyframe);
-        if (player.firstKeyframe === -1) throw new Error('No keyframes found in MP4');
-
-        const config = player.mp4.getConfig();
-        canvas.width = config.width;
-        canvas.height = config.height;
-        
-        // Setup Progress Bar
-        progressBar.min = 0;
-        progressBar.max = player.frames.length - 1;
-        progressBar.value = player.firstKeyframe;
-        progressBar.step = 1;
-        
-        // Map Setup
-        if (map) {
-            mapPath = [];
-            if (mapMarker) { mapMarker.remove(); mapMarker = null; }
-            if (mapPolyline) { mapPolyline.remove(); mapPolyline = null; }
-            
-            // Extract all coordinates for path
-            // This might be heavy for long videos, but standard clips are 1 min ~ 1800-3600 frames. Fine.
-            mapPath = player.frames
-                .filter(f => hasValidGps(f.sei))
-                .map(f => [f.sei.latitude_deg, f.sei.longitude_deg]);
-
-            if (mapPath.length > 0) {
-                mapVis.classList.add('visible');
-                // Allow transition
-                setTimeout(() => {
-                    map.invalidateSize();
-                    mapPolyline = L.polyline(mapPath, { color: '#3e9cbf', weight: 3, opacity: 0.7 }).addTo(map);
-                    map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
-                }, 100);
-            }
-        }
-        
-        // Enable UI
-        playBtn.disabled = false;
-        progressBar.disabled = false;
-        dashboardVis.classList.add('visible');
-        
-        showFrame(player.firstKeyframe);
-
-        // Autoplay if enabled
-        if (autoplayToggle?.checked) {
-            // Let the first frame draw before starting playback.
-            setTimeout(() => play(), 0);
-        }
-    } catch (err) {
-        console.error(err);
-        notify('Error loading file: ' + (err?.message || String(err)), { type: 'error' });
-        dropOverlay.classList.remove('hidden');
-    }
-}
-
-async function loadMp4IntoPlayer(file) {
-    const buffer = await file.arrayBuffer();
-    player.mp4 = new DashcamMP4(buffer);
-    player.frames = player.mp4.parseFrames(seiType);
-    player.lastDecodedFrameIndex = -1;
-    player.seekTargetTimestamp = null;
-    return { mp4: player.mp4, frames: player.frames };
-}
-
-function isMultiCamActive() {
-    return multi.enabled && Array.from(multi.streams.values()).some(s => s.frames?.length);
+    // Single file drops are not supported - direct users to drop a TeslaCam folder
+    notify('Please drop a TeslaCam folder instead of a single file.', { type: 'info' });
 }
 
 function setMultiCamGridVisible(visible) {
@@ -873,239 +758,11 @@ function resetMultiStreams() {
 }
 
 async function reloadSelectedGroup() {
-    const g = selection.selectedGroupId ? library.clipGroupById.get(selection.selectedGroupId) : null;
-    if (!g) {
-        setMultiCamGridVisible(false);
-        return;
-    }
-
-    pause();
-    if (multi.enabled) {
-        await loadMultiCamGroup(g, { configureTimeline: true, deferRender: false, autoplay: !!autoplayToggle?.checked });
-    } else {
-        setMultiCamGridVisible(false);
-        updateCameraSelect(g);
-        const cam = selection.selectedCamera || (g.filesByCamera.has('front') ? 'front' : (g.filesByCamera.keys().next().value || 'front'));
-        selection.selectedCamera = cam;
-        cameraSelect.value = cam;
-        loadClipGroupCamera(g, cam);
-    }
+    // Legacy WebCodecs reloading removed - native video playback handles this now
+    // This function is kept for API compatibility but does nothing
 }
 
-function buildStream(camera, canvasEl) {
-    return {
-        camera,
-        canvas: canvasEl,
-        ctx: canvasEl?.getContext?.('2d') ?? null,
-        file: null,
-        buffer: null,
-        mp4: null,
-        frames: null,
-        timestamps: null, // numeric array ms
-        firstKeyframe: 0,
-        decoder: null,
-        decoding: false,
-        pendingFrame: null,
-        hasSei: false,
-        lastDecodedFrameIndex: -1,
-        seekTargetTimestamp: null
-    };
-}
-
-function streamSetFrames(stream, mp4Obj, framesArr, hasSei) {
-    stream.mp4 = mp4Obj;
-    stream.frames = framesArr;
-    stream.timestamps = framesArr.map(f => f.timestamp);
-    stream.firstKeyframe = framesArr.findIndex(f => f.keyframe);
-    if (stream.firstKeyframe < 0) stream.firstKeyframe = 0;
-    stream.hasSei = !!hasSei;
-
-    const config = mp4Obj.getConfig();
-    if (stream.canvas) {
-        stream.canvas.width = config.width;
-        stream.canvas.height = config.height;
-    }
-}
-
-function findFrameIndexAtTime(stream, tMs) {
-    const ts = stream.timestamps;
-    if (!ts?.length) return 0;
-    // binary search for nearest <= tMs
-    let lo = 0, hi = ts.length - 1;
-    while (lo < hi) {
-        const mid = Math.floor((lo + hi + 1) / 2);
-        if (ts[mid] <= tMs) lo = mid;
-        else hi = mid - 1;
-    }
-    return lo;
-}
-
-async function loadMultiCamGroup(group, opts = {}) {
-    if (!seiType) throw new Error('Metadata parser not initialized');
-    const configureTimeline = opts.configureTimeline !== false;
-    const deferRender = !!opts.deferRender;
-    const doAutoplay = opts.autoplay === true;
-    const keepPlaying = !!opts.keepPlaying;
-
-    resetMultiStreams();
-    setMultiCamGridVisible(true);
-    clearMultiFocus();
-
-    // Build streams for UI slots using the selected layout.
-    const layout = MULTI_LAYOUTS[multi.layoutId] || MULTI_LAYOUTS[DEFAULT_MULTI_LAYOUT];
-    const isImmersive = layout.type === 'immersive';
-    
-    // Slot-to-canvas mapping for standard and immersive layouts
-    const slotCanvases = {
-        // Standard grid slots
-        tl: canvasTL,
-        tc: canvasTC,
-        tr: canvasTR,
-        bl: canvasBL,
-        bc: canvasBC,
-        br: canvasBR,
-        // Immersive slots
-        main: canvasMain,
-        overlay_tl: canvasOverlayTL,
-        overlay_tr: canvasOverlayTR,
-        overlay_bl: canvasOverlayBL,
-        overlay_bc: canvasOverlayBC,
-        overlay_br: canvasOverlayBR
-    };
-
-    // Set grid column mode and layout type
-    if (multiCamGrid) {
-        multiCamGrid.setAttribute('data-columns', layout.columns || 3);
-        if (isImmersive) {
-            multiCamGrid.setAttribute('data-layout-type', 'immersive');
-            multiCamGrid.style.setProperty('--immersive-opacity', layout.overlayOpacity || 0.9);
-        } else {
-            multiCamGrid.removeAttribute('data-layout-type');
-            multiCamGrid.style.removeProperty('--immersive-opacity');
-        }
-    }
-    
-    // Update tile labels to match the layout (by slot attribute; robust for future layouts)
-    try {
-        for (const slotDef of layout.slots) {
-            // Try both regular tiles and immersive overlays
-            const tile = multiCamGrid.querySelector(`.multi-tile[data-slot="${cssEscape(slotDef.slot)}"]`) 
-                      || multiCamGrid.querySelector(`.immersive-overlay[data-slot="${cssEscape(slotDef.slot)}"]`);
-            const labelEl = tile?.querySelector?.('.multi-label');
-            if (labelEl && slotDef?.label) labelEl.textContent = slotDef.label;
-        }
-    } catch { /* ignore */ }
-
-    // Create a stream per slot, keyed by slot (stable UI), with an assigned camera.
-    for (const sdef of layout.slots) {
-        const cEl = slotCanvases[sdef.slot];
-        const stream = buildStream(sdef.camera, cEl);
-        stream.slot = sdef.slot;
-        multi.streams.set(sdef.slot, stream);
-        if (stream.ctx) {
-            stream.ctx.fillStyle = '#000';
-            stream.ctx.fillRect(0, 0, cEl.width || 1, cEl.height || 1);
-        }
-    }
-
-    // Choose master camera (prefer front if available)
-    if (!group.filesByCamera.has(multi.masterCamera)) {
-        multi.masterCamera = group.filesByCamera.has('front') ? 'front' : (group.filesByCamera.keys().next().value || 'front');
-    }
-
-    // Update camera selector to reflect "master camera" choice in multi mode
-    updateCameraSelect(group);
-    cameraSelect.value = multi.masterCamera;
-
-    // Load buffers + parse frames
-    // - Master camera: parse with SEI for dashboard/map
-    // - Other cameras: parse without SEI for speed
-    const loadPromises = [];
-    for (const stream of multi.streams.values()) {
-        const entry = group.filesByCamera.get(stream.camera);
-        if (!entry?.file) continue;
-        stream.file = entry.file;
-        loadPromises.push((async () => {
-            stream.buffer = await entry.file.arrayBuffer();
-            const mp4Obj = new DashcamMP4(stream.buffer);
-            const isMaster = stream.camera === multi.masterCamera;
-            const framesArr = mp4Obj.parseFrames(isMaster ? seiType : null);
-            streamSetFrames(stream, mp4Obj, framesArr, isMaster);
-        })());
-    }
-    await Promise.all(loadPromises);
-
-    // If the master camera wasn't in the grid map (e.g. unknown camera name), ensure we have a master stream anyway.
-    const hasMaster = Array.from(multi.streams.values()).some(s => s.camera === multi.masterCamera && s.frames?.length);
-    if (!hasMaster) {
-        const entry = group.filesByCamera.get(multi.masterCamera) || group.filesByCamera.get('front') || group.filesByCamera.values().next().value;
-        if (entry?.file) {
-            // Use appropriate canvas for fallback (main for immersive, tl for standard)
-            const fallbackCanvas = isImmersive ? canvasMain : canvasTL;
-            const temp = buildStream(multi.masterCamera, fallbackCanvas);
-            temp.file = entry.file;
-            temp.buffer = await entry.file.arrayBuffer();
-            const mp4Obj = new DashcamMP4(temp.buffer);
-            const framesArr = mp4Obj.parseFrames(seiType);
-            streamSetFrames(temp, mp4Obj, framesArr, true);
-            multi.streams.set('__master__', temp);
-        }
-    }
-
-    // Promote master stream into existing single-player globals (dashboard/map/timeline reuse)
-    const mStream = Array.from(multi.streams.values()).find(s => s.camera === multi.masterCamera && s.frames?.length) || multi.streams.get('__master__');
-    if (!mStream?.frames?.length) throw new Error('Master camera failed to load');
-    player.mp4 = mStream.mp4;
-    player.frames = mStream.frames;
-    player.firstKeyframe = mStream.firstKeyframe;
-
-    // UI reset similar to handleFile
-    if (!keepPlaying) pause();
-    if (player.decoder) { try { player.decoder.close(); } catch { } player.decoder = null; } // single decoder not used in multi mode
-    player.decoding = false;
-    player.pendingFrame = null;
-    playBtn.disabled = false;
-    progressBar.disabled = false;
-    dashboardVis.classList.add('visible');
-    dropOverlay.classList.add('hidden');
-
-    if (configureTimeline) {
-        // Setup progress bar with master timeline
-        progressBar.min = 0;
-        progressBar.max = player.frames.length - 1;
-        multi.masterTimeIndex = Math.max(player.firstKeyframe, 0);
-        progressBar.value = multi.masterTimeIndex;
-        progressBar.step = 1;
-    }
-
-    // Map setup from master frames
-    if (map) {
-        mapPath = [];
-        if (mapMarker) { mapMarker.remove(); mapMarker = null; }
-        if (mapPolyline) { mapPolyline.remove(); mapPolyline = null; }
-        mapPath = player.frames
-            .filter(f => hasValidGps(f.sei))
-            .map(f => [f.sei.latitude_deg, f.sei.longitude_deg]);
-        if (mapPath.length > 0) {
-            mapVis.classList.add('visible');
-            setTimeout(() => {
-                map.invalidateSize();
-                mapPolyline = L.polyline(mapPath, { color: '#3e9cbf', weight: 3, opacity: 0.7 }).addTo(map);
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
-            }, 100);
-        } else {
-            mapVis.classList.remove('visible');
-        }
-    }
-
-    if (!deferRender) {
-        // Draw initial frame on all cameras
-        const idx = configureTimeline ? multi.masterTimeIndex : Math.max(player.firstKeyframe, 0);
-        showFrame(idx);
-    }
-
-    if (doAutoplay) setTimeout(() => play(), 0);
-}
+// Legacy WebCodecs multi-cam loading removed - native video playback is now used exclusively
 
 // -------------------------------------------------------------
 // Folder ingest + Clip Groups (Phase 1)
@@ -1804,77 +1461,11 @@ async function ingestSentryEventJson(eventAssetsByKey) {
 }
 
 function loadClipGroupCamera(group, camera) {
-    const entry = group.filesByCamera.get(camera) || group.filesByCamera.get('front') || group.filesByCamera.values().next().value;
-    if (!entry?.file) return;
-    // This will reset player state and parse SEI/frames, preserving SEI importance.
-    handleFile(entry.file);
+    // Legacy WebCodecs loader - native video uses selectDayCollection() instead
+    notify('Please select a day collection from the clip browser.', { type: 'info' });
 }
 
-async function loadSingleGroup(group, camera, opts = {}) {
-    const configureTimeline = opts.configureTimeline !== false;
-    const deferRender = !!opts.deferRender;
-    const doAutoplay = opts.autoplay === true;
-    const keepPlaying = !!opts.keepPlaying;
-
-    const entry = group.filesByCamera.get(camera) || group.filesByCamera.get('front') || group.filesByCamera.values().next().value;
-    if (!entry?.file) throw new Error('Camera file not found');
-
-    // Reset state (similar to handleFile, but optionally skip timeline configuration)
-    if (!keepPlaying) pause();
-    if (player.decoder) { try { player.decoder.close(); } catch { } player.decoder = null; }
-    player.decoding = false;
-    player.pendingFrame = null;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    dropOverlay.classList.add('hidden');
-    dashboardVis.classList.remove('visible');
-    mapVis.classList.remove('visible');
-    playBtn.disabled = true;
-    progressBar.disabled = true;
-
-    await loadMp4IntoPlayer(entry.file);
-    player.firstKeyframe = player.frames.findIndex(f => f.keyframe);
-    if (player.firstKeyframe === -1) throw new Error('No keyframes found in MP4');
-
-    const config = player.mp4.getConfig();
-    canvas.width = config.width;
-    canvas.height = config.height;
-
-    if (configureTimeline) {
-        progressBar.min = 0;
-        progressBar.max = player.frames.length - 1;
-        progressBar.value = Math.max(player.firstKeyframe, 0);
-    }
-
-    // Map setup (segment only)
-    if (map) {
-        mapPath = [];
-        if (mapMarker) { mapMarker.remove(); mapMarker = null; }
-        if (mapPolyline) { mapPolyline.remove(); mapPolyline = null; }
-
-        mapPath = player.frames
-            .filter(f => hasValidGps(f.sei))
-            .map(f => [f.sei.latitude_deg, f.sei.longitude_deg]);
-
-        if (mapPath.length > 0) {
-            mapVis.classList.add('visible');
-            setTimeout(() => {
-                map.invalidateSize();
-                mapPolyline = L.polyline(mapPath, { color: '#3e9cbf', weight: 3, opacity: 0.7 }).addTo(map);
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
-            }, 100);
-        }
-    }
-
-    playBtn.disabled = false;
-    progressBar.disabled = false;
-    dashboardVis.classList.add('visible');
-
-    if (!deferRender) {
-        showFrame(Math.max(player.firstKeyframe, 0));
-    }
-    if (doAutoplay) setTimeout(() => play(), 0);
-}
+// Legacy WebCodecs loadSingleGroup removed - native video playback is now used exclusively
 
 function ensureGroupPreview(groupId, opts = {}) {
     const existing = previews.cache.get(groupId);
@@ -2447,27 +2038,10 @@ function playNext() {
 function showFrame(index) {
     if (!player.frames?.[index]) return;
     
-    // Update Vis
+    // Update visualization and time display
+    // Note: In native video mode, telemetry is updated via onMasterTimeUpdate() instead
     updateVisualization(player.frames[index].sei);
     updateTimeDisplay(index);
-
-    // Decode & Render Video
-    if (isMultiCamActive()) {
-        const t = player.frames[index].timestamp;
-        for (const stream of multi.streams.values()) {
-            if (stream.slot === '__master__') continue;
-            if (!stream?.frames?.length || !stream.ctx) continue;
-            const idx = findFrameIndexAtTime(stream, t);
-            streamShowFrame(stream, idx);
-        }
-        return;
-    }
-
-    if (player.decoding) {
-        player.pendingFrame = index;
-    } else {
-        decodeFrame(index);
-    }
 }
 
 function findFrameIndexAtLocalMs(localMs) {
@@ -2510,261 +2084,14 @@ async function showCollectionAtMs(ms) {
 }
 
 async function loadCollectionSegment(segIdx, token) {
+    // Legacy WebCodecs segment loading - native video uses loadNativeSegment() instead
+    // This is kept for Sentry collection mode compatibility but is not used in day collections
     if (!state.collection.active) return;
-    const group = state.collection.active.groups?.[segIdx];
-    if (!group) return;
-
-    // Prevent overlapping timers during segment transitions.
-    if (player.playTimer) { clearTimeout(player.playTimer); player.playTimer = null; }
-    state.collection.active.loading = true;
-
     state.collection.active.currentSegmentIdx = segIdx;
-    state.collection.active.currentGroupId = group.id;
-
-    if (multi.enabled) {
-        await loadMultiCamGroup(group, { configureTimeline: false, deferRender: true, autoplay: false, keepPlaying: true });
-    } else {
-        await loadSingleGroup(group, selection.selectedCamera || 'front', { configureTimeline: false, deferRender: true, autoplay: false, keepPlaying: true });
-    }
-
-    if (!state.collection.active || state.collection.active.loadToken !== token) return;
     state.collection.active.loading = false;
 }
 
-function streamShowFrame(stream, index) {
-    if (!stream.frames?.[index]) return;
-    if (stream.decoding) {
-        stream.pendingFrame = index;
-    } else {
-        streamDecodeFrame(stream, index);
-    }
-}
-
-async function streamDecodeFrame(stream, index) {
-    stream.decoding = true;
-    try {
-        if (!stream.frames?.[index]) return;
-        const targetFrame = stream.frames[index];
-        const targetTs = targetFrame.timestamp;
-
-        // Init decoder
-        if (!stream.decoder || stream.decoder.state === 'closed') {
-            stream.decoder = new VideoDecoder({
-                output: (frame) => handleStreamOutput(stream, frame),
-                error: (e) => {
-                    console.error('Stream decoder error:', e);
-                    stream.decoder = null;
-                }
-            });
-        }
-
-        const config = stream.mp4.getConfig();
-        if (stream.decoder.state === 'unconfigured') {
-            stream.decoder.configure({
-                codec: config.codec,
-                width: config.width,
-                height: config.height
-            });
-        }
-
-        const isSequential = (stream.lastDecodedFrameIndex === index - 1);
-
-        if (isSequential) {
-            stream.seekTargetTimestamp = null;
-            // OPTIMIZATION: Sequential pipeline - no flush
-            stream.decoder.decode(createChunkForStream(stream, targetFrame));
-            stream.lastDecodedFrameIndex = index;
-        } else {
-            // Seek
-            stream.decoder.reset();
-            stream.decoder.configure({
-                codec: config.codec,
-                width: config.width,
-                height: config.height
-            });
-
-            let keyIdx = index;
-            while (keyIdx >= 0 && !stream.frames[keyIdx].keyframe) keyIdx--;
-            if (keyIdx < 0) keyIdx = 0;
-
-            stream.seekTargetTimestamp = targetTs;
-            for (let i = keyIdx; i <= index; i++) {
-                stream.decoder.decode(createChunkForStream(stream, stream.frames[i]));
-            }
-            
-            // Seeking requires flush
-            await stream.decoder.flush();
-            stream.lastDecodedFrameIndex = index;
-        }
-
-    } catch (e) {
-        if (e?.name !== 'AbortError') {
-             // ignore
-        }
-    } finally {
-        stream.decoding = false;
-        if (stream.pendingFrame !== null) {
-            const next = stream.pendingFrame;
-            stream.pendingFrame = null;
-            streamDecodeFrame(stream, next);
-        }
-    }
-}
-
-function handleStreamOutput(stream, frame) {
-    const frameTsMs = frame.timestamp / 1000;
-    let shouldDraw = true;
-    if (stream.seekTargetTimestamp != null) {
-        if (Math.abs(frameTsMs - stream.seekTargetTimestamp) > 0.01) {
-            shouldDraw = false;
-        } else {
-            stream.seekTargetTimestamp = null;
-        }
-    }
-
-    if (shouldDraw && stream.ctx) {
-        stream.ctx.drawImage(frame, 0, 0);
-    }
-    frame.close();
-}
-
-function createChunkForStream(stream, frame) {
-    const config = stream.mp4.getConfig();
-    const data = frame.keyframe
-        ? DashcamMP4.concat(NAL_START_CODE, frame.sps || config.sps, NAL_START_CODE, frame.pps || config.pps, NAL_START_CODE, frame.data)
-        : DashcamMP4.concat(NAL_START_CODE, frame.data);
-    return new EncodedVideoChunk({
-        type: frame.keyframe ? 'key' : 'delta',
-        timestamp: frame.timestamp * 1000,
-        data
-    });
-}
-
-async function decodeFrame(index) {
-    player.decoding = true;
-    try {
-        if (!player.frames?.[index]) return;
-        const targetFrame = player.frames[index];
-        const targetTs = targetFrame.timestamp;
-
-        // Initialize or re-create decoder if needed
-        if (!player.decoder || player.decoder.state === 'closed') {
-            player.decoder = new VideoDecoder({
-                output: handleDecoderOutput,
-                error: (e) => {
-                    console.error('VideoDecoder error:', e);
-                    player.decoder = null; // Force recreation on next attempt
-                }
-            });
-        }
-
-        const config = player.mp4.getConfig();
-        if (player.decoder.state === 'unconfigured') {
-            player.decoder.configure({
-                codec: config.codec,
-                width: config.width,
-                height: config.height
-            });
-        }
-
-        // Determine if we can decode sequentially
-        // We need the previous frame to have been the last one decoded
-        const isSequential = (player.lastDecodedFrameIndex === index - 1);
-
-        if (isSequential) {
-            // Fast path: just decode the next frame
-            player.seekTargetTimestamp = null; // Ensure we draw it
-            
-            // OPTIMIZATION: Do NOT flush in sequential mode. 
-            // Just feed the pipeline. The output callback handles the drawing.
-            player.decoder.decode(createChunk(targetFrame));
-            
-            // We assume success here for the index tracker. 
-            // If it fails, the error handler or visual glitch will occur, but speed is king.
-            player.lastDecodedFrameIndex = index;
-            
-        } else {
-            // Seek path: decode from nearest preceding keyframe
-            // For random access, we MUST flush to clear the pipe before starting a new sequence,
-            // or we might get leftover frames.
-            // Actually, reset() handles clearing.
-            player.decoder.reset();
-            player.decoder.configure({
-                codec: config.codec,
-                width: config.width,
-                height: config.height
-            });
-
-            let keyIdx = index;
-            while (keyIdx >= 0 && !player.frames[keyIdx].keyframe) keyIdx--;
-            if (keyIdx < 0) keyIdx = 0;
-
-            // Only draw the final frame of the seek sequence
-            player.seekTargetTimestamp = targetTs;
-
-            for (let i = keyIdx; i <= index; i++) {
-                player.decoder.decode(createChunk(player.frames[i]));
-            }
-            
-            // For seeking, we MUST wait for flush to ensure we draw the correct frame 
-            // before considering the seek 'done'.
-            await player.decoder.flush();
-            player.lastDecodedFrameIndex = index;
-        }
-
-    } catch (e) {
-        if (e?.name !== 'AbortError') {
-            console.error('Decode error:', e);
-        }
-    } finally {
-        player.decoding = false;
-        if (player.pendingFrame !== null) {
-            const next = player.pendingFrame;
-            player.pendingFrame = null;
-            decodeFrame(next);
-        }
-    }
-}
-
-// Map of timestamp (us) -> resolve function
-const frameDrawResolvers = new Map();
-
-function handleDecoderOutput(frame) {
-    const frameTsMs = frame.timestamp / 1000;
-    
-    // If seeking, checks if this is the target frame.
-    // If sequential (seekTargetTimestamp is null), draw everything.
-    let shouldDraw = true;
-    if (player.seekTargetTimestamp != null) {
-        // Use a small epsilon for float comparison logic if needed, 
-        // though timestamps should be fairly exact from the same source.
-        if (Math.abs(frameTsMs - player.seekTargetTimestamp) > 0.01) {
-            shouldDraw = false;
-        } else {
-            player.seekTargetTimestamp = null; // Found it
-        }
-    }
-
-    if (shouldDraw) {
-        // Draw to canvas
-        ctx.drawImage(frame, 0, 0);
-    }
-    
-    frame.close();
-}
-
-function createChunk(frame) {
-    const config = player.mp4.getConfig();
-    const data = frame.keyframe
-        ? DashcamMP4.concat(NAL_START_CODE, frame.sps || config.sps, NAL_START_CODE, frame.pps || config.pps, NAL_START_CODE, frame.data)
-        : DashcamMP4.concat(NAL_START_CODE, frame.data);
-        
-    return new EncodedVideoChunk({
-        type: frame.keyframe ? 'key' : 'delta',
-        timestamp: frame.timestamp * 1000,
-        data
-    });
-}
+// Legacy WebCodecs rendering functions removed - native video playback is now used exclusively
 
 // G-Force Meter Logic
 const GRAVITY = 9.81; // m/s² per G
@@ -3717,11 +3044,6 @@ async function seekNativeDayCollectionBySec(targetSec) {
             playNative();
         }
     }
-}
-
-// Legacy function for compatibility
-async function seekNativeDayCollection(targetMs) {
-    return seekNativeDayCollectionBySec(targetMs / 1000);
 }
 
 

@@ -104,4 +104,3 @@ export const MULTI_LAYOUTS = {
 
 export const DEFAULT_MULTI_LAYOUT = 'six_default';
 
-

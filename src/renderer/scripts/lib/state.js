@@ -103,4 +103,3 @@ export function createInitialState() {
 // Singleton used by the app.
 export const state = createInitialState();
 
-

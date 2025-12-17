@@ -14,4 +14,3 @@ export function escapeHtml(s) {
   }[c]));
 }
 
-

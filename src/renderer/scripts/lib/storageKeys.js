@@ -9,4 +9,3 @@ export const MULTI_ENABLED_KEY = 'teslareplay.ui.multiEnabled';
 export const DASHBOARD_ENABLED_KEY = 'teslareplay.ui.dashboardEnabled';
 export const MAP_ENABLED_KEY = 'teslareplay.ui.mapEnabled';
 
-

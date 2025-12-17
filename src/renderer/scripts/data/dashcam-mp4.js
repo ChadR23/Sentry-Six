@@ -235,7 +235,7 @@ window.DashcamMP4 = DashcamMP4;
     let enumFields = null;
 
     /** Initialize protobuf by loading the .proto file */
-    async function initProtobuf(protoPath = 'dashcam.proto') {
+    async function initProtobuf(protoPath = 'proto/dashcam.proto') {
         if (SeiMetadata) return { SeiMetadata, enumFields };
 
         if (!window.protobuf) throw new Error('protobuf.js not loaded');
@@ -254,11 +254,18 @@ window.DashcamMP4 = DashcamMP4;
         return { SeiMetadata, enumFields };
     }
 
+    /**
+     * Internal: Get the loaded protobuf instance.
+     * Reserved for future use (e.g., CSV export UI).
+     */
     function getProtobuf() {
         return SeiMetadata ? { SeiMetadata, enumFields } : null;
     }
 
-    /** Derive field metadata from SeiMetadata type */
+    /**
+     * Internal: Derive field metadata from SeiMetadata type.
+     * Reserved for future CSV export feature.
+     */
     function deriveFieldInfo(SeiMetadataCtor, enumMap, options = {}) {
         return SeiMetadataCtor.fieldsArray.map(field => {
             const propName = field.name;
@@ -279,7 +286,10 @@ window.DashcamMP4 = DashcamMP4;
         });
     }
 
-    /** Format a value for display */
+    /**
+     * Internal: Format a value for display.
+     * Reserved for future CSV export feature.
+     */
     function formatValue(value, enumType) {
         if (enumType) {
             const name = enumType.valuesById?.[value];
@@ -293,7 +303,10 @@ window.DashcamMP4 = DashcamMP4;
         return value;
     }
 
-    /** Build CSV from SEI messages */
+    /**
+     * Internal: Build CSV from SEI messages.
+     * Reserved for future CSV export feature.
+     */
     function buildCsv(messages, fieldInfo) {
         const headers = fieldInfo.map(f => f.protoName || f.propName);
         const lines = [headers.join(',')];
@@ -311,7 +324,10 @@ window.DashcamMP4 = DashcamMP4;
         return lines.join('\n');
     }
 
-    /** Download a blob as a file */
+    /**
+     * Internal: Download a blob as a file.
+     * Reserved for future CSV export feature.
+     */
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         const a = Object.assign(document.createElement('a'), { href: url, download: filename });
@@ -376,3 +392,4 @@ window.DashcamMP4 = DashcamMP4;
         getFilesFromDataTransfer
     };
 })();
+
