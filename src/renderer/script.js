@@ -854,6 +854,19 @@ function updateMapVisibility() {
     if (!mapVis) return;
     // Toggle controls whether it can be shown; 'visible' class is added when there's GPS data
     mapVis.classList.toggle('user-hidden', !state.ui.mapEnabled);
+    
+    // When map becomes visible, invalidate size and re-center after CSS transition
+    if (state.ui.mapEnabled && map) {
+        setTimeout(() => {
+            map.invalidateSize();
+            // Re-center on current data
+            if (mapPolyline) {
+                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+            } else if (mapMarker) {
+                map.setView(mapMarker.getLatLng(), 16);
+            }
+        }, 150);
+    }
 }
 
 // Clips panel mode logic moved to src/panelMode.js
