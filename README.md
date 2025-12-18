@@ -4,12 +4,12 @@
 
 This repository is a **complete overhaul** of the older Sentry-Six Electron project: some previous features are intentionally not present yet, and new capabilities (notably **SEI data support**) are a core focus of this version.
 
+https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
+
 ## Community & Support
 
 Have questions, feedback, or want to connect with other users and developers?  
 Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time support and discussion!
-
-![SentrySix Revamped UI Overview](assets/uioverview.png)
 
 ## Features (current)
 
