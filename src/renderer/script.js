@@ -968,9 +968,11 @@ function buildTeslaCamIndex(files, directoryName = null) {
         if (!parsed) continue;
 
         // SentryClips/<eventId>/YYYY-...-front.mp4
+        // SavedClips/<eventId>/YYYY-...-front.mp4
         // RecentClips/YYYY-...-front.mp4
         let eventId = null;
-        if (tag.toLowerCase() === 'sentryclips' && rest.length >= 2) {
+        const tagLower = tag.toLowerCase();
+        if ((tagLower === 'sentryclips' || tagLower === 'savedclips') && rest.length >= 2) {
             eventId = rest[0];
         }
 
@@ -1013,68 +1015,124 @@ function buildTeslaCamIndex(files, directoryName = null) {
 }
 
 function buildDayCollections(groups) {
-    const byDay = new Map(); // day -> groups[]
+    // Hierarchical structure: date -> { recentClips: [], sentryEvents: [], savedEvents: [] }
+    const byDay = new Map(); // day -> { recent: groups[], sentry: Map<eventId, groups[]>, saved: Map<eventId, groups[]> }
+    const allDates = new Set();
 
-    // De-duplicate groups by timestampKey (same timestamp = same clip, even if from different folders)
-    const seenTimestamps = new Map(); // timestampKey -> first group with that timestamp
-    let duplicatesSkipped = 0;
-    
     for (const g of groups) {
         const key = String(g.timestampKey || '');
         const day = key.split('_')[0] || 'Unknown';
+        const type = (g.tag || '').toLowerCase();
         
-        // Check if we've already seen this timestamp (duplicate from another folder)
-        if (seenTimestamps.has(key)) {
-            duplicatesSkipped++;
-            console.log('Skipping duplicate clip:', g.id, '(already have:', seenTimestamps.get(key).id + ')');
-            continue;
+        allDates.add(day);
+        
+        if (!byDay.has(day)) {
+            byDay.set(day, {
+                recent: [],
+                sentry: new Map(), // eventId -> groups[]
+                saved: new Map()   // eventId -> groups[]
+            });
         }
-        seenTimestamps.set(key, g);
+        const dayData = byDay.get(day);
         
-        if (!byDay.has(day)) byDay.set(day, []);
-        byDay.get(day).push(g);
+        if (type === 'recentclips') {
+            dayData.recent.push(g);
+        } else if (type === 'sentryclips' && g.eventId) {
+            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
+            dayData.sentry.get(g.eventId).push(g);
+        } else if (type === 'savedclips' && g.eventId) {
+            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
+            dayData.saved.get(g.eventId).push(g);
+        }
     }
-    
-    if (duplicatesSkipped > 0) {
-        console.warn(`Skipped ${duplicatesSkipped} duplicate clip groups (same timestamp from different folders)`);
+
+    // Build collections for each selectable item
+    const collections = new Map();
+
+    for (const [day, dayData] of byDay.entries()) {
+        // Recent clips collection (all clips for this day combined)
+        if (dayData.recent.length > 0) {
+            const recentGroups = dayData.recent.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
+            const id = `recent:${day}`;
+            collections.set(id, buildCollectionFromGroups(id, day, 'RecentClips', recentGroups));
+        }
+
+        // Individual Sentry events
+        for (const [eventId, eventGroups] of dayData.sentry.entries()) {
+            const sortedGroups = eventGroups.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
+            const id = `sentry:${day}:${eventId}`;
+            const coll = buildCollectionFromGroups(id, day, 'SentryClips', sortedGroups);
+            coll.eventId = eventId;
+            coll.eventTime = eventId.split('_')[1]?.replace(/-/g, ':') || '';
+            collections.set(id, coll);
+        }
+
+        // Individual Saved events
+        for (const [eventId, eventGroups] of dayData.saved.entries()) {
+            const sortedGroups = eventGroups.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
+            const id = `saved:${day}:${eventId}`;
+            const coll = buildCollectionFromGroups(id, day, 'SavedClips', sortedGroups);
+            coll.eventId = eventId;
+            coll.eventTime = eventId.split('_')[1]?.replace(/-/g, ':') || '';
+            collections.set(id, coll);
+        }
     }
 
-    const collections = new Map(); // day -> collection
-
-    for (const [day, dayGroups] of byDay.entries()) {
-        if (!dayGroups.length) continue;
-        dayGroups.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
-
-        const startEpochMs = parseTimestampKeyToEpochMs(dayGroups[0]?.timestampKey) ?? 0;
-        const lastStart = parseTimestampKeyToEpochMs(dayGroups[dayGroups.length - 1]?.timestampKey) ?? startEpochMs;
-        const endEpochMs = lastStart + 60_000; // approximate last segment length
-        const durationMs = Math.max(1, endEpochMs - startEpochMs);
-
-        const segmentStartsMs = dayGroups.map(g => {
-            const t = parseTimestampKeyToEpochMs(g.timestampKey) ?? startEpochMs;
-            return Math.max(0, t - startEpochMs);
-        });
-
-        const sortEpoch = endEpochMs;
-        const id = `day:${day}`;
-
-        collections.set(day, {
-            id,
-            key: day,
-            day,
-            tag: 'Day',
-            eventId: day,
-            groups: dayGroups,
-            meta: null,
-            durationMs,
-            segmentStartsMs,
-            anchorMs: 0,
-            anchorGroupId: dayGroups[0]?.id || null,
-            sortEpoch
-        });
-    }
+    // Store all dates for the day filter
+    library.allDates = Array.from(allDates).sort().reverse();
+    library.dayData = byDay;
 
     return collections;
+}
+
+function buildCollectionFromGroups(id, day, clipType, groups) {
+    const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
+    const lastStart = parseTimestampKeyToEpochMs(groups[groups.length - 1]?.timestampKey) ?? startEpochMs;
+    const endEpochMs = lastStart + 60_000;
+    const durationMs = Math.max(1, endEpochMs - startEpochMs);
+
+    const segmentStartsMs = groups.map(g => {
+        const t = parseTimestampKeyToEpochMs(g.timestampKey) ?? startEpochMs;
+        return Math.max(0, t - startEpochMs);
+    });
+
+    return {
+        id,
+        key: id,
+        day,
+        clipType,
+        tag: clipType,
+        groups,
+        meta: null,
+        durationMs,
+        segmentStartsMs,
+        anchorMs: 0,
+        anchorGroupId: groups[0]?.id || null,
+        sortEpoch: endEpochMs
+    };
+}
+
+function updateDayFilterOptions() {
+    if (!dayFilter || !library.allDates) return;
+    
+    const currentDay = dayFilter.value;
+    const dates = library.allDates;
+    
+    // Rebuild day filter dropdown
+    dayFilter.innerHTML = '<option value="">Select Date</option>';
+    for (const d of dates) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d;
+        dayFilter.appendChild(opt);
+    }
+    
+    // Preserve selection if still valid, otherwise default to most recent
+    if (currentDay && dates.includes(currentDay)) {
+        dayFilter.value = currentDay;
+    } else {
+        dayFilter.value = dates[0] || '';
+    }
 }
 
 function handleFolderFiles(fileList, directoryName = null) {
@@ -1123,29 +1181,18 @@ function handleFolderFiles(fileList, directoryName = null) {
 
     // Update UI
     clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip group${library.clipGroups.length === 1 ? '' : 's'}`;
-    if (dayFilter && library.dayIndex) {
-        const current = dayFilter.value || 'all';
-        dayFilter.innerHTML = '<option value="all">All days</option>';
-        const days = Array.from(library.dayIndex.keys()).sort().reverse();
-        for (const d of days) {
-            const opt = document.createElement('option');
-            opt.value = d;
-            opt.textContent = d;
-            dayFilter.appendChild(opt);
-        }
-        // Default to the most recent day to avoid showing hundreds/thousands at once.
-        const prefer = days[0] || 'all';
-        dayFilter.value = (current !== 'all' && days.includes(current)) ? current : prefer;
-    }
+    
+    // Update day filter options and render clip list
+    updateDayFilterOptions();
     renderClipList();
 
-    // Autoselect most recent day collection if available; fall back to previous behavior otherwise.
+    // Autoselect most recent collection if available
     const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
     if (dayValues.length) {
         dayValues.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
         const latest = dayValues[0];
-        if (latest?.day) {
-            selectDayCollection(latest.day);
+        if (latest?.key) {
+            selectDayCollection(latest.key);
         }
     } else if (library.clipGroups.length) {
         const items = buildDisplayItems();
@@ -1163,43 +1210,113 @@ function handleFolderFiles(fileList, directoryName = null) {
 
 function renderClipList() {
     clipList.innerHTML = '';
-    const dayCollections = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
-    if (!dayCollections.length) return;
-
-    // Sort most recent day first
-    dayCollections.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
-
-    for (const coll of dayCollections) {
-        const groups = coll.groups || [];
-        const firstGroup = groups[0];
-        const cameras = firstGroup ? Array.from(firstGroup.filesByCamera.keys()) : [];
-
-        const item = document.createElement('div');
-        item.className = 'clip-item';
-        item.dataset.groupid = coll.id;
-        item.dataset.type = 'day';
-
-        const title = coll.day;
-        const subline = `${groups.length} segments · ${Math.max(1, cameras.length)} cam`;
-
-        item.innerHTML = `
-            <div class="clip-meta clip-meta-full">
-                <div class="clip-title">${escapeHtml(title)}</div>
-                <div class="clip-badges">
-                    <span class="badge">Day</span>
-                    <span class="badge muted">${escapeHtml(library.folderLabel || '')}</span>
-                </div>
-                <div class="clip-sub">
-                    <div>${escapeHtml(subline)}</div>
-                </div>
-            </div>
-        `;
-
-        item.onclick = () => selectDayCollection(coll.day);
-        clipList.appendChild(item);
+    
+    const selectedDay = dayFilter?.value || '';
+    if (!selectedDay || !library.dayData) {
+        // Show message to select a date
+        const placeholder = document.createElement('div');
+        placeholder.className = 'clip-list-placeholder';
+        placeholder.textContent = 'Select a date to view clips';
+        placeholder.style.cssText = 'padding: 16px; text-align: center; color: rgba(255,255,255,0.5); font-size: 12px;';
+        clipList.appendChild(placeholder);
+        return;
     }
-
+    
+    const dayData = library.dayData.get(selectedDay);
+    if (!dayData) return;
+    
+    // 1. Recent Clips (at top)
+    if (dayData.recent.length > 0) {
+        const recentId = `recent:${selectedDay}`;
+        const recentColl = library.dayCollections?.get(recentId);
+        if (recentColl) {
+            const item = createClipItem(recentColl, 'Recent Clips', 'recent');
+            clipList.appendChild(item);
+        }
+    }
+    
+    // 2. Sentry Events (individual folders)
+    const sentryEvents = Array.from(dayData.sentry.entries())
+        .map(([eventId, groups]) => ({ eventId, groups, type: 'sentry' }))
+        .sort((a, b) => b.eventId.localeCompare(a.eventId)); // Most recent first
+    
+    for (const event of sentryEvents) {
+        const eventId = event.eventId;
+        const collId = `sentry:${selectedDay}:${eventId}`;
+        const coll = library.dayCollections?.get(collId);
+        if (coll) {
+            const timeStr = formatEventTime(eventId);
+            const item = createClipItem(coll, `Sentry · ${timeStr}`, 'sentry');
+            clipList.appendChild(item);
+        }
+    }
+    
+    // 3. Saved Events (individual folders)
+    const savedEvents = Array.from(dayData.saved.entries())
+        .map(([eventId, groups]) => ({ eventId, groups, type: 'saved' }))
+        .sort((a, b) => b.eventId.localeCompare(a.eventId)); // Most recent first
+    
+    for (const event of savedEvents) {
+        const eventId = event.eventId;
+        const collId = `saved:${selectedDay}:${eventId}`;
+        const coll = library.dayCollections?.get(collId);
+        if (coll) {
+            const timeStr = formatEventTime(eventId);
+            const item = createClipItem(coll, `Saved · ${timeStr}`, 'saved');
+            clipList.appendChild(item);
+        }
+    }
+    
     highlightSelectedClip();
+}
+
+function createClipItem(coll, title, typeClass) {
+    const groups = coll.groups || [];
+    const firstGroup = groups[0];
+    const cameras = firstGroup ? Array.from(firstGroup.filesByCamera.keys()) : [];
+    
+    const item = document.createElement('div');
+    item.className = `clip-item event-item ${typeClass}-item`;
+    item.dataset.groupid = coll.id;
+    item.dataset.type = 'collection';
+    
+    const subline = `${groups.length} segment${groups.length !== 1 ? 's' : ''} · ${Math.max(1, cameras.length)} cam`;
+    const badgeClass = typeClass;
+    const badgeLabel = typeClass.charAt(0).toUpperCase() + typeClass.slice(1);
+    
+    item.innerHTML = `
+        <div class="clip-meta clip-meta-full">
+            <div class="clip-title">${escapeHtml(title)}</div>
+            <div class="clip-badges">
+                <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+            </div>
+            <div class="clip-sub">
+                <div>${escapeHtml(subline)}</div>
+            </div>
+        </div>
+    `;
+    
+    item.onclick = () => selectDayCollection(coll.key);
+    return item;
+}
+
+function formatEventTime(eventId) {
+    // eventId format: "2025-12-11_17-58-00"
+    const parts = eventId.split('_');
+    if (parts.length >= 2) {
+        const timePart = parts[1]; // "17-58-00"
+        return timePart.replace(/-/g, ':'); // "17:58:00"
+    }
+    return eventId;
+}
+
+function getTypeLabel(clipType) {
+    switch (clipType) {
+        case 'SentryClips': return 'Sentry';
+        case 'RecentClips': return 'Recent';
+        case 'SavedClips': return 'Saved';
+        default: return clipType || 'Unknown';
+    }
 }
 
 // Close event popout when clicking elsewhere

@@ -472,6 +472,28 @@ canvas, .video-player, .tile-video {
     font-size: 11px;
 }
 
+.clip-item.event-item {
+    margin-left: 12px;
+    border-left: 2px solid rgba(62, 156, 191, 0.4);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.clip-item.recent-item {
+    border-left-color: rgba(76, 175, 80, 0.5);
+}
+
+.clip-item.sentry-item {
+    border-left-color: rgba(244, 67, 54, 0.5);
+}
+
+.clip-item.saved-item {
+    border-left-color: rgba(255, 193, 7, 0.5);
+}
+
+.badge.recent { background: rgba(76, 175, 80, 0.25); color: #81c784; }
+.badge.sentry { background: rgba(244, 67, 54, 0.25); color: #e57373; }
+.badge.saved { background: rgba(255, 193, 7, 0.25); color: #ffd54f; }
+
 .clip-browser-actions {
     display: flex;
     gap: 8px;
