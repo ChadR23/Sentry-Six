@@ -15,16 +15,24 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time s
 
 - **TeslaCam folder ingest**
   - Drag & drop a `TeslaCam` folder (or use the folder picker)
+  - **Hierarchical clip browser** with date picker
+  - Supports **RecentClips**, **SentryClips**, and **SavedClips** folder structures
 - **Multi-camera playback**
   - 6-camera grid layouts (Front/Back/Repeaters/Pillars)
   - Click a tile to **focus** that camera (Esc/click again to exit)
   - Smooth “native video” playback with synced camera playback.
+- **SentryClips & SavedClips support**
+  - Automatically parses `event.json` metadata for each event
+  - Displays **event location on map** using estimated GPS coordinates from event.json
+  - Shows **event reason badges** for SavedClips (e.g., "Auto Emergency Braking", "Collision Detected", "Manual Save")
 - **SEI telemetry (new in this overhaul)**
   - Support for Tesla's new SEI Metadata that was added to HW3 and newer vehicles as part of the 2025 Holiday Update. (Requires 2025.44.25.1 or newer)
   - Dashboard overlay for common signals (speed, gear, steering, blinkers, brake, accelerator, heading, G-force, GPS, etc.)
   - **Metric toggle** (MPH / KM/H)
+  - **Partial SEI support** - clips that only have SEI data for part of the video (e.g., parked then started driving) will show data when available and "No Data" when not
 - **GPS map**
   - Builds a route polyline from SEI GPS points
+  - Shows static location marker for Sentry/Saved events (from event.json)
   - Floating, draggable map panel (Leaflet)
 
 ## What’s intentionally not here (yet)

@@ -363,18 +363,6 @@ function showEventJsonLocation(coll) {
     const latlng = L.latLng(lat, lon);
     mapMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
     
-    // Build popup content
-    let popupContent = '<div class="event-popup">';
-    if (eventMeta.street) popupContent += `<strong>${eventMeta.street}</strong><br>`;
-    if (eventMeta.city) popupContent += `${eventMeta.city}<br>`;
-    if (eventMeta.reason) {
-        const reasonLabel = formatEventReason(eventMeta.reason);
-        popupContent += `<span class="event-reason">${reasonLabel}</span>`;
-    }
-    popupContent += '</div>';
-    
-    mapMarker.bindPopup(popupContent);
-    
     // Center map on location
     map.setView(latlng, 16);
     map.invalidateSize();
