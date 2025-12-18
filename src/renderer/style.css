@@ -335,7 +335,7 @@ canvas, .video-player, .tile-video {
 /* Clip Browser - Liquid Glass */
 .clip-browser {
     position: absolute;
-    top: 20px;
+    top: 50px;
     left: 20px;
     width: min(var(--clips-float-width), calc(100% - 40px));
     max-height: calc(100% - 100px);
@@ -385,7 +385,7 @@ canvas, .video-player, .tile-video {
 
 .clips-mode-collapsed .clip-browser {
     position: fixed;
-    top: 20px;
+    top: 50px;
     left: 20px;
     width: 44px;
     height: 44px;
@@ -493,6 +493,58 @@ canvas, .video-player, .tile-video {
 .badge.recent { background: rgba(76, 175, 80, 0.25); color: #81c784; }
 .badge.sentry { background: rgba(244, 67, 54, 0.25); color: #e57373; }
 .badge.saved { background: rgba(255, 193, 7, 0.25); color: #ffd54f; }
+
+/* Event reason badges */
+.badge.reason-icon {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.badge.reason-icon svg {
+    width: 12px;
+    height: 12px;
+}
+.badge.reason-icon.warning {
+    background: rgba(255, 152, 0, 0.25);
+    color: #ffb74d;
+}
+.badge.reason-icon.alert {
+    background: rgba(244, 67, 54, 0.25);
+    color: #e57373;
+}
+
+/* Event location marker on map */
+.event-location-marker {
+    background: transparent !important;
+    border: none !important;
+}
+.event-marker-pin {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    animation: marker-bounce 0.5s ease-out;
+}
+@keyframes marker-bounce {
+    0% { transform: translateY(-10px); opacity: 0; }
+    50% { transform: translateY(3px); }
+    100% { transform: translateY(0); opacity: 1; }
+}
+.event-popup {
+    font-size: 12px;
+    line-height: 1.4;
+}
+.event-popup .event-reason {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 6px;
+    background: rgba(244, 67, 54, 0.2);
+    border-radius: 4px;
+    font-size: 10px;
+    color: #e57373;
+}
 
 .clip-browser-actions {
     display: flex;

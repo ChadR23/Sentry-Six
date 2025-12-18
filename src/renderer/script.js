@@ -171,6 +171,239 @@ function stopSteeringAnimation() {
         steeringAnimationId = null;
     }
 }
+
+// Reset dashboard and map to default state (no SEI data)
+function resetDashboardAndMap() {
+    // Reset speed
+    if (speedValue) speedValue.textContent = '--';
+    const unitEl = $('speedUnit');
+    if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+    
+    // Reset gear
+    if (gearState) {
+        gearState.textContent = '--';
+        gearState.classList.remove('active');
+    }
+    
+    // Reset blinkers
+    blinkLeft?.classList.remove('active', 'paused');
+    blinkRight?.classList.remove('active', 'paused');
+    
+    // Reset steering wheel
+    stopSteeringAnimation();
+    steeringPosition = 0;
+    steeringVelocity = 0;
+    steeringTarget = 0;
+    smoothedTarget = 0;
+    if (steeringIcon) steeringIcon.style.transform = 'rotate(0deg)';
+    
+    // Reset autopilot
+    const autosteerIcon = $('autosteerIcon');
+    if (autosteerIcon) autosteerIcon.classList.remove('active');
+    if (apText) {
+        apText.textContent = 'No Data';
+        apText.classList.remove('active');
+    }
+    
+    // Reset brake and accelerator
+    brakeIcon?.classList.remove('active');
+    const accelPedal = $('accelPedal');
+    if (accelPedal) accelPedal.classList.remove('active');
+    
+    // Reset extra data
+    if (valSeq) valSeq.textContent = '--';
+    if (valLat) valLat.textContent = '--';
+    if (valLon) valLon.textContent = '--';
+    if (valHeading) valHeading.textContent = '--';
+    
+    // Reset G-force meter
+    if (gforceDot) {
+        gforceDot.setAttribute('cx', 30);
+        gforceDot.setAttribute('cy', 30);
+        gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
+    }
+    if (gforceTrail1) { gforceTrail1.setAttribute('cx', 30); gforceTrail1.setAttribute('cy', 30); }
+    if (gforceTrail2) { gforceTrail2.setAttribute('cx', 30); gforceTrail2.setAttribute('cy', 30); }
+    if (gforceTrail3) { gforceTrail3.setAttribute('cx', 30); gforceTrail3.setAttribute('cy', 30); }
+    gforceHistory.length = 0;
+    if (gforceX) { gforceX.textContent = '0.0'; gforceX.classList.remove('positive', 'negative', 'high'); }
+    if (gforceY) { gforceY.textContent = '0.0'; gforceY.classList.remove('positive', 'negative', 'high'); }
+    
+    // Reset compass
+    if (compassNeedle) compassNeedle.setAttribute('transform', 'rotate(0 30 30)');
+    if (compassValue) compassValue.textContent = '--';
+    
+    // Reset map
+    if (mapMarker) {
+        mapMarker.remove();
+        mapMarker = null;
+    }
+    if (mapPolyline) {
+        mapPolyline.remove();
+        mapPolyline = null;
+    }
+    mapPath = [];
+    currentMapArrowRotation = 0;
+    
+    // Clear SEI data cache and tracking flags
+    if (nativeVideo) {
+        nativeVideo.seiData = [];
+        nativeVideo.mapPath = [];
+        nativeVideo.lastSeiTimeMs = -Infinity;
+        nativeVideo.dashboardReset = false;
+    }
+}
+
+// Reset only dashboard elements (not map - preserve event.json marker)
+function resetDashboardOnly() {
+    // Reset speed
+    if (speedValue) speedValue.textContent = '--';
+    const unitEl = $('speedUnit');
+    if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+    
+    // Reset gear
+    if (gearState) {
+        gearState.textContent = '--';
+        gearState.classList.remove('active');
+    }
+    
+    // Reset blinkers
+    blinkLeft?.classList.remove('active', 'paused');
+    blinkRight?.classList.remove('active', 'paused');
+    
+    // Reset steering wheel
+    stopSteeringAnimation();
+    steeringPosition = 0;
+    steeringVelocity = 0;
+    steeringTarget = 0;
+    smoothedTarget = 0;
+    if (steeringIcon) steeringIcon.style.transform = 'rotate(0deg)';
+    
+    // Reset autopilot
+    const autosteerIcon = $('autosteerIcon');
+    if (autosteerIcon) autosteerIcon.classList.remove('active');
+    if (apText) {
+        apText.textContent = 'No Data';
+        apText.classList.remove('active');
+    }
+    
+    // Reset brake and accelerator
+    brakeIcon?.classList.remove('active');
+    const accelPedal = $('accelPedal');
+    if (accelPedal) accelPedal.classList.remove('active');
+    
+    // Reset extra data
+    if (valSeq) valSeq.textContent = '--';
+    if (valLat) valLat.textContent = '--';
+    if (valLon) valLon.textContent = '--';
+    if (valHeading) valHeading.textContent = '--';
+    
+    // Reset G-force meter
+    if (gforceDot) {
+        gforceDot.setAttribute('cx', 30);
+        gforceDot.setAttribute('cy', 30);
+        gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
+    }
+    if (gforceTrail1) { gforceTrail1.setAttribute('cx', 30); gforceTrail1.setAttribute('cy', 30); }
+    if (gforceTrail2) { gforceTrail2.setAttribute('cx', 30); gforceTrail2.setAttribute('cy', 30); }
+    if (gforceTrail3) { gforceTrail3.setAttribute('cx', 30); gforceTrail3.setAttribute('cy', 30); }
+    gforceHistory.length = 0;
+    if (gforceX) { gforceX.textContent = '0.0'; gforceX.classList.remove('positive', 'negative', 'high'); }
+    if (gforceY) { gforceY.textContent = '0.0'; gforceY.classList.remove('positive', 'negative', 'high'); }
+    
+    // Reset compass
+    if (compassNeedle) compassNeedle.setAttribute('transform', 'rotate(0 30 30)');
+    if (compassValue) compassValue.textContent = '--';
+    
+    // Note: Map is NOT reset here - preserves event.json static marker
+}
+
+// Show a static map marker from event.json location data (for Sentry/Saved clips)
+function showEventJsonLocation(coll) {
+    if (!map || !coll?.groups?.length) return;
+    
+    // Get eventMeta from any group in the collection
+    let eventMeta = null;
+    for (const g of coll.groups) {
+        if (g.eventMeta) {
+            eventMeta = g.eventMeta;
+            break;
+        }
+    }
+    
+    if (!eventMeta) return;
+    
+    // Parse coordinates
+    const lat = parseFloat(eventMeta.est_lat);
+    const lon = parseFloat(eventMeta.est_lon);
+    
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001)) {
+        return; // Invalid coordinates
+    }
+    
+    console.log('Showing event.json location:', lat, lon, eventMeta.street || '', eventMeta.city || '');
+    
+    // Store event metadata for display
+    state.collection.eventMeta = eventMeta;
+    
+    // Create a static marker icon (different from moving GPS arrow)
+    const eventIcon = L.divIcon({
+        className: 'event-location-marker',
+        html: `<div class="event-marker-pin">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="#e53935">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+        </div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+    });
+    
+    // Create marker and add popup with location info
+    const latlng = L.latLng(lat, lon);
+    mapMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
+    
+    // Build popup content
+    let popupContent = '<div class="event-popup">';
+    if (eventMeta.street) popupContent += `<strong>${eventMeta.street}</strong><br>`;
+    if (eventMeta.city) popupContent += `${eventMeta.city}<br>`;
+    if (eventMeta.reason) {
+        const reasonLabel = formatEventReason(eventMeta.reason);
+        popupContent += `<span class="event-reason">${reasonLabel}</span>`;
+    }
+    popupContent += '</div>';
+    
+    mapMarker.bindPopup(popupContent);
+    
+    // Center map on location
+    map.setView(latlng, 16);
+    map.invalidateSize();
+}
+
+// Format event reason for display
+function formatEventReason(reason) {
+    const reasonMap = {
+        'sentry_aware_object_detection': 'Object Detected',
+        'vehicle_auto_emergency_braking': 'Auto Emergency Braking',
+        'user_interaction_dashcam_icon_tapped': 'Manual Save',
+        'user_interaction_dashcam_panel_save': 'Manual Save',
+        'user_interaction_honk': 'Honk Triggered',
+        'sentry_aware_accel': 'Acceleration Detected',
+        'collision': 'Collision Detected',
+        'user_interaction_dashcam': 'Manual Save'
+    };
+    return reasonMap[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Get icon for event reason (returns SVG or null)
+function getEventReasonIcon(reason) {
+    const icons = {
+        'sentry_aware_object_detection': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>',
+        'vehicle_auto_emergency_braking': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.83L19.13 19H4.87L12 5.83zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z"/></svg>',
+        'collision': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.83L19.13 19H4.87L12 5.83zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z"/></svg>'
+    };
+    return icons[reason] || null;
+}
 const apText = $('apText');
 const brakeIcon = $('brakeIcon');
 const toggleExtra = $('toggleExtra');
@@ -951,8 +1184,9 @@ function buildTeslaCamIndex(files, directoryName = null) {
         const filename = rest[rest.length - 1] || file.name;
         const lowerName = String(filename || '').toLowerCase();
 
-        // Sentry event assets (event.json / event.png / event.mp4)
-        if (tag.toLowerCase() === 'sentryclips' && rest.length >= 2 && (lowerName === 'event.json' || lowerName === 'event.png' || lowerName === 'event.mp4')) {
+        // Event assets (event.json / event.png / event.mp4) for SentryClips and SavedClips
+        const tagLowerAsset = tag.toLowerCase();
+        if ((tagLowerAsset === 'sentryclips' || tagLowerAsset === 'savedclips') && rest.length >= 2 && (lowerName === 'event.json' || lowerName === 'event.png' || lowerName === 'event.mp4')) {
             const eventId = rest[0];
             const key = `${tag}/${eventId}`;
             if (!eventAssetsByKey.has(key)) eventAssetsByKey.set(key, {});
@@ -1275,6 +1509,15 @@ function createClipItem(coll, title, typeClass) {
     const firstGroup = groups[0];
     const cameras = firstGroup ? Array.from(firstGroup.filesByCamera.keys()) : [];
     
+    // Get eventMeta for reason icon
+    let eventMeta = null;
+    for (const g of groups) {
+        if (g.eventMeta) {
+            eventMeta = g.eventMeta;
+            break;
+        }
+    }
+    
     const item = document.createElement('div');
     item.className = `clip-item event-item ${typeClass}-item`;
     item.dataset.groupid = coll.id;
@@ -1284,11 +1527,20 @@ function createClipItem(coll, title, typeClass) {
     const badgeClass = typeClass;
     const badgeLabel = typeClass.charAt(0).toUpperCase() + typeClass.slice(1);
     
+    // Build reason badge for SavedClips only (as text, not icon)
+    let reasonBadge = '';
+    if (typeClass === 'saved' && eventMeta?.reason) {
+        const reasonLabel = formatEventReason(eventMeta.reason);
+        const alertClass = eventMeta.reason.includes('emergency') || eventMeta.reason.includes('collision') ? 'alert' : 'warning';
+        reasonBadge = `<span class="badge reason-icon ${alertClass}" title="${escapeHtml(eventMeta.reason)}">${escapeHtml(reasonLabel)}</span>`;
+    }
+    
     item.innerHTML = `
         <div class="clip-meta clip-meta-full">
             <div class="clip-title">${escapeHtml(title)}</div>
             <div class="clip-badges">
                 <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+                ${reasonBadge}
             </div>
             <div class="clip-sub">
                 <div>${escapeHtml(subline)}</div>
@@ -1417,6 +1669,10 @@ function selectSentryCollection(collectionId) {
     // Ensure a clean start. If we came from an actively playing clip, segment loading clears timers,
     // which can leave playing=true but no timer loop. Pause first so autoplay can reliably start.
     pause();
+    
+    // Reset dashboard and map when switching clips (clears stale SEI data)
+    resetDashboardAndMap();
+    
     state.collection.active = {
         ...c,
         currentSegmentIdx: -1,
@@ -1459,6 +1715,12 @@ function selectDayCollection(dayKey) {
     setMode('collection');
     pause();
     pauseNative();
+
+    // Reset dashboard and map when switching clips (clears stale SEI data)
+    resetDashboardAndMap();
+    
+    // Show event.json location on map for Sentry/Saved clips (if available)
+    showEventJsonLocation(coll);
 
     // Reset native video state for new collection
     nativeVideo.currentSegmentIdx = -1;
@@ -2636,7 +2898,9 @@ const nativeVideo = {
     mapPath: [],            // GPS path for map polyline
     segmentDurations: [],   // Actual duration of each segment in seconds
     cumulativeStarts: [],   // Cumulative start time of each segment in seconds
-    isTransitioning: false  // Guard to prevent double-triggering segment transitions
+    isTransitioning: false, // Guard to prevent double-triggering segment transitions
+    lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
+    dashboardReset: false   // Track if dashboard has been reset for no-SEI section
 };
 
 function initNativeVideoPlayback() {
@@ -2692,6 +2956,18 @@ function onMasterTimeUpdate() {
     const sei = findSeiAtTime(currentVidMs);
     if (sei) {
         updateVisualization(sei);
+        nativeVideo.lastSeiTimeMs = currentVidMs;
+        nativeVideo.dashboardReset = false;
+    } else {
+        // No SEI data at this timestamp - check if we should show "no data" state
+        // Only reset if we haven't had SEI data for 2+ seconds of video time
+        const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;
+        const timeSinceLastSei = currentVidMs - lastSei;
+        if (timeSinceLastSei > 2000 && !nativeVideo.dashboardReset) {
+            // Show "no data" state for dashboard (but keep any event.json map marker)
+            resetDashboardOnly();
+            nativeVideo.dashboardReset = true;
+        }
     }
     
     // For day collections, calculate position using actual segment durations
