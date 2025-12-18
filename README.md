@@ -34,7 +34,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time s
 ## Requirements
 
 - **Node.js 18+**
-- macOS / Windows / Linux
+- macOS / Windows
 
 ## Run from source
 
