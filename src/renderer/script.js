@@ -3093,6 +3093,12 @@ async function loadNativeSegment(segIdx) {
     nativeVideo.currentSegmentIdx = segIdx;
     state.collection.active.currentSegmentIdx = segIdx;
     
+    // Clear stale SEI data immediately to prevent old segment data from showing during transition
+    nativeVideo.seiData = [];
+    nativeVideo.mapPath = [];
+    nativeVideo.lastSeiTimeMs = -Infinity;
+    nativeVideo.dashboardReset = false;
+    
     // Clean up old URLs
     videoUrls.forEach((url, vid) => {
         URL.revokeObjectURL(url);
