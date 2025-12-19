@@ -1,5 +1,5 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
-import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY } from './scripts/lib/storageKeys.js';
+import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY, DEFAULT_FOLDER_KEY, USE_METRIC_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
 import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
@@ -442,7 +442,7 @@ const GFORCE_HISTORY_MAX = 3;
 // Constants
 const MPS_TO_MPH = 2.23694;
 const MPS_TO_KMH = 3.6;
-let useMetric = localStorage.getItem('useMetric') === 'true';
+let useMetric = localStorage.getItem(USE_METRIC_KEY) === 'true';
 
 function notify(message, opts = {}) {
     const type = opts.type || 'info'; // 'info' | 'success' | 'warn' | 'error'
@@ -620,15 +620,21 @@ function hasValidGps(sei) {
         updateMapVisibility();
     };
 
-    // Metric toggle
+    // Metric toggle (hidden, controlled via settings modal)
     const metricToggle = $('metricToggle');
     if (metricToggle) {
         metricToggle.checked = useMetric;
         metricToggle.onchange = () => {
             useMetric = metricToggle.checked;
-            localStorage.setItem('useMetric', useMetric ? 'true' : 'false');
+            localStorage.setItem(USE_METRIC_KEY, useMetric ? 'true' : 'false');
+            // Update speed unit display
+            const unitEl = $('speedUnit');
+            if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
         };
     }
+
+    // Initialize Settings Modal
+    initSettingsModal();
 
     // Playback speed selector
     if (speedSelect) {
@@ -996,6 +1002,180 @@ function initDraggablePanels() {
 
 // Initialize draggable panels after DOM is ready
 initDraggablePanels();
+
+// Settings Modal
+function initSettingsModal() {
+    const settingsBtn = $('settingsBtn');
+    const settingsModal = $('settingsModal');
+    const closeSettingsModal = $('closeSettingsModal');
+    const closeSettingsBtn = $('closeSettingsBtn');
+    
+    // Settings toggles in modal
+    const settingsDashboardToggle = $('settingsDashboardToggle');
+    const settingsMapToggle = $('settingsMapToggle');
+    const settingsMetricToggle = $('settingsMetricToggle');
+    
+    // Original hidden toggles
+    const dashboardToggle = $('dashboardToggle');
+    const mapToggle = $('mapToggle');
+    const metricToggle = $('metricToggle');
+    
+    // Default folder elements
+    const defaultFolderPath = $('defaultFolderPath');
+    const browseDefaultFolderBtn = $('browseDefaultFolderBtn');
+    const clearDefaultFolderBtn = $('clearDefaultFolderBtn');
+    const defaultFolderStatus = $('defaultFolderStatus');
+    
+    // Initialize settings values from storage
+    if (settingsDashboardToggle) {
+        settingsDashboardToggle.checked = state.ui.dashboardEnabled;
+    }
+    if (settingsMapToggle) {
+        settingsMapToggle.checked = state.ui.mapEnabled;
+    }
+    if (settingsMetricToggle) {
+        settingsMetricToggle.checked = useMetric;
+    }
+    
+    // Load saved default folder
+    const savedFolder = localStorage.getItem(DEFAULT_FOLDER_KEY);
+    if (savedFolder && defaultFolderPath) {
+        defaultFolderPath.value = savedFolder;
+    }
+    
+    // Open settings modal
+    if (settingsBtn) {
+        settingsBtn.onclick = (e) => {
+            e.preventDefault();
+            if (settingsModal) {
+                // Sync current values to settings toggles
+                if (settingsDashboardToggle) settingsDashboardToggle.checked = state.ui.dashboardEnabled;
+                if (settingsMapToggle) settingsMapToggle.checked = state.ui.mapEnabled;
+                if (settingsMetricToggle) settingsMetricToggle.checked = useMetric;
+                settingsModal.classList.remove('hidden');
+            }
+        };
+    }
+    
+    // Close settings modal functions
+    function closeSettings() {
+        if (settingsModal) settingsModal.classList.add('hidden');
+    }
+    
+    if (closeSettingsModal) closeSettingsModal.onclick = closeSettings;
+    if (closeSettingsBtn) closeSettingsBtn.onclick = closeSettings;
+    
+    // Close on backdrop click
+    if (settingsModal) {
+        settingsModal.onclick = (e) => {
+            if (e.target === settingsModal) closeSettings();
+        };
+    }
+    
+    // Dashboard toggle in settings
+    if (settingsDashboardToggle) {
+        settingsDashboardToggle.onchange = () => {
+            const checked = settingsDashboardToggle.checked;
+            if (dashboardToggle) {
+                dashboardToggle.checked = checked;
+                dashboardToggle.dispatchEvent(new Event('change'));
+            }
+        };
+    }
+    
+    // Map toggle in settings
+    if (settingsMapToggle) {
+        settingsMapToggle.onchange = () => {
+            const checked = settingsMapToggle.checked;
+            if (mapToggle) {
+                mapToggle.checked = checked;
+                mapToggle.dispatchEvent(new Event('change'));
+            }
+        };
+    }
+    
+    // Metric toggle in settings
+    if (settingsMetricToggle) {
+        settingsMetricToggle.onchange = () => {
+            const checked = settingsMetricToggle.checked;
+            if (metricToggle) {
+                metricToggle.checked = checked;
+                metricToggle.dispatchEvent(new Event('change'));
+            }
+        };
+    }
+    
+    // Browse for default folder
+    if (browseDefaultFolderBtn) {
+        browseDefaultFolderBtn.onclick = async (e) => {
+            e.preventDefault();
+            if (window.electronAPI?.openFolder) {
+                try {
+                    const folderPath = await window.electronAPI.openFolder();
+                    if (folderPath) {
+                        localStorage.setItem(DEFAULT_FOLDER_KEY, folderPath);
+                        if (defaultFolderPath) defaultFolderPath.value = folderPath;
+                        if (defaultFolderStatus) {
+                            defaultFolderStatus.textContent = 'Default folder saved';
+                            defaultFolderStatus.className = 'folder-status success';
+                            setTimeout(() => {
+                                defaultFolderStatus.textContent = '';
+                                defaultFolderStatus.className = 'folder-status';
+                            }, 3000);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to select folder:', err);
+                    if (defaultFolderStatus) {
+                        defaultFolderStatus.textContent = 'Failed to select folder';
+                        defaultFolderStatus.className = 'folder-status error';
+                    }
+                }
+            } else {
+                if (defaultFolderStatus) {
+                    defaultFolderStatus.textContent = 'Folder selection requires Electron';
+                    defaultFolderStatus.className = 'folder-status error';
+                }
+            }
+        };
+    }
+    
+    // Clear default folder
+    if (clearDefaultFolderBtn) {
+        clearDefaultFolderBtn.onclick = (e) => {
+            e.preventDefault();
+            localStorage.removeItem(DEFAULT_FOLDER_KEY);
+            if (defaultFolderPath) defaultFolderPath.value = '';
+            if (defaultFolderStatus) {
+                defaultFolderStatus.textContent = 'Default folder cleared';
+                defaultFolderStatus.className = 'folder-status';
+                setTimeout(() => {
+                    defaultFolderStatus.textContent = '';
+                }, 2000);
+            }
+        };
+    }
+}
+
+// Auto-load default folder on startup
+async function loadDefaultFolderOnStartup() {
+    const savedFolder = localStorage.getItem(DEFAULT_FOLDER_KEY);
+    if (savedFolder && window.electronAPI?.readDir) {
+        try {
+            console.log('Auto-loading default TeslaCam folder:', savedFolder);
+            baseFolderPath = savedFolder;
+            showLoading('Loading default folder...', 'Looking for TeslaCam clips');
+            await traverseDirectoryElectron(savedFolder);
+        } catch (err) {
+            hideLoading();
+            console.error('Failed to load default folder:', err);
+            // Don't show error - folder might have been moved/deleted
+        }
+    }
+}
+
+// Call after a short delay to allow UI to initialize
+setTimeout(loadDefaultFolderOnStartup, 500);
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once
