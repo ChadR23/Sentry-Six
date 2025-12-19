@@ -4591,10 +4591,15 @@ async function checkFFmpegAvailability() {
             exportState.ffmpegAvailable = result.available;
             
             if (result.available) {
-                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg available</span>';
+                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg ready</span>';
                 if (startBtn) startBtn.disabled = false;
             } else {
-                statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Please install FFmpeg or place it in ffmpeg_bin folder.</span>';
+                const isMac = navigator.platform.toLowerCase().includes('mac');
+                if (isMac) {
+                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg required. Run in Terminal: <code style="background:#333;padding:2px 6px;border-radius:3px;user-select:all;">brew install ffmpeg</code></span>';
+                } else {
+                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Place ffmpeg.exe in the ffmpeg_bin folder.</span>';
+                }
                 if (startBtn) startBtn.disabled = true;
             }
         } else {

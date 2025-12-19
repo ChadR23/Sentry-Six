@@ -31,27 +31,88 @@ function createWindow() {
 // ============================================================
 function findFFmpegPath() {
   const isMac = process.platform === 'darwin';
-  const paths = isMac ? [
-    path.join(__dirname, '..', 'ffmpeg_bin', 'mac', 'ffmpeg'),
-    path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffmpeg'),
-    '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg', 'ffmpeg'
-  ] : [
-    path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg.exe'),
-    path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg'),
-    path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'),
-    path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'),
-    'ffmpeg', '/usr/bin/ffmpeg'
-  ];
+  const isWin = process.platform === 'win32';
+  
+  // Build list of paths to check
+  const paths = [];
+  
+  if (isMac) {
+    // macOS: Check common install locations
+    // Electron apps don't inherit shell PATH, so we check explicit paths
+    const macPaths = [
+      '/opt/homebrew/bin/ffmpeg',  // Homebrew Apple Silicon
+      '/usr/local/bin/ffmpeg',      // Homebrew Intel Mac
+      '/opt/local/bin/ffmpeg',      // MacPorts
+      '/usr/bin/ffmpeg',            // System
+      // Also check user's local bin
+      path.join(os.homedir(), '.local', 'bin', 'ffmpeg'),
+      path.join(os.homedir(), 'bin', 'ffmpeg')
+    ];
+    
+    // Log what we're checking for debugging
+    console.log('🍎 macOS detected, checking FFmpeg paths:');
+    for (const p of macPaths) {
+      const exists = fs.existsSync(p);
+      console.log(`   ${exists ? '✓' : '✗'} ${p}`);
+      if (exists) paths.push(p);
+    }
+    
+    // If no explicit paths found, still add them for spawn check (might be symlinked)
+    if (paths.length === 0) {
+      paths.push(...macPaths);
+    }
+  } else if (isWin) {
+    // Windows: Check bundled paths first, then system
+    paths.push(
+      path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg.exe'),
+      path.join(__dirname, 'ffmpeg_bin', 'ffmpeg.exe'),
+      path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'),
+      path.join(app.getAppPath(), 'ffmpeg_bin', 'ffmpeg.exe'),
+      path.join(app.getAppPath(), '..', 'ffmpeg_bin', 'ffmpeg.exe')
+    );
+  } else {
+    // Linux: Check bundled paths and system paths
+    paths.push(
+      path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg'),
+      path.join(__dirname, 'ffmpeg_bin', 'ffmpeg'),
+      path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'),
+      '/usr/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg'
+    );
+  }
+  
+  // Always try PATH as last resort
+  paths.push('ffmpeg');
+
+  console.log('🔍 Searching for FFmpeg in:', paths);
 
   for (const p of paths) {
     try {
-      if (spawnSync(p, ['-version'], { timeout: 5000, windowsHide: true }).status === 0) {
+      // First check if file exists (skip for bare 'ffmpeg' which relies on PATH)
+      const exists = p === 'ffmpeg' || fs.existsSync(p);
+      console.log(`  Checking ${p}: exists=${exists}`);
+      
+      if (!exists) continue;
+      
+      const result = spawnSync(p, ['-version'], { 
+        timeout: 5000, 
+        windowsHide: true,
+        encoding: 'utf8',
+        shell: true  // Use shell on macOS to handle symlinks properly
+      });
+      
+      console.log(`  Spawn result: status=${result.status}, error=${result.error?.message || 'none'}`);
+      
+      if (result.status === 0) {
         console.log(`✅ Found FFmpeg at: ${p}`);
         return p;
       }
-    } catch {}
+    } catch (err) {
+      console.log(`  Error checking ${p}: ${err.message}`);
+    }
   }
-  console.warn('❌ FFmpeg not found');
+  
+  console.warn('❌ FFmpeg not found in any of the checked paths');
   return null;
 }
 
