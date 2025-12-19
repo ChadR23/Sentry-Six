@@ -1,5 +1,5 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
-import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY, DEFAULT_FOLDER_KEY, USE_METRIC_KEY } from './scripts/lib/storageKeys.js';
+import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY, DEFAULT_FOLDER_KEY, USE_METRIC_KEY, KEYBINDS_KEY, DISABLE_AUTO_UPDATE_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
 import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
@@ -1155,7 +1155,255 @@ function initSettingsModal() {
             }
         };
     }
+    
+    // Initialize keybind settings
+    initKeybindSettings();
+    
+    // Advanced settings toggle
+    const advancedSettingsToggle = $('advancedSettingsToggle');
+    const advancedSettingsSection = $('advancedSettingsSection');
+    
+    if (advancedSettingsToggle && advancedSettingsSection) {
+        advancedSettingsToggle.onclick = (e) => {
+            e.preventDefault();
+            const isExpanded = advancedSettingsSection.classList.toggle('hidden');
+            advancedSettingsToggle.classList.toggle('expanded', !advancedSettingsSection.classList.contains('hidden'));
+        };
+    }
+    
+    // Disable auto-update toggle
+    const settingsDisableAutoUpdate = $('settingsDisableAutoUpdate');
+    if (settingsDisableAutoUpdate) {
+        // Load saved value
+        settingsDisableAutoUpdate.checked = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY) === 'true';
+        
+        settingsDisableAutoUpdate.onchange = () => {
+            localStorage.setItem(DISABLE_AUTO_UPDATE_KEY, settingsDisableAutoUpdate.checked ? 'true' : 'false');
+        };
+    }
 }
+
+// Keybind System
+const keybindActions = {
+    playPause: () => {
+        const playBtn = $('playBtn');
+        if (playBtn && !playBtn.disabled) playBtn.click();
+    },
+    skipForward: () => {
+        skipSeconds(15);
+    },
+    skipBackward: () => {
+        skipSeconds(-15);
+    },
+    toggleDash: () => {
+        const dashboardToggle = $('dashboardToggle');
+        if (dashboardToggle) {
+            dashboardToggle.checked = !dashboardToggle.checked;
+            dashboardToggle.dispatchEvent(new Event('change'));
+            // Sync settings modal toggle
+            const settingsDashboardToggle = $('settingsDashboardToggle');
+            if (settingsDashboardToggle) settingsDashboardToggle.checked = dashboardToggle.checked;
+        }
+    },
+    toggleMap: () => {
+        const mapToggle = $('mapToggle');
+        if (mapToggle) {
+            mapToggle.checked = !mapToggle.checked;
+            mapToggle.dispatchEvent(new Event('change'));
+            // Sync settings modal toggle
+            const settingsMapToggle = $('settingsMapToggle');
+            if (settingsMapToggle) settingsMapToggle.checked = mapToggle.checked;
+        }
+    },
+    toggleMetric: () => {
+        const metricToggle = $('metricToggle');
+        if (metricToggle) {
+            metricToggle.checked = !metricToggle.checked;
+            metricToggle.dispatchEvent(new Event('change'));
+            // Sync settings modal toggle
+            const settingsMetricToggle = $('settingsMetricToggle');
+            if (settingsMetricToggle) settingsMetricToggle.checked = metricToggle.checked;
+        }
+    },
+    toggleClips: () => {
+        const clipsCollapseBtn = $('clipsCollapseBtn');
+        if (clipsCollapseBtn) clipsCollapseBtn.click();
+    }
+};
+
+// Load keybinds from storage
+function loadKeybinds() {
+    try {
+        const saved = localStorage.getItem(KEYBINDS_KEY);
+        return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+        console.error('Failed to load keybinds:', e);
+        return {};
+    }
+}
+
+// Save keybinds to storage
+function saveKeybinds(keybinds) {
+    localStorage.setItem(KEYBINDS_KEY, JSON.stringify(keybinds));
+}
+
+// Format a key event into a readable string
+function formatKeyEvent(e) {
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
+    
+    // Get the key name
+    let key = e.key;
+    if (key === ' ') key = 'Space';
+    else if (key === 'ArrowUp') key = '↑';
+    else if (key === 'ArrowDown') key = '↓';
+    else if (key === 'ArrowLeft') key = '←';
+    else if (key === 'ArrowRight') key = '→';
+    else if (key.length === 1) key = key.toUpperCase();
+    
+    // Don't add modifier keys as the main key
+    if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+        parts.push(key);
+    }
+    
+    return parts.join(' + ');
+}
+
+// Create a unique key identifier for matching
+function getKeyIdentifier(e) {
+    const mods = [];
+    if (e.ctrlKey) mods.push('ctrl');
+    if (e.altKey) mods.push('alt');
+    if (e.shiftKey) mods.push('shift');
+    if (e.metaKey) mods.push('meta');
+    mods.push(e.code || e.key);
+    return mods.join('+').toLowerCase();
+}
+
+// Currently recording keybind input
+let recordingKeybindInput = null;
+
+// Initialize keybind settings UI
+function initKeybindSettings() {
+    const keybinds = loadKeybinds();
+    const keybindInputs = document.querySelectorAll('.keybind-input');
+    const keybindClears = document.querySelectorAll('.keybind-clear');
+    
+    // Populate existing keybinds
+    keybindInputs.forEach(input => {
+        const action = input.dataset.action;
+        if (keybinds[action]) {
+            input.value = keybinds[action].display;
+        }
+    });
+    
+    // Handle keybind input focus (start recording)
+    keybindInputs.forEach(input => {
+        input.addEventListener('focus', () => {
+            recordingKeybindInput = input;
+            input.classList.add('recording');
+            input.value = 'Press a key...';
+        });
+        
+        input.addEventListener('blur', () => {
+            if (recordingKeybindInput === input) {
+                input.classList.remove('recording');
+                // Restore previous value if no key was pressed
+                const action = input.dataset.action;
+                const keybinds = loadKeybinds();
+                input.value = keybinds[action]?.display || '';
+                recordingKeybindInput = null;
+            }
+        });
+    });
+    
+    // Handle clear buttons
+    keybindClears.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const action = btn.dataset.action;
+            const keybinds = loadKeybinds();
+            delete keybinds[action];
+            saveKeybinds(keybinds);
+            
+            // Clear the input
+            const input = document.querySelector(`.keybind-input[data-action="${action}"]`);
+            if (input) input.value = '';
+        });
+    });
+}
+
+// Global keyboard event handler for keybind recording and execution
+function handleGlobalKeydown(e) {
+    // If we're recording a keybind
+    if (recordingKeybindInput) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Ignore lone modifier keys
+        if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+            return;
+        }
+        
+        const action = recordingKeybindInput.dataset.action;
+        const display = formatKeyEvent(e);
+        const identifier = getKeyIdentifier(e);
+        
+        // Check for conflicts with other keybinds
+        const keybinds = loadKeybinds();
+        for (const [existingAction, binding] of Object.entries(keybinds)) {
+            if (existingAction !== action && binding.identifier === identifier) {
+                // Remove the conflicting keybind
+                delete keybinds[existingAction];
+                const conflictInput = document.querySelector(`.keybind-input[data-action="${existingAction}"]`);
+                if (conflictInput) conflictInput.value = '';
+            }
+        }
+        
+        // Save the new keybind
+        keybinds[action] = { display, identifier };
+        saveKeybinds(keybinds);
+        
+        // Update UI
+        recordingKeybindInput.value = display;
+        recordingKeybindInput.classList.remove('recording');
+        recordingKeybindInput.blur();
+        recordingKeybindInput = null;
+        return;
+    }
+    
+    // Check if we're in an input field (don't trigger keybinds)
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+    }
+    
+    // Check if settings modal is open (don't trigger keybinds)
+    const settingsModal = $('settingsModal');
+    if (settingsModal && !settingsModal.classList.contains('hidden')) {
+        return;
+    }
+    
+    // Execute keybind action if matched
+    const identifier = getKeyIdentifier(e);
+    const keybinds = loadKeybinds();
+    
+    for (const [action, binding] of Object.entries(keybinds)) {
+        if (binding.identifier === identifier) {
+            e.preventDefault();
+            if (keybindActions[action]) {
+                keybindActions[action]();
+            }
+            return;
+        }
+    }
+}
+
+// Initialize global keybind listener
+document.addEventListener('keydown', handleGlobalKeydown);
 
 // Auto-load default folder on startup
 async function loadDefaultFolderOnStartup() {
@@ -1176,6 +1424,20 @@ async function loadDefaultFolderOnStartup() {
 
 // Call after a short delay to allow UI to initialize
 setTimeout(loadDefaultFolderOnStartup, 500);
+
+// Check for updates on startup (if not disabled in settings)
+function checkForUpdatesOnStartup() {
+    const autoUpdateDisabled = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY) === 'true';
+    if (!autoUpdateDisabled && window.electronAPI?.checkForUpdates) {
+        console.log('Checking for updates...');
+        window.electronAPI.checkForUpdates();
+    } else if (autoUpdateDisabled) {
+        console.log('Auto-update check disabled in settings');
+    }
+}
+
+// Delay update check to allow app to fully initialize
+setTimeout(checkForUpdatesOnStartup, 2000);
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once

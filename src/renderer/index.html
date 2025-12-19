@@ -533,9 +533,89 @@
                     </div>
                     <div id="defaultFolderStatus" class="folder-status"></div>
                 </div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="settings-section">
+                    <h3>Keyboard Shortcuts</h3>
+                    <p class="settings-section-desc">Click on a field and press any key to set a shortcut</p>
+                    <div class="keybind-grid">
+                        <div class="keybind-row">
+                            <span class="keybind-label">Play / Pause</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="playPause" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Skip Forward 15s</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Skip Backward 15s</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Toggle Dashboard</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="toggleDash" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Toggle Map</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="toggleMap" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Toggle MPH / KMH</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="toggleMetric" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row">
+                            <span class="keybind-label">Toggle Clips Panel</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="Not set" readonly>
+                                <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer settings-footer">
+                <button id="advancedSettingsToggle" class="btn btn-secondary advanced-toggle">
+                    <span class="advanced-toggle-text">Advanced</span>
+                    <svg class="advanced-toggle-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
                 <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
+            </div>
+            
+            <!-- Advanced Settings (hidden by default) -->
+            <div id="advancedSettingsSection" class="advanced-settings-section hidden">
+                <div class="settings-section">
+                    <h3>Advanced</h3>
+                    <div class="settings-grid">
+                        <label class="settings-toggle">
+                            <span class="settings-toggle-info">
+                                <span class="settings-toggle-label">Disable Auto-Update Check</span>
+                                <span class="settings-toggle-desc">Prevent automatic update checking on app launch</span>
+                            </span>
+                            <input type="checkbox" id="settingsDisableAutoUpdate">
+                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -2359,3 +2359,129 @@ canvas, .video-player, .tile-video {
 .settings-btn:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+/* Keybind settings */
+.keybind-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.keybind-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.keybind-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    flex: 1;
+}
+
+.keybind-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.keybind-input {
+    width: 120px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.keybind-input:focus {
+    outline: none;
+    border-color: rgba(62, 156, 191, 0.7);
+    background: rgba(62, 156, 191, 0.15);
+    box-shadow: 0 0 0 2px rgba(62, 156, 191, 0.2);
+}
+
+.keybind-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+}
+
+.keybind-input.recording {
+    border-color: rgba(255, 193, 7, 0.7);
+    background: rgba(255, 193, 7, 0.15);
+    animation: keybind-pulse 1s ease-in-out infinite;
+}
+
+@keyframes keybind-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2); }
+    50% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.3); }
+}
+
+.keybind-clear {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.keybind-clear:hover {
+    background: rgba(244, 67, 54, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Advanced Settings */
+.settings-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.advanced-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.advanced-toggle-icon {
+    transition: transform 0.2s ease;
+}
+
+.advanced-toggle.expanded .advanced-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.advanced-settings-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.advanced-settings-section.hidden {
+    display: none;
+}
+
+.advanced-settings-section .settings-section {
+    margin-bottom: 0;
+}
+
+.advanced-settings-section .settings-section h3 {
+    color: rgba(255, 152, 0, 0.8);
+}

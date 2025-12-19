@@ -418,8 +418,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 app.whenReady().then(async () => {
   createWindow();
   
-  // Check for updates on startup
-  setTimeout(() => checkForUpdatesOnStartup(), 2000);
+  // Update check is now triggered by renderer after checking user settings
+  // This allows user to disable auto-update check in settings
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
