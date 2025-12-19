@@ -4828,8 +4828,10 @@ const updateCommitDate = $('updateCommitDate');
 const skipUpdateBtn = $('skipUpdateBtn');
 const installUpdateBtn = $('installUpdateBtn');
 const updateModalFooter = $('updateModalFooter');
+let updateComplete = false; // Flag to prevent dismissing modal after update
 
 function showUpdateModal(updateInfo) {
+    updateComplete = false; // Reset flag when showing modal
     if (!updateModal) return;
     
     if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
@@ -4884,6 +4886,8 @@ async function handleInstallUpdate() {
 }
 
 function showUpdateCompleteState() {
+    updateComplete = true; // Prevent dismissing modal
+    
     // Update progress text
     if (updateProgressText) {
         updateProgressText.textContent = 'Update installed successfully!';
@@ -4940,10 +4944,10 @@ if (installUpdateBtn) {
     installUpdateBtn.addEventListener('click', handleInstallUpdate);
 }
 
-// Close modal when clicking outside
+// Close modal when clicking outside (but not after update is complete)
 if (updateModal) {
     updateModal.addEventListener('click', (e) => {
-        if (e.target === updateModal) {
+        if (e.target === updateModal && !updateComplete) {
             hideUpdateModal();
         }
     });
