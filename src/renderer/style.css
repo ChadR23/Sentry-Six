@@ -150,11 +150,18 @@ canvas, .video-player, .tile-video {
 }
 
 /* Multi focus mode (click a tile to expand; click again / Esc to exit) */
+/* Use visibility:hidden instead of display:none to keep videos playing */
 .multi-cam-grid.focused {
     display: block;
 }
 .multi-cam-grid.focused .multi-tile {
-    display: none;
+    visibility: hidden;
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }
 .multi-cam-grid.focused[data-focus-slot="tl"] .multi-tile[data-slot="tl"],
 .multi-cam-grid.focused[data-focus-slot="tc"] .multi-tile[data-slot="tc"],
@@ -162,14 +169,65 @@ canvas, .video-player, .tile-video {
 .multi-cam-grid.focused[data-focus-slot="bl"] .multi-tile[data-slot="bl"],
 .multi-cam-grid.focused[data-focus-slot="bc"] .multi-tile[data-slot="bc"],
 .multi-cam-grid.focused[data-focus-slot="br"] .multi-tile[data-slot="br"] {
-    display: flex;
+    visibility: visible;
     position: absolute;
+    pointer-events: auto;
+    opacity: 1;
+    width: auto;
+    height: auto;
+    overflow: hidden;
     inset: 10px;
     z-index: 10;
 }
 .multi-cam-grid.focused .multi-label {
     font-size: 12px;
     padding: 6px 10px;
+}
+
+/* Zoom/Pan controls for focused tiles */
+.multi-cam-grid.focused .multi-tile video,
+.multi-cam-grid.focused .multi-tile canvas,
+.multi-cam-grid.focused .immersive-main video,
+.multi-cam-grid.focused .immersive-main canvas,
+.multi-cam-grid.focused .immersive-overlay video,
+.multi-cam-grid.focused .immersive-overlay canvas {
+    transform-origin: center center;
+}
+.multi-cam-grid.focused .multi-tile.zoomed video,
+.multi-cam-grid.focused .multi-tile.zoomed canvas,
+.multi-cam-grid.focused .immersive-main.zoomed video,
+.multi-cam-grid.focused .immersive-main.zoomed canvas,
+.multi-cam-grid.focused .immersive-overlay.zoomed video,
+.multi-cam-grid.focused .immersive-overlay.zoomed canvas {
+    cursor: grab;
+}
+.multi-cam-grid.focused video.panning,
+.multi-cam-grid.focused canvas.panning {
+    cursor: grabbing;
+}
+
+/* Zoom indicator */
+.zoom-indicator {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    z-index: 20;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.zoom-indicator.visible {
+    opacity: 1;
+}
+.zoom-indicator.fading {
+    opacity: 0;
 }
 
 /* Immersive mode - front camera full screen with overlays */
@@ -280,9 +338,15 @@ canvas, .video-player, .tile-video {
 }
 
 /* Immersive focus mode - click an overlay to expand */
+/* Use visibility:hidden instead of display:none to keep videos playing */
 .multi-cam-grid[data-layout-type="immersive"].focused .immersive-main,
 .multi-cam-grid[data-layout-type="immersive"].focused .immersive-overlay {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }
 
 .multi-cam-grid[data-layout-type="immersive"].focused[data-focus-slot="main"] .immersive-main,
@@ -291,7 +355,8 @@ canvas, .video-player, .tile-video {
 .multi-cam-grid[data-layout-type="immersive"].focused[data-focus-slot="overlay_bl"] .immersive-overlay[data-slot="overlay_bl"],
 .multi-cam-grid[data-layout-type="immersive"].focused[data-focus-slot="overlay_bc"] .immersive-overlay[data-slot="overlay_bc"],
 .multi-cam-grid[data-layout-type="immersive"].focused[data-focus-slot="overlay_br"] .immersive-overlay[data-slot="overlay_br"] {
-    display: flex;
+    visibility: visible;
+    pointer-events: auto;
     position: absolute;
     inset: 0;
     width: 100%;
@@ -303,6 +368,7 @@ canvas, .video-player, .tile-video {
     transform: none;
     border-radius: 0;
     opacity: 1;
+    overflow: hidden;
     aspect-ratio: auto;
 }
 

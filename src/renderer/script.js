@@ -747,6 +747,9 @@ function hasValidGps(sei) {
     let lastFocusToggle = 0;
     if (multiCamGrid) {
         multiCamGrid.addEventListener('click', (e) => {
+            // Don't toggle focus if we just finished panning
+            if (zoomPanState.wasPanning) return;
+            
             // Debounce rapid clicks (200ms minimum between toggles)
             const now = Date.now();
             if (now - lastFocusToggle < 200) return;
@@ -848,14 +851,243 @@ function updateMultiLayoutButtons() {
 // Timer for debounced video resync
 let resyncTimer = null;
 
+// Zoom/Pan state for focused tiles
+const zoomPanState = {
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    isPanning: false,
+    wasPanning: false, // Track if we just finished panning (to prevent click)
+    startX: 0,
+    startY: 0,
+    minZoom: 1,
+    maxZoom: 5,
+    indicatorTimeout: null
+};
+
 function clearMultiFocus() {
     state.ui.multiFocusSlot = null;
     if (!multiCamGrid) return;
     multiCamGrid.classList.remove('focused');
     multiCamGrid.removeAttribute('data-focus-slot');
-    // Re-sync all videos after focus change with debouncing
-    scheduleResync();
+    // Reset zoom/pan when exiting focus mode
+    resetZoomPan();
 }
+
+// Reset zoom and pan to default
+function resetZoomPan() {
+    zoomPanState.zoom = 1;
+    zoomPanState.panX = 0;
+    zoomPanState.panY = 0;
+    zoomPanState.isPanning = false;
+    
+    // Reset transform on all video elements in tiles
+    const allTiles = multiCamGrid?.querySelectorAll('.multi-tile, .immersive-main, .immersive-overlay');
+    allTiles?.forEach(tile => {
+        tile.classList.remove('zoomed');
+        const media = tile.querySelector('video, canvas');
+        if (media) {
+            media.style.transform = '';
+            media.classList.remove('panning');
+        }
+        // Remove zoom indicator
+        const indicator = tile.querySelector('.zoom-indicator');
+        if (indicator) indicator.remove();
+    });
+}
+
+// Apply zoom and pan transform to the focused tile's media element
+function applyZoomPan() {
+    if (!state.ui.multiFocusSlot || !multiCamGrid) return;
+    
+    const focusedTile = multiCamGrid.querySelector(
+        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"], ` +
+        `.immersive-main[data-slot="${state.ui.multiFocusSlot}"], ` +
+        `.immersive-overlay[data-slot="${state.ui.multiFocusSlot}"]`
+    );
+    if (!focusedTile) return;
+    
+    const media = focusedTile.querySelector('video, canvas');
+    if (!media) return;
+    
+    // Apply transform
+    media.style.transform = `scale(${zoomPanState.zoom}) translate(${zoomPanState.panX}px, ${zoomPanState.panY}px)`;
+    
+    // Toggle zoomed class
+    if (zoomPanState.zoom > 1) {
+        focusedTile.classList.add('zoomed');
+    } else {
+        focusedTile.classList.remove('zoomed');
+    }
+    
+    // Update zoom indicator
+    updateZoomIndicator(focusedTile);
+}
+
+// Update or create zoom indicator
+function updateZoomIndicator(tile) {
+    let indicator = tile.querySelector('.zoom-indicator');
+    
+    if (zoomPanState.zoom <= 1) {
+        // Remove indicator when at 1x
+        if (indicator) indicator.remove();
+        return;
+    }
+    
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.className = 'zoom-indicator';
+        tile.appendChild(indicator);
+    }
+    
+    indicator.textContent = `${zoomPanState.zoom.toFixed(1)}x`;
+    indicator.classList.add('visible');
+    indicator.classList.remove('fading');
+    
+    // Clear any existing timeout
+    if (zoomPanState.indicatorTimeout) {
+        clearTimeout(zoomPanState.indicatorTimeout);
+    }
+    
+    // Fade out after 1.5 seconds of no activity
+    zoomPanState.indicatorTimeout = setTimeout(() => {
+        indicator.classList.add('fading');
+    }, 1500);
+}
+
+// Handle zoom with mouse wheel
+function handleZoomWheel(e) {
+    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
+    
+    // Only handle zoom when over the focused tile
+    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    if (!focusedTile) return;
+    
+    e.preventDefault();
+    
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    const newZoom = Math.max(zoomPanState.minZoom, Math.min(zoomPanState.maxZoom, zoomPanState.zoom + delta));
+    
+    // If zooming out to 1x, reset pan
+    if (newZoom <= 1) {
+        zoomPanState.zoom = 1;
+        zoomPanState.panX = 0;
+        zoomPanState.panY = 0;
+    } else {
+        zoomPanState.zoom = newZoom;
+        // Constrain pan when zoom changes
+        constrainPan();
+    }
+    
+    applyZoomPan();
+}
+
+// Constrain pan within bounds
+function constrainPan() {
+    if (zoomPanState.zoom <= 1) {
+        zoomPanState.panX = 0;
+        zoomPanState.panY = 0;
+        return;
+    }
+    
+    // Calculate max pan based on zoom level
+    // At higher zoom, you can pan more
+    const maxPan = (zoomPanState.zoom - 1) * 150;
+    zoomPanState.panX = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panX));
+    zoomPanState.panY = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panY));
+}
+
+// Handle pan start
+function handlePanStart(e) {
+    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
+    if (zoomPanState.zoom <= 1) return; // Only pan when zoomed
+    
+    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    if (!focusedTile) return;
+    
+    // Don't pan if clicking on controls or labels
+    if (e.target.closest('.multi-label, button, .zoom-indicator')) return;
+    
+    e.preventDefault();
+    zoomPanState.isPanning = true;
+    zoomPanState.startX = e.clientX - zoomPanState.panX * zoomPanState.zoom;
+    zoomPanState.startY = e.clientY - zoomPanState.panY * zoomPanState.zoom;
+    
+    const media = focusedTile.querySelector('video, canvas');
+    if (media) media.classList.add('panning');
+}
+
+// Handle pan move
+function handlePanMove(e) {
+    if (!zoomPanState.isPanning) return;
+    
+    e.preventDefault();
+    zoomPanState.panX = (e.clientX - zoomPanState.startX) / zoomPanState.zoom;
+    zoomPanState.panY = (e.clientY - zoomPanState.startY) / zoomPanState.zoom;
+    
+    constrainPan();
+    applyZoomPan();
+}
+
+// Handle pan end
+function handlePanEnd(e) {
+    if (!zoomPanState.isPanning) return;
+    
+    zoomPanState.isPanning = false;
+    zoomPanState.wasPanning = true; // Flag to prevent click from triggering
+    
+    // Remove panning cursor
+    const allMedia = multiCamGrid?.querySelectorAll('video.panning, canvas.panning');
+    allMedia?.forEach(m => m.classList.remove('panning'));
+    
+    // Clear the wasPanning flag after a short delay (after click event fires)
+    setTimeout(() => {
+        zoomPanState.wasPanning = false;
+    }, 50);
+}
+
+// Double-click to reset zoom
+function handleZoomReset(e) {
+    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
+    
+    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    if (!focusedTile) return;
+    
+    // Don't reset if clicking on controls
+    if (e.target.closest('.multi-label, button')) return;
+    
+    e.preventDefault();
+    
+    // Toggle between 1x and 2x zoom on double-click
+    if (zoomPanState.zoom > 1) {
+        zoomPanState.zoom = 1;
+        zoomPanState.panX = 0;
+        zoomPanState.panY = 0;
+    } else {
+        zoomPanState.zoom = 2;
+    }
+    
+    applyZoomPan();
+}
+
+// Initialize zoom/pan event listeners
+function initZoomPanListeners() {
+    if (!multiCamGrid) return;
+    
+    // Wheel zoom
+    multiCamGrid.addEventListener('wheel', handleZoomWheel, { passive: false });
+    
+    // Pan with mouse drag
+    multiCamGrid.addEventListener('mousedown', handlePanStart);
+    document.addEventListener('mousemove', handlePanMove);
+    document.addEventListener('mouseup', handlePanEnd);
+    
+    // Double-click to toggle zoom
+    multiCamGrid.addEventListener('dblclick', handleZoomReset);
+}
+
+// Initialize zoom/pan after DOM ready
+initZoomPanListeners();
 
 function toggleMultiFocus(slot) {
     if (!multiCamGrid) return;
@@ -863,11 +1095,12 @@ function toggleMultiFocus(slot) {
         clearMultiFocus();
         return;
     }
+    // Reset zoom when switching to a different tile
+    resetZoomPan();
     state.ui.multiFocusSlot = slot;
     multiCamGrid.classList.add('focused');
     multiCamGrid.setAttribute('data-focus-slot', slot);
-    // Re-sync all videos after focus change with debouncing
-    scheduleResync();
+    // Don't resync videos - let them continue playing normally
 }
 
 // Debounced resync to prevent rapid-fire sync operations
@@ -934,17 +1167,14 @@ function syncMultiVideos(targetTime) {
         if (!vid || vid === nativeVideo.master) return;
         if (!vid.src || vid.readyState < 1) return;
         
-        // Only sync if drift > 0.15s (slightly more tolerance)
+        // Only sync time if drift > 0.15s (slightly more tolerance)
         const drift = Math.abs(vid.currentTime - targetTime);
         if (drift > 0.15) {
             vid.currentTime = targetTime;
         }
         
-        // Also ensure play state matches master
-        const masterPlaying = nativeVideo.master && !nativeVideo.master.paused;
-        if (masterPlaying && vid.paused) {
-            vid.play().catch(() => {});
-        }
+        // Don't force play state here - let playNative/pauseNative handle it
+        // Forcing play on every timeupdate causes race conditions
     });
 }
 
@@ -4641,6 +4871,7 @@ function pauseNative() {
     // Stop steering wheel animation when paused
     stopSteeringAnimation();
 }
+
 
 // Apply playback rate to all video elements
 function applyPlaybackRate(rate) {
