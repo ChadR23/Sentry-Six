@@ -1422,6 +1422,7 @@ canvas, .video-player, .tile-video {
     flex: 1;
     height: 6px;
     -webkit-appearance: none;
+    appearance: none;
     background: rgba(255, 255, 255, 0.15);
     border-radius: 100px;
     outline: none;
@@ -1877,6 +1878,90 @@ canvas, .video-player, .tile-video {
 .ffmpeg-status.unavailable .status-icon::before {
     content: '✗';
     color: #f44336;
+}
+
+/* Export Quality Options */
+.export-quality-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.quality-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.quality-option:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.quality-option:has(input:checked) {
+    background: rgba(62, 156, 191, 0.2);
+    border-color: #3e9cbf;
+}
+
+.quality-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3e9cbf;
+    margin: 0;
+}
+
+.quality-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.quality-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.quality-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.export-size-estimate {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(62, 156, 191, 0.15);
+    border-radius: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+}
+
+/* Export Filename Input */
+.export-filename-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.export-filename-input:focus {
+    outline: none;
+    border-color: #3e9cbf;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.export-filename-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
 }
 
 /* Export Progress */

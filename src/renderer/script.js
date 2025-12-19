@@ -708,17 +708,6 @@ function hasValidGps(sei) {
         };
     }
 
-    // Keyboard shortcuts for export markers
-    document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-        if (e.key === 'i' || e.key === 'I') {
-            e.preventDefault();
-            setExportMarker('start');
-        } else if (e.key === 'o' || e.key === 'O') {
-            e.preventDefault();
-            setExportMarker('end');
-        }
-    });
 
     // Initialize native video playback system
     initNativeVideoPlayback();
@@ -913,12 +902,24 @@ function syncMultiVideos(targetTime) {
     
     Object.entries(videoBySlot).forEach(([slot, vid]) => {
         if (!vid || vid === nativeVideo.master) return;
-        if (!vid.src || vid.readyState < 1) return;
+        if (!vid.src || vid.readyState < 2) return; // Need more data ready
         
-        // Only sync if drift > 0.15s (slightly more tolerance)
-        const drift = Math.abs(vid.currentTime - targetTime);
-        if (drift > 0.15) {
+        const drift = vid.currentTime - targetTime;
+        const absDrift = Math.abs(drift);
+        
+        // Use playbackRate adjustment for small drifts (smoother)
+        // Hard sync only for large drifts > 0.3s
+        if (absDrift > 0.3) {
             vid.currentTime = targetTime;
+            vid.playbackRate = state.ui.playbackRate || 1;
+        } else if (absDrift > 0.05) {
+            // Subtle speed adjustment to catch up/slow down
+            const baseRate = state.ui.playbackRate || 1;
+            const correction = drift > 0 ? 0.97 : 1.03; // Slow down if ahead, speed up if behind
+            vid.playbackRate = baseRate * correction;
+        } else {
+            // Within tolerance - reset to normal rate
+            vid.playbackRate = state.ui.playbackRate || 1;
         }
         
         // Also ensure play state matches master
@@ -1489,14 +1490,26 @@ async function loadDateContent(date) {
         return;
     }
 
+    const dateData = folderStructure.dateHandles.get(date);
+    
+    // Check if we're using Electron (objects with path property) or browser File System API (directory handles)
+    const isElectron = dateData.recent?.path || 
+                       (dateData.sentry.size > 0 && dateData.sentry.values().next().value?.path) ||
+                       (dateData.saved.size > 0 && dateData.saved.values().next().value?.path);
+    
+    if (isElectron) {
+        await loadDateContentElectron(date);
+        return;
+    }
+
+    // Browser File System Access API path
     showLoading('Loading clips...', `Loading ${date}...`);
     await yieldToUI();
 
-    const dateData = folderStructure.dateHandles.get(date);
     const files = [];
 
     // Load RecentClips for this date
-    if (dateData.recent) {
+    if (dateData.recent && typeof dateData.recent.values === 'function') {
         updateLoading('Loading clips...', 'Loading RecentClips...');
         await yieldToUI();
         try {
@@ -1552,8 +1565,11 @@ async function loadDateContent(date) {
     await handleFolderFilesForDate(files, date);
 }
 
-// Load files from a single event folder
+// Load files from a single event folder (browser File System Access API)
 async function loadEventFolder(eventHandle, clipType, eventId, files) {
+    // Skip if this is an Electron path object (handled by loadDateContentElectron)
+    if (eventHandle.path && !eventHandle.values) return;
+    
     try {
         for await (const entry of eventHandle.values()) {
             if (entry.kind === 'file') {
@@ -2573,7 +2589,15 @@ async function ingestSentryEventJson(eventAssetsByKey) {
     for (const [key, assets] of eventAssetsByKey.entries()) {
         if (!assets?.jsonFile) continue;
         try {
-            const text = await assets.jsonFile.text();
+            let text;
+            // Handle both browser File objects and Electron path objects
+            if (assets.jsonFile.isElectronFile && assets.jsonFile.path) {
+                // Electron file - read using fs
+                text = await window.electronAPI.readFile(assets.jsonFile.path);
+            } else {
+                // Browser File object
+                text = await assets.jsonFile.text();
+            }
             const meta = JSON.parse(text);
             eventMetaByKey.set(key, meta);
             // Attach meta to all groups in the same Sentry event folder
@@ -2588,7 +2612,13 @@ async function ingestSentryEventJson(eventAssetsByKey) {
                 const el = clipList?.querySelector?.(`.clip-item[data-groupid="${cssEscape(state.ui.openEventRowId)}"]`);
                 if (el?.classList?.contains('event-open')) populateEventPopout(el, meta);
             }
-        } catch { /* ignore parse errors */ }
+            // Refresh map if this event is currently active (fixes map not showing on auto-select)
+            if (state.collection.active?.groups?.some(g => g.tag === tag && g.eventId === eventId)) {
+                showEventJsonLocation(state.collection.active);
+            }
+        } catch (err) {
+            console.warn(`Error parsing event.json for ${key}:`, err);
+        }
     }
 }
 
@@ -4438,6 +4468,30 @@ function openExportModal() {
     if (progressBar) progressBar.style.width = '0%';
     if (progressText) progressText.textContent = 'Preparing...';
     
+    // Set default filename
+    const filenameInput = $('exportFilename');
+    if (filenameInput) {
+        const date = new Date().toISOString().slice(0, 10);
+        const collName = state.collection.active?.label || 'export';
+        const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+        filenameInput.value = `tesla_${safeName}_${date}`;
+    }
+    
+    // Reset quality to high
+    const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
+    if (highQuality) highQuality.checked = true;
+    
+    // Set up quality and camera change listeners for size estimate
+    const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
+    qualityInputs.forEach(input => {
+        input.onchange = updateExportSizeEstimate;
+    });
+    const cameraInputs = document.querySelectorAll('.camera-checkbox input');
+    cameraInputs.forEach(input => {
+        input.onchange = updateExportSizeEstimate;
+    });
+    updateExportSizeEstimate();
+    
     // Enable start button
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
@@ -4475,6 +4529,52 @@ function updateExportRangeDisplay() {
     if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
     if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
     if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
+}
+
+function updateExportSizeEstimate() {
+    const estimateEl = $('exportSizeEstimate');
+    if (!estimateEl || !state.collection.active) return;
+    
+    // Get duration
+    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
+    
+    // Get selected cameras
+    const cameraCount = document.querySelectorAll('.camera-checkbox input:checked').length || 6;
+    
+    // Calculate grid layout (same logic as main.js)
+    let cols, rows;
+    if (cameraCount <= 1) { cols = 1; rows = 1; }
+    else if (cameraCount === 2) { cols = 2; rows = 1; }
+    else if (cameraCount === 3) { cols = 3; rows = 1; }
+    else if (cameraCount === 4) { cols = 2; rows = 2; }
+    else { cols = 3; rows = 2; }
+    
+    // Get quality settings (per-camera resolution)
+    const quality = document.querySelector('input[name="exportQuality"]:checked')?.value || 'high';
+    const perCam = { mobile: [640, 360], medium: [960, 540], high: [1280, 720], max: [1280, 960] }[quality] || [1280, 720];
+    
+    // Calculate final grid resolution
+    const gridW = perCam[0] * cols;
+    const gridH = perCam[1] * rows;
+    
+    // Estimate MB/min based on resolution (roughly 0.015 MB per 1000 pixels per minute at CRF 23)
+    const pixels = gridW * gridH;
+    const mbPerMin = pixels * 0.000018; // Empirical factor for H.264
+    
+    const estimatedMB = Math.round(durationMin * mbPerMin);
+    const estimatedGB = (estimatedMB / 1024).toFixed(1);
+    
+    let sizeText;
+    if (estimatedMB > 1024) {
+        sizeText = `~${estimatedGB} GB`;
+    } else {
+        sizeText = `~${estimatedMB} MB`;
+    }
+    
+    estimateEl.textContent = `Output: ${gridW}×${gridH} • ${sizeText}`;
 }
 
 async function checkFFmpegAvailability() {
@@ -4528,10 +4628,20 @@ async function startExport() {
         return;
     }
     
+    // Get filename from input
+    const filenameInput = $('exportFilename');
+    let filename = filenameInput?.value?.trim() || `tesla_export_${new Date().toISOString().slice(0, 10)}`;
+    // Ensure .mp4 extension
+    if (!filename.toLowerCase().endsWith('.mp4')) filename += '.mp4';
+    
+    // Get quality option
+    const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
+    const quality = qualityInput?.value || 'high';
+    
     // Get save location
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
-        defaultPath: `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`
+        defaultPath: filename
     });
     
     if (!outputPath) {
@@ -4556,20 +4666,20 @@ async function startExport() {
         const group = groups[i];
         const durationSec = nativeVideo.segmentDurations?.[i] || 60;
         
-        // Get file paths for each camera by constructing full paths
+        // Get file paths for each camera
         const files = {};
         for (const camera of cameras) {
             const entry = group.filesByCamera?.get(camera);
             if (entry?.file) {
-                // Get the relative path and construct full path
-                const relativePath = entry.file.webkitRelativePath || entry.file.name;
-                if (relativePath && baseFolderPath) {
-                    // relativePath is like "TeslaCam/RecentClips/2025-01-01_12-00-00-front.mp4"
-                    // We need to strip the root folder name and append to baseFolderPath
+                // Use direct path if available (Electron), otherwise construct from relative path
+                if (entry.file.path) {
+                    // Electron file object has direct path
+                    files[camera] = entry.file.path;
+                } else if (entry.file.webkitRelativePath && baseFolderPath) {
+                    // Browser File API - construct from relative path
+                    const relativePath = entry.file.webkitRelativePath;
                     const pathParts = relativePath.split('/');
-                    // Remove the first part (folder name) and join
                     const subPath = pathParts.slice(1).join('/');
-                    // Construct full path
                     const fullPath = baseFolderPath + '/' + subPath;
                     files[camera] = fullPath;
                 }
@@ -4649,7 +4759,8 @@ async function startExport() {
             endTimeMs,
             outputPath,
             cameras,
-            baseFolderPath
+            baseFolderPath,
+            quality
         };
         
         console.log('Starting export with data:', exportData);
@@ -4677,6 +4788,9 @@ async function cancelExport() {
     
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;
+    
+    // Close the modal
+    closeExportModalFn();
 }
 
 // Update export button state when collection changes

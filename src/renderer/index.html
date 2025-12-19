@@ -322,13 +322,13 @@
                 <span class="toggle-label">KM/H</span>
             </label>
             <!-- Export controls -->
-            <button id="setStartMarkerBtn" class="control-btn export-marker-btn" title="Set export start point (I)" disabled>
+            <button id="setStartMarkerBtn" class="control-btn export-marker-btn" title="Set export start point" disabled>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
                 </svg>
                 <span class="marker-label">In</span>
             </button>
-            <button id="setEndMarkerBtn" class="control-btn export-marker-btn" title="Set export end point (O)" disabled>
+            <button id="setEndMarkerBtn" class="control-btn export-marker-btn" title="Set export end point" disabled>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
                 </svg>
@@ -410,6 +410,48 @@
                             <span>Right Repeater</span>
                         </label>
                     </div>
+                </div>
+
+                <!-- Export Quality -->
+                <div class="export-section">
+                    <h3>Quality</h3>
+                    <div class="export-quality-options">
+                        <label class="quality-option">
+                            <input type="radio" name="exportQuality" value="mobile">
+                            <div class="quality-info">
+                                <span class="quality-name">Mobile</span>
+                                <span class="quality-desc">640×360 per cam</span>
+                            </div>
+                        </label>
+                        <label class="quality-option">
+                            <input type="radio" name="exportQuality" value="medium">
+                            <div class="quality-info">
+                                <span class="quality-name">Medium</span>
+                                <span class="quality-desc">960×540 per cam</span>
+                            </div>
+                        </label>
+                        <label class="quality-option">
+                            <input type="radio" name="exportQuality" value="high" checked>
+                            <div class="quality-info">
+                                <span class="quality-name">High</span>
+                                <span class="quality-desc">1280×720 per cam</span>
+                            </div>
+                        </label>
+                        <label class="quality-option">
+                            <input type="radio" name="exportQuality" value="max">
+                            <div class="quality-info">
+                                <span class="quality-name">Maximum</span>
+                                <span class="quality-desc">1280×960 per cam</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="exportSizeEstimate" class="export-size-estimate"></div>
+                </div>
+
+                <!-- Filename -->
+                <div class="export-section">
+                    <h3>Filename</h3>
+                    <input type="text" id="exportFilename" class="export-filename-input" placeholder="Enter filename...">
                 </div>
 
                 <!-- FFmpeg Status -->

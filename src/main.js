@@ -6,9 +6,8 @@ const { spawn, spawnSync } = require('child_process');
 
 // Active exports tracking
 const activeExports = {};
-
-// Main window reference
 let mainWindow = null;
+let gpuEncoder = null; // Cached GPU encoder detection
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,77 +18,70 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // Required for FFmpeg operations
-      webSecurity: false, // allow local asset fetch (dashcam.proto, etc.)
+      sandbox: false,
+      webSecurity: false,
     },
   });
-
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
 // ============================================================
-// FFmpeg Path Finding
+// FFmpeg Utilities
 // ============================================================
 function findFFmpegPath() {
   const isMac = process.platform === 'darwin';
-  const possiblePaths = isMac ? [
+  const paths = isMac ? [
     path.join(__dirname, '..', 'ffmpeg_bin', 'mac', 'ffmpeg'),
     path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffmpeg'),
-    '/usr/local/bin/ffmpeg',
-    '/opt/homebrew/bin/ffmpeg',
-    'ffmpeg'
+    '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg', 'ffmpeg'
   ] : [
     path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg.exe'),
     path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg'),
     path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'),
     path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'),
-    'ffmpeg',
-    '/usr/bin/ffmpeg'
+    'ffmpeg', '/usr/bin/ffmpeg'
   ];
 
-  for (const ffmpegPath of possiblePaths) {
+  for (const p of paths) {
     try {
-      const result = spawnSync(ffmpegPath, ['-version'], {
-        timeout: 5000,
-        windowsHide: true
-      });
-      if (result.status === 0) {
-        console.log(`✅ Found FFmpeg at: ${ffmpegPath}`);
-        return ffmpegPath;
+      if (spawnSync(p, ['-version'], { timeout: 5000, windowsHide: true }).status === 0) {
+        console.log(`✅ Found FFmpeg at: ${p}`);
+        return p;
       }
-    } catch {
-      // Continue to next path
-    }
+    } catch {}
   }
-  console.warn('❌ FFmpeg not found in any known location');
+  console.warn('❌ FFmpeg not found');
   return null;
 }
 
-// ============================================================
-// Video Duration Utility
-// ============================================================
-function getVideoDuration(filePath, ffmpegPath) {
+function detectGpuEncoder(ffmpegPath) {
+  if (gpuEncoder !== null) return gpuEncoder;
+  
   try {
-    const ffprobePath = ffmpegPath.replace(/ffmpeg(\.exe)?$/, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
-    const result = spawnSync(ffprobePath, [
-      '-v', 'error',
-      '-show_entries', 'format=duration',
-      '-of', 'default=noprint_wrappers=1:nokey=1',
-      filePath
-    ], { timeout: 10000, windowsHide: true });
+    const result = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
+    const output = result.stdout?.toString() || '';
     
-    if (result.status === 0) {
-      const duration = parseFloat(result.stdout.toString().trim());
-      return isNaN(duration) ? 60 : duration;
+    // Check for GPU encoders in order of preference
+    if (process.platform === 'darwin' && output.includes('h264_videotoolbox')) {
+      gpuEncoder = { codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' };
+    } else if (output.includes('h264_nvenc')) {
+      gpuEncoder = { codec: 'h264_nvenc', name: 'NVIDIA NVENC' };
+    } else if (output.includes('h264_amf')) {
+      gpuEncoder = { codec: 'h264_amf', name: 'AMD AMF' };
+    } else if (output.includes('h264_qsv')) {
+      gpuEncoder = { codec: 'h264_qsv', name: 'Intel QuickSync' };
+    } else {
+      gpuEncoder = null;
     }
-  } catch (err) {
-    console.warn('Error getting video duration:', err);
+    
+    if (gpuEncoder) console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
+  } catch {
+    gpuEncoder = null;
   }
-  return 60; // Default 60 seconds
+  return gpuEncoder;
 }
 
-// Ensure dimensions are even (required for video encoding)
 function makeEven(n) {
   return Math.floor(n / 2) * 2;
 }
@@ -98,290 +90,218 @@ function makeEven(n) {
 // Video Export Implementation
 // ============================================================
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality } = exportData;
   const tempFiles = [];
+  const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+  const FPS = 36; // Tesla cameras record at ~36fps
+
+  const sendProgress = (percentage, message) => {
+    event.sender.send('export:progress', exportId, { type: 'progress', percentage, message });
+  };
+
+  const sendComplete = (success, message) => {
+    event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
+  };
+
+  const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch {} });
 
   try {
     console.log('🎬 Starting video export...');
-    console.log('📊 Export data:', { 
-      segments: segments?.length, 
-      startTimeMs, 
-      endTimeMs, 
-      outputPath,
-      cameras 
-    });
+    sendProgress(2, 'Analyzing segments...');
 
-    const durationMs = endTimeMs - startTimeMs;
-    const durationSeconds = durationMs / 1000;
+    const durationSec = (endTimeMs - startTimeMs) / 1000;
+    const selectedCameras = new Set(cameras || CAMERA_ORDER);
 
-    // Camera order for 3x2 grid layout (standard Tesla layout)
-    const cameraOrder = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
-    const activeCameras = cameras || cameraOrder;
-
-    // Find segments that overlap with export range
+    // Find overlapping segments
     const relevantSegments = [];
-    let cumulativeMs = 0;
-
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i];
-      const segDurationMs = (seg.durationSec || 60) * 1000;
-      const segStartMs = cumulativeMs;
-      const segEndMs = cumulativeMs + segDurationMs;
-
-      // Check if segment overlaps with export range
-      if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
-        relevantSegments.push({
-          ...seg,
-          index: i,
-          segStartMs,
-          segEndMs,
-          segDurationMs
-        });
+    let cumMs = 0;
+    for (const seg of segments) {
+      const segDur = (seg.durationSec || 60) * 1000;
+      const segStart = cumMs, segEnd = cumMs + segDur;
+      if (segEnd > startTimeMs && segStart < endTimeMs) {
+        relevantSegments.push({ ...seg, segStartMs: segStart, segEndMs: segEnd });
       }
-      cumulativeMs += segDurationMs;
+      cumMs += segDur;
     }
 
+    if (!relevantSegments.length) throw new Error('No segments found in export range');
     console.log(`📹 Found ${relevantSegments.length} segments for export`);
 
-    if (relevantSegments.length === 0) {
-      throw new Error('No segments found in export range');
-    }
-
-    // Build input streams for each camera
+    // Build camera inputs for ALL cameras in order (use black for missing/unselected)
     const inputs = [];
-    const numCameras = activeCameras.length;
+    const cameraInputMap = new Map(); // Maps camera name to input index
 
-    for (let camIdx = 0; camIdx < numCameras; camIdx++) {
-      const camera = activeCameras[camIdx];
-      const cameraFiles = [];
+    for (const camera of CAMERA_ORDER) {
+      // Skip if not selected
+      if (!selectedCameras.has(camera)) continue;
+      
+      const files = relevantSegments
+        .map(seg => seg.files?.[camera])
+        .filter(p => p && fs.existsSync(p));
 
-      for (const seg of relevantSegments) {
-        const filePath = seg.files?.[camera];
-        if (filePath && fs.existsSync(filePath)) {
-          cameraFiles.push({
-            path: filePath,
-            segStartMs: seg.segStartMs,
-            segEndMs: seg.segEndMs
-          });
-        }
-      }
+      if (!files.length) continue; // Will use black source
 
-      if (cameraFiles.length === 0) {
-        console.log(`⚠️ No files for camera ${camera}, skipping`);
-        continue;
-      }
-
-      if (cameraFiles.length === 1) {
-        // Single file - direct input
-        const clip = cameraFiles[0];
-        const relativeOffset = Math.max(0, startTimeMs - clip.segStartMs) / 1000;
-        
+      if (files.length === 1) {
+        const seg = relevantSegments.find(s => s.files?.[camera] === files[0]);
+        cameraInputMap.set(camera, inputs.length);
         inputs.push({
           camera,
-          path: clip.path,
-          relativeOffset,
+          path: files[0],
+          offset: Math.max(0, startTimeMs - seg.segStartMs) / 1000,
           isConcat: false
         });
       } else {
-        // Multiple files - create concat file
-        const concatFilePath = path.join(os.tmpdir(), `sentry_export_${camera}_${Date.now()}.txt`);
+        const concatPath = path.join(os.tmpdir(), `export_${camera}_${Date.now()}.txt`);
+        fs.writeFileSync(concatPath, files.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n'));
+        tempFiles.push(concatPath);
         
-        const concatContent = cameraFiles.map(clip => {
-          const clipOffset = Math.max(0, startTimeMs - clip.segStartMs) / 1000;
-          const clipEnd = Math.min(endTimeMs - clip.segStartMs, clip.segEndMs - clip.segStartMs) / 1000;
-          return `file '${clip.path.replace(/\\/g, '/')}'`;
-        }).join('\n');
-
-        fs.writeFileSync(concatFilePath, concatContent, { encoding: 'utf8' });
-        tempFiles.push(concatFilePath);
-        
-        console.log(`📝 Created concat file for ${camera}: ${concatFilePath}`);
-
-        const firstClipOffset = Math.max(0, startTimeMs - cameraFiles[0].segStartMs) / 1000;
-        
+        const firstSeg = relevantSegments.find(s => s.files?.[camera] === files[0]);
+        cameraInputMap.set(camera, inputs.length);
         inputs.push({
           camera,
-          path: concatFilePath,
-          relativeOffset: firstClipOffset,
+          path: concatPath,
+          offset: Math.max(0, startTimeMs - firstSeg.segStartMs) / 1000,
           isConcat: true
         });
       }
     }
 
-    if (inputs.length === 0) {
-      throw new Error('No valid camera files found for export');
+    if (!inputs.length) throw new Error('No valid camera files found for export');
+
+    sendProgress(5, 'Building export...');
+
+    // Quality settings based on quality option (per-camera resolution)
+    let w, h, crf;
+    const q = quality || (mobileExport ? 'mobile' : 'high');
+    switch (q) {
+      case 'mobile':   w = 640;  h = 360;  crf = 28; break;  // Grid: 1920x720
+      case 'medium':   w = 960;  h = 540;  crf = 26; break;  // Grid: 2880x1080
+      case 'high':     w = 1280; h = 720;  crf = 23; break;  // Grid: 3840x1440
+      case 'max':      w = 1280; h = 960;  crf = 20; break;  // Grid: 3840x1920
+      default:         w = 1280; h = 720;  crf = 23;
     }
+
+    // Detect GPU encoder
+    const gpu = detectGpuEncoder(ffmpegPath);
 
     // Build FFmpeg command
     const cmd = [ffmpegPath, '-y'];
-    const initialFilters = [];
-    
-    // Add input streams
+
+    // Add video inputs
     for (const input of inputs) {
-      if (input.isConcat) {
-        cmd.push('-f', 'concat', '-safe', '0');
-      }
-      if (input.relativeOffset > 0) {
-        cmd.push('-ss', input.relativeOffset.toString());
-      }
+      if (input.isConcat) cmd.push('-f', 'concat', '-safe', '0');
+      if (input.offset > 0) cmd.push('-ss', input.offset.toString());
       cmd.push('-i', input.path);
     }
 
-    // Standard Tesla camera resolution
-    const w = 1280; // Smaller for faster export
-    const h = 720;
+    // Always add black source for missing cameras
+    const blackInputIdx = inputs.length;
+    cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${w}x${h}:r=${FPS}:d=${durationSec}`);
 
-    // Build filter chains
-    const cameraStreams = [];
-    
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(input.camera);
+    // Build filter complex - always use full 6-camera grid
+    const filters = [];
+    const streamTags = [];
+    const activeCamerasForGrid = CAMERA_ORDER.filter(c => selectedCameras.has(c));
+
+    for (let i = 0; i < activeCamerasForGrid.length; i++) {
+      const camera = activeCamerasForGrid[i];
+      const inputIdx = cameraInputMap.get(camera);
+      const hasVideo = inputIdx !== undefined;
+      const srcIdx = hasVideo ? inputIdx : blackInputIdx;
+      const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+
+      let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+      if (hasVideo && isMirrored) chain += ',hflip';
+      chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
       
-      let filterChain = 'setpts=PTS-STARTPTS';
-      if (isMirroredCamera) {
-        filterChain += ',hflip';
-      }
-      filterChain += `,scale=${makeEven(w)}:${makeEven(h)}`;
-      
-      initialFilters.push(`[${i}:v]${filterChain}[v${i}]`);
-      cameraStreams.push(`[v${i}]`);
+      filters.push(chain);
+      streamTags.push(`[v${i}]`);
     }
 
-    // Build grid layout using xstack
-    const numStreams = cameraStreams.length;
-    let mainProcessingChain = [];
-    let lastOutputTag = '';
+    // Grid layout
+    const numStreams = streamTags.length;
+    let cols, rows;
+    if (numStreams <= 1) { cols = 1; rows = 1; }
+    else if (numStreams === 2) { cols = 2; rows = 1; }
+    else if (numStreams === 3) { cols = 3; rows = 1; }
+    else if (numStreams === 4) { cols = 2; rows = 2; }
+    else { cols = 3; rows = 2; }
 
     if (numStreams > 1) {
-      // Calculate grid layout (3x2 for 6 cameras, 2x2 for 4, etc.)
-      let cols, rows;
-      if (numStreams === 2) { cols = 2; rows = 1; }
-      else if (numStreams === 3) { cols = 3; rows = 1; }
-      else if (numStreams === 4) { cols = 2; rows = 2; }
-      else if (numStreams === 5) { cols = 3; rows = 2; }
-      else if (numStreams === 6) { cols = 3; rows = 2; }
-      else { cols = 3; rows = Math.ceil(numStreams / 3); }
-
-      // Create layout positions
       const layout = [];
       for (let i = 0; i < numStreams; i++) {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        layout.push(`${col * w}_${row * h}`);
+        layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
       }
-
-      const layoutStr = layout.join('|');
-      const xstackFilter = `${cameraStreams.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
-      mainProcessingChain.push(xstackFilter);
-      lastOutputTag = '[stacked]';
-
-      console.log(`🔲 Grid layout: ${cols}x${rows}, total ${numStreams} cameras`);
+      filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[out]`);
     } else {
-      lastOutputTag = cameraStreams[0];
+      filters.push(`${streamTags[0]}copy[out]`);
     }
 
-    // Final scaling
-    const totalWidth = makeEven(w * (numStreams > 1 ? Math.min(3, numStreams) : 1));
-    const totalHeight = makeEven(h * (numStreams > 3 ? 2 : 1));
-    mainProcessingChain.push(`${lastOutputTag}scale=${totalWidth}:${totalHeight}[final]`);
+    cmd.push('-filter_complex', filters.join(';'));
+    cmd.push('-map', '[out]');
 
-    // Combine filter chains
-    const filterComplex = [...initialFilters, ...mainProcessingChain].join(';');
-    cmd.push('-filter_complex', filterComplex);
-    cmd.push('-map', '[final]');
+    // Encoding settings
+    if (gpu && !mobileExport) {
+      cmd.push('-c:v', gpu.codec);
+      if (gpu.codec === 'h264_nvenc') {
+        cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString());
+      } else if (gpu.codec === 'h264_amf') {
+        cmd.push('-quality', 'balanced', '-rc', 'vbr_latency');
+      } else if (gpu.codec === 'h264_videotoolbox') {
+        cmd.push('-q:v', Math.max(40, 100 - crf * 2).toString());
+      } else {
+        cmd.push('-preset', 'fast', '-crf', crf.toString());
+      }
+      console.log(`🎮 Using GPU encoder: ${gpu.name}`);
+    } else {
+      cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
+    }
 
-    // Encoding settings (software encoding for compatibility)
-    cmd.push(
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '23',
-      '-t', durationSeconds.toString(),
-      '-r', '30',
-      outputPath
-    );
+    cmd.push('-r', FPS.toString(), '-t', durationSec.toString());
+    cmd.push('-movflags', '+faststart'); // Better streaming
+    cmd.push('-pix_fmt', 'yuv420p'); // Compatibility
+    cmd.push(outputPath);
 
-    console.log('🚀 FFmpeg command:', cmd.join(' '));
+    console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
+    sendProgress(8, gpu ? `Exporting with ${gpu.name}...` : 'Exporting...');
 
-    // Send initial progress
-    event.sender.send('export:progress', exportId, {
-      type: 'progress',
-      percentage: 5,
-      message: 'Starting export...'
-    });
-
-    // Execute FFmpeg
+    // Execute
     return new Promise((resolve, reject) => {
       const proc = spawn(cmd[0], cmd.slice(1));
-      let stderr = '';
-      let lastProgressUpdate = 0;
+      let stderr = '', lastPct = 0;
 
       proc.stderr.on('data', (data) => {
-        const dataStr = data.toString();
-        stderr += dataStr;
-
-        // Parse FFmpeg time output
-        const timeMatch = dataStr.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
-        if (timeMatch && durationSeconds > 0) {
-          const hours = parseInt(timeMatch[1]);
-          const minutes = parseInt(timeMatch[2]);
-          const seconds = parseInt(timeMatch[3]);
-          const currentSec = hours * 3600 + minutes * 60 + seconds;
-          const percentage = Math.min(95, Math.floor((currentSec / durationSeconds) * 100));
-
-          if (percentage > lastProgressUpdate) {
-            lastProgressUpdate = percentage;
-            event.sender.send('export:progress', exportId, {
-              type: 'progress',
-              percentage,
-              message: `Exporting... ${percentage}%`
-            });
+        stderr += data.toString();
+        const match = data.toString().match(/time=(\d+):(\d+):(\d+)/);
+        if (match && durationSec > 0) {
+          const sec = +match[1] * 3600 + +match[2] * 60 + +match[3];
+          const pct = Math.min(95, Math.floor((sec / durationSec) * 100));
+          if (pct > lastPct) {
+            lastPct = pct;
+            sendProgress(pct, `Exporting... ${pct}%`);
           }
         }
       });
 
       proc.on('close', (code) => {
         delete activeExports[exportId];
-
-        // Cleanup temp files
-        tempFiles.forEach(f => {
-          try { fs.unlinkSync(f); } catch {}
-        });
+        cleanup();
 
         if (code === 0) {
-          const stats = fs.statSync(outputPath);
-          const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
-          
-          event.sender.send('export:progress', exportId, {
-            type: 'complete',
-            success: true,
-            message: `Export complete! (${sizeMB} MB)`,
-            outputPath
-          });
+          const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
+          sendComplete(true, `Export complete! (${sizeMB} MB)`);
           resolve(true);
         } else {
-          const errorMsg = `Export failed with code ${code}`;
-          console.error(errorMsg, stderr);
-          event.sender.send('export:progress', exportId, {
-            type: 'complete',
-            success: false,
-            message: errorMsg
-          });
-          reject(new Error(errorMsg));
+          console.error('FFmpeg error:', stderr.slice(-500));
+          sendComplete(false, `Export failed (code ${code})`);
+          reject(new Error(`Export failed with code ${code}`));
         }
       });
 
-      proc.on('error', (error) => {
-        tempFiles.forEach(f => {
-          try { fs.unlinkSync(f); } catch {}
-        });
-        const errorMsg = `Failed to start FFmpeg: ${error.message}`;
-        event.sender.send('export:progress', exportId, {
-          type: 'complete',
-          success: false,
-          message: errorMsg
-        });
-        reject(new Error(errorMsg));
+      proc.on('error', (err) => {
+        cleanup();
+        sendComplete(false, `FFmpeg error: ${err.message}`);
+        reject(err);
       });
 
       activeExports[exportId] = proc;
@@ -389,9 +309,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   } catch (error) {
     console.error('Export error:', error);
-    tempFiles.forEach(f => {
-      try { fs.unlinkSync(f); } catch {}
-    });
+    cleanup();
     throw error;
   }
 }
@@ -510,6 +428,16 @@ ipcMain.handle('fs:stat', async (_event, filePath) => {
     };
   } catch (err) {
     return null;
+  }
+});
+
+// Read file contents (for event.json)
+ipcMain.handle('fs:readFile', async (_event, filePath) => {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    console.error('Error reading file:', err);
+    throw err;
   }
 });
 
