@@ -1,5 +1,5 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
-import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY } from './scripts/lib/storageKeys.js';
+import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, SENTRY_CAMERA_HIGHLIGHT_KEY, SAVED_CAMERA_HIGHLIGHT_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
 import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
@@ -1225,6 +1225,30 @@ function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('disableAutoUpdate', newValue);
             }
+        });
+    }
+    
+    // Sentry camera highlight toggle
+    const settingsSentryCameraHighlight = $('settingsSentryCameraHighlight');
+    if (settingsSentryCameraHighlight) {
+        const savedValue = localStorage.getItem(SENTRY_CAMERA_HIGHLIGHT_KEY);
+        settingsSentryCameraHighlight.checked = savedValue !== '0'; // default to enabled
+        
+        settingsSentryCameraHighlight.addEventListener('change', function(e) {
+            localStorage.setItem(SENTRY_CAMERA_HIGHLIGHT_KEY, this.checked ? '1' : '0');
+            updateEventCameraHighlight();
+        });
+    }
+    
+    // Saved camera highlight toggle
+    const settingsSavedCameraHighlight = $('settingsSavedCameraHighlight');
+    if (settingsSavedCameraHighlight) {
+        const savedValue = localStorage.getItem(SAVED_CAMERA_HIGHLIGHT_KEY);
+        settingsSavedCameraHighlight.checked = savedValue !== '0'; // default to enabled
+        
+        settingsSavedCameraHighlight.addEventListener('change', function(e) {
+            localStorage.setItem(SAVED_CAMERA_HIGHLIGHT_KEY, this.checked ? '1' : '0');
+            updateEventCameraHighlight();
         });
     }
 }
@@ -3032,6 +3056,10 @@ function selectDayCollection(dayKey) {
     progressBar.step = 0.01; // Smooth sliding
     progressBar.value = 0;
 
+    // Update event timeline marker and camera highlight
+    updateEventTimelineMarker();
+    updateEventCameraHighlight();
+
     // Load first segment with native video
     loadNativeSegment(0).then(() => {
         // Update time display with total duration
@@ -3103,6 +3131,9 @@ async function ingestSentryEventJson(eventAssetsByKey) {
             // Refresh map if this event is currently active (fixes map not showing on auto-select)
             if (state.collection.active?.groups?.some(g => g.tag === tag && g.eventId === eventId)) {
                 showEventJsonLocation(state.collection.active);
+                // Also refresh timeline marker and camera highlight
+                updateEventTimelineMarker();
+                updateEventCameraHighlight();
             }
         } catch (err) {
             console.warn(`Error parsing event.json for ${key}:`, err);
@@ -4791,6 +4822,144 @@ async function seekNativeDayCollectionBySec(targetSec) {
         // Resume playback if it was playing before seek
         if (wasPlaying) {
             playNative();
+        }
+    }
+}
+
+// ============================================================
+// Event Timeline Markers & Camera Highlight
+// ============================================================
+
+function updateEventTimelineMarker() {
+    const markersContainer = $('timelineMarkers');
+    if (!markersContainer) return;
+    
+    // Remove existing event markers
+    markersContainer.querySelectorAll('.event-timeline-marker').forEach(el => el.remove());
+    
+    const coll = state.collection.active;
+    if (!coll) return;
+    
+    // Get event metadata from the collection
+    const groups = coll.groups || [];
+    let eventMeta = null;
+    for (const g of groups) {
+        if (g.eventMeta) {
+            eventMeta = g.eventMeta;
+            break;
+        }
+    }
+    
+    // Also check eventMetaByKey if not found in groups
+    if (!eventMeta && coll.tag && coll.eventId) {
+        const key = `${coll.tag}/${coll.eventId}`;
+        eventMeta = eventMetaByKey.get(key);
+    }
+    
+    if (!eventMeta?.timestamp) return;
+    
+    // Determine event type (sentry or saved)
+    const tagLower = (coll.tag || '').toLowerCase();
+    if (tagLower !== 'sentryclips' && tagLower !== 'savedclips') return;
+    
+    const eventType = tagLower === 'sentryclips' ? 'sentry' : 'saved';
+    
+    // Calculate position on timeline
+    const eventEpoch = Date.parse(eventMeta.timestamp);
+    if (!Number.isFinite(eventEpoch)) return;
+    
+    // Get collection time range
+    const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
+    const lastStart = parseTimestampKeyToEpochMs(groups[groups.length - 1]?.timestampKey) ?? startEpochMs;
+    const endEpochMs = lastStart + 60_000; // estimate last segment is ~60s
+    const durationMs = Math.max(1, endEpochMs - startEpochMs);
+    
+    // Calculate percentage position
+    const eventOffsetMs = eventEpoch - startEpochMs;
+    const pct = Math.max(0, Math.min(100, (eventOffsetMs / durationMs) * 100));
+    
+    // Create marker element
+    const marker = document.createElement('div');
+    marker.className = `event-timeline-marker ${eventType}`;
+    marker.style.left = `${pct}%`;
+    
+    // Add icon based on event type
+    if (eventType === 'sentry') {
+        marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L19.5 19h-15L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>`;
+        marker.title = `Sentry Event: ${eventMeta.reason || 'Unknown'}\n${eventMeta.timestamp}`;
+    } else {
+        marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>`;
+        marker.title = `Saved Event: ${eventMeta.reason || 'User saved'}\n${eventMeta.timestamp}`;
+    }
+    
+    // Click to seek to event time
+    marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (state.ui.nativeVideoMode && state.collection.active) {
+            const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+            const targetSec = (pct / 100) * totalSec;
+            seekNativeDayCollectionBySec(targetSec);
+        }
+    });
+    
+    markersContainer.appendChild(marker);
+}
+
+function updateEventCameraHighlight() {
+    // Remove highlight from all tiles (both sentry and saved classes)
+    document.querySelectorAll('.multi-tile.event-camera-highlight-sentry, .multi-tile.event-camera-highlight-saved').forEach(el => {
+        el.classList.remove('event-camera-highlight-sentry', 'event-camera-highlight-saved');
+    });
+    
+    const coll = state.collection.active;
+    if (!coll) return;
+    
+    // Determine event type
+    const tagLower = (coll.tag || '').toLowerCase();
+    if (tagLower !== 'savedclips' && tagLower !== 'sentryclips') return;
+    
+    // Check if the appropriate highlight setting is enabled
+    const isSentry = tagLower === 'sentryclips';
+    const settingKey = isSentry ? SENTRY_CAMERA_HIGHLIGHT_KEY : SAVED_CAMERA_HIGHLIGHT_KEY;
+    const isEnabled = localStorage.getItem(settingKey) !== '0';
+    if (!isEnabled) return;
+    
+    // Get event metadata
+    const groups = coll.groups || [];
+    let eventMeta = null;
+    for (const g of groups) {
+        if (g.eventMeta) {
+            eventMeta = g.eventMeta;
+            break;
+        }
+    }
+    
+    // Also check eventMetaByKey
+    if (!eventMeta && coll.tag && coll.eventId) {
+        const key = `${coll.tag}/${coll.eventId}`;
+        eventMeta = eventMetaByKey.get(key);
+    }
+    
+    if (!eventMeta?.camera && eventMeta?.camera !== 0) return;
+    
+    // Camera mapping: 0=Front(tc), 5=Left Repeater(bl), 6=Right Repeater(br)
+    const cameraToSlot = {
+        '0': 'tc',  // Front
+        '5': 'bl',  // Left Repeater
+        '6': 'br'   // Right Repeater
+    };
+    
+    const cameraValue = String(eventMeta.camera);
+    const slot = cameraToSlot[cameraValue];
+    
+    if (slot) {
+        const tile = document.querySelector(`.multi-tile[data-slot="${slot}"]`);
+        if (tile) {
+            // Use red for SentryClips, yellow for SavedClips
+            const highlightClass = isSentry 
+                ? 'event-camera-highlight-sentry' 
+                : 'event-camera-highlight-saved';
+            tile.classList.add(highlightClass);
         }
     }
 }

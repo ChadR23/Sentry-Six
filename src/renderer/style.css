@@ -1659,6 +1659,106 @@ canvas, .video-player, .tile-video {
     z-index: 5;
 }
 
+/* Event Timeline Markers (SentryClips/SavedClips) */
+.event-timeline-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    pointer-events: auto;
+    z-index: 12;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.event-timeline-marker:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+}
+
+.event-timeline-marker.sentry {
+    background: radial-gradient(circle, #f44336 0%, #c62828 100%);
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.6), 0 0 16px rgba(244, 67, 54, 0.3);
+    animation: event-marker-pulse-red 2s ease-in-out infinite;
+}
+
+.event-timeline-marker.saved {
+    background: radial-gradient(circle, #ffc107 0%, #f9a825 100%);
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.6), 0 0 16px rgba(255, 193, 7, 0.3);
+    animation: event-marker-pulse-yellow 2s ease-in-out infinite;
+}
+
+.event-timeline-marker svg {
+    width: 10px;
+    height: 10px;
+    fill: #fff;
+}
+
+@keyframes event-marker-pulse-red {
+    0%, 100% { box-shadow: 0 0 8px rgba(244, 67, 54, 0.6), 0 0 16px rgba(244, 67, 54, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(244, 67, 54, 0.8), 0 0 24px rgba(244, 67, 54, 0.5); }
+}
+
+@keyframes event-marker-pulse-yellow {
+    0%, 100% { box-shadow: 0 0 8px rgba(255, 193, 7, 0.6), 0 0 16px rgba(255, 193, 7, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(255, 193, 7, 0.8), 0 0 24px rgba(255, 193, 7, 0.5); }
+}
+
+/* Pulsing glow for camera tile (Sentry/SavedClips event camera) */
+/* Yellow glow for SavedClips */
+.multi-tile.event-camera-highlight-saved {
+    animation: camera-glow-pulse-yellow 1s ease-in-out infinite;
+    border: 3px solid rgba(255, 193, 7, 1);
+}
+
+@keyframes camera-glow-pulse-yellow {
+    0%, 100% { 
+        box-shadow: inset 0 0 25px rgba(255, 193, 7, 0.5),
+                    inset 0 0 50px rgba(255, 193, 7, 0.25),
+                    0 0 15px rgba(255, 193, 7, 0.7),
+                    0 0 30px rgba(255, 193, 7, 0.5),
+                    0 0 45px rgba(255, 193, 7, 0.3);
+        border-color: rgba(255, 193, 7, 0.9);
+    }
+    50% { 
+        box-shadow: inset 0 0 40px rgba(255, 193, 7, 0.7),
+                    inset 0 0 70px rgba(255, 193, 7, 0.4),
+                    0 0 25px rgba(255, 193, 7, 0.9),
+                    0 0 50px rgba(255, 193, 7, 0.7),
+                    0 0 75px rgba(255, 193, 7, 0.4);
+        border-color: rgba(255, 255, 100, 1);
+    }
+}
+
+/* Red glow for SentryClips */
+.multi-tile.event-camera-highlight-sentry {
+    animation: camera-glow-pulse-red 1s ease-in-out infinite;
+    border: 3px solid rgba(244, 67, 54, 1);
+}
+
+@keyframes camera-glow-pulse-red {
+    0%, 100% { 
+        box-shadow: inset 0 0 25px rgba(244, 67, 54, 0.5),
+                    inset 0 0 50px rgba(244, 67, 54, 0.25),
+                    0 0 15px rgba(244, 67, 54, 0.7),
+                    0 0 30px rgba(244, 67, 54, 0.5),
+                    0 0 45px rgba(244, 67, 54, 0.3);
+        border-color: rgba(244, 67, 54, 0.9);
+    }
+    50% { 
+        box-shadow: inset 0 0 40px rgba(244, 67, 54, 0.7),
+                    inset 0 0 70px rgba(244, 67, 54, 0.4),
+                    0 0 25px rgba(244, 67, 54, 0.9),
+                    0 0 50px rgba(244, 67, 54, 0.7),
+                    0 0 75px rgba(244, 67, 54, 0.4);
+        border-color: rgba(255, 100, 100, 1);
+    }
+}
+
 /* Export Marker Buttons */
 .export-marker-btn {
     display: flex;

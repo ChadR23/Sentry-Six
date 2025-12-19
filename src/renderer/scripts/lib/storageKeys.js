@@ -12,4 +12,6 @@ export const DEFAULT_FOLDER_KEY = 'teslareplay.ui.defaultTeslaCamFolder';
 export const USE_METRIC_KEY = 'teslareplay.ui.useMetric';
 export const KEYBINDS_KEY = 'teslareplay.ui.keybinds';
 export const DISABLE_AUTO_UPDATE_KEY = 'teslareplay.ui.disableAutoUpdate';
+export const SENTRY_CAMERA_HIGHLIGHT_KEY = 'teslareplay.ui.sentryCameraHighlight';
+export const SAVED_CAMERA_HIGHLIGHT_KEY = 'teslareplay.ui.savedCameraHighlight';
 
