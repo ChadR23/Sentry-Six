@@ -2,7 +2,19 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn, spawnSync } = require('child_process');
+const { spawn, spawnSync, execSync } = require('child_process');
+const https = require('https');
+const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
+
+// ============================================================
+// Auto-Update Configuration
+// ============================================================
+const UPDATE_CONFIG = {
+  owner: 'ChadR23',
+  repo: 'Sentry-Six',
+  branch: 'Dev-SEI',
+  versionFile: path.join(app.getPath('userData'), 'current-version.json')
+};
 
 // Active exports tracking
 const activeExports = {};
@@ -403,8 +415,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
+  
+  // Check for updates on startup
+  setTimeout(() => checkForUpdatesOnStartup(), 2000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -528,5 +543,279 @@ ipcMain.handle('fs:readFile', async (_event, filePath) => {
     console.error('Error reading file:', err);
     throw err;
   }
+});
+
+// ============================================================
+// Auto-Update System
+// ============================================================
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: { 'User-Agent': 'Sentry-Six-Updater' }
+    };
+    https.get(url, options, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        return httpsGet(res.headers.location).then(resolve).catch(reject);
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ statusCode: res.statusCode, data }));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+function downloadFile(url, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: { 'User-Agent': 'Sentry-Six-Updater' }
+    };
+    
+    const handleResponse = (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        https.get(res.headers.location, options, handleResponse).on('error', reject);
+        return;
+      }
+      
+      const totalSize = parseInt(res.headers['content-length'], 10);
+      let downloadedSize = 0;
+      const file = createWriteStream(destPath);
+      
+      res.on('data', chunk => {
+        downloadedSize += chunk.length;
+        if (onProgress && totalSize) {
+          onProgress(Math.round((downloadedSize / totalSize) * 100));
+        }
+      });
+      
+      res.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve(destPath);
+      });
+      file.on('error', (err) => {
+        fs.unlinkSync(destPath);
+        reject(err);
+      });
+    };
+    
+    https.get(url, options, handleResponse).on('error', reject);
+  });
+}
+
+function getCurrentVersion() {
+  try {
+    if (fs.existsSync(UPDATE_CONFIG.versionFile)) {
+      const data = JSON.parse(fs.readFileSync(UPDATE_CONFIG.versionFile, 'utf8'));
+      return data.commitSha || null;
+    }
+  } catch (err) {
+    console.error('Error reading version file:', err);
+  }
+  return null;
+}
+
+function saveCurrentVersion(commitSha, commitDate, commitMessage) {
+  try {
+    const dir = path.dirname(UPDATE_CONFIG.versionFile);
+    if (!fs.existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(UPDATE_CONFIG.versionFile, JSON.stringify({
+      commitSha,
+      commitDate,
+      commitMessage,
+      updatedAt: new Date().toISOString()
+    }, null, 2));
+  } catch (err) {
+    console.error('Error saving version file:', err);
+  }
+}
+
+async function getLatestCommit() {
+  const url = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/commits/${UPDATE_CONFIG.branch}`;
+  const response = await httpsGet(url);
+  
+  if (response.statusCode !== 200) {
+    throw new Error(`GitHub API error: ${response.statusCode}`);
+  }
+  
+  const commit = JSON.parse(response.data);
+  return {
+    sha: commit.sha,
+    shortSha: commit.sha.substring(0, 7),
+    message: commit.commit.message.split('\n')[0],
+    date: commit.commit.author.date,
+    author: commit.commit.author.name
+  };
+}
+
+async function checkForUpdatesOnStartup() {
+  try {
+    console.log('🔄 Checking for updates...');
+    const latestCommit = await getLatestCommit();
+    const currentVersion = getCurrentVersion();
+    
+    console.log(`📌 Current: ${currentVersion || 'unknown'}`);
+    console.log(`📦 Latest: ${latestCommit.sha}`);
+    
+    if (!currentVersion) {
+      // First run - save current version without prompting
+      saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
+      console.log('✅ Version initialized');
+      return;
+    }
+    
+    if (currentVersion !== latestCommit.sha) {
+      // New version available - notify renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:available', {
+          currentVersion: currentVersion.substring(0, 7),
+          latestVersion: latestCommit.shortSha,
+          message: latestCommit.message,
+          date: latestCommit.date,
+          author: latestCommit.author
+        });
+      }
+    } else {
+      console.log('✅ App is up to date');
+    }
+  } catch (err) {
+    console.error('❌ Update check failed:', err.message);
+  }
+}
+
+async function performUpdate(event) {
+  const sendProgress = (percentage, message) => {
+    event.sender.send('update:progress', { percentage, message });
+  };
+  
+  try {
+    sendProgress(5, 'Fetching latest version info...');
+    const latestCommit = await getLatestCommit();
+    
+    const zipUrl = `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/archive/refs/heads/${UPDATE_CONFIG.branch}.zip`;
+    const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
+    const zipPath = path.join(tempDir, 'update.zip');
+    
+    // Clean and create temp directory
+    if (fs.existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+    mkdirSync(tempDir, { recursive: true });
+    
+    sendProgress(10, 'Downloading update...');
+    await downloadFile(zipUrl, zipPath, (pct) => {
+      sendProgress(10 + Math.round(pct * 0.5), `Downloading... ${pct}%`);
+    });
+    
+    sendProgress(60, 'Extracting update...');
+    
+    // Extract zip file
+    const extractDir = path.join(tempDir, 'extracted');
+    mkdirSync(extractDir, { recursive: true });
+    
+    if (process.platform === 'win32') {
+      // Windows: Use PowerShell
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { windowsHide: true });
+    } else {
+      // macOS/Linux: Use unzip
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'ignore' });
+    }
+    
+    sendProgress(75, 'Installing update...');
+    
+    // Find the extracted folder (GitHub adds repo-branch prefix)
+    const extractedContents = fs.readdirSync(extractDir);
+    const sourceDir = path.join(extractDir, extractedContents[0]);
+    
+    // Get app directory (where the app is installed)
+    const appDir = app.isPackaged 
+      ? path.dirname(app.getPath('exe'))
+      : path.join(__dirname, '..');
+    
+    // Copy new files
+    copyDirectory(path.join(sourceDir, 'src'), path.join(appDir, 'src'));
+    
+    // Copy package.json if exists
+    const newPackageJson = path.join(sourceDir, 'package.json');
+    if (fs.existsSync(newPackageJson)) {
+      copyFileSync(newPackageJson, path.join(appDir, 'package.json'));
+    }
+    
+    sendProgress(90, 'Cleaning up...');
+    
+    // Cleanup temp files
+    rmSync(tempDir, { recursive: true, force: true });
+    
+    // Save new version
+    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
+    
+    sendProgress(100, 'Update complete! Restarting...');
+    
+    return { success: true };
+  } catch (err) {
+    console.error('Update failed:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+function copyDirectory(src, dest) {
+  if (!fs.existsSync(src)) return;
+  
+  if (!fs.existsSync(dest)) {
+    mkdirSync(dest, { recursive: true });
+  }
+  
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    
+    if (entry.isDirectory()) {
+      copyDirectory(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// Update IPC handlers
+ipcMain.handle('update:check', async () => {
+  try {
+    const latestCommit = await getLatestCommit();
+    const currentVersion = getCurrentVersion();
+    
+    return {
+      hasUpdate: currentVersion !== latestCommit.sha,
+      currentVersion: currentVersion ? currentVersion.substring(0, 7) : 'unknown',
+      latestVersion: latestCommit.shortSha,
+      message: latestCommit.message,
+      date: latestCommit.date
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('update:install', async (event) => {
+  const result = await performUpdate(event);
+  
+  if (result.success) {
+    // Restart app after short delay
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 1500);
+  }
+  
+  return result;
+});
+
+ipcMain.handle('update:skip', async () => {
+  // User chose to skip - just acknowledge
+  return { skipped: true };
 });
 

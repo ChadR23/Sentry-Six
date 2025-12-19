@@ -2055,3 +2055,92 @@ canvas, .video-player, .tile-video {
 .btn-secondary:not(:disabled):hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+/* ============================================================
+   Update Modal Styles
+   ============================================================ */
+.update-modal {
+    max-width: 420px;
+}
+
+.update-info {
+    text-align: center;
+}
+
+.update-message {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 20px;
+}
+
+.update-details {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.version-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.version-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.version-value {
+    font-size: 16px;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    color: #3e9cbf;
+}
+
+.commit-info {
+    padding: 12px;
+    background: rgba(62, 156, 191, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid #3e9cbf;
+}
+
+.commit-message {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.commit-date {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.update-progress {
+    margin-top: 20px;
+}
+
+.update-progress.hidden {
+    display: none;
+}
+
+/* Update success state */
+.update-modal.updating .modal-footer {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.update-modal .btn-primary {
+    background: linear-gradient(135deg, #3e9cbf 0%, #2a7a9c 100%);
+}
+
+.update-modal .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4db3d6 0%, #3e9cbf 100%);
+}

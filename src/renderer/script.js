@@ -4813,4 +4813,110 @@ window.selectDayCollectionWrapper = function(dayKey) {
 // Call updateExportButtonState initially
 setTimeout(updateExportButtonState, 500);
 
+// ============================================================
+// Auto-Update System
+// ============================================================
+
+const updateModal = $('updateModal');
+const updateProgress = $('updateProgress');
+const updateProgressBar = $('updateProgressBar');
+const updateProgressText = $('updateProgressText');
+const currentVersionDisplay = $('currentVersionDisplay');
+const latestVersionDisplay = $('latestVersionDisplay');
+const updateCommitMessage = $('updateCommitMessage');
+const updateCommitDate = $('updateCommitDate');
+const skipUpdateBtn = $('skipUpdateBtn');
+const installUpdateBtn = $('installUpdateBtn');
+const updateModalFooter = $('updateModalFooter');
+
+function showUpdateModal(updateInfo) {
+    if (!updateModal) return;
+    
+    if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
+    if (latestVersionDisplay) latestVersionDisplay.textContent = updateInfo.latestVersion;
+    if (updateCommitMessage) updateCommitMessage.textContent = updateInfo.message || 'New update available';
+    if (updateCommitDate) {
+        const date = new Date(updateInfo.date);
+        updateCommitDate.textContent = `${date.toLocaleDateString()} by ${updateInfo.author || 'Unknown'}`;
+    }
+    
+    // Reset state
+    if (updateProgress) updateProgress.classList.add('hidden');
+    if (updateModalFooter) updateModalFooter.style.display = '';
+    updateModal.querySelector('.update-modal')?.classList.remove('updating');
+    
+    updateModal.classList.remove('hidden');
+}
+
+function hideUpdateModal() {
+    if (updateModal) updateModal.classList.add('hidden');
+}
+
+async function handleInstallUpdate() {
+    if (!window.electronAPI?.installUpdate) return;
+    
+    // Show progress, hide buttons
+    if (updateProgress) updateProgress.classList.remove('hidden');
+    if (updateModalFooter) updateModalFooter.style.display = 'none';
+    updateModal.querySelector('.update-modal')?.classList.add('updating');
+    
+    if (updateProgressBar) updateProgressBar.style.width = '0%';
+    if (updateProgressText) updateProgressText.textContent = 'Starting update...';
+    
+    try {
+        const result = await window.electronAPI.installUpdate();
+        
+        if (!result.success) {
+            // Show error
+            if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
+            if (updateModalFooter) updateModalFooter.style.display = '';
+            updateModal.querySelector('.update-modal')?.classList.remove('updating');
+        }
+        // If successful, app will restart automatically
+    } catch (err) {
+        console.error('Update install error:', err);
+        if (updateProgressText) updateProgressText.textContent = `Error: ${err.message}`;
+        if (updateModalFooter) updateModalFooter.style.display = '';
+        updateModal.querySelector('.update-modal')?.classList.remove('updating');
+    }
+}
+
+// Set up update event listeners
+if (window.electronAPI?.on) {
+    // Listen for update available event from main process
+    window.electronAPI.on('update:available', (updateInfo) => {
+        console.log('Update available:', updateInfo);
+        showUpdateModal(updateInfo);
+    });
+    
+    // Listen for update progress
+    window.electronAPI.on('update:progress', (progress) => {
+        if (updateProgressBar) updateProgressBar.style.width = `${progress.percentage}%`;
+        if (updateProgressText) updateProgressText.textContent = progress.message;
+    });
+}
+
+// Button handlers
+if (skipUpdateBtn) {
+    skipUpdateBtn.addEventListener('click', () => {
+        hideUpdateModal();
+        if (window.electronAPI?.skipUpdate) {
+            window.electronAPI.skipUpdate();
+        }
+    });
+}
+
+if (installUpdateBtn) {
+    installUpdateBtn.addEventListener('click', handleInstallUpdate);
+}
+
+// Close modal when clicking outside
+if (updateModal) {
+    updateModal.addEventListener('click', (e) => {
+        if (e.target === updateModal) {
+            hideUpdateModal();
+        }
+    });
+}
+
 

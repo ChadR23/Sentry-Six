@@ -18,9 +18,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelExport: (exportId) => ipcRenderer.invoke('export:cancel', exportId),
   checkFFmpeg: () => ipcRenderer.invoke('ffmpeg:check'),
   
+  // Update operations
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  skipUpdate: () => ipcRenderer.invoke('update:skip'),
+  
   // Event listeners
   on: (channel, callback) => {
-    const allowedChannels = ['export:progress'];
+    const allowedChannels = ['export:progress', 'update:available', 'update:progress'];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
     }

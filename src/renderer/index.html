@@ -481,6 +481,44 @@
         </div>
     </div>
 
+    <!-- Update Modal -->
+    <div id="updateModal" class="modal hidden">
+        <div class="modal-content update-modal">
+            <div class="modal-header">
+                <h2>🚀 Update Available</h2>
+            </div>
+            <div class="modal-body">
+                <div class="update-info">
+                    <p class="update-message">A new version of Sentry Six is available!</p>
+                    <div class="update-details">
+                        <div class="version-info">
+                            <span class="version-label">Current:</span>
+                            <span id="currentVersionDisplay" class="version-value">---</span>
+                        </div>
+                        <div class="version-info">
+                            <span class="version-label">Latest:</span>
+                            <span id="latestVersionDisplay" class="version-value">---</span>
+                        </div>
+                    </div>
+                    <div class="commit-info">
+                        <div class="commit-message" id="updateCommitMessage"></div>
+                        <div class="commit-date" id="updateCommitDate"></div>
+                    </div>
+                </div>
+                <div id="updateProgress" class="update-progress hidden">
+                    <div class="progress-bar-container">
+                        <div id="updateProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="updateProgressText" class="progress-text">Preparing update...</div>
+                </div>
+            </div>
+            <div class="modal-footer" id="updateModalFooter">
+                <button id="skipUpdateBtn" class="btn btn-secondary">Later</button>
+                <button id="installUpdateBtn" class="btn btn-primary">Update Now</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="vendor/protobuf.min.js"></script>
