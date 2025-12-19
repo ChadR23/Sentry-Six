@@ -438,6 +438,42 @@ ipcMain.handle('dialog:openFolder', async () => {
   return result.filePaths[0];
 });
 
+// File-based settings storage for reliable persistence
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+  return {};
+}
+
+function saveSettings(settings) {
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Failed to save settings:', err);
+    return false;
+  }
+}
+
+ipcMain.handle('settings:get', async (event, key) => {
+  const settings = loadSettings();
+  return settings[key];
+});
+
+ipcMain.handle('settings:set', async (event, key, value) => {
+  const settings = loadSettings();
+  settings[key] = value;
+  return saveSettings(settings);
+});
+
 ipcMain.handle('shell:openExternal', async (_event, url) => {
   await shell.openExternal(url);
 });
@@ -792,20 +828,10 @@ function copyDirectory(src, dest) {
 
 // Update IPC handlers
 ipcMain.handle('update:check', async () => {
-  try {
-    const latestCommit = await getLatestCommit();
-    const currentVersion = getCurrentVersion();
-    
-    return {
-      hasUpdate: currentVersion !== latestCommit.sha,
-      currentVersion: currentVersion ? currentVersion.substring(0, 7) : 'unknown',
-      latestVersion: latestCommit.shortSha,
-      message: latestCommit.message,
-      date: latestCommit.date
-    };
-  } catch (err) {
-    return { error: err.message };
-  }
+  // Call the existing checkForUpdatesOnStartup which handles everything
+  // including sending the update:available event to the renderer
+  await checkForUpdatesOnStartup();
+  return { checked: true };
 });
 
 ipcMain.handle('update:install', async (event) => {

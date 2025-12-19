@@ -1052,6 +1052,13 @@ function initSettingsModal() {
                 if (settingsDashboardToggle) settingsDashboardToggle.checked = state.ui.dashboardEnabled;
                 if (settingsMapToggle) settingsMapToggle.checked = state.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = useMetric;
+                // Sync advanced settings from file-based storage
+                const disableAutoUpdate = $('settingsDisableAutoUpdate');
+                if (disableAutoUpdate && window.electronAPI?.getSetting) {
+                    window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
+                        disableAutoUpdate.checked = savedValue === true;
+                    });
+                }
                 settingsModal.classList.remove('hidden');
             }
         };
@@ -1171,15 +1178,23 @@ function initSettingsModal() {
         };
     }
     
-    // Disable auto-update toggle
+    // Disable auto-update toggle - use file-based storage for reliability
     const settingsDisableAutoUpdate = $('settingsDisableAutoUpdate');
     if (settingsDisableAutoUpdate) {
-        // Load saved value
-        settingsDisableAutoUpdate.checked = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY) === 'true';
+        // Load saved value from file-based storage
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
+                settingsDisableAutoUpdate.checked = savedValue === true;
+            });
+        }
         
-        settingsDisableAutoUpdate.onchange = () => {
-            localStorage.setItem(DISABLE_AUTO_UPDATE_KEY, settingsDisableAutoUpdate.checked ? 'true' : 'false');
-        };
+        // Save to file-based storage on change
+        settingsDisableAutoUpdate.addEventListener('change', async function(e) {
+            const newValue = this.checked;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('disableAutoUpdate', newValue);
+            }
+        });
     }
 }
 
@@ -1426,13 +1441,20 @@ async function loadDefaultFolderOnStartup() {
 setTimeout(loadDefaultFolderOnStartup, 500);
 
 // Check for updates on startup (if not disabled in settings)
-function checkForUpdatesOnStartup() {
-    const autoUpdateDisabled = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY) === 'true';
+async function checkForUpdatesOnStartup() {
+    let autoUpdateDisabled = false;
+    
+    // Try file-based settings first, fall back to localStorage
+    if (window.electronAPI?.getSetting) {
+        const savedValue = await window.electronAPI.getSetting('disableAutoUpdate');
+        autoUpdateDisabled = savedValue === true;
+    } else {
+        const savedValue = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY);
+        autoUpdateDisabled = savedValue === 'true';
+    }
+    
     if (!autoUpdateDisabled && window.electronAPI?.checkForUpdates) {
-        console.log('Checking for updates...');
         window.electronAPI.checkForUpdates();
-    } else if (autoUpdateDisabled) {
-        console.log('Auto-update check disabled in settings');
     }
 }
 

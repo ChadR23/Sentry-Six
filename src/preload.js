@@ -24,6 +24,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
   
+  // Settings storage (file-based for reliability)
+  getSetting: (key) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  
   // Event listeners
   on: (channel, callback) => {
     const allowedChannels = ['export:progress', 'update:available', 'update:progress'];
