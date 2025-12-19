@@ -337,10 +337,15 @@ window.DashcamMP4 = DashcamMP4;
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    /** Get MP4 files from drag/drop DataTransfer */
-    async function getFilesFromDataTransfer(items) {
+    /** Get MP4 files from drag/drop DataTransfer with streaming support for large folders */
+    async function getFilesFromDataTransfer(items, onProgress = null) {
         const files = [], entries = [];
         let directoryName = null;
+        let totalScanned = 0;
+        let lastYield = Date.now();
+        const YIELD_INTERVAL_MS = 50; // Yield to UI every 50ms
+        const BATCH_SIZE = 100; // Process directories in smaller batches
+
         for (const item of items) {
             const entry = item.webkitGetAsEntry?.();
             if (entry) {
@@ -349,23 +354,38 @@ window.DashcamMP4 = DashcamMP4;
             }
         }
         if (entries.length !== 1 || !entries[0].isDirectory) directoryName = null;
+
+        // Yield to UI to prevent freezing
+        async function maybeYield() {
+            const now = Date.now();
+            if (now - lastYield > YIELD_INTERVAL_MS) {
+                lastYield = now;
+                await new Promise(r => setTimeout(r, 0));
+            }
+        }
+
         async function traverse(entry) {
             if (entry.isFile) {
-                const file = await new Promise((res, rej) => entry.file(res, rej));
-                const lower = file.name.toLowerCase();
-                // Collect MP4s for playback + Sentry event assets (event.json/event.png) for richer UI.
-                if (lower.endsWith('.mp4') || lower.endsWith('.json') || lower.endsWith('.png')) {
-                    // Preserve best-effort relative path info for downstream grouping.
-                    // - `entry.fullPath` typically includes leading "/" and the root directory name.
-                    // - We store it as a non-enumerable property to avoid surprising consumers.
-                    try {
-                        Object.defineProperty(file, '_teslaPath', {
-                            value: entry.fullPath || null,
-                            enumerable: false
-                        });
-                    } catch { /* ignore */ }
-                    files.push(file);
+                try {
+                    const file = await new Promise((res, rej) => entry.file(res, rej));
+                    const lower = file.name.toLowerCase();
+                    // Collect MP4s for playback + Sentry event assets (event.json/event.png) for richer UI.
+                    if (lower.endsWith('.mp4') || lower.endsWith('.json') || lower.endsWith('.png')) {
+                        // Preserve best-effort relative path info for downstream grouping.
+                        try {
+                            Object.defineProperty(file, '_teslaPath', {
+                                value: entry.fullPath || null,
+                                enumerable: false
+                            });
+                        } catch { /* ignore */ }
+                        files.push(file);
+                    }
+                } catch { /* ignore inaccessible files */ }
+                totalScanned++;
+                if (onProgress && totalScanned % 500 === 0) {
+                    onProgress(totalScanned, files.length);
                 }
+                await maybeYield();
             } else if (entry.isDirectory) {
                 const reader = entry.createReader();
                 // IMPORTANT: DirectoryReader.readEntries() returns results in batches.
@@ -374,11 +394,23 @@ window.DashcamMP4 = DashcamMP4;
                 while (true) {
                     const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
                     if (!batch?.length) break;
-                    await Promise.all(batch.map(traverse));
+                    
+                    // Process in smaller sequential batches to reduce memory pressure
+                    for (let i = 0; i < batch.length; i += BATCH_SIZE) {
+                        const chunk = batch.slice(i, i + BATCH_SIZE);
+                        await Promise.all(chunk.map(traverse));
+                        await maybeYield();
+                    }
                 }
             }
         }
-        await Promise.all(entries.map(traverse));
+
+        // Process top-level entries sequentially to reduce memory pressure
+        for (const entry of entries) {
+            await traverse(entry);
+        }
+
+        if (onProgress) onProgress(totalScanned, files.length);
         return { files, directoryName };
     }
 

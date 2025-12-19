@@ -14,18 +14,26 @@
             <div class="drop-overlay" id="dropOverlay">
                 <div class="drop-message">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    <p>Drop a TeslaCam folder, or choose one to browse</p>
+                    <p>Select your TeslaCam folder to browse clips</p>
                     <div class="drop-actions">
                         <button id="overlayChooseFolderBtn" class="mini-btn">Choose Folder</button>
                     </div>
                 </div>
-                <input type="file" id="fileInput" accept="video/mp4">
                 <input type="file" id="folderInput" webkitdirectory multiple>
             </div>
+            
+            <!-- Loading overlay for large folder imports -->
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loading-spinner"></div>
+                <div id="loadingText" class="loading-text">Scanning folder...</div>
+                <div id="loadingProgress" class="loading-progress">0 files found</div>
+                <div class="loading-bar-container">
+                    <div id="loadingBar" class="loading-bar"></div>
+                </div>
+            </div>
+            
             <!-- Single video for non-multi mode -->
             <video id="videoMain" class="video-player" muted playsinline></video>
 

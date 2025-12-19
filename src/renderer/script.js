@@ -29,9 +29,12 @@ const eventMetaByKey = new Map(); // key -> parsed JSON object
 // DOM Elements
 const $ = id => document.getElementById(id);
 const dropOverlay = $('dropOverlay');
-const fileInput = $('fileInput');
 const folderInput = $('folderInput');
 const overlayChooseFolderBtn = $('overlayChooseFolderBtn');
+const loadingOverlay = $('loadingOverlay');
+const loadingText = $('loadingText');
+const loadingProgress = $('loadingProgress');
+const loadingBar = $('loadingBar');
 // Main video element (for single camera mode)
 const videoMain = $('videoMain');
 const progressBar = $('progressBar');
@@ -462,6 +465,29 @@ function notify(message, opts = {}) {
     setTimeout(remove, timeoutMs);
 }
 
+// Loading overlay helpers for large folder imports
+function showLoading(text = 'Scanning folder...', progress = '') {
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+    if (loadingText) loadingText.textContent = text;
+    if (loadingProgress) loadingProgress.textContent = progress;
+    if (loadingBar) loadingBar.style.width = '0%';
+}
+
+function updateLoading(text, progress, percent = 0) {
+    if (loadingText) loadingText.textContent = text;
+    if (loadingProgress) loadingProgress.textContent = progress;
+    if (loadingBar) loadingBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+}
+
+function hideLoading() {
+    if (loadingOverlay) loadingOverlay.classList.add('hidden');
+}
+
+// Yield to the event loop to prevent UI freezing during heavy processing
+function yieldToUI() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 function hasValidGps(sei) {
     // Tesla SEI can be missing, zeroed, or invalid while parked / initializing GPS.
     const lat = Number(sei?.latitudeDeg ?? sei?.latitude_deg);
@@ -530,12 +556,18 @@ function hasValidGps(sei) {
     // Clip Browser buttons
     chooseFolderBtn.onclick = (e) => {
         e.preventDefault();
-        folderInput.click();
+        openFolderPicker();
     };
 
     if (dayFilter) {
-        dayFilter.onchange = () => {
-            renderClipList();
+        dayFilter.onchange = async () => {
+            const selectedDate = dayFilter.value;
+            if (selectedDate && folderStructure?.dateHandles?.has(selectedDate)) {
+                // Lazy load: fetch files for this date from NAS
+                await loadDateContent(selectedDate);
+            } else {
+                renderClipList();
+            }
         };
     }
 
@@ -921,60 +953,344 @@ function initDraggablePanels() {
 // Initialize draggable panels after DOM is ready
 initDraggablePanels();
 
-// File Handling
+// File Handling - Use File System Access API for lazy directory traversal
+// This prevents the browser from loading all files into memory at once
+
+async function openFolderPicker() {
+    // Use modern File System Access API if available (Chrome, Edge)
+    if ('showDirectoryPicker' in window) {
+        try {
+            showLoading('Opening folder...', 'Please select a TeslaCam folder');
+            const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+            await traverseDirectoryHandle(dirHandle);
+        } catch (err) {
+            hideLoading();
+            if (err.name !== 'AbortError') {
+                console.error('Folder picker error:', err);
+                notify('Failed to open folder: ' + err.message, { type: 'error' });
+            }
+        }
+    } else {
+        // Fallback to webkitdirectory for unsupported browsers
+        folderInput.click();
+    }
+}
+
+// Store root directory handle for lazy loading
+let rootDirHandle = null;
+let folderStructure = null; // { recentClips: handle, sentryClips: handle, savedClips: handle, dates: Set }
+
+// Quick folder structure scan - only reads folder names, not files
+async function traverseDirectoryHandle(dirHandle) {
+    showLoading('Scanning folder structure...', 'Finding available dates...');
+    await yieldToUI();
+    
+    rootDirHandle = dirHandle;
+    folderStructure = {
+        root: dirHandle,
+        recentClips: null,
+        sentryClips: null,
+        savedClips: null,
+        dates: new Set(),
+        // Store handles for event folders: Map<date, Map<clipType, handle[]>>
+        dateHandles: new Map()
+    };
+
+    // Find the main clip folders
+    try {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind !== 'directory') continue;
+            const name = entry.name.toLowerCase();
+            if (name === 'recentclips') {
+                folderStructure.recentClips = entry;
+                await scanRecentClipsForDates(entry);
+            } else if (name === 'sentryclips') {
+                folderStructure.sentryClips = entry;
+                await scanEventFolderForDates(entry, 'sentry');
+            } else if (name === 'savedclips') {
+                folderStructure.savedClips = entry;
+                await scanEventFolderForDates(entry, 'saved');
+            }
+        }
+    } catch (err) {
+        console.error('Error scanning folder structure:', err);
+    }
+
+    hideLoading();
+
+    if (!folderStructure.dates.size) {
+        notify('No TeslaCam clips found. Make sure you selected a TeslaCam folder.', { type: 'warn' });
+        return;
+    }
+
+    // Build date list and update UI
+    const sortedDates = Array.from(folderStructure.dates).sort().reverse();
+    library.allDates = sortedDates;
+    library.folderLabel = dirHandle.name;
+    library.clipGroups = [];
+    library.clipGroupById = new Map();
+    library.dayCollections = new Map();
+    library.dayData = new Map();
+
+    // Update UI
+    clipBrowserSubtitle.textContent = `${dirHandle.name}: ${sortedDates.length} date${sortedDates.length === 1 ? '' : 's'} available`;
+    updateDayFilterOptions();
+    
+    // Hide drop overlay
+    dropOverlay.classList.add('hidden');
+    
+    // Auto-select most recent date
+    if (sortedDates.length && dayFilter) {
+        dayFilter.value = sortedDates[0];
+        await loadDateContent(sortedDates[0]);
+    }
+}
+
+// Scan RecentClips folder for dates (supports both date subfolders and flat file structure)
+async function scanRecentClipsForDates(handle) {
+    try {
+        for await (const entry of handle.values()) {
+            if (entry.kind === 'directory') {
+                // Date subfolders (e.g., 2025-12-15)
+                const folderMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})/);
+                if (folderMatch) {
+                    const date = folderMatch[1];
+                    folderStructure.dates.add(date);
+                    if (!folderStructure.dateHandles.has(date)) {
+                        folderStructure.dateHandles.set(date, { recent: entry, sentry: new Map(), saved: new Map() });
+                    } else {
+                        folderStructure.dateHandles.get(date).recent = entry;
+                    }
+                }
+            } else if (entry.kind === 'file') {
+                const nameLower = entry.name.toLowerCase();
+                if (nameLower.endsWith('.mp4')) {
+                    // Flat file structure: YYYY-MM-DD_HH-MM-SS-camera.mp4
+                    const match = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                    if (match) {
+                        const date = match[1];
+                        folderStructure.dates.add(date);
+                        if (!folderStructure.dateHandles.has(date)) {
+                            folderStructure.dateHandles.set(date, { recent: handle, sentry: new Map(), saved: new Map() });
+                        } else {
+                            folderStructure.dateHandles.get(date).recent = handle;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Error scanning RecentClips:', err);
+    }
+}
+
+// Scan SentryClips/SavedClips folders for dates (dates are in subfolder names)
+async function scanEventFolderForDates(handle, clipType) {
+    try {
+        for await (const entry of handle.values()) {
+            if (entry.kind === 'directory') {
+                // Event folder name format: YYYY-MM-DD_HH-MM-SS
+                const match = entry.name.match(/^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
+                if (match) {
+                    const date = match[1];
+                    const eventId = entry.name;
+                    folderStructure.dates.add(date);
+                    
+                    // Store handle reference for this date/event
+                    if (!folderStructure.dateHandles.has(date)) {
+                        folderStructure.dateHandles.set(date, { recent: null, sentry: new Map(), saved: new Map() });
+                    }
+                    const dateData = folderStructure.dateHandles.get(date);
+                    if (clipType === 'sentry') {
+                        dateData.sentry.set(eventId, entry);
+                    } else {
+                        dateData.saved.set(eventId, entry);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn(`Error scanning ${clipType} folder:`, err);
+    }
+}
+
+// Load content for a specific date (called when user selects a date)
+async function loadDateContent(date) {
+    if (!folderStructure?.dateHandles?.has(date)) {
+        renderClipList();
+        return;
+    }
+
+    showLoading('Loading clips...', `Loading ${date}...`);
+    await yieldToUI();
+
+    const dateData = folderStructure.dateHandles.get(date);
+    const files = [];
+
+    // Load RecentClips for this date
+    if (dateData.recent) {
+        updateLoading('Loading clips...', 'Loading RecentClips...');
+        await yieldToUI();
+        try {
+            for await (const entry of dateData.recent.values()) {
+                if (entry.kind === 'file') {
+                    const name = entry.name;
+                    const nameLower = name.toLowerCase();
+                    if (name.startsWith(date) && (nameLower.endsWith('.mp4') || nameLower.endsWith('.json') || nameLower.endsWith('.png'))) {
+                        try {
+                            const file = await entry.getFile();
+                            Object.defineProperty(file, 'webkitRelativePath', {
+                                value: `${folderStructure.root.name}/RecentClips/${name}`,
+                                writable: false
+                            });
+                            files.push(file);
+                        } catch { /* skip inaccessible files */ }
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('Error loading RecentClips:', err);
+        }
+    }
+
+    // Load SentryClips events for this date
+    let eventCount = 0;
+    const totalEvents = dateData.sentry.size + dateData.saved.size;
+    
+    for (const [eventId, eventHandle] of dateData.sentry) {
+        eventCount++;
+        updateLoading('Loading clips...', `Loading Sentry event ${eventCount}/${totalEvents}...`);
+        await yieldToUI();
+        await loadEventFolder(eventHandle, 'SentryClips', eventId, files);
+    }
+
+    // Load SavedClips events for this date
+    for (const [eventId, eventHandle] of dateData.saved) {
+        eventCount++;
+        updateLoading('Loading clips...', `Loading Saved event ${eventCount}/${totalEvents}...`);
+        await yieldToUI();
+        await loadEventFolder(eventHandle, 'SavedClips', eventId, files);
+    }
+
+    hideLoading();
+
+    if (!files.length) {
+        notify(`No clips found for ${date}`, { type: 'info' });
+        renderClipList();
+        return;
+    }
+
+    // Build index for just this date's files
+    await handleFolderFilesForDate(files, date);
+}
+
+// Load files from a single event folder
+async function loadEventFolder(eventHandle, clipType, eventId, files) {
+    try {
+        for await (const entry of eventHandle.values()) {
+            if (entry.kind === 'file') {
+                const name = entry.name.toLowerCase();
+                if (name.endsWith('.mp4') || name.endsWith('.json') || name.endsWith('.png')) {
+                    try {
+                        const file = await entry.getFile();
+                        Object.defineProperty(file, 'webkitRelativePath', {
+                            value: `${folderStructure.root.name}/${clipType}/${eventId}/${entry.name}`,
+                            writable: false
+                        });
+                        files.push(file);
+                    } catch { /* skip inaccessible files */ }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn(`Error loading event folder ${eventId}:`, err);
+    }
+}
+
+// Process files for a single date
+async function handleFolderFilesForDate(files, date) {
+    if (!seiType) {
+        notify('Metadata parser not initialized yet—try again in a second.', { type: 'warn' });
+        return;
+    }
+
+    const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
+    
+    // Merge into library (replace data for this date)
+    library.clipGroups = built.groups;
+    library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
+    library.dayCollections = buildDayCollections(library.clipGroups);
+    library.dayData = library.dayData || new Map();
+    
+    // Update day data for this date
+    const dayData = { recent: [], sentry: new Map(), saved: new Map() };
+    for (const g of library.clipGroups) {
+        const type = (g.tag || '').toLowerCase();
+        if (type === 'recentclips') {
+            dayData.recent.push(g);
+        } else if (type === 'sentryclips' && g.eventId) {
+            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
+            dayData.sentry.get(g.eventId).push(g);
+        } else if (type === 'savedclips' && g.eventId) {
+            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
+            dayData.saved.get(g.eventId).push(g);
+        }
+    }
+    library.dayData.set(date, dayData);
+
+    // Reset selection
+    selection.selectedGroupId = null;
+    state.collection.active = null;
+    previews.cache.clear();
+    previews.queue.length = 0;
+    previews.inFlight = 0;
+    state.ui.openEventRowId = null;
+
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${date}`;
+    renderClipList();
+
+    // Auto-select first item
+    const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
+    if (dayValues.length) {
+        dayValues.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
+        const latest = dayValues[0];
+        if (latest?.key) {
+            selectDayCollection(latest.key);
+        }
+    }
+
+    // Parse event.json in background
+    ingestSentryEventJson(built.eventAssetsByKey);
+}
+
 // Default click = choose folder (streamlined TeslaCam flow).
 dropOverlay.onclick = (e) => {
-    // If a nested button handled it, do nothing here.
     if (e?.target?.closest?.('#overlayChooseFolderBtn')) return;
-    folderInput.click();
+    openFolderPicker();
 };
 overlayChooseFolderBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    folderInput.click();
+    openFolderPicker();
 };
-fileInput.onchange = e => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) handleFile(f);
-};
-folderInput.onchange = e => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    if (!files.length) return;
+
+// Fallback for browsers without showDirectoryPicker
+folderInput.onchange = async e => {
+    const rawFiles = e.target.files;
+    const totalCount = rawFiles?.length ?? 0;
+    if (!totalCount) return;
+    
+    const files = Array.from(rawFiles);
     const root = getRootFolderNameFromWebkitRelativePath(files[0]?.webkitRelativePath);
+    e.target.value = '';
+    
+    if (totalCount > 1000) {
+        showLoading('Loading files...', `${totalCount.toLocaleString()} items found`);
+        await yieldToUI();
+    }
+    
     handleFolderFiles(files, root);
 };
-dropOverlay.ondragover = e => { e.preventDefault(); dropOverlay.classList.add('hover'); };
-dropOverlay.ondragleave = e => { dropOverlay.classList.remove('hover'); };
-dropOverlay.ondrop = e => {
-    e.preventDefault();
-    dropOverlay.classList.remove('hover');
-
-    // Prefer directory traversal if available (supports dropping TeslaCam folder).
-    const items = e.dataTransfer?.items;
-    if (items?.length && window.DashcamHelpers?.getFilesFromDataTransfer) {
-        DashcamHelpers.getFilesFromDataTransfer(items).then(({ files, directoryName }) => {
-            if (files?.length > 1) {
-                handleFolderFiles(files, directoryName);
-            } else if (files?.length === 1) {
-                handleFile(files[0]);
-            } else if (e.dataTransfer?.files?.length) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        }).catch(() => {
-            if (e.dataTransfer?.files?.length) handleFile(e.dataTransfer.files[0]);
-        });
-        return;
-    }
-
-    if (e.dataTransfer?.files?.length) handleFile(e.dataTransfer.files[0]);
-};
-
-async function handleFile(file) {
-    // Single file drops are not supported - direct users to drop a TeslaCam folder
-    notify('Please drop a TeslaCam folder instead of a single file.', { type: 'info' });
-}
 
 function setMultiCamGridVisible(visible) {
     if (!multiCamGrid) return;
@@ -1174,12 +1490,17 @@ function buildDisplayItems() {
     return items;
 }
 
-function buildTeslaCamIndex(files, directoryName = null) {
+async function buildTeslaCamIndex(files, directoryName = null, onProgress = null) {
     const groups = new Map(); // id -> group
     let inferredRoot = directoryName || null;
     const eventAssetsByKey = new Map(); // `${tag}/${eventId}` -> { jsonFile, pngFile, mp4File }
 
-    for (const file of files) {
+    const totalFiles = files.length;
+    const BATCH_SIZE = 500; // Process files in batches to prevent UI blocking
+    let processed = 0;
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
         const relPath = getBestEffortRelPath(file, directoryName);
         const { tag, rest } = parseTeslaCamPath(relPath);
         const filename = rest[rest.length - 1] || file.name;
@@ -1195,12 +1516,16 @@ function buildTeslaCamIndex(files, directoryName = null) {
             if (lowerName === 'event.json') entry.jsonFile = file;
             if (lowerName === 'event.png') entry.pngFile = file;
             if (lowerName === 'event.mp4') entry.mp4File = file;
+            processed++;
             continue;
         }
 
         // Regular per-camera MP4
         const parsed = parseClipFilename(filename);
-        if (!parsed) continue;
+        if (!parsed) {
+            processed++;
+            continue;
+        }
 
         // SentryClips/<eventId>/YYYY-...-front.mp4
         // SavedClips/<eventId>/YYYY-...-front.mp4
@@ -1231,7 +1556,18 @@ function buildTeslaCamIndex(files, directoryName = null) {
 
         // try to infer folder label from relPath root if possible
         if (!inferredRoot && relPath) inferredRoot = relPath.split('/')[0] || null;
+
+        processed++;
+
+        // Yield to UI every BATCH_SIZE files to prevent blocking
+        if (processed % BATCH_SIZE === 0) {
+            if (onProgress) onProgress(processed, totalFiles, groups.size);
+            await yieldToUI();
+        }
     }
+
+    // Final progress update
+    if (onProgress) onProgress(totalFiles, totalFiles, groups.size);
 
     // Attach any event assets to groups in the same Sentry event folder
     for (const g of groups.values()) {
@@ -1370,25 +1706,67 @@ function updateDayFilterOptions() {
     }
 }
 
-function handleFolderFiles(fileList, directoryName = null) {
+async function handleFolderFiles(fileList, directoryName = null) {
     if (!seiType) {
         notify('Metadata parser not initialized yet—try again in a second.', { type: 'warn' });
         return;
     }
 
-    const files = (Array.isArray(fileList) ? fileList : Array.from(fileList))
-        .filter(f => {
-            const n = f?.name?.toLowerCase?.() || '';
-            return n.endsWith('.mp4') || n.endsWith('.json') || n.endsWith('.png');
-        });
+    // Show loading overlay immediately for large folders
+    const totalRaw = fileList?.length ?? 0;
+    const isLargeFolder = totalRaw > 1000;
+    if (isLargeFolder) {
+        showLoading('Filtering files...', `${totalRaw.toLocaleString()} items to scan`);
+        await yieldToUI();
+    }
+
+    // Filter files in batches to prevent blocking for huge file lists
+    const FILTER_BATCH = 2000;
+    const files = [];
+    const rawFiles = Array.isArray(fileList) ? fileList : Array.from(fileList);
+    
+    for (let i = 0; i < rawFiles.length; i++) {
+        const f = rawFiles[i];
+        const n = f?.name?.toLowerCase?.() || '';
+        if (n.endsWith('.mp4') || n.endsWith('.json') || n.endsWith('.png')) {
+            files.push(f);
+        }
+        // Yield periodically during filtering for very large folders
+        if (isLargeFolder && i > 0 && i % FILTER_BATCH === 0) {
+            updateLoading('Filtering files...', `${i.toLocaleString()} / ${totalRaw.toLocaleString()} scanned`, (i / totalRaw) * 30);
+            await yieldToUI();
+        }
+    }
 
     if (!files.length) {
+        hideLoading();
         notify('No supported files found in that folder.', { type: 'warn' });
         return;
     }
 
-    // Build index
-    const built = buildTeslaCamIndex(files, directoryName);
+    // Show loading for index building
+    if (isLargeFolder || files.length > 500) {
+        showLoading('Indexing clips...', `${files.length.toLocaleString()} media files found`);
+        await yieldToUI();
+    }
+
+    // Build index with progress callback
+    const onProgress = (processed, total, groupCount) => {
+        const percent = 30 + (processed / total) * 60; // 30-90% range for indexing
+        updateLoading(
+            'Indexing clips...',
+            `${processed.toLocaleString()} / ${total.toLocaleString()} files · ${groupCount.toLocaleString()} clip groups`,
+            percent
+        );
+    };
+
+    const built = await buildTeslaCamIndex(files, directoryName, isLargeFolder ? onProgress : null);
+    
+    if (isLargeFolder) {
+        updateLoading('Building collections...', `${built.groups.length.toLocaleString()} clip groups`, 92);
+        await yieldToUI();
+    }
+
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
     library.folderLabel = built.inferredRoot || directoryName || 'Folder';
@@ -1414,6 +1792,11 @@ function handleFolderFiles(fileList, directoryName = null) {
     previews.inFlight = 0;
     state.ui.openEventRowId = null;
 
+    if (isLargeFolder) {
+        updateLoading('Rendering...', '', 98);
+        await yieldToUI();
+    }
+
     // Update UI
     clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip group${library.clipGroups.length === 1 ? '' : 's'}`;
     
@@ -1436,7 +1819,8 @@ function handleFolderFiles(fileList, directoryName = null) {
         else if (first?.type === 'group') selectClipGroup(first.id);
     }
 
-    // Hide overlay once we have a folder loaded
+    // Hide overlays once we have a folder loaded
+    hideLoading();
     dropOverlay.classList.add('hidden');
 
     // Parse any Sentry event.json files in the background and attach metadata to groups.
