@@ -5498,9 +5498,11 @@ const skipUpdateBtn = $('skipUpdateBtn');
 const installUpdateBtn = $('installUpdateBtn');
 const updateModalFooter = $('updateModalFooter');
 let updateComplete = false; // Flag to prevent dismissing modal after update
+let updateModalClickCount = 0; // Hidden dev bypass counter
 
 function showUpdateModal(updateInfo) {
     updateComplete = false; // Reset flag when showing modal
+    updateModalClickCount = 0; // Reset bypass counter
     if (!updateModal) return;
     
     if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
@@ -5620,6 +5622,25 @@ if (updateModal) {
             hideUpdateModal();
         }
     });
+    
+    // Hidden dev feature: click modal header 10 times to bypass update
+    const modalHeader = updateModal.querySelector('.modal-header');
+    if (modalHeader) {
+        modalHeader.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            updateModalClickCount++;
+            if (updateModalClickCount >= 10) {
+                if (window.electronAPI?.bypassUpdate) {
+                    const result = await window.electronAPI.bypassUpdate();
+                    if (result.success) {
+                        console.log('🔧 [DEV] Update bypassed to version:', result.version);
+                        hideUpdateModal();
+                    }
+                }
+                updateModalClickCount = 0;
+            }
+        });
+    }
 }
 
 

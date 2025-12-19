@@ -850,3 +850,16 @@ ipcMain.handle('update:skip', async () => {
   return { skipped: true };
 });
 
+ipcMain.handle('update:bypass', async () => {
+  // Hidden dev feature - mark current version as latest without downloading
+  try {
+    const latestCommit = await getLatestCommit();
+    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
+    console.log('🔧 [DEV] Update bypassed - version set to:', latestCommit.sha.substring(0, 7));
+    return { success: true, version: latestCommit.shortSha };
+  } catch (err) {
+    console.error('Bypass update error:', err);
+    return { success: false, error: err.message };
+  }
+});
+

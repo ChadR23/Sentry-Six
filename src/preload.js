@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
+  bypassUpdate: () => ipcRenderer.invoke('update:bypass'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
   
   // Settings storage (file-based for reliability)
