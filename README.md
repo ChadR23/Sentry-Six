@@ -1,4 +1,4 @@
-# Sentry‑Six (DEV BRANCH USE AT OWN RISK THINGS ARE/CAN BE BUGGY HERE)
+# Sentry‑Six
 
 Sentry‑Six is a modern, feature‑rich viewer and exporter for your Tesla Sentry and Dashcam footage now rewritten in Electron for smoother UI, better multi‑camera sync, and faster exports. It is a ground‑up rewrite in Electron that preserves the core experience while significantly improving performance, reliability, and packaging. rewritten with the help of AI gemini, gpt, and Claud code.
 
