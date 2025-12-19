@@ -40,6 +40,8 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time s
   - Live Estimates: See export progress, duration, and size predictions.
   - Adjustable Quality: Select Maximum Quality for best video quality, or a lower quality for easier sharing with smaller file sizes.
   - For MacOS users, ensure you have the latest version of ffmpeg installed. (You can use Homebrew to install it: `brew install ffmpeg`)
+- **Auto-Update**
+  - The app will automatically check for updates and prompt you to install them when available.
 
 
 ## What’s intentionally not here (yet)
