@@ -24,6 +24,15 @@ let enumFields = null;
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
 
+// Export state
+const exportState = {
+    startMarkerPct: null,  // Start marker position as percentage (0-100)
+    endMarkerPct: null,    // End marker position as percentage (0-100)
+    isExporting: false,
+    currentExportId: null,
+    ffmpegAvailable: false
+};
+
 // Sentry collection mode state now lives in state.collection.active
 
 // DOM Elements
@@ -665,6 +674,52 @@ function hasValidGps(sei) {
     if (skipBackBtn) skipBackBtn.onclick = (e) => { e.preventDefault(); skipSeconds(-15); };
     if (skipForwardBtn) skipForwardBtn.onclick = (e) => { e.preventDefault(); skipSeconds(15); };
 
+    // Export buttons
+    const setStartMarkerBtn = $('setStartMarkerBtn');
+    const setEndMarkerBtn = $('setEndMarkerBtn');
+    const exportBtn = $('exportBtn');
+    const exportModal = $('exportModal');
+    const closeExportModal = $('closeExportModal');
+    const startExportBtn = $('startExportBtn');
+    const cancelExportBtn = $('cancelExportBtn');
+
+    if (setStartMarkerBtn) {
+        setStartMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('start'); };
+    }
+    if (setEndMarkerBtn) {
+        setEndMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('end'); };
+    }
+    if (exportBtn) {
+        exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); };
+    }
+    if (closeExportModal) {
+        closeExportModal.onclick = (e) => { e.preventDefault(); closeExportModalFn(); };
+    }
+    if (cancelExportBtn) {
+        cancelExportBtn.onclick = (e) => { e.preventDefault(); cancelExport(); };
+    }
+    if (startExportBtn) {
+        startExportBtn.onclick = (e) => { e.preventDefault(); startExport(); };
+    }
+    // Close modal on backdrop click
+    if (exportModal) {
+        exportModal.onclick = (e) => {
+            if (e.target === exportModal) closeExportModalFn();
+        };
+    }
+
+    // Keyboard shortcuts for export markers
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.key === 'i' || e.key === 'I') {
+            e.preventDefault();
+            setExportMarker('start');
+        } else if (e.key === 'o' || e.key === 'O') {
+            e.preventDefault();
+            setExportMarker('end');
+        }
+    });
+
     // Initialize native video playback system
     initNativeVideoPlayback();
 
@@ -957,10 +1012,35 @@ initDraggablePanels();
 // This prevents the browser from loading all files into memory at once
 
 async function openFolderPicker() {
-    // Use modern File System Access API if available (Chrome, Edge)
+    // Use Electron's native APIs for both path resolution and directory traversal
+    // This gives us actual file paths for FFmpeg export
+    
+    if (window.electronAPI?.openFolder && window.electronAPI?.readDir) {
+        try {
+            const folderPath = await window.electronAPI.openFolder();
+            if (!folderPath) {
+                return; // User cancelled
+            }
+            
+            baseFolderPath = folderPath;
+            console.log('Selected folder path:', baseFolderPath);
+            
+            showLoading('Scanning folder...', 'Looking for TeslaCam clips');
+            await traverseDirectoryElectron(folderPath);
+            return;
+        } catch (err) {
+            hideLoading();
+            console.error('Folder picker error:', err);
+            notify('Failed to open folder: ' + err.message, { type: 'error' });
+            return;
+        }
+    }
+    
+    // Fallback to File System Access API (no export support)
     if ('showDirectoryPicker' in window) {
         try {
             showLoading('Opening folder...', 'Please select a TeslaCam folder');
+            baseFolderPath = null; // No actual path available
             const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
             await traverseDirectoryHandle(dirHandle);
         } catch (err) {
@@ -976,9 +1056,297 @@ async function openFolderPicker() {
     }
 }
 
+// Traverse directory using Electron's fs APIs (provides actual file paths)
+async function traverseDirectoryElectron(dirPath) {
+    const folderName = dirPath.split('/').pop() || dirPath.split('\\').pop();
+    
+    // Create a pseudo directory handle structure for compatibility
+    rootDirHandle = { name: folderName, kind: 'directory' };
+    folderStructure = {
+        root: rootDirHandle,
+        recentClips: null,
+        sentryClips: null,
+        savedClips: null,
+        dates: new Set(),
+        dateHandles: new Map()
+    };
+    
+    try {
+        const entries = await window.electronAPI.readDir(dirPath);
+        
+        for (const entry of entries) {
+            if (!entry.isDirectory) continue;
+            const name = entry.name.toLowerCase();
+            
+            if (name === 'recentclips') {
+                folderStructure.recentClips = entry;
+                await scanRecentClipsElectron(entry.path);
+            } else if (name === 'sentryclips') {
+                folderStructure.sentryClips = entry;
+                await scanEventFolderElectron(entry.path, 'sentry');
+            } else if (name === 'savedclips') {
+                folderStructure.savedClips = entry;
+                await scanEventFolderElectron(entry.path, 'saved');
+            }
+        }
+    } catch (err) {
+        console.error('Error scanning folder:', err);
+    }
+    
+    hideLoading();
+    
+    if (!folderStructure.dates.size) {
+        notify('No TeslaCam clips found. Make sure you selected a TeslaCam folder.', { type: 'warn' });
+        return;
+    }
+    
+    // Build date list and update UI
+    const sortedDates = Array.from(folderStructure.dates).sort().reverse();
+    library.allDates = sortedDates;
+    library.folderLabel = folderName;
+    library.clipGroups = [];
+    library.clipGroupById = new Map();
+    library.dayCollections = new Map();
+    library.dayData = new Map();
+    
+    clipBrowserSubtitle.textContent = folderName;
+    dayFilter.innerHTML = '<option value="">Select Date</option>';
+    sortedDates.forEach(date => {
+        const opt = document.createElement('option');
+        opt.value = date;
+        opt.textContent = formatDateDisplay(date);
+        dayFilter.appendChild(opt);
+    });
+    
+    // Hide drop overlay
+    dropOverlay.classList.add('hidden');
+    
+    if (sortedDates.length > 0) {
+        dayFilter.value = sortedDates[0];
+        await loadDateContentElectron(sortedDates[0]);
+    }
+    
+    notify(`Found ${sortedDates.length} dates with clips`, { type: 'success' });
+}
+
+// Scan RecentClips using Electron fs
+async function scanRecentClipsElectron(dirPath) {
+    try {
+        const entries = await window.electronAPI.readDir(dirPath);
+        
+        for (const entry of entries) {
+            if (entry.isDirectory) {
+                // Date subfolder
+                const date = entry.name;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                    folderStructure.dates.add(date);
+                    if (!folderStructure.dateHandles.has(date)) {
+                        folderStructure.dateHandles.set(date, { recent: entry, sentry: new Map(), saved: new Map() });
+                    } else {
+                        folderStructure.dateHandles.get(date).recent = entry;
+                    }
+                }
+            } else if (entry.isFile && entry.name.endsWith('.mp4')) {
+                // Flat file structure - extract date from filename
+                const match = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                if (match) {
+                    const date = match[1];
+                    folderStructure.dates.add(date);
+                    if (!folderStructure.dateHandles.has(date)) {
+                        folderStructure.dateHandles.set(date, { recent: { path: dirPath, isFlat: true }, sentry: new Map(), saved: new Map() });
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Error scanning RecentClips:', err);
+    }
+}
+
+// Scan Sentry/Saved clips using Electron fs
+async function scanEventFolderElectron(dirPath, clipType) {
+    try {
+        const entries = await window.electronAPI.readDir(dirPath);
+        
+        for (const entry of entries) {
+            if (!entry.isDirectory) continue;
+            
+            // Event folders have format: YYYY-MM-DD_HH-MM-SS
+            const match = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+            if (match) {
+                const date = match[1];
+                folderStructure.dates.add(date);
+                
+                if (!folderStructure.dateHandles.has(date)) {
+                    folderStructure.dateHandles.set(date, { recent: null, sentry: new Map(), saved: new Map() });
+                }
+                
+                const dateData = folderStructure.dateHandles.get(date);
+                if (clipType === 'sentry') {
+                    dateData.sentry.set(entry.name, entry);
+                } else {
+                    dateData.saved.set(entry.name, entry);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn(`Error scanning ${clipType} clips:`, err);
+    }
+}
+
+// Load date content using Electron fs
+async function loadDateContentElectron(date) {
+    if (!folderStructure?.dateHandles?.has(date)) {
+        notify(`No data for ${date}`, { type: 'warn' });
+        return;
+    }
+    
+    showLoading('Loading clips...', `Loading ${date}...`);
+    
+    const dateData = folderStructure.dateHandles.get(date);
+    const files = [];
+    
+    // Load RecentClips
+    if (dateData.recent) {
+        updateLoading('Loading clips...', 'Loading RecentClips...');
+        try {
+            const recentPath = dateData.recent.isFlat ? dateData.recent.path : dateData.recent.path;
+            const entries = await window.electronAPI.readDir(recentPath);
+            
+            for (const entry of entries) {
+                if (!entry.isFile || !entry.name.endsWith('.mp4')) continue;
+                
+                // Filter by date if flat structure
+                if (dateData.recent.isFlat) {
+                    if (!entry.name.startsWith(date)) continue;
+                }
+                
+                // Create a file-like object with path
+                files.push({
+                    name: entry.name,
+                    path: entry.path,
+                    webkitRelativePath: `${folderStructure.root.name}/RecentClips/${entry.name}`,
+                    isElectronFile: true
+                });
+            }
+        } catch (err) {
+            console.warn('Error loading RecentClips:', err);
+        }
+    }
+    
+    // Load SentryClips events
+    for (const [eventId, eventEntry] of dateData.sentry.entries()) {
+        updateLoading('Loading clips...', `Loading Sentry event ${eventId}...`);
+        try {
+            const entries = await window.electronAPI.readDir(eventEntry.path);
+            for (const entry of entries) {
+                if (!entry.isFile) continue;
+                files.push({
+                    name: entry.name,
+                    path: entry.path,
+                    webkitRelativePath: `${folderStructure.root.name}/SentryClips/${eventId}/${entry.name}`,
+                    isElectronFile: true
+                });
+            }
+        } catch (err) {
+            console.warn(`Error loading Sentry event ${eventId}:`, err);
+        }
+    }
+    
+    // Load SavedClips events
+    for (const [eventId, eventEntry] of dateData.saved.entries()) {
+        updateLoading('Loading clips...', `Loading Saved event ${eventId}...`);
+        try {
+            const entries = await window.electronAPI.readDir(eventEntry.path);
+            for (const entry of entries) {
+                if (!entry.isFile) continue;
+                files.push({
+                    name: entry.name,
+                    path: entry.path,
+                    webkitRelativePath: `${folderStructure.root.name}/SavedClips/${eventId}/${entry.name}`,
+                    isElectronFile: true
+                });
+            }
+        } catch (err) {
+            console.warn(`Error loading Saved event ${eventId}:`, err);
+        }
+    }
+    
+    hideLoading();
+    
+    if (files.length === 0) {
+        notify(`No clips found for ${date}`, { type: 'info' });
+        return;
+    }
+    
+    // Build index with path information
+    const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
+    
+    // Merge into library (replace data for this date)
+    library.clipGroups = built.groups;
+    library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
+    library.dayCollections = buildDayCollections(library.clipGroups);
+    library.dayData = library.dayData || new Map();
+    
+    // Update day data for this date
+    const dayData = { recent: [], sentry: new Map(), saved: new Map() };
+    for (const g of library.clipGroups) {
+        const type = (g.tag || '').toLowerCase();
+        if (type === 'recentclips') {
+            dayData.recent.push(g);
+        } else if (type === 'sentryclips' && g.eventId) {
+            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
+            dayData.sentry.get(g.eventId).push(g);
+        } else if (type === 'savedclips' && g.eventId) {
+            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
+            dayData.saved.get(g.eventId).push(g);
+        }
+    }
+    library.dayData.set(date, dayData);
+
+    // Reset selection
+    selection.selectedGroupId = null;
+    state.collection.active = null;
+    previews.cache.clear();
+    previews.queue.length = 0;
+    previews.inFlight = 0;
+    state.ui.openEventRowId = null;
+
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${date}`;
+    renderClipList();
+
+    // Auto-select first item
+    const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
+    if (dayValues.length) {
+        dayValues.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
+        const latest = dayValues[0];
+        if (latest?.key) {
+            selectDayCollection(latest.key);
+            // Update export button state after collection loads
+            setTimeout(updateExportButtonState, 100);
+        }
+    }
+
+    // Parse event.json in background
+    ingestSentryEventJson(built.eventAssetsByKey);
+    
+    notify(`Loaded ${files.length} files for ${date}`, { type: 'success' });
+}
+
+function formatDateDisplay(dateStr) {
+    try {
+        const [year, month, day] = dateStr.split('-');
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+}
+
 // Store root directory handle for lazy loading
 let rootDirHandle = null;
 let folderStructure = null; // { recentClips: handle, sentryClips: handle, savedClips: handle, dates: Set }
+let baseFolderPath = null; // Full file system path (only available when using Electron dialog)
 
 // Quick folder structure scan - only reads folder names, not files
 async function traverseDirectoryHandle(dirHandle) {
@@ -3485,9 +3853,34 @@ async function loadNativeSegment(segIdx) {
     
     // Clean up old URLs
     videoUrls.forEach((url, vid) => {
-        URL.revokeObjectURL(url);
+        if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+        }
     });
     videoUrls.clear();
+    
+    // Helper to get video URL from entry (handles both File objects and Electron paths)
+    const getVideoUrl = (entry) => {
+        if (!entry) return null;
+        
+        // If it's an Electron file with path, use file:// protocol
+        if (entry.file?.isElectronFile && entry.file?.path) {
+            const filePath = entry.file.path;
+            // Convert path to file:// URL
+            const fileUrl = filePath.startsWith('/') 
+                ? `file://${filePath}` 
+                : `file:///${filePath.replace(/\\/g, '/')}`;
+            return { url: fileUrl, isBlob: false };
+        }
+        
+        // Regular File object - create blob URL
+        if (entry.file && entry.file instanceof File) {
+            const url = URL.createObjectURL(entry.file);
+            return { url, isBlob: true };
+        }
+        
+        return null;
+    };
     
     if (multi.enabled) {
         // Load all cameras
@@ -3505,12 +3898,12 @@ async function loadNativeSegment(segIdx) {
             }
             
             const entry = group.filesByCamera.get(camera);
-            if (entry?.file) {
-                const url = URL.createObjectURL(entry.file);
-                videoUrls.set(vid, url);
-                vid.src = url;
+            const urlData = getVideoUrl(entry);
+            if (urlData) {
+                videoUrls.set(vid, urlData.url);
+                vid.src = urlData.url;
                 vid.load();
-                console.log('Loaded', camera, 'into slot', slot);
+                console.log('Loaded', camera, 'into slot', slot, urlData.isBlob ? '(blob)' : '(file://)');
             } else {
                 vid.src = '';
                 console.log('No file for camera', camera, 'in slot', slot);
@@ -3531,12 +3924,12 @@ async function loadNativeSegment(segIdx) {
         const cam = selection.selectedCamera || 'front';
         const entry = group.filesByCamera.get(cam) || group.filesByCamera.values().next().value;
         
-        if (entry?.file) {
-            const url = URL.createObjectURL(entry.file);
-            videoUrls.set(videoMain, url);
-            videoMain.src = url;
+        const urlData = getVideoUrl(entry);
+        if (urlData) {
+            videoUrls.set(videoMain, urlData.url);
+            videoMain.src = urlData.url;
             videoMain.load();
-            console.log('Loaded single camera', cam);
+            console.log('Loaded single camera', cam, urlData.isBlob ? '(blob)' : '(file://)');
         } else {
             console.error('No file found for camera', cam);
         }
@@ -3552,8 +3945,8 @@ async function loadNativeSegment(segIdx) {
     // Pre-extract SEI telemetry from master camera file (runs in background)
     const masterCam = multi.masterCamera || 'front';
     const masterEntry = group.filesByCamera.get(masterCam) || group.filesByCamera.values().next().value;
-    if (masterEntry?.file && seiType) {
-        extractSeiFromFile(masterEntry.file).then(({ seiData, mapPath }) => {
+    if (masterEntry && seiType) {
+        extractSeiFromEntry(masterEntry).then(({ seiData, mapPath }) => {
             nativeVideo.seiData = seiData;
             nativeVideo.mapPath = mapPath;
             // Draw route on map
@@ -3729,6 +4122,60 @@ function applyPlaybackRate(rate) {
     console.log('Playback rate set to:', playbackRate);
 }
 
+// Extract SEI telemetry from an entry (handles both File objects and Electron paths)
+async function extractSeiFromEntry(entry) {
+    if (!entry) return { seiData: [], mapPath: [] };
+    
+    // If it's an Electron file with path, fetch via file:// protocol
+    if (entry.file?.isElectronFile && entry.file?.path) {
+        try {
+            const filePath = entry.file.path;
+            const fileUrl = filePath.startsWith('/') 
+                ? `file://${filePath}` 
+                : `file:///${filePath.replace(/\\/g, '/')}`;
+            const response = await fetch(fileUrl);
+            const buffer = await response.arrayBuffer();
+            return extractSeiFromBuffer(buffer);
+        } catch (err) {
+            console.warn('Failed to extract SEI from Electron file:', err);
+            return { seiData: [], mapPath: [] };
+        }
+    }
+    
+    // Regular File object
+    if (entry.file && entry.file instanceof File) {
+        return extractSeiFromFile(entry.file);
+    }
+    
+    return { seiData: [], mapPath: [] };
+}
+
+// Extract SEI from ArrayBuffer
+function extractSeiFromBuffer(buffer) {
+    const seiData = [];
+    const mapPath = [];
+    
+    try {
+        const mp4 = new DashcamMP4(buffer);
+        const frames = mp4.parseFrames(seiType);
+        
+        for (const frame of frames) {
+            if (frame.sei) {
+                seiData.push({ timestampMs: frame.timestamp, sei: frame.sei });
+                if (hasValidGps(frame.sei)) {
+                    const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
+                    const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
+                    mapPath.push([lat, lon]);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to extract SEI:', err);
+    }
+    
+    return { seiData, mapPath };
+}
+
 // Extract SEI telemetry from a video file (runs once per segment load)
 async function extractSeiFromFile(file) {
     const seiData = [];
@@ -3829,5 +4276,418 @@ async function seekNativeDayCollectionBySec(targetSec) {
         }
     }
 }
+
+// ============================================================
+// Export Functions
+// ============================================================
+
+function setExportMarker(type) {
+    if (!state.collection.active) {
+        notify('Load a collection first to set export markers', { type: 'warn' });
+        return;
+    }
+    
+    // Get current position as percentage
+    const currentPct = parseFloat(progressBar.value) || 0;
+    
+    if (type === 'start') {
+        exportState.startMarkerPct = currentPct;
+        // If end marker is before start, clear it
+        if (exportState.endMarkerPct !== null && exportState.endMarkerPct <= currentPct) {
+            exportState.endMarkerPct = null;
+        }
+        notify('Start marker set', { type: 'success' });
+    } else {
+        exportState.endMarkerPct = currentPct;
+        // If start marker is after end, clear it
+        if (exportState.startMarkerPct !== null && exportState.startMarkerPct >= currentPct) {
+            exportState.startMarkerPct = null;
+        }
+        notify('End marker set', { type: 'success' });
+    }
+    
+    updateExportMarkers();
+    updateExportButtonState();
+}
+
+function updateExportMarkers() {
+    const markersContainer = $('timelineMarkers');
+    if (!markersContainer) return;
+    
+    // Get or create start marker
+    let startMarker = markersContainer.querySelector('.export-marker.start');
+    if (exportState.startMarkerPct !== null) {
+        if (!startMarker) {
+            startMarker = document.createElement('div');
+            startMarker.className = 'export-marker start';
+            startMarker.title = 'Export start point (drag to adjust)';
+            makeMarkerDraggable(startMarker, 'start');
+            markersContainer.appendChild(startMarker);
+        }
+        startMarker.style.left = `${exportState.startMarkerPct}%`;
+    } else if (startMarker) {
+        startMarker.remove();
+    }
+    
+    // Get or create end marker
+    let endMarker = markersContainer.querySelector('.export-marker.end');
+    if (exportState.endMarkerPct !== null) {
+        if (!endMarker) {
+            endMarker = document.createElement('div');
+            endMarker.className = 'export-marker end';
+            endMarker.title = 'Export end point (drag to adjust)';
+            makeMarkerDraggable(endMarker, 'end');
+            markersContainer.appendChild(endMarker);
+        }
+        endMarker.style.left = `${exportState.endMarkerPct}%`;
+    } else if (endMarker) {
+        endMarker.remove();
+    }
+    
+    // Get or create highlight between markers
+    let highlight = markersContainer.querySelector('.export-range-highlight');
+    if (exportState.startMarkerPct !== null && exportState.endMarkerPct !== null) {
+        if (!highlight) {
+            highlight = document.createElement('div');
+            highlight.className = 'export-range-highlight';
+            markersContainer.appendChild(highlight);
+        }
+        const startPct = Math.min(exportState.startMarkerPct, exportState.endMarkerPct);
+        const endPct = Math.max(exportState.startMarkerPct, exportState.endMarkerPct);
+        highlight.style.left = `${startPct}%`;
+        highlight.style.width = `${endPct - startPct}%`;
+    } else if (highlight) {
+        highlight.remove();
+    }
+}
+
+function makeMarkerDraggable(marker, type) {
+    let isDragging = false;
+    
+    marker.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        marker.style.cursor = 'grabbing';
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const onMouseMove = (moveEvent) => {
+            if (!isDragging) return;
+            const timelineContainer = marker.closest('.timeline-container');
+            if (!timelineContainer) return;
+            
+            const rect = timelineContainer.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
+            
+            if (type === 'start') {
+                exportState.startMarkerPct = pct;
+            } else {
+                exportState.endMarkerPct = pct;
+            }
+            
+            updateExportMarkers();
+        };
+        
+        const onMouseUp = () => {
+            isDragging = false;
+            marker.style.cursor = 'ew-resize';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            updateExportButtonState();
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+}
+
+function updateExportButtonState() {
+    const setStartMarkerBtn = $('setStartMarkerBtn');
+    const setEndMarkerBtn = $('setEndMarkerBtn');
+    const exportBtn = $('exportBtn');
+    
+    const hasCollection = !!state.collection.active;
+    
+    if (setStartMarkerBtn) setStartMarkerBtn.disabled = !hasCollection;
+    if (setEndMarkerBtn) setEndMarkerBtn.disabled = !hasCollection;
+    if (exportBtn) {
+        // Enable export if we have a collection (markers are optional - defaults to full export)
+        exportBtn.disabled = !hasCollection;
+    }
+}
+
+function openExportModal() {
+    if (!state.collection.active) {
+        notify('Load a collection first', { type: 'warn' });
+        return;
+    }
+    
+    const modal = $('exportModal');
+    if (!modal) return;
+    
+    // Update export range display
+    updateExportRangeDisplay();
+    
+    // Check FFmpeg availability
+    checkFFmpegAvailability();
+    
+    // Reset progress
+    const progressEl = $('exportProgress');
+    const progressBar = $('exportProgressBar');
+    const progressText = $('exportProgressText');
+    if (progressEl) progressEl.classList.add('hidden');
+    if (progressBar) progressBar.style.width = '0%';
+    if (progressText) progressText.textContent = 'Preparing...';
+    
+    // Enable start button
+    const startBtn = $('startExportBtn');
+    if (startBtn) startBtn.disabled = false;
+    
+    modal.classList.remove('hidden');
+}
+
+function closeExportModalFn() {
+    const modal = $('exportModal');
+    if (modal) modal.classList.add('hidden');
+    
+    // Cancel ongoing export if any
+    if (exportState.isExporting && exportState.currentExportId) {
+        cancelExport();
+    }
+}
+
+function updateExportRangeDisplay() {
+    const startTimeEl = $('exportStartTime');
+    const endTimeEl = $('exportEndTime');
+    const durationEl = $('exportDuration');
+    
+    if (!state.collection.active) return;
+    
+    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    
+    // Use markers or default to full range
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    
+    const startSec = (startPct / 100) * totalSec;
+    const endSec = (endPct / 100) * totalSec;
+    const durationSec = Math.abs(endSec - startSec);
+    
+    if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
+    if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
+    if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
+}
+
+async function checkFFmpegAvailability() {
+    const statusEl = $('ffmpegStatus');
+    const startBtn = $('startExportBtn');
+    
+    if (!statusEl) return;
+    
+    statusEl.innerHTML = '<span class="status-icon">⏳</span><span class="status-text">Checking FFmpeg...</span>';
+    
+    try {
+        if (window.electronAPI?.checkFFmpeg) {
+            const result = await window.electronAPI.checkFFmpeg();
+            exportState.ffmpegAvailable = result.available;
+            
+            if (result.available) {
+                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg available</span>';
+                if (startBtn) startBtn.disabled = false;
+            } else {
+                statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Please install FFmpeg or place it in ffmpeg_bin folder.</span>';
+                if (startBtn) startBtn.disabled = true;
+            }
+        } else {
+            statusEl.innerHTML = '<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">Export not available (running in browser)</span>';
+            if (startBtn) startBtn.disabled = true;
+        }
+    } catch (err) {
+        statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">Error checking FFmpeg</span>';
+        if (startBtn) startBtn.disabled = true;
+    }
+}
+
+async function startExport() {
+    if (!state.collection.active || !window.electronAPI?.startExport) {
+        notify('Export not available', { type: 'error' });
+        return;
+    }
+    
+    // Check if we have a base folder path (required for FFmpeg)
+    if (!baseFolderPath) {
+        notify('Export requires selecting a folder via the folder picker. Please re-select your TeslaCam folder.', { type: 'warn' });
+        return;
+    }
+    
+    // Get selected cameras
+    const cameraCheckboxes = document.querySelectorAll('.camera-checkbox input[type="checkbox"]:checked');
+    const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
+    
+    if (cameras.length === 0) {
+        notify('Please select at least one camera', { type: 'warn' });
+        return;
+    }
+    
+    // Get save location
+    const outputPath = await window.electronAPI.saveFile({
+        title: 'Save Tesla Export',
+        defaultPath: `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`
+    });
+    
+    if (!outputPath) {
+        notify('Export cancelled', { type: 'info' });
+        return;
+    }
+    
+    // Calculate export range in milliseconds
+    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    
+    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
+    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
+    
+    // Build segments data with file paths
+    const segments = [];
+    const groups = state.collection.active.groups || [];
+    const cumStarts = nativeVideo.cumulativeStarts || [];
+    
+    for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        const durationSec = nativeVideo.segmentDurations?.[i] || 60;
+        
+        // Get file paths for each camera by constructing full paths
+        const files = {};
+        for (const camera of cameras) {
+            const entry = group.filesByCamera?.get(camera);
+            if (entry?.file) {
+                // Get the relative path and construct full path
+                const relativePath = entry.file.webkitRelativePath || entry.file.name;
+                if (relativePath && baseFolderPath) {
+                    // relativePath is like "TeslaCam/RecentClips/2025-01-01_12-00-00-front.mp4"
+                    // We need to strip the root folder name and append to baseFolderPath
+                    const pathParts = relativePath.split('/');
+                    // Remove the first part (folder name) and join
+                    const subPath = pathParts.slice(1).join('/');
+                    // Construct full path
+                    const fullPath = baseFolderPath + '/' + subPath;
+                    files[camera] = fullPath;
+                }
+            }
+        }
+        
+        segments.push({
+            index: i,
+            durationSec,
+            startSec: cumStarts[i] || 0,
+            files,
+            groupId: group.id
+        });
+    }
+    
+    // Verify we have valid file paths
+    const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
+    if (!hasFiles) {
+        notify('No video files found for export. Please ensure the folder was selected correctly.', { type: 'error' });
+        return;
+    }
+    
+    // Show progress
+    const progressEl = $('exportProgress');
+    const exportProgressBar = $('exportProgressBar');
+    const progressText = $('exportProgressText');
+    const startBtn = $('startExportBtn');
+    
+    if (progressEl) progressEl.classList.remove('hidden');
+    if (exportProgressBar) exportProgressBar.style.width = '0%';
+    if (progressText) progressText.textContent = 'Starting export...';
+    if (startBtn) startBtn.disabled = true;
+    
+    // Generate export ID
+    const exportId = `export_${Date.now()}`;
+    exportState.currentExportId = exportId;
+    exportState.isExporting = true;
+    
+    // Set up progress listener
+    if (window.electronAPI?.on) {
+        window.electronAPI.on('export:progress', (receivedExportId, progress) => {
+            if (receivedExportId !== exportId) return;
+            
+            if (progress.type === 'progress') {
+                if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
+                if (progressText) progressText.textContent = progress.message;
+            } else if (progress.type === 'complete') {
+                exportState.isExporting = false;
+                exportState.currentExportId = null;
+                
+                if (progress.success) {
+                    if (exportProgressBar) exportProgressBar.style.width = '100%';
+                    if (progressText) progressText.textContent = progress.message;
+                    notify(progress.message, { type: 'success' });
+                    
+                    // Offer to show file location
+                    setTimeout(() => {
+                        if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
+                            window.electronAPI.showItemInFolder(outputPath);
+                        }
+                        closeExportModalFn();
+                    }, 500);
+                } else {
+                    if (progressText) progressText.textContent = progress.message;
+                    notify(progress.message, { type: 'error' });
+                    if (startBtn) startBtn.disabled = false;
+                }
+            }
+        });
+    }
+    
+    // Start export
+    try {
+        const exportData = {
+            segments,
+            startTimeMs,
+            endTimeMs,
+            outputPath,
+            cameras,
+            baseFolderPath
+        };
+        
+        console.log('Starting export with data:', exportData);
+        await window.electronAPI.startExport(exportId, exportData);
+    } catch (err) {
+        console.error('Export error:', err);
+        notify(`Export failed: ${err.message}`, { type: 'error' });
+        exportState.isExporting = false;
+        exportState.currentExportId = null;
+        if (startBtn) startBtn.disabled = false;
+    }
+}
+
+async function cancelExport() {
+    if (exportState.currentExportId && window.electronAPI?.cancelExport) {
+        await window.electronAPI.cancelExport(exportState.currentExportId);
+        notify('Export cancelled', { type: 'info' });
+    }
+    
+    exportState.isExporting = false;
+    exportState.currentExportId = null;
+    
+    const progressEl = $('exportProgress');
+    const startBtn = $('startExportBtn');
+    
+    if (progressEl) progressEl.classList.add('hidden');
+    if (startBtn) startBtn.disabled = false;
+}
+
+// Update export button state when collection changes
+const originalSelectDayCollection = selectDayCollection;
+window.selectDayCollectionWrapper = function(dayKey) {
+    originalSelectDayCollection.call(this, dayKey);
+    // Update export button state after collection loads
+    setTimeout(updateExportButtonState, 100);
+};
+
+// Call updateExportButtonState initially
+setTimeout(updateExportButtonState, 500);
 
 

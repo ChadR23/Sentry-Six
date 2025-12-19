@@ -1571,3 +1571,377 @@ canvas, .video-player, .tile-video {
     transition: width 0.15s ease-out;
     border-radius: 2px;
 }
+
+/* ============================================================
+   Export UI Styles
+   ============================================================ */
+
+/* Timeline Container with markers */
+.timeline-container {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.timeline-container .progress-bar {
+    width: 100%;
+}
+
+/* Timeline Markers */
+.timeline-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.export-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 24px;
+    border-radius: 2px;
+    cursor: ew-resize;
+    pointer-events: auto;
+    z-index: 15;
+    transition: opacity 0.15s;
+}
+
+.export-marker::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+}
+
+.export-marker.start {
+    background: #4caf50;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+}
+
+.export-marker.start::after {
+    border-top: 8px solid #4caf50;
+}
+
+.export-marker.end {
+    background: #f44336;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.5);
+}
+
+.export-marker.end::after {
+    border-top: 8px solid #f44336;
+}
+
+.export-marker:hover {
+    opacity: 0.8;
+}
+
+/* Export Range Highlight */
+.export-range-highlight {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 10px;
+    background: rgba(62, 156, 191, 0.3);
+    border-radius: 5px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Export Marker Buttons */
+.export-marker-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+}
+
+.export-marker-btn .marker-label {
+    font-weight: 600;
+}
+
+.export-marker-btn:not(:disabled):hover {
+    background: rgba(62, 156, 191, 0.2);
+    border-color: rgba(62, 156, 191, 0.4);
+}
+
+/* Export Button */
+.export-btn {
+    background: rgba(62, 156, 191, 0.15);
+    border-color: rgba(62, 156, 191, 0.3);
+}
+
+.export-btn:not(:disabled):hover {
+    background: rgba(62, 156, 191, 0.25);
+    border-color: rgba(62, 156, 191, 0.5);
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: linear-gradient(180deg, 
+        rgba(45, 45, 50, 0.95) 0%, 
+        rgba(35, 35, 40, 0.95) 50%,
+        rgba(28, 28, 32, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Export Sections */
+.export-section {
+    margin-bottom: 20px;
+}
+
+.export-section:last-child {
+    margin-bottom: 0;
+}
+
+.export-section h3 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 10px;
+}
+
+/* Export Range Info */
+.export-range-info {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.range-item {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.range-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 4px;
+}
+
+.range-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'SF Mono', monospace;
+}
+
+/* Camera Grid */
+.camera-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.camera-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.camera-checkbox:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.camera-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3e9cbf;
+}
+
+.camera-checkbox span {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* FFmpeg Status */
+.ffmpeg-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.ffmpeg-status .status-icon {
+    font-size: 16px;
+}
+
+.ffmpeg-status .status-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ffmpeg-status.available .status-icon::before {
+    content: '✓';
+    color: #4caf50;
+}
+
+.ffmpeg-status.unavailable .status-icon::before {
+    content: '✗';
+    color: #f44336;
+}
+
+/* Export Progress */
+.export-progress {
+    margin-top: 16px;
+}
+
+.export-progress.hidden {
+    display: none;
+}
+
+.progress-bar-container {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3e9cbf, #5cc2e8);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+}
+
+/* Buttons */
+.btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: rgba(62, 156, 191, 0.8);
+    color: #fff;
+    border-color: rgba(62, 156, 191, 0.9);
+}
+
+.btn-primary:not(:disabled):hover {
+    background: rgba(62, 156, 191, 1);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-secondary:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.12);
+}

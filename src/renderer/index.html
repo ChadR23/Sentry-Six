@@ -321,6 +321,24 @@
                 <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">KM/H</span>
             </label>
+            <!-- Export controls -->
+            <button id="setStartMarkerBtn" class="control-btn export-marker-btn" title="Set export start point (I)" disabled>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
+                </svg>
+                <span class="marker-label">In</span>
+            </button>
+            <button id="setEndMarkerBtn" class="control-btn export-marker-btn" title="Set export end point (O)" disabled>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
+                </svg>
+                <span class="marker-label">Out</span>
+            </button>
+            <button id="exportBtn" class="control-btn export-btn" title="Export video" disabled>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+            </button>
             <!-- Layout options hidden - using default 6-cam layout -->
             <select id="multiLayoutSelect" style="display:none">
                 <option value="six_default" selected>Pillars Top</option>
@@ -328,7 +346,92 @@
             <select id="cameraSelect" style="display:none">
                 <option value="front">Front</option>
             </select>
-            <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" disabled>
+            <!-- Timeline with markers -->
+            <div class="timeline-container">
+                <div id="timelineMarkers" class="timeline-markers"></div>
+                <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" disabled>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content export-modal">
+            <div class="modal-header">
+                <h2>Export Video</h2>
+                <button id="closeExportModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Export Range -->
+                <div class="export-section">
+                    <h3>Export Range</h3>
+                    <div class="export-range-info">
+                        <div class="range-item">
+                            <span class="range-label">Start:</span>
+                            <span id="exportStartTime" class="range-value">--:--</span>
+                        </div>
+                        <div class="range-item">
+                            <span class="range-label">End:</span>
+                            <span id="exportEndTime" class="range-value">--:--</span>
+                        </div>
+                        <div class="range-item">
+                            <span class="range-label">Duration:</span>
+                            <span id="exportDuration" class="range-value">--:--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cameras (all 6 selected by default) -->
+                <div class="export-section">
+                    <h3>Cameras</h3>
+                    <div class="camera-grid">
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="left_pillar" checked>
+                            <span>Left Pillar</span>
+                        </label>
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="front" checked>
+                            <span>Front</span>
+                        </label>
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="right_pillar" checked>
+                            <span>Right Pillar</span>
+                        </label>
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="left_repeater" checked>
+                            <span>Left Repeater</span>
+                        </label>
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="back" checked>
+                            <span>Back</span>
+                        </label>
+                        <label class="camera-checkbox">
+                            <input type="checkbox" data-camera="right_repeater" checked>
+                            <span>Right Repeater</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- FFmpeg Status -->
+                <div class="export-section">
+                    <div id="ffmpegStatus" class="ffmpeg-status">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-text">Checking FFmpeg...</span>
+                    </div>
+                </div>
+
+                <!-- Progress -->
+                <div id="exportProgress" class="export-progress hidden">
+                    <div class="progress-bar-container">
+                        <div id="exportProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="exportProgressText" class="progress-text">Preparing...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelExportBtn" class="btn btn-secondary">Cancel</button>
+                <button id="startExportBtn" class="btn btn-primary" disabled>Export</button>
+            </div>
         </div>
     </div>
 
