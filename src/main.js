@@ -232,14 +232,32 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     sendProgress(5, 'Building export...');
 
     // Quality settings based on quality option (per-camera resolution)
+    // Tesla cameras: Front=2896×1876, Others=1448×938 (both ~1.54:1 aspect ratio)
+    // Multi-cam: scale to side camera res (1448×938) to avoid upscaling artifacts
+    // Front-only: use full front camera resolution for max quality
+    const isFrontOnly = selectedCameras.size === 1 && selectedCameras.has('front');
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
-    switch (q) {
-      case 'mobile':   w = 640;  h = 360;  crf = 28; break;  // Grid: 1920x720
-      case 'medium':   w = 960;  h = 540;  crf = 26; break;  // Grid: 2880x1080
-      case 'high':     w = 1280; h = 720;  crf = 23; break;  // Grid: 3840x1440
-      case 'max':      w = 1280; h = 960;  crf = 20; break;  // Grid: 3840x1920
-      default:         w = 1280; h = 720;  crf = 23;
+    
+    if (isFrontOnly) {
+      // Front camera only - use full front camera resolution
+      switch (q) {
+        case 'mobile':   w = 724;  h = 469;  crf = 28; break;
+        case 'medium':   w = 1448; h = 938;  crf = 26; break;
+        case 'high':     w = 2172; h = 1407; crf = 23; break;
+        case 'max':      w = 2896; h = 1876; crf = 20; break;  // Full front native
+        default:         w = 1448; h = 938;  crf = 23;
+      }
+      console.log('📹 Front camera only - using full front camera resolution');
+    } else {
+      // Multi-camera - scale to side camera resolution
+      switch (q) {
+        case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
+        case 'medium':   w = 724;  h = 469;  crf = 26; break;  // 0.5x side native
+        case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
+        case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
+        default:         w = 1086; h = 704;  crf = 23;
+      }
     }
 
     // Detect GPU encoder
@@ -271,7 +289,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       const srcIdx = hasVideo ? inputIdx : blackInputIdx;
       const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
 
-      let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+      // Force constant frame rate (Tesla cameras use VFR which causes playback issues)
+      let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
       if (hasVideo && isMirrored) chain += ',hflip';
       chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
       
@@ -301,8 +320,14 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
+    // Calculate total output resolution for GPU limit check
+    const totalW = w * cols;
+    const totalH = h * rows;
+    const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
+    const useGpu = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
+
     // Encoding settings
-    if (gpu && !mobileExport) {
+    if (useGpu) {
       cmd.push('-c:v', gpu.codec);
       if (gpu.codec === 'h264_nvenc') {
         cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString());
@@ -315,6 +340,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       console.log(`🎮 Using GPU encoder: ${gpu.name}`);
     } else {
+      if (gpu && (totalW > gpuMaxRes || totalH > gpuMaxRes)) {
+        console.log(`⚠️ Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
+      }
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
     }
 
@@ -324,7 +352,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push(outputPath);
 
     console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
-    sendProgress(8, gpu ? `Exporting with ${gpu.name}...` : 'Exporting...');
+    sendProgress(8, useGpu ? `Exporting with ${gpu.name}...` : 'Exporting with CPU...');
 
     // Execute
     return new Promise((resolve, reject) => {

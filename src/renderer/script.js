@@ -4533,6 +4533,7 @@ function updateExportRangeDisplay() {
 
 function updateExportSizeEstimate() {
     const estimateEl = $('exportSizeEstimate');
+    const warningEl = $('frontCamWarning');
     if (!estimateEl || !state.collection.active) return;
     
     // Get duration
@@ -4542,7 +4543,15 @@ function updateExportSizeEstimate() {
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
     
     // Get selected cameras
-    const cameraCount = document.querySelectorAll('.camera-checkbox input:checked').length || 6;
+    const selectedCameras = document.querySelectorAll('.camera-checkbox input:checked');
+    const cameraCount = selectedCameras.length || 6;
+    const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
+    const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
+    
+    // Show/hide warning
+    if (warningEl) {
+        warningEl.classList.toggle('hidden', !hasFrontAndOthers);
+    }
     
     // Calculate grid layout (same logic as main.js)
     let cols, rows;
@@ -4552,9 +4561,16 @@ function updateExportSizeEstimate() {
     else if (cameraCount === 4) { cols = 2; rows = 2; }
     else { cols = 3; rows = 2; }
     
-    // Get quality settings (per-camera resolution)
+    // Get quality settings based on selection
     const quality = document.querySelector('input[name="exportQuality"]:checked')?.value || 'high';
-    const perCam = { mobile: [640, 360], medium: [960, 540], high: [1280, 720], max: [1280, 960] }[quality] || [1280, 720];
+    let perCam;
+    if (isFrontOnly) {
+        // Front only - full front camera resolution
+        perCam = { mobile: [724, 469], medium: [1448, 938], high: [2172, 1407], max: [2896, 1876] }[quality] || [1448, 938];
+    } else {
+        // Multi-camera - side camera resolution
+        perCam = { mobile: [484, 314], medium: [724, 469], high: [1086, 704], max: [1448, 938] }[quality] || [1086, 704];
+    }
     
     // Calculate final grid resolution
     const gridW = perCam[0] * cols;

@@ -420,32 +420,36 @@
                             <input type="radio" name="exportQuality" value="mobile">
                             <div class="quality-info">
                                 <span class="quality-name">Mobile</span>
-                                <span class="quality-desc">640×360 per cam</span>
+                                <span class="quality-desc">484×314 per cam</span>
                             </div>
                         </label>
                         <label class="quality-option">
                             <input type="radio" name="exportQuality" value="medium">
                             <div class="quality-info">
                                 <span class="quality-name">Medium</span>
-                                <span class="quality-desc">960×540 per cam</span>
+                                <span class="quality-desc">724×469 per cam</span>
                             </div>
                         </label>
                         <label class="quality-option">
                             <input type="radio" name="exportQuality" value="high" checked>
                             <div class="quality-info">
                                 <span class="quality-name">High</span>
-                                <span class="quality-desc">1280×720 per cam</span>
+                                <span class="quality-desc">1086×704 per cam</span>
                             </div>
                         </label>
                         <label class="quality-option">
                             <input type="radio" name="exportQuality" value="max">
                             <div class="quality-info">
                                 <span class="quality-name">Maximum</span>
-                                <span class="quality-desc">1280×960 per cam</span>
+                                <span class="quality-desc">1448×938 per cam</span>
                             </div>
                         </label>
                     </div>
                     <div id="exportSizeEstimate" class="export-size-estimate"></div>
+                    <div id="frontCamWarning" class="export-warning hidden">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">Front camera will be scaled down to match other cameras. Select only Front for full 2896×1876 quality.</span>
+                    </div>
                 </div>
 
                 <!-- Filename -->
