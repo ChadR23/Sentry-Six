@@ -878,8 +878,8 @@ class SentrySixApp {
                     currentSha = null;
                 }
 
-                // Fetch latest commit SHA from GitHub API (Electron-rebuld dev branch)
-                const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/Electron-rebuld';
+                // Fetch latest commit SHA from GitHub API (main branch)
+                const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/main';
                 const https = require('https');
                 const fetchLatestSha = () => new Promise((resolve, reject) => {
                     https.get(apiUrl, { headers: { 'User-Agent': 'Sentry-Six-Updater' } }, (res) => {
@@ -902,7 +902,7 @@ class SentrySixApp {
                     }).on('error', reject);
                 });
                 const latestSha = await fetchLatestSha();
-                console.log('Latest commit SHA (Electron-rebuld):', latestSha);
+                console.log('Latest commit SHA (main):', latestSha);
 
                 // Check if we're already up to date
                 if (currentSha && currentSha === latestSha) {
