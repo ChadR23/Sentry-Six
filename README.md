@@ -21,6 +21,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time s
   - 6-camera grid layouts (Front/Back/Repeaters/Pillars)
   - Click a tile to **focus** that camera (Esc/click again to exit)
   - Smooth “native video” playback with synced camera playback.
+  - Adjustable playback speed (0.5x, 1x, 2x, 3x, 4x)
 - **SentryClips & SavedClips support**
   - Automatically parses `event.json` metadata for each event
   - Displays **event location on map** using estimated GPS coordinates from event.json
@@ -34,10 +35,16 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt) for real-time s
   - Builds a route polyline from SEI GPS points
   - Shows static location marker for Sentry/Saved events (from event.json)
   - Floating, draggable map panel (Leaflet)
+- **Clip Exporting**
+  - Hardware Acceleration: Enables GPU encoding when supported.
+  - Live Estimates: See export progress, duration, and size predictions.
+  - Adjustable Quality: Select Maximum Quality for best video quality, or a lower quality for easier sharing with smaller file sizes.
+  - For MacOS users, ensure you have the latest version of ffmpeg installed. (You can use Homebrew to install it: `brew install ffmpeg`)
+
 
 ## What’s intentionally not here (yet)
 
-- **FFmpeg exporting / timelapse / burn-in overlays** (present in older versions) are **not implemented** in this revamped codebase right now.
+- **Timelapse / burn-in overlays** are **not implemented** in this revamped codebase right now.
 
 ## Requirements
 
