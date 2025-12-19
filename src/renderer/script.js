@@ -1,5 +1,5 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
-import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, DASHBOARD_ENABLED_KEY, MAP_ENABLED_KEY, DEFAULT_FOLDER_KEY, USE_METRIC_KEY, KEYBINDS_KEY, DISABLE_AUTO_UPDATE_KEY } from './scripts/lib/storageKeys.js';
+import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
 import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
@@ -442,7 +442,7 @@ const GFORCE_HISTORY_MAX = 3;
 // Constants
 const MPS_TO_MPH = 2.23694;
 const MPS_TO_KMH = 3.6;
-let useMetric = localStorage.getItem(USE_METRIC_KEY) === 'true';
+let useMetric = false; // Will be loaded from settings
 
 function notify(message, opts = {}) {
     const type = opts.type || 'info'; // 'info' | 'success' | 'warn' | 'error'
@@ -609,14 +609,18 @@ function hasValidGps(sei) {
     // Dashboard (SEI overlay) toggle
     dashboardToggle.onchange = () => {
         state.ui.dashboardEnabled = !!dashboardToggle.checked;
-        localStorage.setItem(DASHBOARD_ENABLED_KEY, state.ui.dashboardEnabled ? '1' : '0');
+        if (window.electronAPI?.setSetting) {
+            window.electronAPI.setSetting('dashboardEnabled', state.ui.dashboardEnabled);
+        }
         updateDashboardVisibility();
     };
 
     // Map toggle
     mapToggle.onchange = () => {
         state.ui.mapEnabled = !!mapToggle.checked;
-        localStorage.setItem(MAP_ENABLED_KEY, state.ui.mapEnabled ? '1' : '0');
+        if (window.electronAPI?.setSetting) {
+            window.electronAPI.setSetting('mapEnabled', state.ui.mapEnabled);
+        }
         updateMapVisibility();
     };
 
@@ -626,7 +630,9 @@ function hasValidGps(sei) {
         metricToggle.checked = useMetric;
         metricToggle.onchange = () => {
             useMetric = metricToggle.checked;
-            localStorage.setItem(USE_METRIC_KEY, useMetric ? 'true' : 'false');
+            if (window.electronAPI?.setSetting) {
+                window.electronAPI.setSetting('useMetric', useMetric);
+            }
             // Update speed unit display
             const unitEl = $('speedUnit');
             if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
@@ -651,14 +657,32 @@ function hasValidGps(sei) {
         };
     }
 
-    // Initialize dashboard/map toggles from localStorage (default ON)
-    const savedDashboard = localStorage.getItem(DASHBOARD_ENABLED_KEY);
-    state.ui.dashboardEnabled = savedDashboard == null ? true : savedDashboard === '1';
-    if (dashboardToggle) dashboardToggle.checked = state.ui.dashboardEnabled;
-
-    const savedMap = localStorage.getItem(MAP_ENABLED_KEY);
-    state.ui.mapEnabled = savedMap == null ? true : savedMap === '1';
-    if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
+    // Initialize dashboard/map/metric toggles from file-based settings (default ON)
+    if (window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('dashboardEnabled').then(saved => {
+            state.ui.dashboardEnabled = saved === undefined ? true : saved === true;
+            if (dashboardToggle) dashboardToggle.checked = state.ui.dashboardEnabled;
+            updateDashboardVisibility();
+        });
+        window.electronAPI.getSetting('mapEnabled').then(saved => {
+            state.ui.mapEnabled = saved === undefined ? true : saved === true;
+            if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
+            updateMapVisibility();
+        });
+        window.electronAPI.getSetting('useMetric').then(saved => {
+            useMetric = saved === true;
+            const metricToggle = $('metricToggle');
+            if (metricToggle) metricToggle.checked = useMetric;
+            const unitEl = $('speedUnit');
+            if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+        });
+    } else {
+        // Fallback to defaults
+        state.ui.dashboardEnabled = true;
+        state.ui.mapEnabled = true;
+        if (dashboardToggle) dashboardToggle.checked = state.ui.dashboardEnabled;
+        if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
+    }
 
     // Apply initial visibility state
     updateDashboardVisibility();
@@ -1037,10 +1061,13 @@ function initSettingsModal() {
         settingsMetricToggle.checked = useMetric;
     }
     
-    // Load saved default folder
-    const savedFolder = localStorage.getItem(DEFAULT_FOLDER_KEY);
-    if (savedFolder && defaultFolderPath) {
-        defaultFolderPath.value = savedFolder;
+    // Load saved default folder from file-based storage
+    if (window.electronAPI?.getSetting && defaultFolderPath) {
+        window.electronAPI.getSetting('defaultFolder').then(savedFolder => {
+            if (savedFolder) {
+                defaultFolderPath.value = savedFolder;
+            }
+        });
     }
     
     // Open settings modal
@@ -1120,7 +1147,9 @@ function initSettingsModal() {
                 try {
                     const folderPath = await window.electronAPI.openFolder();
                     if (folderPath) {
-                        localStorage.setItem(DEFAULT_FOLDER_KEY, folderPath);
+                        if (window.electronAPI?.setSetting) {
+                            await window.electronAPI.setSetting('defaultFolder', folderPath);
+                        }
                         if (defaultFolderPath) defaultFolderPath.value = folderPath;
                         if (defaultFolderStatus) {
                             defaultFolderStatus.textContent = 'Default folder saved';
@@ -1149,9 +1178,11 @@ function initSettingsModal() {
     
     // Clear default folder
     if (clearDefaultFolderBtn) {
-        clearDefaultFolderBtn.onclick = (e) => {
+        clearDefaultFolderBtn.onclick = async (e) => {
             e.preventDefault();
-            localStorage.removeItem(DEFAULT_FOLDER_KEY);
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('defaultFolder', null);
+            }
             if (defaultFolderPath) defaultFolderPath.value = '';
             if (defaultFolderStatus) {
                 defaultFolderStatus.textContent = 'Default folder cleared';
@@ -1247,10 +1278,13 @@ const keybindActions = {
 };
 
 // Load keybinds from storage
-function loadKeybinds() {
+async function loadKeybinds() {
     try {
-        const saved = localStorage.getItem(KEYBINDS_KEY);
-        return saved ? JSON.parse(saved) : {};
+        if (window.electronAPI?.getSetting) {
+            const saved = await window.electronAPI.getSetting('keybinds');
+            return saved || {};
+        }
+        return {};
     } catch (e) {
         console.error('Failed to load keybinds:', e);
         return {};
@@ -1259,7 +1293,9 @@ function loadKeybinds() {
 
 // Save keybinds to storage
 function saveKeybinds(keybinds) {
-    localStorage.setItem(KEYBINDS_KEY, JSON.stringify(keybinds));
+    if (window.electronAPI?.setSetting) {
+        window.electronAPI.setSetting('keybinds', keybinds);
+    }
 }
 
 // Format a key event into a readable string
@@ -1302,8 +1338,8 @@ function getKeyIdentifier(e) {
 let recordingKeybindInput = null;
 
 // Initialize keybind settings UI
-function initKeybindSettings() {
-    const keybinds = loadKeybinds();
+async function initKeybindSettings() {
+    const keybinds = await loadKeybinds();
     const keybindInputs = document.querySelectorAll('.keybind-input');
     const keybindClears = document.querySelectorAll('.keybind-clear');
     
@@ -1323,12 +1359,12 @@ function initKeybindSettings() {
             input.value = 'Press a key...';
         });
         
-        input.addEventListener('blur', () => {
+        input.addEventListener('blur', async () => {
             if (recordingKeybindInput === input) {
                 input.classList.remove('recording');
                 // Restore previous value if no key was pressed
                 const action = input.dataset.action;
-                const keybinds = loadKeybinds();
+                const keybinds = await loadKeybinds();
                 input.value = keybinds[action]?.display || '';
                 recordingKeybindInput = null;
             }
@@ -1337,10 +1373,10 @@ function initKeybindSettings() {
     
     // Handle clear buttons
     keybindClears.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             e.preventDefault();
             const action = btn.dataset.action;
-            const keybinds = loadKeybinds();
+            const keybinds = await loadKeybinds();
             delete keybinds[action];
             saveKeybinds(keybinds);
             
@@ -1352,7 +1388,7 @@ function initKeybindSettings() {
 }
 
 // Global keyboard event handler for keybind recording and execution
-function handleGlobalKeydown(e) {
+async function handleGlobalKeydown(e) {
     // If we're recording a keybind
     if (recordingKeybindInput) {
         e.preventDefault();
@@ -1368,7 +1404,7 @@ function handleGlobalKeydown(e) {
         const identifier = getKeyIdentifier(e);
         
         // Check for conflicts with other keybinds
-        const keybinds = loadKeybinds();
+        const keybinds = await loadKeybinds();
         for (const [existingAction, binding] of Object.entries(keybinds)) {
             if (existingAction !== action && binding.identifier === identifier) {
                 // Remove the conflicting keybind
@@ -1404,7 +1440,7 @@ function handleGlobalKeydown(e) {
     
     // Execute keybind action if matched
     const identifier = getKeyIdentifier(e);
-    const keybinds = loadKeybinds();
+    const keybinds = await loadKeybinds();
     
     for (const [action, binding] of Object.entries(keybinds)) {
         if (binding.identifier === identifier) {
@@ -1422,7 +1458,10 @@ document.addEventListener('keydown', handleGlobalKeydown);
 
 // Auto-load default folder on startup
 async function loadDefaultFolderOnStartup() {
-    const savedFolder = localStorage.getItem(DEFAULT_FOLDER_KEY);
+    let savedFolder = null;
+    if (window.electronAPI?.getSetting) {
+        savedFolder = await window.electronAPI.getSetting('defaultFolder');
+    }
     if (savedFolder && window.electronAPI?.readDir) {
         try {
             console.log('Auto-loading default TeslaCam folder:', savedFolder);
@@ -1444,13 +1483,10 @@ setTimeout(loadDefaultFolderOnStartup, 500);
 async function checkForUpdatesOnStartup() {
     let autoUpdateDisabled = false;
     
-    // Try file-based settings first, fall back to localStorage
+    // Load from file-based settings
     if (window.electronAPI?.getSetting) {
         const savedValue = await window.electronAPI.getSetting('disableAutoUpdate');
         autoUpdateDisabled = savedValue === true;
-    } else {
-        const savedValue = localStorage.getItem(DISABLE_AUTO_UPDATE_KEY);
-        autoUpdateDisabled = savedValue === 'true';
     }
     
     if (!autoUpdateDisabled && window.electronAPI?.checkForUpdates) {
