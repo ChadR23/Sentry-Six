@@ -902,24 +902,12 @@ function syncMultiVideos(targetTime) {
     
     Object.entries(videoBySlot).forEach(([slot, vid]) => {
         if (!vid || vid === nativeVideo.master) return;
-        if (!vid.src || vid.readyState < 2) return; // Need more data ready
+        if (!vid.src || vid.readyState < 1) return;
         
-        const drift = vid.currentTime - targetTime;
-        const absDrift = Math.abs(drift);
-        
-        // Use playbackRate adjustment for small drifts (smoother)
-        // Hard sync only for large drifts > 0.3s
-        if (absDrift > 0.3) {
+        // Only sync if drift > 0.15s (slightly more tolerance)
+        const drift = Math.abs(vid.currentTime - targetTime);
+        if (drift > 0.15) {
             vid.currentTime = targetTime;
-            vid.playbackRate = state.ui.playbackRate || 1;
-        } else if (absDrift > 0.05) {
-            // Subtle speed adjustment to catch up/slow down
-            const baseRate = state.ui.playbackRate || 1;
-            const correction = drift > 0 ? 0.97 : 1.03; // Slow down if ahead, speed up if behind
-            vid.playbackRate = baseRate * correction;
-        } else {
-            // Within tolerance - reset to normal rate
-            vid.playbackRate = state.ui.playbackRate || 1;
         }
         
         // Also ensure play state matches master
