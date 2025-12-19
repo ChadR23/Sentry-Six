@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
+  exitApp: () => ipcRenderer.invoke('update:exit'),
   
   // Event listeners
   on: (channel, callback) => {

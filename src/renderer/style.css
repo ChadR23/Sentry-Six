@@ -2144,3 +2144,47 @@ canvas, .video-player, .tile-video {
 .update-modal .btn-primary:hover:not(:disabled) {
     background: linear-gradient(135deg, #4db3d6 0%, #3e9cbf 100%);
 }
+
+/* Red Exit/Danger button */
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #e04555 0%, #dc3545 100%);
+    transform: translateY(-1px);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
+}
+
+/* Restart message styling */
+.restart-message {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.restart-message code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    color: #3e9cbf;
+}
+
+/* Update complete footer styling */
+.update-modal .modal-footer {
+    flex-direction: column;
+    align-items: center;
+}

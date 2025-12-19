@@ -4871,14 +4871,44 @@ async function handleInstallUpdate() {
             if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
             if (updateModalFooter) updateModalFooter.style.display = '';
             updateModal.querySelector('.update-modal')?.classList.remove('updating');
+        } else {
+            // Update successful - show Exit button
+            showUpdateCompleteState();
         }
-        // If successful, app will restart automatically
     } catch (err) {
         console.error('Update install error:', err);
         if (updateProgressText) updateProgressText.textContent = `Error: ${err.message}`;
         if (updateModalFooter) updateModalFooter.style.display = '';
         updateModal.querySelector('.update-modal')?.classList.remove('updating');
     }
+}
+
+function showUpdateCompleteState() {
+    // Update progress text
+    if (updateProgressText) {
+        updateProgressText.textContent = 'Update installed successfully!';
+    }
+    
+    // Show footer with Exit button
+    if (updateModalFooter) {
+        updateModalFooter.innerHTML = `
+            <p class="restart-message">Please restart the app with <code>npm start</code></p>
+            <button id="exitAppBtn" class="btn btn-danger">Exit App</button>
+        `;
+        updateModalFooter.style.display = '';
+        
+        // Add click handler for Exit button
+        const exitBtn = document.getElementById('exitAppBtn');
+        if (exitBtn) {
+            exitBtn.addEventListener('click', () => {
+                if (window.electronAPI?.exitApp) {
+                    window.electronAPI.exitApp();
+                }
+            });
+        }
+    }
+    
+    updateModal.querySelector('.update-modal')?.classList.remove('updating');
 }
 
 // Set up update event listeners

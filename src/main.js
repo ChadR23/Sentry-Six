@@ -735,13 +735,21 @@ async function performUpdate(event) {
       ? path.dirname(app.getPath('exe'))
       : path.join(__dirname, '..');
     
-    // Copy new files
-    copyDirectory(path.join(sourceDir, 'src'), path.join(appDir, 'src'));
-    
-    // Copy package.json if exists
-    const newPackageJson = path.join(sourceDir, 'package.json');
-    if (fs.existsSync(newPackageJson)) {
-      copyFileSync(newPackageJson, path.join(appDir, 'package.json'));
+    // Copy ALL files from the downloaded repo to app directory
+    // This includes src/, README.md, package.json, and any other files
+    const filesToCopy = fs.readdirSync(sourceDir, { withFileTypes: true });
+    for (const entry of filesToCopy) {
+      const srcPath = path.join(sourceDir, entry.name);
+      const destPath = path.join(appDir, entry.name);
+      
+      // Skip node_modules and .git directories
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      
+      if (entry.isDirectory()) {
+        copyDirectory(srcPath, destPath);
+      } else {
+        copyFileSync(srcPath, destPath);
+      }
     }
     
     sendProgress(90, 'Cleaning up...');
@@ -752,9 +760,9 @@ async function performUpdate(event) {
     // Save new version
     saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
     
-    sendProgress(100, 'Update complete! Restarting...');
+    sendProgress(100, 'Update complete!');
     
-    return { success: true };
+    return { success: true, needsRestart: true };
   } catch (err) {
     console.error('Update failed:', err);
     return { success: false, error: err.message };
@@ -802,16 +810,13 @@ ipcMain.handle('update:check', async () => {
 
 ipcMain.handle('update:install', async (event) => {
   const result = await performUpdate(event);
-  
-  if (result.success) {
-    // Restart app after short delay
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 1500);
-  }
-  
+  // Don't auto-restart - let the UI show an Exit button
   return result;
+});
+
+ipcMain.handle('update:exit', async () => {
+  // User clicked Exit button after update - quit the app
+  app.quit();
 });
 
 ipcMain.handle('update:skip', async () => {
