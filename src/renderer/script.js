@@ -5173,11 +5173,16 @@ function updateEventCameraHighlight() {
     
     if (!eventMeta?.camera && eventMeta?.camera !== 0) return;
     
-    // Camera mapping: 0=Front(tc), 5=Left Repeater(bl), 6=Right Repeater(br)
+    // Camera mapping based on Tesla camera indices
     const cameraToSlot = {
         '0': 'tc',  // Front
+        '1': 'tc',  // Front
+        '2': 'tc',  // Front
+        '3': 'tl',  // Left Pillar
+        '4': 'tr',  // Right Pillar
         '5': 'bl',  // Left Repeater
-        '6': 'br'   // Right Repeater
+        '6': 'br',  // Right Repeater
+        '7': 'bc'   // Back
     };
     
     const cameraValue = String(eventMeta.camera);
