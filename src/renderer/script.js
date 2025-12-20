@@ -6198,6 +6198,9 @@ function saveCustomCameraOrder() {
 function resetCameraOrder() {
     customCameraOrder = null;
     saveCustomCameraOrder();
+    // Update labels and event camera highlight immediately
+    updateTileLabels();
+    updateEventCameraHighlight();
     // Reload current segment to apply default order
     if (state.collection.active && nativeVideo.currentSegmentIdx >= 0) {
         loadNativeSegment(nativeVideo.currentSegmentIdx);
