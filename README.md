@@ -45,7 +45,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 - **Customizable Settings**
   - Toggle dashboard and map overlays
   - Customizable keyboard shortcuts
-  - Default folder auto-load
+  - Default Teslacam folder auto-load
 
 - **Auto-Update**
   - Checks for updates on startup and installs with one click
