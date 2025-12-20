@@ -1496,7 +1496,7 @@ function initSettingsModal() {
     // Load saved glass blur from file-based storage
     if (window.electronAPI?.getSetting) {
         window.electronAPI.getSetting('glassBlur').then(savedValue => {
-            const blurValue = savedValue !== undefined ? savedValue : 5;
+            const blurValue = savedValue !== undefined ? savedValue : 7;
             applyGlassBlur(blurValue);
         });
     }
