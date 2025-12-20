@@ -11,6 +11,7 @@
     --clips-dock-width: 360px;
     --clips-collapsed-width: 46px;
     --left-panel-offset: 360px;
+    --glass-blur: 7px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -376,11 +377,11 @@ canvas, .video-player, .tile-video {
     width: min(var(--clips-float-width), calc(100% - 40px));
     max-height: calc(100% - 100px);
     background: linear-gradient(180deg, 
-        rgba(45, 45, 50, 0.85) 0%, 
-        rgba(35, 35, 40, 0.80) 50%,
-        rgba(28, 28, 32, 0.85) 100%);
-    backdrop-filter: blur(40px) saturate(150%);
-    -webkit-backdrop-filter: blur(40px) saturate(150%);
+        rgba(45, 45, 50, 0.25) 0%, 
+        rgba(35, 35, 40, 0.20) 50%,
+        rgba(28, 28, 32, 0.25) 100%);
+    backdrop-filter: blur(8px) saturate(100%);
+    -webkit-backdrop-filter: blur(8px) saturate(100%);
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 
@@ -913,11 +914,11 @@ canvas, .video-player, .tile-video {
 .dashboard-vis, .map-vis {
     position: absolute;
     background: linear-gradient(180deg, 
-        rgba(45, 45, 50, 0.85) 0%, 
-        rgba(35, 35, 40, 0.80) 50%,
-        rgba(28, 28, 32, 0.85) 100%);
-    backdrop-filter: blur(40px) saturate(150%);
-    -webkit-backdrop-filter: blur(40px) saturate(150%);
+        rgba(45, 45, 50, 0.25) 0%, 
+        rgba(35, 35, 40, 0.20) 50%,
+        rgba(28, 28, 32, 0.25) 100%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(100%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(100%);
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 
@@ -1421,11 +1422,11 @@ canvas, .video-player, .tile-video {
 .controls {
     height: 60px;
     background: linear-gradient(180deg, 
-        rgba(45, 45, 50, 0.85) 0%, 
-        rgba(35, 35, 40, 0.80) 50%,
-        rgba(28, 28, 32, 0.85) 100%);
-    backdrop-filter: blur(40px) saturate(150%);
-    -webkit-backdrop-filter: blur(40px) saturate(150%);
+        rgba(45, 45, 50, 0.25) 0%, 
+        rgba(35, 35, 40, 0.20) 50%,
+        rgba(28, 28, 32, 0.25) 100%);
+    backdrop-filter: blur(4px) saturate(100%);
+    -webkit-backdrop-filter: blur(4px) saturate(100%);
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     align-items: center;
@@ -2433,6 +2434,60 @@ canvas, .video-player, .tile-video {
 .settings-toggle input:checked + .settings-toggle-track .settings-toggle-thumb {
     left: 23px;
     background: #fff;
+}
+
+/* Settings slider */
+.settings-slider {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    gap: 16px;
+}
+
+.slider-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.slider-control input[type="range"] {
+    width: 120px;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.slider-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(62, 156, 191, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s, background 0.15s;
+}
+
+.slider-control input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    background: rgba(62, 156, 191, 1);
+}
+
+.slider-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    min-width: 36px;
+    text-align: right;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
 /* Folder path input */

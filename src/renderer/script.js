@@ -1482,6 +1482,39 @@ function initSettingsModal() {
         });
     }
     
+    // Glass blur slider
+    const settingsGlassBlur = $('settingsGlassBlur');
+    const glassBlurValue = $('glassBlurValue');
+    
+    // Apply glass blur to CSS variable
+    function applyGlassBlur(value) {
+        document.documentElement.style.setProperty('--glass-blur', `${value}px`);
+        if (glassBlurValue) glassBlurValue.textContent = `${value}px`;
+        if (settingsGlassBlur) settingsGlassBlur.value = value;
+    }
+    
+    // Load saved glass blur from file-based storage
+    if (window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('glassBlur').then(savedValue => {
+            const blurValue = savedValue !== undefined ? savedValue : 5;
+            applyGlassBlur(blurValue);
+        });
+    }
+    
+    if (settingsGlassBlur) {
+        settingsGlassBlur.addEventListener('input', function(e) {
+            const value = parseInt(this.value, 10);
+            applyGlassBlur(value);
+        });
+        
+        settingsGlassBlur.addEventListener('change', async function(e) {
+            const value = parseInt(this.value, 10);
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('glassBlur', value);
+            }
+        });
+    }
+    
     // Hidden Developer Settings trigger - click Settings title 5 times
     const settingsModalHeader = settingsModal?.querySelector('.modal-header h2');
     let settingsTitleClickCount = 0;
