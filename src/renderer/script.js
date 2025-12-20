@@ -3,6 +3,33 @@ import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, SENTRY_CAMERA_HIGH
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
 import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
+import { notify } from './scripts/ui/notifications.js';
+import { showLoading, updateLoading, hideLoading, yieldToUI } from './scripts/ui/loadingOverlay.js';
+import { updateGForceMeter, resetGForceMeter } from './scripts/ui/gforceMeter.js';
+import { updateCompass, resetCompass } from './scripts/ui/compass.js';
+import { initKeybindActions, initKeybindSettings, initGlobalKeybindListener } from './scripts/lib/keybinds.js';
+import { initSteeringWheel, smoothSteeringTo, stopSteeringAnimation, resetSteeringWheel } from './scripts/ui/steeringWheel.js';
+import { formatTimeHMS, updateTimeDisplayNew, updateRecordingTime } from './scripts/ui/timeDisplay.js';
+import { 
+    exportState, initExportModule, setExportMarker, updateExportMarkers, 
+    updateExportButtonState, openExportModal, closeExportModal, 
+    updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
+    startExport, cancelExport, clearExportMarkers 
+} from './scripts/features/exportVideo.js';
+import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
+import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan } from './scripts/ui/zoomPan.js';
+import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings } from './scripts/ui/settingsModal.js';
+import { 
+    initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
+    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder
+} from './scripts/features/cameraRearrange.js';
+import { initDraggablePanels } from './scripts/ui/draggablePanels.js';
+import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight } from './scripts/ui/eventMarkers.js';
+import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
+import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
+import { initDashboardVisibility, updateDashboardVisibility } from './scripts/ui/dashboardVisibility.js';
+import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, forceResyncAllVideos, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
+import { formatEventTime, getTypeLabel, populateEventPopout } from './scripts/ui/clipListHelpers.js';
 
 // State
 const player = state.player;
@@ -24,14 +51,7 @@ let enumFields = null;
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
 
-// Export state
-const exportState = {
-    startMarkerPct: null,  // Start marker position as percentage (0-100)
-    endMarkerPct: null,    // End marker position as percentage (0-100)
-    isExporting: false,
-    currentExportId: null,
-    ffmpegAvailable: false
-};
+// Export state moved to scripts/features/exportVideo.js
 
 // Sentry collection mode state now lives in state.collection.active
 
@@ -50,8 +70,7 @@ const progressBar = $('progressBar');
 const playBtn = $('playBtn');
 const skipBackBtn = $('skipBackBtn');
 const skipForwardBtn = $('skipForwardBtn');
-const currentTimeEl = $('currentTime');
-const totalTimeEl = $('totalTime');
+// currentTimeEl and totalTimeEl moved to scripts/ui/timeDisplay.js
 const dashboardVis = $('dashboardVis');
 const videoContainer = $('videoContainer');
 const clipList = $('clipList');
@@ -94,99 +113,17 @@ const videoBySlot = {
 // URL object references for cleanup
 const videoUrls = new Map(); // video element -> objectURL
 
-// Custom camera order (slot -> camera) for user rearrangement
-// Loaded from settings.json on init, updated via drag-and-drop
-let customCameraOrder = null; // null = use default layout order
+// Custom camera order moved to scripts/features/cameraRearrange.js
 
 // Visualization Elements
 const speedValue = $('speedValue');
 const gearState = $('gearState');
 const blinkLeft = $('blinkLeft');
 const blinkRight = $('blinkRight');
-const steeringIcon = $('steeringIcon');
 
-// Smooth steering wheel animation using spring-damper physics
-// This creates natural, fluid motion like a real steering wheel
-let steeringPosition = 0;      // Current displayed angle
-let steeringVelocity = 0;      // Current angular velocity
-let steeringTarget = 0;        // Target angle from SEI data
-let smoothedTarget = 0;        // Smoothed target (reduces noise)
-let steeringAnimationId = null;
-let lastSteeringTime = 0;
-
-// Spring-damper physics base constants (tuned for 1x playback)
-// Higher stiffness = faster response, higher damping = less oscillation
-const STEERING_STIFFNESS_BASE = 15.0;  // Spring force - how strongly it pulls toward target
-const STEERING_DAMPING_BASE = 6.5;     // Damping - reduces oscillation/overshoot
-const TARGET_SMOOTHING_BASE = 0.25;    // How much to smooth incoming target values (reduces noise)
-
-function smoothSteeringTo(targetAngle) {
-    steeringTarget = targetAngle;
-    
-    // Start animation loop if not already running
-    if (!steeringAnimationId) {
-        lastSteeringTime = performance.now();
-        steeringAnimationId = requestAnimationFrame(animateSteeringWheel);
-    }
-}
-
-function animateSteeringWheel() {
-    const now = performance.now();
-    // Delta time in seconds, capped to prevent huge jumps
-    const dt = Math.min((now - lastSteeringTime) / 1000, 0.1);
-    lastSteeringTime = now;
-    
-    // Scale physics by playback rate so animation keeps up at higher speeds
-    const playbackRate = state.ui.playbackRate || 1;
-    const stiffness = STEERING_STIFFNESS_BASE * playbackRate;
-    const damping = STEERING_DAMPING_BASE * Math.sqrt(playbackRate); // sqrt for stability at high speeds
-    const smoothing = Math.min(0.7, TARGET_SMOOTHING_BASE * playbackRate); // Cap smoothing to prevent overshooting
-    
-    // First, smooth the target to reduce noise from SEI data
-    smoothedTarget += (steeringTarget - smoothedTarget) * smoothing;
-    
-    // Spring-damper physics:
-    // F = -k*(x - target) - b*v
-    // where k = stiffness, b = damping, x = position, v = velocity
-    const springForce = stiffness * (smoothedTarget - steeringPosition);
-    const dampingForce = -damping * steeringVelocity;
-    const acceleration = springForce + dampingForce;
-    
-    // Update velocity and position
-    steeringVelocity += acceleration * dt;
-    steeringPosition += steeringVelocity * dt;
-    
-    // Apply to DOM
-    if (steeringIcon) {
-        steeringIcon.style.transform = `rotate(${steeringPosition}deg)`;
-    }
-    
-    // Check if we're settled (very close to target with low velocity)
-    const settleThreshold = 0.1 * playbackRate; // More lenient at higher speeds
-    const settled = Math.abs(smoothedTarget - steeringPosition) < settleThreshold && 
-                    Math.abs(steeringVelocity) < 0.5 * playbackRate;
-    
-    if (settled) {
-        steeringPosition = smoothedTarget;
-        steeringVelocity = 0;
-        if (steeringIcon) {
-            steeringIcon.style.transform = `rotate(${steeringPosition}deg)`;
-        }
-        steeringAnimationId = null;
-        return;
-    }
-    
-    // Continue animation
-    steeringAnimationId = requestAnimationFrame(animateSteeringWheel);
-}
-
-// Stop steering animation when paused
-function stopSteeringAnimation() {
-    if (steeringAnimationId) {
-        cancelAnimationFrame(steeringAnimationId);
-        steeringAnimationId = null;
-    }
-}
+// Steering wheel animation moved to scripts/ui/steeringWheel.js
+// Initialize with playback rate getter
+initSteeringWheel(() => state.ui.playbackRate || 1);
 
 // Reset dashboard and map to default state (no SEI data)
 function resetDashboardAndMap() {
@@ -206,12 +143,7 @@ function resetDashboardAndMap() {
     blinkRight?.classList.remove('active', 'paused');
     
     // Reset steering wheel
-    stopSteeringAnimation();
-    steeringPosition = 0;
-    steeringVelocity = 0;
-    steeringTarget = 0;
-    smoothedTarget = 0;
-    if (steeringIcon) steeringIcon.style.transform = 'rotate(0deg)';
+    resetSteeringWheel();
     
     // Reset autopilot
     const autosteerIcon = $('autosteerIcon');
@@ -233,33 +165,18 @@ function resetDashboardAndMap() {
     if (valHeading) valHeading.textContent = '--';
     
     // Reset G-force meter
-    if (gforceDot) {
-        gforceDot.setAttribute('cx', 30);
-        gforceDot.setAttribute('cy', 30);
-        gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
-    }
-    if (gforceTrail1) { gforceTrail1.setAttribute('cx', 30); gforceTrail1.setAttribute('cy', 30); }
-    if (gforceTrail2) { gforceTrail2.setAttribute('cx', 30); gforceTrail2.setAttribute('cy', 30); }
-    if (gforceTrail3) { gforceTrail3.setAttribute('cx', 30); gforceTrail3.setAttribute('cy', 30); }
-    gforceHistory.length = 0;
-    if (gforceX) { gforceX.textContent = '0.0'; gforceX.classList.remove('positive', 'negative', 'high'); }
-    if (gforceY) { gforceY.textContent = '0.0'; gforceY.classList.remove('positive', 'negative', 'high'); }
+    resetGForceMeter();
     
     // Reset compass
-    if (compassNeedle) compassNeedle.setAttribute('transform', 'rotate(0 30 30)');
-    if (compassValue) compassValue.textContent = '--';
+    resetCompass();
     
     // Reset map
-    if (mapMarker) {
-        mapMarker.remove();
-        mapMarker = null;
-    }
+    clearMapMarker();
     if (mapPolyline) {
         mapPolyline.remove();
         mapPolyline = null;
     }
     mapPath = [];
-    currentMapArrowRotation = 0;
     
     // Clear SEI data cache and tracking flags
     if (nativeVideo) {
@@ -288,12 +205,7 @@ function resetDashboardOnly() {
     blinkRight?.classList.remove('active', 'paused');
     
     // Reset steering wheel
-    stopSteeringAnimation();
-    steeringPosition = 0;
-    steeringVelocity = 0;
-    steeringTarget = 0;
-    smoothedTarget = 0;
-    if (steeringIcon) steeringIcon.style.transform = 'rotate(0deg)';
+    resetSteeringWheel();
     
     // Reset autopilot
     const autosteerIcon = $('autosteerIcon');
@@ -315,21 +227,10 @@ function resetDashboardOnly() {
     if (valHeading) valHeading.textContent = '--';
     
     // Reset G-force meter
-    if (gforceDot) {
-        gforceDot.setAttribute('cx', 30);
-        gforceDot.setAttribute('cy', 30);
-        gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
-    }
-    if (gforceTrail1) { gforceTrail1.setAttribute('cx', 30); gforceTrail1.setAttribute('cy', 30); }
-    if (gforceTrail2) { gforceTrail2.setAttribute('cx', 30); gforceTrail2.setAttribute('cy', 30); }
-    if (gforceTrail3) { gforceTrail3.setAttribute('cx', 30); gforceTrail3.setAttribute('cy', 30); }
-    gforceHistory.length = 0;
-    if (gforceX) { gforceX.textContent = '0.0'; gforceX.classList.remove('positive', 'negative', 'high'); }
-    if (gforceY) { gforceY.textContent = '0.0'; gforceY.classList.remove('positive', 'negative', 'high'); }
+    resetGForceMeter();
     
     // Reset compass
-    if (compassNeedle) compassNeedle.setAttribute('transform', 'rotate(0 30 30)');
-    if (compassValue) compassValue.textContent = '--';
+    resetCompass();
     
     // Note: Map is NOT reset here - preserves event.json static marker
 }
@@ -377,7 +278,8 @@ function showEventJsonLocation(coll) {
     
     // Create marker and add popup with location info
     const latlng = L.latLng(lat, lon);
-    mapMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
+    // Note: This is a static event location marker, separate from the moving GPS marker
+    const eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
     
     // Center map on location
     map.setView(latlng, 16);
@@ -416,10 +318,9 @@ const mapVis = $('mapVis');
 
 // Map State
 let map = null;
-let mapMarker = null;
+// mapMarker moved to scripts/ui/mapVisualization.js
 let mapPolyline = null;
 let mapPath = [];
-let currentMapArrowRotation = 0; // Track cumulative rotation for shortest path calculation
 
 // Extra Data Elements
 const valLat = $('valLat');
@@ -427,79 +328,18 @@ const valLon = $('valLon');
 const valHeading = $('valHeading');
 const valSeq = $('valSeq');
 
-// G-Force Meter Elements
-const gforceDot = $('gforceDot');
-const gforceTrail1 = $('gforceTrail1');
-const gforceTrail2 = $('gforceTrail2');
-const gforceTrail3 = $('gforceTrail3');
-const gforceX = $('gforceX');
-const gforceY = $('gforceY');
+// G-Force Meter Elements moved to scripts/ui/gforceMeter.js
 
-// Compass Elements
-const compassNeedle = $('compassNeedle');
-const compassValue = $('compassValue');
+// Compass Elements moved to scripts/ui/compass.js
 
-// G-Force trail history (stores last few positions)
-const gforceHistory = [];
-const GFORCE_HISTORY_MAX = 3;
 
 // Constants
 const MPS_TO_MPH = 2.23694;
 const MPS_TO_KMH = 3.6;
 let useMetric = false; // Will be loaded from settings
 
-function notify(message, opts = {}) {
-    const type = opts.type || 'info'; // 'info' | 'success' | 'warn' | 'error'
-    const timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : (type === 'error' ? 5500 : 3200);
-
-    let container = document.querySelector('.toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'toast-container';
-        container.setAttribute('aria-live', 'polite');
-        container.setAttribute('aria-atomic', 'true');
-        document.body.appendChild(container);
-    }
-
-    const el = document.createElement('div');
-    el.className = `toast toast--${type}`;
-    el.innerHTML = `<span class="dot" aria-hidden="true"></span><div class="msg"></div>`;
-    el.querySelector('.msg').textContent = String(message || '');
-    container.appendChild(el);
-
-    // Animate in
-    requestAnimationFrame(() => el.classList.add('show'));
-
-    // Auto remove
-    const remove = () => {
-        el.classList.remove('show');
-        setTimeout(() => { try { el.remove(); } catch { } }, 180);
-    };
-    setTimeout(remove, timeoutMs);
-}
-
-// Loading overlay helpers for large folder imports
-function showLoading(text = 'Scanning folder...', progress = '') {
-    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-    if (loadingText) loadingText.textContent = text;
-    if (loadingProgress) loadingProgress.textContent = progress;
-    if (loadingBar) loadingBar.style.width = '0%';
-}
-
-function updateLoading(text, progress, percent = 0) {
-    if (loadingText) loadingText.textContent = text;
-    if (loadingProgress) loadingProgress.textContent = progress;
-    if (loadingBar) loadingBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-}
-
-function hideLoading() {
-    if (loadingOverlay) loadingOverlay.classList.add('hidden');
-}
-
-// Yield to the event loop to prevent UI freezing during heavy processing
-function yieldToUI() {
-    return new Promise(resolve => setTimeout(resolve, 0));
-}
+// notify() moved to scripts/ui/notifications.js
+// Loading overlay helpers moved to scripts/ui/loadingOverlay.js
 
 function hasValidGps(sei) {
     // Tesla SEI can be missing, zeroed, or invalid while parked / initializing GPS.
@@ -858,886 +698,55 @@ function updateMultiLayoutButtons() {
     // Layout buttons removed - function kept for compatibility but does nothing
 }
 
-// Timer for debounced video resync
-let resyncTimer = null;
+// Zoom/Pan moved to scripts/ui/zoomPan.js
+// Initialize zoom/pan module
+initZoomPan({
+    getMultiCamGrid: () => multiCamGrid,
+    getState: () => state
+});
 
-// Zoom/Pan state for focused tiles
-const zoomPanState = {
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    isPanning: false,
-    wasPanning: false, // Track if we just finished panning (to prevent click)
-    startX: 0,
-    startY: 0,
-    minZoom: 1,
-    maxZoom: 5,
-    indicatorTimeout: null
-};
+// Multi-camera focus moved to scripts/ui/multiCamFocus.js
+initMultiCamFocus({
+    getMultiCamGrid: () => multiCamGrid,
+    getState: () => state,
+    getNativeVideo: () => nativeVideo,
+    getVideoBySlot: () => videoBySlot
+});
 
-function clearMultiFocus() {
-    state.ui.multiFocusSlot = null;
-    if (!multiCamGrid) return;
-    multiCamGrid.classList.remove('focused');
-    multiCamGrid.removeAttribute('data-focus-slot');
-    // Reset zoom/pan when exiting focus mode
-    resetZoomPan();
-}
+// Dashboard visibility moved to scripts/ui/dashboardVisibility.js
+initDashboardVisibility({
+    getDashboardVis: () => dashboardVis,
+    getState: () => state
+});
 
-// Reset zoom and pan to default
-function resetZoomPan() {
-    zoomPanState.zoom = 1;
-    zoomPanState.panX = 0;
-    zoomPanState.panY = 0;
-    zoomPanState.isPanning = false;
-    
-    // Reset transform on all video elements in tiles
-    const allTiles = multiCamGrid?.querySelectorAll('.multi-tile, .immersive-main, .immersive-overlay');
-    allTiles?.forEach(tile => {
-        tile.classList.remove('zoomed');
-        const media = tile.querySelector('video, canvas');
-        if (media) {
-            media.style.transform = '';
-            media.classList.remove('panning');
-        }
-        // Remove zoom indicator
-        const indicator = tile.querySelector('.zoom-indicator');
-        if (indicator) indicator.remove();
-    });
-}
-
-// Apply zoom and pan transform to the focused tile's media element
-function applyZoomPan() {
-    if (!state.ui.multiFocusSlot || !multiCamGrid) return;
-    
-    const focusedTile = multiCamGrid.querySelector(
-        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-main[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-overlay[data-slot="${state.ui.multiFocusSlot}"]`
-    );
-    if (!focusedTile) return;
-    
-    const media = focusedTile.querySelector('video, canvas');
-    if (!media) return;
-    
-    // Apply transform
-    media.style.transform = `scale(${zoomPanState.zoom}) translate(${zoomPanState.panX}px, ${zoomPanState.panY}px)`;
-    
-    // Toggle zoomed class
-    if (zoomPanState.zoom > 1) {
-        focusedTile.classList.add('zoomed');
-    } else {
-        focusedTile.classList.remove('zoomed');
-    }
-    
-    // Update zoom indicator
-    updateZoomIndicator(focusedTile);
-}
-
-// Update or create zoom indicator
-function updateZoomIndicator(tile) {
-    let indicator = tile.querySelector('.zoom-indicator');
-    
-    if (zoomPanState.zoom <= 1) {
-        // Remove indicator when at 1x
-        if (indicator) indicator.remove();
-        return;
-    }
-    
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.className = 'zoom-indicator';
-        tile.appendChild(indicator);
-    }
-    
-    indicator.textContent = `${zoomPanState.zoom.toFixed(1)}x`;
-    indicator.classList.add('visible');
-    indicator.classList.remove('fading');
-    
-    // Clear any existing timeout
-    if (zoomPanState.indicatorTimeout) {
-        clearTimeout(zoomPanState.indicatorTimeout);
-    }
-    
-    // Fade out after 1.5 seconds of no activity
-    zoomPanState.indicatorTimeout = setTimeout(() => {
-        indicator.classList.add('fading');
-    }, 1500);
-}
-
-// Handle zoom with mouse wheel
-function handleZoomWheel(e) {
-    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
-    
-    // Only handle zoom when over the focused tile
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
-    if (!focusedTile) return;
-    
-    e.preventDefault();
-    
-    const delta = e.deltaY > 0 ? -0.25 : 0.25;
-    const newZoom = Math.max(zoomPanState.minZoom, Math.min(zoomPanState.maxZoom, zoomPanState.zoom + delta));
-    
-    // If zooming out to 1x, reset pan
-    if (newZoom <= 1) {
-        zoomPanState.zoom = 1;
-        zoomPanState.panX = 0;
-        zoomPanState.panY = 0;
-    } else {
-        zoomPanState.zoom = newZoom;
-        // Constrain pan when zoom changes
-        constrainPan();
-    }
-    
-    applyZoomPan();
-}
-
-// Constrain pan within bounds
-function constrainPan() {
-    if (zoomPanState.zoom <= 1) {
-        zoomPanState.panX = 0;
-        zoomPanState.panY = 0;
-        return;
-    }
-    
-    // Calculate max pan based on zoom level
-    // At higher zoom, you can pan more
-    const maxPan = (zoomPanState.zoom - 1) * 150;
-    zoomPanState.panX = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panX));
-    zoomPanState.panY = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panY));
-}
-
-// Handle pan start
-function handlePanStart(e) {
-    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
-    if (zoomPanState.zoom <= 1) return; // Only pan when zoomed
-    
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
-    if (!focusedTile) return;
-    
-    // Don't pan if clicking on controls or labels
-    if (e.target.closest('.multi-label, button, .zoom-indicator')) return;
-    
-    e.preventDefault();
-    zoomPanState.isPanning = true;
-    zoomPanState.startX = e.clientX - zoomPanState.panX * zoomPanState.zoom;
-    zoomPanState.startY = e.clientY - zoomPanState.panY * zoomPanState.zoom;
-    
-    const media = focusedTile.querySelector('video, canvas');
-    if (media) media.classList.add('panning');
-}
-
-// Handle pan move
-function handlePanMove(e) {
-    if (!zoomPanState.isPanning) return;
-    
-    e.preventDefault();
-    zoomPanState.panX = (e.clientX - zoomPanState.startX) / zoomPanState.zoom;
-    zoomPanState.panY = (e.clientY - zoomPanState.startY) / zoomPanState.zoom;
-    
-    constrainPan();
-    applyZoomPan();
-}
-
-// Handle pan end
-function handlePanEnd(e) {
-    if (!zoomPanState.isPanning) return;
-    
-    zoomPanState.isPanning = false;
-    zoomPanState.wasPanning = true; // Flag to prevent click from triggering
-    
-    // Remove panning cursor
-    const allMedia = multiCamGrid?.querySelectorAll('video.panning, canvas.panning');
-    allMedia?.forEach(m => m.classList.remove('panning'));
-    
-    // Clear the wasPanning flag after a short delay (after click event fires)
-    setTimeout(() => {
-        zoomPanState.wasPanning = false;
-    }, 50);
-}
-
-// Double-click to reset zoom
-function handleZoomReset(e) {
-    if (!state.ui.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
-    
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
-    if (!focusedTile) return;
-    
-    // Don't reset if clicking on controls
-    if (e.target.closest('.multi-label, button')) return;
-    
-    e.preventDefault();
-    
-    // Toggle between 1x and 2x zoom on double-click
-    if (zoomPanState.zoom > 1) {
-        zoomPanState.zoom = 1;
-        zoomPanState.panX = 0;
-        zoomPanState.panY = 0;
-    } else {
-        zoomPanState.zoom = 2;
-    }
-    
-    applyZoomPan();
-}
-
-// Initialize zoom/pan event listeners
-function initZoomPanListeners() {
-    if (!multiCamGrid) return;
-    
-    // Wheel zoom
-    multiCamGrid.addEventListener('wheel', handleZoomWheel, { passive: false });
-    
-    // Pan with mouse drag
-    multiCamGrid.addEventListener('mousedown', handlePanStart);
-    document.addEventListener('mousemove', handlePanMove);
-    document.addEventListener('mouseup', handlePanEnd);
-    
-    // Double-click to toggle zoom
-    multiCamGrid.addEventListener('dblclick', handleZoomReset);
-}
-
-// Initialize zoom/pan after DOM ready
-initZoomPanListeners();
-
-function toggleMultiFocus(slot) {
-    if (!multiCamGrid) return;
-    if (state.ui.multiFocusSlot === slot) {
-        clearMultiFocus();
-        return;
-    }
-    // Reset zoom when switching to a different tile
-    resetZoomPan();
-    state.ui.multiFocusSlot = slot;
-    multiCamGrid.classList.add('focused');
-    multiCamGrid.setAttribute('data-focus-slot', slot);
-    // Don't resync videos - let them continue playing normally
-}
-
-// Debounced resync to prevent rapid-fire sync operations
-function scheduleResync() {
-    // Cancel any pending resync
-    if (resyncTimer) {
-        clearTimeout(resyncTimer);
-        resyncTimer = null;
-    }
-    // Schedule new resync after clicks settle down
-    resyncTimer = setTimeout(() => {
-        resyncTimer = null;
-        forceResyncAllVideos();
-    }, 300);
-}
-
-// Force resync ALL videos to master - more aggressive version for focus changes
-function forceResyncAllVideos() {
-    if (!nativeVideo.master) return;
-    if (nativeVideo.master.readyState < 1) return;
-    
-    const masterTime = nativeVideo.master.currentTime;
-    const masterPlaying = !nativeVideo.master.paused;
-    
-    console.log('Force resyncing all videos to', masterTime.toFixed(2), 'masterPlaying:', masterPlaying);
-    
-    // Get ALL secondary videos
-    const secondaryVideos = Object.values(videoBySlot).filter(vid => 
-        vid && vid !== nativeVideo.master && vid.src
-    );
-    
-    // First, pause everything to reset state
-    secondaryVideos.forEach(vid => {
-        try { vid.pause(); } catch(e) {}
-    });
-    
-    // Then set times
-    secondaryVideos.forEach(vid => {
-        if (vid.readyState >= 1) {
-            vid.currentTime = masterTime;
-        }
-    });
-    
-    // Finally, if master is playing, play all secondaries
-    if (masterPlaying) {
-        // Small delay to let time sync settle
-        setTimeout(() => {
-            secondaryVideos.forEach(vid => {
-                if (vid.readyState >= 1 && vid.paused) {
-                    vid.play().catch(err => {
-                        console.warn('Resync play failed:', err.message);
-                    });
-                }
-            });
-        }, 50);
-    }
-}
-
-// Regular sync for timeupdate events (less aggressive)
-function syncMultiVideos(targetTime) {
-    if (!multi.enabled) return;
-    
-    Object.entries(videoBySlot).forEach(([slot, vid]) => {
-        if (!vid || vid === nativeVideo.master) return;
-        if (!vid.src || vid.readyState < 1) return;
-        
-        // Only sync time if drift > 0.15s (slightly more tolerance)
-        const drift = Math.abs(vid.currentTime - targetTime);
-        if (drift > 0.15) {
-            vid.currentTime = targetTime;
-        }
-        
-        // Don't force play state here - let playNative/pauseNative handle it
-        // Forcing play on every timeupdate causes race conditions
-    });
-}
-
-// Dashboard (SEI overlay) visibility
-function updateDashboardVisibility() {
-    if (!dashboardVis) return;
-    // Toggle controls whether it can be shown; 'visible' class is added when there's data
-    dashboardVis.classList.toggle('user-hidden', !state.ui.dashboardEnabled);
-}
-
-// Map visibility  
-function updateMapVisibility() {
-    if (!mapVis) return;
-    // Toggle controls whether it can be shown; 'visible' class is added when there's GPS data
-    mapVis.classList.toggle('user-hidden', !state.ui.mapEnabled);
-    
-    // When map becomes visible, invalidate size and re-center after CSS transition
-    if (state.ui.mapEnabled && map) {
-        setTimeout(() => {
-            map.invalidateSize();
-            // Re-center on current data
-            if (mapPolyline) {
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
-            } else if (mapMarker) {
-                map.setView(mapMarker.getLatLng(), 16);
-            }
-        }, 150);
-    }
-}
+// Map visibility moved to scripts/ui/mapVisualization.js
+initMapVisualization({
+    getMap: () => map,
+    getMapVis: () => mapVis,
+    getMapPolyline: () => mapPolyline,
+    getState: () => state
+});
 
 // Clips panel mode logic moved to src/panelMode.js
 
-// Drag & Drop Logic for Floating Vis - Direct attachment to panels
-const dragOffsets = new Map(); // el -> {x, y}
+// Draggable panels moved to scripts/ui/draggablePanels.js
+initDraggablePanels([dashboardVis, mapVis]);
 
-function initDraggablePanels() {
-    const panels = [dashboardVis, mapVis].filter(Boolean);
-    
-    panels.forEach(panel => {
-        let isDragging = false;
-        let startX = 0;
-        let startY = 0;
-        
-        if (!dragOffsets.has(panel)) {
-            dragOffsets.set(panel, { x: 0, y: 0 });
-        }
-        
-        panel.addEventListener('mousedown', (e) => {
-            // Don't drag if clicking on interactive elements
-            if (e.target.closest('button, input, select, a')) return;
-            
-            isDragging = true;
-            const offset = dragOffsets.get(panel);
-            startX = e.clientX - offset.x;
-            startY = e.clientY - offset.y;
-            panel.style.cursor = 'grabbing';
-            e.preventDefault();
-            e.stopPropagation();
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            
-            e.preventDefault();
-            const offset = dragOffsets.get(panel);
-            offset.x = e.clientX - startX;
-            offset.y = e.clientY - startY;
-            panel.style.transform = `translate3d(${offset.x}px, ${offset.y}px, 0)`;
-        });
-        
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                panel.style.cursor = 'grab';
-            }
-        });
-    });
-}
-
-// Initialize draggable panels after DOM is ready
-initDraggablePanels();
-
-// Settings Modal
-function initSettingsModal() {
-    const settingsBtn = $('settingsBtn');
-    const settingsModal = $('settingsModal');
-    const closeSettingsModal = $('closeSettingsModal');
-    const closeSettingsBtn = $('closeSettingsBtn');
-    
-    // Settings toggles in modal
-    const settingsDashboardToggle = $('settingsDashboardToggle');
-    const settingsMapToggle = $('settingsMapToggle');
-    const settingsMetricToggle = $('settingsMetricToggle');
-    
-    // Original hidden toggles
-    const dashboardToggle = $('dashboardToggle');
-    const mapToggle = $('mapToggle');
-    const metricToggle = $('metricToggle');
-    
-    // Default folder elements
-    const defaultFolderPath = $('defaultFolderPath');
-    const browseDefaultFolderBtn = $('browseDefaultFolderBtn');
-    const clearDefaultFolderBtn = $('clearDefaultFolderBtn');
-    const defaultFolderStatus = $('defaultFolderStatus');
-    
-    // Initialize settings values from storage
-    if (settingsDashboardToggle) {
-        settingsDashboardToggle.checked = state.ui.dashboardEnabled;
-    }
-    if (settingsMapToggle) {
-        settingsMapToggle.checked = state.ui.mapEnabled;
-    }
-    if (settingsMetricToggle) {
-        settingsMetricToggle.checked = useMetric;
-    }
-    
-    // Load saved default folder from file-based storage
-    if (window.electronAPI?.getSetting && defaultFolderPath) {
-        window.electronAPI.getSetting('defaultFolder').then(savedFolder => {
-            if (savedFolder) {
-                defaultFolderPath.value = savedFolder;
-            }
-        });
-    }
-    
-    // Open settings modal
-    if (settingsBtn) {
-        settingsBtn.onclick = (e) => {
-            e.preventDefault();
-            if (settingsModal) {
-                // Sync current values to settings toggles
-                if (settingsDashboardToggle) settingsDashboardToggle.checked = state.ui.dashboardEnabled;
-                if (settingsMapToggle) settingsMapToggle.checked = state.ui.mapEnabled;
-                if (settingsMetricToggle) settingsMetricToggle.checked = useMetric;
-                // Sync advanced settings from file-based storage
-                const disableAutoUpdate = $('settingsDisableAutoUpdate');
-                if (disableAutoUpdate && window.electronAPI?.getSetting) {
-                    window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
-                        disableAutoUpdate.checked = savedValue === true;
-                    });
-                }
-                settingsModal.classList.remove('hidden');
-            }
-        };
-    }
-    
-    // Close settings modal functions
-    function closeSettings() {
-        if (settingsModal) settingsModal.classList.add('hidden');
-    }
-    
-    if (closeSettingsModal) closeSettingsModal.onclick = closeSettings;
-    if (closeSettingsBtn) closeSettingsBtn.onclick = closeSettings;
-    
-    // Close on backdrop click
-    if (settingsModal) {
-        settingsModal.onclick = (e) => {
-            if (e.target === settingsModal) closeSettings();
-        };
-    }
-    
-    // Dashboard toggle in settings
-    if (settingsDashboardToggle) {
-        settingsDashboardToggle.onchange = () => {
-            const checked = settingsDashboardToggle.checked;
-            if (dashboardToggle) {
-                dashboardToggle.checked = checked;
-                dashboardToggle.dispatchEvent(new Event('change'));
-            }
-        };
-    }
-    
-    // Map toggle in settings
-    if (settingsMapToggle) {
-        settingsMapToggle.onchange = () => {
-            const checked = settingsMapToggle.checked;
-            if (mapToggle) {
-                mapToggle.checked = checked;
-                mapToggle.dispatchEvent(new Event('change'));
-            }
-        };
-    }
-    
-    // Metric toggle in settings
-    if (settingsMetricToggle) {
-        settingsMetricToggle.onchange = () => {
-            const checked = settingsMetricToggle.checked;
-            if (metricToggle) {
-                metricToggle.checked = checked;
-                metricToggle.dispatchEvent(new Event('change'));
-            }
-        };
-    }
-    
-    // Browse for default folder
-    if (browseDefaultFolderBtn) {
-        browseDefaultFolderBtn.onclick = async (e) => {
-            e.preventDefault();
-            if (window.electronAPI?.openFolder) {
-                try {
-                    const folderPath = await window.electronAPI.openFolder();
-                    if (folderPath) {
-                        if (window.electronAPI?.setSetting) {
-                            await window.electronAPI.setSetting('defaultFolder', folderPath);
-                        }
-                        if (defaultFolderPath) defaultFolderPath.value = folderPath;
-                        if (defaultFolderStatus) {
-                            defaultFolderStatus.textContent = 'Default folder saved';
-                            defaultFolderStatus.className = 'folder-status success';
-                            setTimeout(() => {
-                                defaultFolderStatus.textContent = '';
-                                defaultFolderStatus.className = 'folder-status';
-                            }, 3000);
-                        }
-                    }
-                } catch (err) {
-                    console.error('Failed to select folder:', err);
-                    if (defaultFolderStatus) {
-                        defaultFolderStatus.textContent = 'Failed to select folder';
-                        defaultFolderStatus.className = 'folder-status error';
-                    }
-                }
-            } else {
-                if (defaultFolderStatus) {
-                    defaultFolderStatus.textContent = 'Folder selection requires Electron';
-                    defaultFolderStatus.className = 'folder-status error';
-                }
-            }
-        };
-    }
-    
-    // Clear default folder
-    if (clearDefaultFolderBtn) {
-        clearDefaultFolderBtn.onclick = async (e) => {
-            e.preventDefault();
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('defaultFolder', null);
-            }
-            if (defaultFolderPath) defaultFolderPath.value = '';
-            if (defaultFolderStatus) {
-                defaultFolderStatus.textContent = 'Default folder cleared';
-                defaultFolderStatus.className = 'folder-status';
-                setTimeout(() => {
-                    defaultFolderStatus.textContent = '';
-                }, 2000);
-            }
-        };
-    }
-    
-    // Initialize keybind settings
-    initKeybindSettings();
-    
-    // Advanced settings toggle
-    const advancedSettingsToggle = $('advancedSettingsToggle');
-    const advancedSettingsSection = $('advancedSettingsSection');
-    
-    if (advancedSettingsToggle && advancedSettingsSection) {
-        advancedSettingsToggle.onclick = (e) => {
-            e.preventDefault();
-            const isExpanded = advancedSettingsSection.classList.toggle('hidden');
-            advancedSettingsToggle.classList.toggle('expanded', !advancedSettingsSection.classList.contains('hidden'));
-        };
-    }
-    
-    // Disable auto-update toggle - use file-based storage for reliability
-    const settingsDisableAutoUpdate = $('settingsDisableAutoUpdate');
-    if (settingsDisableAutoUpdate) {
-        // Load saved value from file-based storage
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
-                settingsDisableAutoUpdate.checked = savedValue === true;
-            });
-        }
-        
-        // Save to file-based storage on change
-        settingsDisableAutoUpdate.addEventListener('change', async function(e) {
-            const newValue = this.checked;
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('disableAutoUpdate', newValue);
-            }
-        });
-    }
-    
-    // Sentry camera highlight toggle - use file-based storage for reliability
-    const settingsSentryCameraHighlight = $('settingsSentryCameraHighlight');
-    if (settingsSentryCameraHighlight) {
-        // Load saved value from file-based storage
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('sentryCameraHighlight').then(savedValue => {
-                // Default to enabled (true) if not set
-                const enabled = savedValue !== false;
-                settingsSentryCameraHighlight.checked = enabled;
-                window._sentryCameraHighlightEnabled = enabled;
-                updateEventCameraHighlight();
-            });
-        } else {
-            window._sentryCameraHighlightEnabled = true;
-        }
-        
-        // Save to file-based storage on change
-        settingsSentryCameraHighlight.addEventListener('change', async function(e) {
-            const newValue = this.checked;
-            window._sentryCameraHighlightEnabled = newValue;
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('sentryCameraHighlight', newValue);
-            }
-            updateEventCameraHighlight();
-        });
-    }
-    
-    // Saved camera highlight toggle - use file-based storage for reliability
-    const settingsSavedCameraHighlight = $('settingsSavedCameraHighlight');
-    if (settingsSavedCameraHighlight) {
-        // Load saved value from file-based storage
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('savedCameraHighlight').then(savedValue => {
-                // Default to enabled (true) if not set
-                const enabled = savedValue !== false;
-                settingsSavedCameraHighlight.checked = enabled;
-                window._savedCameraHighlightEnabled = enabled;
-                updateEventCameraHighlight();
-            });
-        } else {
-            window._savedCameraHighlightEnabled = true;
-        }
-        
-        // Save to file-based storage on change
-        settingsSavedCameraHighlight.addEventListener('change', async function(e) {
-            const newValue = this.checked;
-            window._savedCameraHighlightEnabled = newValue;
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('savedCameraHighlight', newValue);
-            }
-            updateEventCameraHighlight();
-        });
-    }
-    
-    // Reset camera order button
-    const resetCameraOrderBtn = $('resetCameraOrderBtn');
-    if (resetCameraOrderBtn) {
-        resetCameraOrderBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            resetCameraOrder();
-        });
-    }
-    
-    // Glass blur slider
-    const settingsGlassBlur = $('settingsGlassBlur');
-    const glassBlurValue = $('glassBlurValue');
-    
-    // Apply glass blur to CSS variable
-    function applyGlassBlur(value) {
-        document.documentElement.style.setProperty('--glass-blur', `${value}px`);
-        if (glassBlurValue) glassBlurValue.textContent = `${value}px`;
-        if (settingsGlassBlur) settingsGlassBlur.value = value;
-    }
-    
-    // Load saved glass blur from file-based storage
-    if (window.electronAPI?.getSetting) {
-        window.electronAPI.getSetting('glassBlur').then(savedValue => {
-            const blurValue = savedValue !== undefined ? savedValue : 7;
-            applyGlassBlur(blurValue);
-        });
-    }
-    
-    if (settingsGlassBlur) {
-        settingsGlassBlur.addEventListener('input', function(e) {
-            const value = parseInt(this.value, 10);
-            applyGlassBlur(value);
-        });
-        
-        settingsGlassBlur.addEventListener('change', async function(e) {
-            const value = parseInt(this.value, 10);
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('glassBlur', value);
-            }
-        });
-    }
-    
-    // Hidden Developer Settings trigger - click Settings title 5 times
-    const settingsModalHeader = settingsModal?.querySelector('.modal-header h2');
-    let settingsTitleClickCount = 0;
-    let settingsTitleClickTimer = null;
-    
-    if (settingsModalHeader) {
-        settingsModalHeader.style.cursor = 'default';
-        settingsModalHeader.addEventListener('click', (e) => {
-            e.stopPropagation();
-            settingsTitleClickCount++;
-            
-            // Reset counter after 10 seconds of no clicks
-            clearTimeout(settingsTitleClickTimer);
-            settingsTitleClickTimer = setTimeout(() => {
-                settingsTitleClickCount = 0;
-            }, 10000);
-            
-            if (settingsTitleClickCount >= 5) {
-                settingsTitleClickCount = 0;
-                closeSettings();
-                openDevSettingsModal();
-            }
-        });
-    }
-}
-
-// Developer Settings Modal
-function openDevSettingsModal() {
-    const devSettingsModal = $('devSettingsModal');
-    if (devSettingsModal) {
-        devSettingsModal.classList.remove('hidden');
-    }
-}
-
-function closeDevSettingsModal() {
-    const devSettingsModal = $('devSettingsModal');
-    if (devSettingsModal) {
-        devSettingsModal.classList.add('hidden');
-    }
-    // Hide output panel
-    const devOutput = $('devOutput');
-    if (devOutput) devOutput.classList.add('hidden');
-}
-
-function showDevOutput(text) {
-    const devOutput = $('devOutput');
-    const devOutputText = $('devOutputText');
-    if (devOutput && devOutputText) {
-        devOutputText.textContent = text;
-        devOutput.classList.remove('hidden');
-    }
-}
-
-function initDevSettingsModal() {
-    const devSettingsModal = $('devSettingsModal');
-    const closeDevSettingsModal_btn = $('closeDevSettingsModal');
-    const closeDevSettingsBtn = $('closeDevSettingsBtn');
-    
-    // Close button handlers
-    if (closeDevSettingsModal_btn) closeDevSettingsModal_btn.onclick = closeDevSettingsModal;
-    if (closeDevSettingsBtn) closeDevSettingsBtn.onclick = closeDevSettingsModal;
-    
-    // Close on backdrop click
-    if (devSettingsModal) {
-        devSettingsModal.onclick = (e) => {
-            if (e.target === devSettingsModal) closeDevSettingsModal();
-        };
-    }
-    
-    // Open DevTools
-    const devOpenConsole = $('devOpenConsole');
-    if (devOpenConsole) {
-        devOpenConsole.onclick = async () => {
-            if (window.electronAPI?.devOpenDevTools) {
-                const result = await window.electronAPI.devOpenDevTools();
-                if (result.success) {
-                    showDevOutput('DevTools opened successfully');
-                } else {
-                    showDevOutput('Error: ' + result.error);
-                }
-            }
-        };
-    }
-    
-    // Reset Settings
-    const devResetSettings = $('devResetSettings');
-    if (devResetSettings) {
-        devResetSettings.onclick = async () => {
-            if (window.electronAPI?.devResetSettings) {
-                if (confirm('Are you sure you want to reset all settings? This will reload the app.')) {
-                    const result = await window.electronAPI.devResetSettings();
-                    if (result.success) {
-                        showDevOutput('Settings reset successfully.\nDeleted: ' + result.path + '\n\nReloading app...');
-                        setTimeout(() => {
-                            if (window.electronAPI?.devReloadApp) {
-                                window.electronAPI.devReloadApp();
-                            }
-                        }, 1500);
-                    } else {
-                        showDevOutput('Error: ' + result.error);
-                    }
-                }
-            }
-        };
-    }
-    
-    // Force Latest Version
-    const devForceLatest = $('devForceLatest');
-    if (devForceLatest) {
-        devForceLatest.onclick = async () => {
-            if (window.electronAPI?.devForceLatestVersion) {
-                const result = await window.electronAPI.devForceLatestVersion();
-                if (result.success) {
-                    showDevOutput('Version forced to latest: ' + result.version + '\n\nUpdate check will now pass.');
-                } else {
-                    showDevOutput('Error: ' + result.error);
-                }
-            }
-        };
-    }
-    
-    // Set Testing Version
-    const devSetTesting = $('devSetTesting');
-    if (devSetTesting) {
-        devSetTesting.onclick = async () => {
-            if (window.electronAPI?.devSetTestingVersion) {
-                const result = await window.electronAPI.devSetTestingVersion();
-                if (result.success) {
-                    showDevOutput('Version set to: ' + result.version + '\n\nThis will trigger an update prompt on next check.');
-                } else {
-                    showDevOutput('Error: ' + result.error);
-                }
-            }
-        };
-    }
-    
-    // Show App Paths
-    const devShowPaths = $('devShowPaths');
-    if (devShowPaths) {
-        devShowPaths.onclick = async () => {
-            if (window.electronAPI?.devGetAppPaths) {
-                const paths = await window.electronAPI.devGetAppPaths();
-                showDevOutput(
-                    'Application Paths:\n' +
-                    '─────────────────────────────────\n' +
-                    'User Data:  ' + paths.userData + '\n' +
-                    'Settings:   ' + paths.settings + '\n' +
-                    'Version:    ' + paths.version + '\n' +
-                    'App:        ' + paths.app + '\n' +
-                    'Temp:       ' + paths.temp
-                );
-            }
-        };
-    }
-    
-    // Reload App
-    const devReloadApp = $('devReloadApp');
-    if (devReloadApp) {
-        devReloadApp.onclick = async () => {
-            if (window.electronAPI?.devReloadApp) {
-                showDevOutput('Reloading application...');
-                setTimeout(() => {
-                    window.electronAPI.devReloadApp();
-                }, 500);
-            }
-        };
-    }
-}
-
-// Initialize dev settings modal
+// Settings Modal moved to scripts/ui/settingsModal.js
+// Initialize settings modal with dependencies
+initSettingsModalDeps({
+    getState: () => state,
+    getUseMetric: () => useMetric,
+    updateEventCameraHighlight,
+    resetCameraOrder,
+    openDevSettingsModal: openDevSettings
+});
+initSettingsModal();
 initDevSettingsModal();
 
-// Keybind System
-const keybindActions = {
+// Keybind System - moved to scripts/lib/keybinds.js
+// Initialize keybind actions (handlers stay here since they use local functions)
+initKeybindActions({
     playPause: () => {
         const playBtn = $('playBtn');
         if (playBtn && !playBtn.disabled) playBtn.click();
@@ -1753,7 +762,6 @@ const keybindActions = {
         if (dashboardToggle) {
             dashboardToggle.checked = !dashboardToggle.checked;
             dashboardToggle.dispatchEvent(new Event('change'));
-            // Sync settings modal toggle
             const settingsDashboardToggle = $('settingsDashboardToggle');
             if (settingsDashboardToggle) settingsDashboardToggle.checked = dashboardToggle.checked;
         }
@@ -1763,7 +771,6 @@ const keybindActions = {
         if (mapToggle) {
             mapToggle.checked = !mapToggle.checked;
             mapToggle.dispatchEvent(new Event('change'));
-            // Sync settings modal toggle
             const settingsMapToggle = $('settingsMapToggle');
             if (settingsMapToggle) settingsMapToggle.checked = mapToggle.checked;
         }
@@ -1773,7 +780,6 @@ const keybindActions = {
         if (metricToggle) {
             metricToggle.checked = !metricToggle.checked;
             metricToggle.dispatchEvent(new Event('change'));
-            // Sync settings modal toggle
             const settingsMetricToggle = $('settingsMetricToggle');
             if (settingsMetricToggle) settingsMetricToggle.checked = metricToggle.checked;
         }
@@ -1782,186 +788,10 @@ const keybindActions = {
         const clipsCollapseBtn = $('clipsCollapseBtn');
         if (clipsCollapseBtn) clipsCollapseBtn.click();
     }
-};
-
-// Load keybinds from storage
-async function loadKeybinds() {
-    try {
-        if (window.electronAPI?.getSetting) {
-            const saved = await window.electronAPI.getSetting('keybinds');
-            return saved || {};
-        }
-        return {};
-    } catch (e) {
-        console.error('Failed to load keybinds:', e);
-        return {};
-    }
-}
-
-// Save keybinds to storage
-function saveKeybinds(keybinds) {
-    if (window.electronAPI?.setSetting) {
-        window.electronAPI.setSetting('keybinds', keybinds);
-    }
-}
-
-// Format a key event into a readable string
-function formatKeyEvent(e) {
-    const parts = [];
-    if (e.ctrlKey) parts.push('Ctrl');
-    if (e.altKey) parts.push('Alt');
-    if (e.shiftKey) parts.push('Shift');
-    if (e.metaKey) parts.push('Meta');
-    
-    // Get the key name
-    let key = e.key;
-    if (key === ' ') key = 'Space';
-    else if (key === 'ArrowUp') key = '↑';
-    else if (key === 'ArrowDown') key = '↓';
-    else if (key === 'ArrowLeft') key = '←';
-    else if (key === 'ArrowRight') key = '→';
-    else if (key.length === 1) key = key.toUpperCase();
-    
-    // Don't add modifier keys as the main key
-    if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-        parts.push(key);
-    }
-    
-    return parts.join(' + ');
-}
-
-// Create a unique key identifier for matching
-function getKeyIdentifier(e) {
-    const mods = [];
-    if (e.ctrlKey) mods.push('ctrl');
-    if (e.altKey) mods.push('alt');
-    if (e.shiftKey) mods.push('shift');
-    if (e.metaKey) mods.push('meta');
-    mods.push(e.code || e.key);
-    return mods.join('+').toLowerCase();
-}
-
-// Currently recording keybind input
-let recordingKeybindInput = null;
-
-// Initialize keybind settings UI
-async function initKeybindSettings() {
-    const keybinds = await loadKeybinds();
-    const keybindInputs = document.querySelectorAll('.keybind-input');
-    const keybindClears = document.querySelectorAll('.keybind-clear');
-    
-    // Populate existing keybinds
-    keybindInputs.forEach(input => {
-        const action = input.dataset.action;
-        if (keybinds[action]) {
-            input.value = keybinds[action].display;
-        }
-    });
-    
-    // Handle keybind input focus (start recording)
-    keybindInputs.forEach(input => {
-        input.addEventListener('focus', () => {
-            recordingKeybindInput = input;
-            input.classList.add('recording');
-            input.value = 'Press a key...';
-        });
-        
-        input.addEventListener('blur', async () => {
-            if (recordingKeybindInput === input) {
-                input.classList.remove('recording');
-                // Restore previous value if no key was pressed
-                const action = input.dataset.action;
-                const keybinds = await loadKeybinds();
-                input.value = keybinds[action]?.display || '';
-                recordingKeybindInput = null;
-            }
-        });
-    });
-    
-    // Handle clear buttons
-    keybindClears.forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const action = btn.dataset.action;
-            const keybinds = await loadKeybinds();
-            delete keybinds[action];
-            saveKeybinds(keybinds);
-            
-            // Clear the input
-            const input = document.querySelector(`.keybind-input[data-action="${action}"]`);
-            if (input) input.value = '';
-        });
-    });
-}
-
-// Global keyboard event handler for keybind recording and execution
-async function handleGlobalKeydown(e) {
-    // If we're recording a keybind
-    if (recordingKeybindInput) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Ignore lone modifier keys
-        if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-            return;
-        }
-        
-        const action = recordingKeybindInput.dataset.action;
-        const display = formatKeyEvent(e);
-        const identifier = getKeyIdentifier(e);
-        
-        // Check for conflicts with other keybinds
-        const keybinds = await loadKeybinds();
-        for (const [existingAction, binding] of Object.entries(keybinds)) {
-            if (existingAction !== action && binding.identifier === identifier) {
-                // Remove the conflicting keybind
-                delete keybinds[existingAction];
-                const conflictInput = document.querySelector(`.keybind-input[data-action="${existingAction}"]`);
-                if (conflictInput) conflictInput.value = '';
-            }
-        }
-        
-        // Save the new keybind
-        keybinds[action] = { display, identifier };
-        saveKeybinds(keybinds);
-        
-        // Update UI
-        recordingKeybindInput.value = display;
-        recordingKeybindInput.classList.remove('recording');
-        recordingKeybindInput.blur();
-        recordingKeybindInput = null;
-        return;
-    }
-    
-    // Check if we're in an input field (don't trigger keybinds)
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-        return;
-    }
-    
-    // Check if settings modal is open (don't trigger keybinds)
-    const settingsModal = $('settingsModal');
-    if (settingsModal && !settingsModal.classList.contains('hidden')) {
-        return;
-    }
-    
-    // Execute keybind action if matched
-    const identifier = getKeyIdentifier(e);
-    const keybinds = await loadKeybinds();
-    
-    for (const [action, binding] of Object.entries(keybinds)) {
-        if (binding.identifier === identifier) {
-            e.preventDefault();
-            if (keybindActions[action]) {
-                keybindActions[action]();
-            }
-            return;
-        }
-    }
-}
+});
 
 // Initialize global keybind listener
-document.addEventListener('keydown', handleGlobalKeydown);
+initGlobalKeybindListener();
 
 // Auto-load default folder on startup
 async function loadDefaultFolderOnStartup() {
@@ -3316,24 +2146,7 @@ function createClipItem(coll, title, typeClass) {
     return item;
 }
 
-function formatEventTime(eventId) {
-    // eventId format: "2025-12-11_17-58-00"
-    const parts = eventId.split('_');
-    if (parts.length >= 2) {
-        const timePart = parts[1]; // "17-58-00"
-        return timePart.replace(/-/g, ':'); // "17:58:00"
-    }
-    return eventId;
-}
-
-function getTypeLabel(clipType) {
-    switch (clipType) {
-        case 'SentryClips': return 'Sentry';
-        case 'RecentClips': return 'Recent';
-        case 'SavedClips': return 'Saved';
-        default: return clipType || 'Unknown';
-    }
-}
+// formatEventTime and getTypeLabel moved to scripts/ui/clipListHelpers.js
 
 // Close event popout when clicking elsewhere
 document.addEventListener('click', (e) => {
@@ -3364,37 +2177,7 @@ function toggleEventPopout(rowId, metaOverride = null) {
     state.ui.openEventRowId = rowId;
 }
 
-function populateEventPopout(rowEl, meta) {
-    const kv = rowEl.querySelector('.event-kv');
-    if (!kv) return;
-    kv.innerHTML = '';
-
-    if (!meta) {
-        const kEl = document.createElement('div');
-        kEl.className = 'k';
-        kEl.textContent = 'status';
-        const vEl = document.createElement('div');
-        vEl.className = 'v';
-        vEl.textContent = 'Loading event.json…';
-        kv.appendChild(kEl);
-        kv.appendChild(vEl);
-        return;
-    }
-
-    const preferred = ['timestamp', 'reason', 'camera', 'city', 'street', 'est_lat', 'est_lon'];
-    const keys = [...preferred.filter(k => meta[k] != null), ...Object.keys(meta).filter(k => !preferred.includes(k))];
-    for (const k of keys) {
-        const v = meta[k];
-        const kEl = document.createElement('div');
-        kEl.className = 'k';
-        kEl.textContent = k;
-        const vEl = document.createElement('div');
-        vEl.className = 'v';
-        vEl.textContent = String(v);
-        kv.appendChild(kEl);
-        kv.appendChild(vEl);
-    }
-}
+// populateEventPopout moved to scripts/ui/clipListHelpers.js
 
 function highlightSelectedClip() {
     for (const el of clipList.querySelectorAll('.clip-item')) {
@@ -3419,8 +2202,6 @@ function selectClipGroup(groupId) {
     cameraSelect.value = multi.enabled ? multi.masterCamera : selection.selectedCamera;
     reloadSelectedGroup();
 
-    // Kick off preview for this group immediately
-    ensureGroupPreview(groupId, { highPriority: true });
 }
 
 function selectSentryCollection(collectionId) {
@@ -3678,266 +2459,7 @@ function loadClipGroupCamera(group, camera) {
     notify('Please select a day collection from the clip browser.', { type: 'info' });
 }
 
-// Legacy WebCodecs loadSingleGroup removed - native video playback is now used exclusively
-
-function ensureGroupPreview(groupId, opts = {}) {
-    const existing = previews.cache.get(groupId);
-    // Avoid duplicate work when the observer triggers quickly or multiple rows reference the same preview.
-    if (existing?.status === 'ready' || existing?.status === 'loading' || existing?.status === 'queued') return;
-    previews.cache.set(groupId, { status: 'queued' });
-
-    const task = async () => {
-        previews.cache.set(groupId, { ...(previews.cache.get(groupId) || {}), status: 'loading' });
-        const group = library.clipGroupById.get(groupId);
-        if (!group) return;
-
-        // choose best file for preview: front preferred
-        const entry = group.filesByCamera.get('front') || group.filesByCamera.values().next().value;
-        if (!entry?.file) return;
-
-        // 1) minimap from SEI GPS
-        let pathPoints = null;
-        let buffer = null;
-        try {
-            buffer = await entry.file.arrayBuffer();
-            const pmp4 = new DashcamMP4(buffer);
-            const messages = pmp4.extractSeiMessages(seiType);
-            const pts = [];
-            for (const m of messages) {
-                if (!hasValidGps(m)) continue;
-                pts.push([m.latitude_deg, m.longitude_deg]);
-            }
-            pathPoints = downsamplePoints(pts, 120);
-        } catch { /* ignore */ }
-
-        // 2) thumbnail
-        let thumbDataUrl = null;
-        // Prefer Sentry event.png when present (fast + consistent)
-        if (group.eventPngFile) {
-            try { thumbDataUrl = await fileToDataUrl(group.eventPngFile); } catch { /* ignore */ }
-        }
-        // Otherwise best-effort using HTMLVideoElement snapshot (fast enough for previews)
-        try {
-            if (!thumbDataUrl) thumbDataUrl = await captureVideoThumbnail(entry.file, 112, 63);
-        } catch { /* ignore */ }
-        // Fallback: decode first keyframe using WebCodecs (more reliable for local MP4s)
-        if (!thumbDataUrl && buffer) {
-            try {
-                thumbDataUrl = await captureWebcodecsThumbnailFromMp4Buffer(buffer, 112, 63);
-            } catch { /* ignore */ }
-        }
-
-        previews.cache.set(groupId, { status: 'ready', thumbDataUrl, pathPoints });
-        applyGroupPreviewToRow(groupId);
-    };
-
-    if (opts.highPriority) previews.queue.unshift(task);
-    else previews.queue.push(task);
-    pumpPreviewQueue();
-}
-
-function pumpPreviewQueue() {
-    while (previews.inFlight < previews.maxConcurrency && previews.queue.length) {
-        const task = previews.queue.shift();
-        previews.inFlight++;
-        Promise.resolve()
-            .then(task)
-            .catch(() => { })
-            .finally(() => {
-                previews.inFlight--;
-                pumpPreviewQueue();
-            });
-    }
-}
-
-function applyGroupPreviewToRow(groupId) {
-    const preview = previews.cache.get(groupId);
-    if (!preview || preview.status !== 'ready') return;
-
-    // Update any row that directly represents this group OR any collection row that references it as its preview group.
-    const rows = [
-        ...clipList.querySelectorAll(`.clip-item[data-groupid="${cssEscape(groupId)}"]`),
-        ...clipList.querySelectorAll(`.clip-item[data-preview-groupid="${cssEscape(groupId)}"]`)
-    ];
-    for (const el of rows) {
-        const img = el.querySelector('.clip-thumb img');
-        if (img && preview.thumbDataUrl) img.src = preview.thumbDataUrl;
-
-        const canvasEl = el.querySelector('canvas.clip-minimap');
-        if (canvasEl && preview.pathPoints?.length) {
-            drawMiniPath(canvasEl, preview.pathPoints);
-        }
-    }
-}
-
-function downsamplePoints(points, maxPoints) {
-    if (!Array.isArray(points) || points.length <= maxPoints) return points;
-    const step = points.length / maxPoints;
-    const out = [];
-    for (let i = 0; i < maxPoints; i++) out.push(points[Math.floor(i * step)]);
-    return out;
-}
-
-function drawMiniPath(canvasEl, points) {
-    const c = canvasEl.getContext('2d');
-    const w = canvasEl.width, h = canvasEl.height;
-    c.clearRect(0, 0, w, h);
-
-    // background
-    c.fillStyle = 'rgba(0,0,0,0.25)';
-    c.fillRect(0, 0, w, h);
-
-    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-    for (const [lat, lon] of points) {
-        minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
-        minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
-    }
-    const pad = 6;
-    const dy = (maxLat - minLat) || 1e-9;
-
-    // Avoid stretching when the canvas is rectangular: use a uniform scale and center the path.
-    // Also compensate longitude by cos(meanLat) to reduce visual distortion at higher latitudes.
-    const meanLat = (minLat + maxLat) / 2;
-    const lonScale = Math.cos((meanLat * Math.PI) / 180) || 1;
-    const minLonAdj = minLon * lonScale;
-    const maxLonAdj = maxLon * lonScale;
-    const dx = (maxLonAdj - minLonAdj) || 1e-9;
-
-    const availW = Math.max(1, w - pad * 2);
-    const availH = Math.max(1, h - pad * 2);
-    const scale = Math.min(availW / dx, availH / dy);
-    const contentW = dx * scale;
-    const contentH = dy * scale;
-    const offX = (w - contentW) / 2;
-    const offY = (h - contentH) / 2;
-
-    const project = (lat, lon) => {
-        const x = offX + ((lon * lonScale - minLonAdj) * scale);
-        const y = offY + ((maxLat - lat) * scale);
-        return [x, y];
-    };
-
-    c.strokeStyle = 'rgba(62, 156, 191, 0.95)';
-    c.lineWidth = 2;
-    c.beginPath();
-    points.forEach(([lat, lon], idx) => {
-        const [x, y] = project(lat, lon);
-        if (idx === 0) c.moveTo(x, y);
-        else c.lineTo(x, y);
-    });
-    c.stroke();
-
-    // start/end markers
-    const [sLat, sLon] = points[0];
-    const [eLat, eLon] = points[points.length - 1];
-    const [sx, sy] = project(sLat, sLon);
-    const [ex, ey] = project(eLat, eLon);
-
-    c.fillStyle = 'rgba(255,255,255,0.9)';
-    c.beginPath(); c.arc(sx, sy, 2.5, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(255, 0, 0, 0.85)';
-    c.beginPath(); c.arc(ex, ey, 2.5, 0, Math.PI * 2); c.fill();
-}
-
-async function fileToDataUrl(file) {
-    return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('FileReader failed'));
-        reader.onload = () => resolve(String(reader.result));
-        reader.readAsDataURL(file);
-    });
-}
-
-async function captureVideoThumbnail(file, width, height) {
-    const url = URL.createObjectURL(file);
-    try {
-        const video = document.createElement('video');
-        video.muted = true;
-        video.playsInline = true;
-        video.preload = 'auto';
-        video.src = url;
-
-        // Some browsers won't decode a drawable frame until after metadata + a seek + a frame callback.
-        await new Promise((resolve, reject) => {
-            const onError = () => reject(new Error('video load failed'));
-            video.addEventListener('error', onError, { once: true });
-            video.addEventListener('loadedmetadata', () => resolve(), { once: true });
-            try { video.load(); } catch { /* ignore */ }
-        });
-
-        // Seek a bit to avoid black/empty first frame in some encodes.
-        const seekTo = (() => {
-            const d = Number.isFinite(video.duration) ? video.duration : 0;
-            if (d > 0) return Math.min(0.5, Math.max(0.05, d * 0.05));
-            return 0.1;
-        })();
-        try {
-            video.currentTime = seekTo;
-            await new Promise((resolve) => video.addEventListener('seeked', resolve, { once: true }));
-        } catch { /* ignore seek errors */ }
-
-        // Wait for an actual decoded frame if possible.
-        if (video.requestVideoFrameCallback) {
-            await new Promise((resolve) => video.requestVideoFrameCallback(() => resolve()));
-        } else {
-            await new Promise((resolve, reject) => {
-                const onError = () => reject(new Error('video decode failed'));
-                video.addEventListener('error', onError, { once: true });
-                video.addEventListener('canplay', () => resolve(), { once: true });
-                // Safety timeout so we don't hang forever
-                setTimeout(resolve, 250);
-            });
-        }
-
-        const c = document.createElement('canvas');
-        c.width = width;
-        c.height = height;
-        const cctx = c.getContext('2d');
-        if (!video.videoWidth || !video.videoHeight) throw new Error('video has no decoded frame');
-        cctx.drawImage(video, 0, 0, width, height);
-        return c.toDataURL('image/jpeg', 0.72);
-    } finally {
-        URL.revokeObjectURL(url);
-    }
-}
-
-async function captureWebcodecsThumbnailFromMp4Buffer(buffer, width, height) {
-    if (!window.VideoDecoder) throw new Error('VideoDecoder not available');
-
-    const localMp4 = new DashcamMP4(buffer);
-    // Parse frames without decoding SEI for speed
-    const localFrames = localMp4.parseFrames(null);
-    const firstKeyIdx = localFrames.findIndex(f => f.keyframe);
-    if (firstKeyIdx < 0) throw new Error('No keyframe found');
-
-    const config = localMp4.getConfig();
-    const frame = localFrames[firstKeyIdx];
-    const sc = new Uint8Array([0, 0, 0, 1]);
-    const data = frame.keyframe
-        ? DashcamMP4.concat(sc, frame.sps || config.sps, sc, frame.pps || config.pps, sc, frame.data)
-        : DashcamMP4.concat(sc, frame.data);
-
-    const canvasEl = document.createElement('canvas');
-    canvasEl.width = width;
-    canvasEl.height = height;
-    const cctx = canvasEl.getContext('2d');
-
-    const decoder = new VideoDecoder({
-        output: (vf) => {
-            try {
-                cctx.drawImage(vf, 0, 0, width, height);
-            } finally {
-                vf.close();
-            }
-        },
-        error: () => { /* handled by flush */ }
-    });
-    decoder.configure({ codec: config.codec, width: config.width, height: config.height });
-    decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: 0, data }));
-    await decoder.flush();
-    try { decoder.close(); } catch { /* ignore */ }
-    return canvasEl.toDataURL('image/jpeg', 0.72);
-}
+// Legacy preview/thumbnail code removed - not used in current UI
 
 // escapeHtml/cssEscape moved to src/utils.js
 
@@ -4306,106 +2828,8 @@ async function loadCollectionSegment(segIdx, token) {
 
 // Legacy WebCodecs rendering functions removed - native video playback is now used exclusively
 
-// G-Force Meter Logic
-const GRAVITY = 9.81; // m/s² per G
-const GFORCE_SCALE = 25; // pixels per G (radius of meter is ~28px, so 1G reaches near edge)
-
-function updateGForceMeter(sei) {
-    if (!gforceDot) return;
-
-    // Get acceleration values (in m/s²) - support both naming conventions
-    const accX = sei?.linearAccelerationMps2X ?? sei?.linear_acceleration_mps2_x ?? 0;
-    const accY = sei?.linearAccelerationMps2Y ?? sei?.linear_acceleration_mps2_y ?? 0;
-
-    // Convert to G-force
-    const gX = accX / GRAVITY;
-    const gY = accY / GRAVITY;
-
-    // Clamp to reasonable range (-2G to +2G for display)
-    const clampedGX = Math.max(-2, Math.min(2, gX));
-    const clampedGY = Math.max(-2, Math.min(2, gY));
-
-    // Calculate dot position (center is 30,30 in the SVG viewBox)
-    // X: positive = right (cornering left causes rightward force)
-    // Y: positive = down (braking causes forward force, shown as down)
-    const dotX = 30 + (clampedGX * GFORCE_SCALE);
-    const dotY = 30 - (clampedGY * GFORCE_SCALE); // Invert Y so acceleration shows up
-
-    // Update trail history
-    gforceHistory.unshift({ x: dotX, y: dotY });
-    if (gforceHistory.length > GFORCE_HISTORY_MAX) {
-        gforceHistory.pop();
-    }
-
-    // Update dot position
-    gforceDot.setAttribute('cx', dotX);
-    gforceDot.setAttribute('cy', dotY);
-
-    // Update trail dots
-    if (gforceTrail1 && gforceHistory.length > 0) {
-        gforceTrail1.setAttribute('cx', gforceHistory[0]?.x || 30);
-        gforceTrail1.setAttribute('cy', gforceHistory[0]?.y || 30);
-    }
-    if (gforceTrail2 && gforceHistory.length > 1) {
-        gforceTrail2.setAttribute('cx', gforceHistory[1]?.x || 30);
-        gforceTrail2.setAttribute('cy', gforceHistory[1]?.y || 30);
-    }
-    if (gforceTrail3 && gforceHistory.length > 2) {
-        gforceTrail3.setAttribute('cx', gforceHistory[2]?.x || 30);
-        gforceTrail3.setAttribute('cy', gforceHistory[2]?.y || 30);
-    }
-
-    // Color the dot based on force type
-    const totalG = Math.sqrt(gX * gX + gY * gY);
-    gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
-    if (gY < -0.3) {
-        gforceDot.classList.add('braking');
-    } else if (gY > 0.3) {
-        gforceDot.classList.add('accelerating');
-    } else if (Math.abs(gX) > 0.5) {
-        gforceDot.classList.add('cornering-hard');
-    }
-
-    // Update numeric displays
-    if (gforceX) {
-        gforceX.textContent = (gX >= 0 ? '+' : '') + gX.toFixed(1);
-        gforceX.classList.remove('positive', 'negative', 'high');
-        if (Math.abs(gX) > 0.8) gforceX.classList.add('high');
-        else if (gX > 0.2) gforceX.classList.add('positive');
-        else if (gX < -0.2) gforceX.classList.add('negative');
-    }
-    if (gforceY) {
-        gforceY.textContent = (gY >= 0 ? '+' : '') + gY.toFixed(1);
-        gforceY.classList.remove('positive', 'negative', 'high');
-        if (Math.abs(gY) > 0.8) gforceY.classList.add('high');
-        else if (gY > 0.2) gforceY.classList.add('positive');
-        else if (gY < -0.2) gforceY.classList.add('negative');
-    }
-}
-
-// Compass update
-function updateCompass(sei) {
-    if (!compassNeedle) return;
-
-    // Get heading - support both naming conventions
-    let heading = parseFloat(sei?.headingDeg ?? sei?.heading_deg);
-    if (!Number.isFinite(heading)) heading = 0;
-    
-    // Normalize to 0-360 range
-    heading = ((heading % 360) + 360) % 360;
-    
-    // Rotate the needle - heading 0° = North (pointing up)
-    compassNeedle.setAttribute('transform', `rotate(${heading} 30 30)`);
-    
-    // Update numeric display
-    if (compassValue) {
-        // Format heading with cardinal direction
-        const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        const index = Math.round(heading / 45) % 8;
-        const cardinal = cardinals[index] || 'N';
-        compassValue.textContent = `${Math.round(heading)}° ${cardinal}`;
-    }
-}
+// G-Force Meter moved to scripts/ui/gforceMeter.js
+// Compass moved to scripts/ui/compass.js
 
 // Visualization Logic - support both camelCase (protobufjs) and snake_case
 function updateVisualization(sei) {
@@ -4502,79 +2926,8 @@ function updateVisualization(sei) {
     // Compass Update
     updateCompass(sei);
 
-    // Map Update
-    if (map && hasValidGps(sei)) {
-        const latlng = [lat, lon];
-        
-        // Only proceed if we have valid, non-zero coordinates
-        if (Math.abs(lat) < 0.001 || Math.abs(lon) < 0.001) {
-            // Remove marker if coordinates are invalid
-            if (mapMarker) {
-                mapMarker.remove();
-                mapMarker = null;
-            }
-            return;
-        }
-        
-        // Calculate target heading normalized to 0-360
-        const targetHeading = ((heading % 360) + 360) % 360;
-        
-        // Calculate shortest rotation path to avoid 360° spins
-        // Find the difference and adjust if it would spin the long way
-        let delta = targetHeading - (currentMapArrowRotation % 360);
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        currentMapArrowRotation += delta;
-        
-        // Calculate transition duration based on playback rate (faster playback = faster transitions)
-        const transitionDuration = Math.max(0.03, 0.15 / (state.ui.playbackRate || 1));
-        
-        // Only recreate marker if it doesn't exist or position changed significantly
-        if (!mapMarker) {
-            // Initialize rotation to target
-            currentMapArrowRotation = targetHeading;
-            
-            // Create arrow using divIcon for full control over HTML/CSS and positioning
-            const arrowIcon = L.divIcon({
-                className: 'arrow-marker-icon',
-                html: `<img src="../../assets/arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
-                iconSize: [77, 77],
-                iconAnchor: [38, 38], // Center for 77x77 icon
-                popupAnchor: [0, -38]
-            });
-            
-            // Create marker with current valid coordinates
-            mapMarker = L.marker(latlng, { icon: arrowIcon }).addTo(map);
-        } else {
-            // Always update marker position for smooth movement
-            // CSS transitions handle the visual smoothing
-            mapMarker.setLatLng(latlng);
-            
-            // Update rotation using cumulative rotation (prevents 360° spins)
-            const iconElement = mapMarker._icon;
-            if (iconElement) {
-                const imgElement = iconElement.querySelector('img');
-                if (imgElement) {
-                    imgElement.style.transition = `transform ${transitionDuration}s ease-out`;
-                    imgElement.style.transform = `rotate(${currentMapArrowRotation}deg)`;
-                } else {
-                    // If img not found, recreate icon with updated rotation
-                    const newArrowIcon = L.divIcon({
-                        className: 'arrow-marker-icon',
-                        html: `<img src=\"../../assets/arrow.png\" style=\"width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;\" />`,
-                        iconSize: [77, 77],
-                        iconAnchor: [38, 38],
-                        popupAnchor: [0, -38]
-                    });
-                    mapMarker.setIcon(newArrowIcon);
-                }
-            }
-        }
-    } else if (mapMarker) {
-        // If GPS becomes invalid, remove the marker
-        mapMarker.remove();
-        mapMarker = null;
-    }
+    // Map Update - moved to scripts/ui/mapVisualization.js
+    updateMapMarker(sei, hasValidGps);
 }
 
 // Toggle Extra Data - prevent all event bubbling to avoid interfering with playback
@@ -4605,65 +2958,8 @@ dashboardVis.addEventListener('pointerdown', (e) => {
     }
 });
 
-// Format time as HH:MM:SS
-function formatTimeHMS(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    if (h > 0) {
-        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-// Update time display (new format with current/total)
-// Update the recording time display from the current segment filename
-function updateRecordingTime(segIdx) {
-    const timeText = document.getElementById('recordingTimeText');
-    if (!timeText) return;
-    
-    try {
-        const group = state.collection.active?.groups?.[segIdx];
-        if (!group) return;
-        
-        // Get any file from the group to extract timestamp
-        let filename = null;
-        if (group.filesByCamera) {
-            const iter = group.filesByCamera.values();
-            const first = iter.next();
-            if (first.value?.file?.name) filename = first.value.file.name;
-        }
-        if (!filename) return;
-        
-        // Tesla filename format: 2024-12-15_14-30-45-front.mp4
-        const match = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
-        if (match) {
-            const [, , , , hour, min, sec] = match;
-            // Add current video position to the base timestamp
-            const vid = nativeVideo.master;
-            const vidSec = vid ? Math.floor(vid.currentTime || 0) : 0;
-            
-            // Calculate actual time
-            let totalSeconds = parseInt(hour) * 3600 + parseInt(min) * 60 + parseInt(sec) + vidSec;
-            totalSeconds = totalSeconds % 86400; // Wrap at 24 hours
-            const h = Math.floor(totalSeconds / 3600);
-            const m = Math.floor((totalSeconds % 3600) / 60);
-            const s = totalSeconds % 60;
-            
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const h12 = h % 12 || 12;
-            timeText.textContent = `${h12}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
-        }
-    } catch (e) {
-        console.warn('updateRecordingTime error:', e);
-    }
-}
-
-function updateTimeDisplayNew(currentSec, totalSec) {
-    if (currentTimeEl) currentTimeEl.textContent = formatTimeHMS(currentSec);
-    if (totalTimeEl) totalTimeEl.textContent = formatTimeHMS(totalSec);
-}
-
+// Time display functions moved to scripts/ui/timeDisplay.js
+// Local wrapper that uses imported functions
 function updateTimeDisplay(frameIndex) {
     if (state.collection.active) {
         const currentSec = Math.floor((+progressBar.value || 0) / 1000);
@@ -4678,46 +2974,17 @@ function updateTimeDisplay(frameIndex) {
 }
 
 // ============================================================
-// Skip Seconds (Sentry Six style ±15s)
+// Skip Seconds - moved to scripts/features/skipSeconds.js
 // ============================================================
-function skipSeconds(delta) {
-    // Native video day collection mode - use actual durations
-    if (state.ui.nativeVideoMode && state.collection.active) {
-        const vid = nativeVideo.master;
-        if (!vid) return;
-        
-        const segIdx = nativeVideo.currentSegmentIdx || 0;
-        const cumStart = nativeVideo.cumulativeStarts[segIdx] || 0;
-        const currentSec = cumStart + vid.currentTime;
-        const totalSec = nativeVideo.cumulativeStarts[nativeVideo.cumulativeStarts.length - 1] || 1;
-        const newSec = Math.max(0, Math.min(totalSec, currentSec + delta));
-        
-        seekNativeDayCollectionBySec(newSec);
-        return;
-    }
-    
-    // WebCodecs collection mode
-    if (state.collection.active) {
-        const currentMs = +progressBar.value || 0;
-        const newMs = Math.max(0, Math.min(state.collection.active.durationMs, currentMs + delta * 1000));
-        progressBar.value = Math.floor(newMs);
-        showCollectionAtMs(newMs);
-    } else if (player.frames?.length) {
-        // Clip mode: find frame ~delta seconds away
-        const currentIdx = +progressBar.value || 0;
-        const currentTs = player.frames[currentIdx]?.timestamp || 0;
-        const targetTs = currentTs + delta * 1000;
-        let lo = 0, hi = player.frames.length - 1;
-        while (lo < hi) {
-            const mid = Math.floor((lo + hi + 1) / 2);
-            if (player.frames[mid].timestamp <= targetTs) lo = mid;
-            else hi = mid - 1;
-        }
-        const newIdx = Math.max(0, Math.min(player.frames.length - 1, lo));
-        progressBar.value = newIdx;
-        showFrame(newIdx);
-    }
-}
+initSkipSeconds({
+    getState: () => state,
+    getNativeVideo: () => nativeVideo,
+    getProgressBar: () => progressBar,
+    getPlayer: () => player,
+    seekNativeDayCollectionBySec,
+    showCollectionAtMs,
+    showFrame
+});
 
 // ============================================================
 // Native Video Playback System (GPU-accelerated, smooth)
@@ -4813,7 +3080,7 @@ function onMasterTimeUpdate() {
         const totalSec = nativeVideo.cumulativeStarts[nativeVideo.cumulativeStarts.length - 1] || 1;
         
         updateTimeDisplayNew(Math.floor(currentSec), Math.floor(totalSec));
-        updateRecordingTime(segIdx);
+        updateRecordingTime({ collection: state.collection.active, segIdx, videoCurrentTime: nativeVideo.master?.currentTime || 0 });
         
         // Progress bar as smooth percentage
         const pct = (currentSec / totalSec) * 100;
@@ -4967,7 +3234,7 @@ async function loadNativeSegment(segIdx) {
         // Load all cameras (use custom order if set)
         const slotsArr = getEffectiveSlots();
         
-        console.log('Multi-cam layout:', multi.layoutId, 'slots:', slotsArr, 'custom:', !!customCameraOrder);
+        console.log('Multi-cam layout:', multi.layoutId, 'slots:', slotsArr, 'custom:', !!getCustomCameraOrder());
         
         for (const slotDef of slotsArr) {
             const { slot, camera } = slotDef;
@@ -5362,668 +3629,35 @@ async function seekNativeDayCollectionBySec(targetSec) {
 }
 
 // ============================================================
-// Event Timeline Markers & Camera Highlight
+// Event Timeline Markers - moved to scripts/ui/eventMarkers.js
 // ============================================================
-
-function updateEventTimelineMarker() {
-    const markersContainer = $('timelineMarkers');
-    if (!markersContainer) return;
-    
-    // Remove existing event markers
-    markersContainer.querySelectorAll('.event-timeline-marker').forEach(el => el.remove());
-    
-    const coll = state.collection.active;
-    if (!coll) return;
-    
-    // Get event metadata from the collection
-    const groups = coll.groups || [];
-    let eventMeta = null;
-    for (const g of groups) {
-        if (g.eventMeta) {
-            eventMeta = g.eventMeta;
-            break;
-        }
-    }
-    
-    // Also check eventMetaByKey if not found in groups
-    if (!eventMeta && coll.tag && coll.eventId) {
-        const key = `${coll.tag}/${coll.eventId}`;
-        eventMeta = eventMetaByKey.get(key);
-    }
-    
-    if (!eventMeta?.timestamp) return;
-    
-    // Determine event type (sentry or saved)
-    const tagLower = (coll.tag || '').toLowerCase();
-    if (tagLower !== 'sentryclips' && tagLower !== 'savedclips') return;
-    
-    const eventType = tagLower === 'sentryclips' ? 'sentry' : 'saved';
-    
-    // Calculate position on timeline
-    const eventEpoch = Date.parse(eventMeta.timestamp);
-    if (!Number.isFinite(eventEpoch)) return;
-    
-    // Get collection time range
-    const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
-    const lastStart = parseTimestampKeyToEpochMs(groups[groups.length - 1]?.timestampKey) ?? startEpochMs;
-    const endEpochMs = lastStart + 60_000; // estimate last segment is ~60s
-    const durationMs = Math.max(1, endEpochMs - startEpochMs);
-    
-    // Calculate percentage position
-    const eventOffsetMs = eventEpoch - startEpochMs;
-    const pct = Math.max(0, Math.min(100, (eventOffsetMs / durationMs) * 100));
-    
-    // Create marker element
-    const marker = document.createElement('div');
-    marker.className = `event-timeline-marker ${eventType}`;
-    marker.style.left = `${pct}%`;
-    
-    // Add icon based on event type
-    if (eventType === 'sentry') {
-        marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L19.5 19h-15L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>`;
-        marker.title = `Sentry Event: ${eventMeta.reason || 'Unknown'}\n${eventMeta.timestamp}`;
-    } else {
-        marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>`;
-        marker.title = `Saved Event: ${eventMeta.reason || 'User saved'}\n${eventMeta.timestamp}`;
-    }
-    
-    // Click to seek to event time
-    marker.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (state.ui.nativeVideoMode && state.collection.active) {
-            const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-            const targetSec = (pct / 100) * totalSec;
-            seekNativeDayCollectionBySec(targetSec);
-        }
-    });
-    
-    markersContainer.appendChild(marker);
-}
-
-function updateEventCameraHighlight() {
-    // Remove highlight from all tiles (both sentry and saved classes)
-    document.querySelectorAll('.multi-tile.event-camera-highlight-sentry, .multi-tile.event-camera-highlight-saved').forEach(el => {
-        el.classList.remove('event-camera-highlight-sentry', 'event-camera-highlight-saved');
-    });
-    
-    const coll = state.collection.active;
-    if (!coll) return;
-    
-    // Determine event type
-    const tagLower = (coll.tag || '').toLowerCase();
-    if (tagLower !== 'savedclips' && tagLower !== 'sentryclips') return;
-    
-    // Check if the appropriate highlight setting is enabled
-    const isSentry = tagLower === 'sentryclips';
-    const isEnabled = isSentry 
-        ? (window._sentryCameraHighlightEnabled !== false)
-        : (window._savedCameraHighlightEnabled !== false);
-    if (!isEnabled) return;
-    
-    // Get event metadata
-    const groups = coll.groups || [];
-    let eventMeta = null;
-    for (const g of groups) {
-        if (g.eventMeta) {
-            eventMeta = g.eventMeta;
-            break;
-        }
-    }
-    
-    // Also check eventMetaByKey
-    if (!eventMeta && coll.tag && coll.eventId) {
-        const key = `${coll.tag}/${coll.eventId}`;
-        eventMeta = eventMetaByKey.get(key);
-    }
-    
-    if (!eventMeta?.camera && eventMeta?.camera !== 0) return;
-    
-    // Camera mapping based on Tesla camera indices to camera names
-    const cameraIndexToName = {
-        '0': 'front',
-        '1': 'front',
-        '2': 'front',
-        '3': 'left_pillar',
-        '4': 'right_pillar',
-        '5': 'left_repeater',
-        '6': 'right_repeater',
-        '7': 'back'
-    };
-    
-    const cameraValue = String(eventMeta.camera);
-    const cameraName = cameraIndexToName[cameraValue];
-    
-    if (cameraName) {
-        // Find which slot currently has this camera (respects custom order)
-        const effectiveSlots = getEffectiveSlots();
-        const slotDef = effectiveSlots.find(s => s.camera === cameraName);
-        const slot = slotDef?.slot;
-        
-        if (slot) {
-            const tile = document.querySelector(`.multi-tile[data-slot="${slot}"]`);
-            if (tile) {
-                // Use red for SentryClips, yellow for SavedClips
-                const highlightClass = isSentry 
-                    ? 'event-camera-highlight-sentry' 
-                    : 'event-camera-highlight-saved';
-                tile.classList.add(highlightClass);
-            }
-        }
-    }
-}
+initEventMarkers({
+    getState: () => state,
+    getNativeVideo: () => nativeVideo,
+    getEventMetaByKey: () => eventMetaByKey,
+    parseTimestampKeyToEpochMs,
+    seekNativeDayCollectionBySec
+});
 
 // ============================================================
-// Export Functions
+// Export Functions - moved to scripts/features/exportVideo.js
 // ============================================================
 
-function setExportMarker(type) {
-    if (!state.collection.active) {
-        notify('Load a collection first to set export markers', { type: 'warn' });
-        return;
-    }
-    
-    // Get current position as percentage
-    const currentPct = parseFloat(progressBar.value) || 0;
-    
-    if (type === 'start') {
-        exportState.startMarkerPct = currentPct;
-        // If end marker is before start, clear it
-        if (exportState.endMarkerPct !== null && exportState.endMarkerPct <= currentPct) {
-            exportState.endMarkerPct = null;
-        }
-        notify('Start marker set', { type: 'success' });
-    } else {
-        exportState.endMarkerPct = currentPct;
-        // If start marker is after end, clear it
-        if (exportState.startMarkerPct !== null && exportState.startMarkerPct >= currentPct) {
-            exportState.startMarkerPct = null;
-        }
-        notify('End marker set', { type: 'success' });
-    }
-    
-    updateExportMarkers();
-    updateExportButtonState();
-}
+// Initialize export module with dependencies
+initExportModule({
+    getState: () => state,
+    getNativeVideo: () => nativeVideo,
+    getBaseFolderPath: () => baseFolderPath,
+    getProgressBar: () => progressBar
+});
 
-function updateExportMarkers() {
-    const markersContainer = $('timelineMarkers');
-    if (!markersContainer) return;
-    
-    // Get or create start marker
-    let startMarker = markersContainer.querySelector('.export-marker.start');
-    if (exportState.startMarkerPct !== null) {
-        if (!startMarker) {
-            startMarker = document.createElement('div');
-            startMarker.className = 'export-marker start';
-            startMarker.title = 'Export start point (drag to adjust)';
-            makeMarkerDraggable(startMarker, 'start');
-            markersContainer.appendChild(startMarker);
-        }
-        startMarker.style.left = `${exportState.startMarkerPct}%`;
-    } else if (startMarker) {
-        startMarker.remove();
-    }
-    
-    // Get or create end marker
-    let endMarker = markersContainer.querySelector('.export-marker.end');
-    if (exportState.endMarkerPct !== null) {
-        if (!endMarker) {
-            endMarker = document.createElement('div');
-            endMarker.className = 'export-marker end';
-            endMarker.title = 'Export end point (drag to adjust)';
-            makeMarkerDraggable(endMarker, 'end');
-            markersContainer.appendChild(endMarker);
-        }
-        endMarker.style.left = `${exportState.endMarkerPct}%`;
-    } else if (endMarker) {
-        endMarker.remove();
-    }
-    
-    // Get or create highlight between markers
-    let highlight = markersContainer.querySelector('.export-range-highlight');
-    if (exportState.startMarkerPct !== null && exportState.endMarkerPct !== null) {
-        if (!highlight) {
-            highlight = document.createElement('div');
-            highlight.className = 'export-range-highlight';
-            markersContainer.appendChild(highlight);
-        }
-        const startPct = Math.min(exportState.startMarkerPct, exportState.endMarkerPct);
-        const endPct = Math.max(exportState.startMarkerPct, exportState.endMarkerPct);
-        highlight.style.left = `${startPct}%`;
-        highlight.style.width = `${endPct - startPct}%`;
-    } else if (highlight) {
-        highlight.remove();
-    }
-}
-
-function makeMarkerDraggable(marker, type) {
-    let isDragging = false;
-    
-    marker.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        marker.style.cursor = 'grabbing';
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const onMouseMove = (moveEvent) => {
-            if (!isDragging) return;
-            const timelineContainer = marker.closest('.timeline-container');
-            if (!timelineContainer) return;
-            
-            const rect = timelineContainer.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
-            
-            if (type === 'start') {
-                exportState.startMarkerPct = pct;
-            } else {
-                exportState.endMarkerPct = pct;
-            }
-            
-            updateExportMarkers();
-        };
-        
-        const onMouseUp = () => {
-            isDragging = false;
-            marker.style.cursor = 'ew-resize';
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            updateExportButtonState();
-        };
-        
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-}
-
-function updateExportButtonState() {
-    const setStartMarkerBtn = $('setStartMarkerBtn');
-    const setEndMarkerBtn = $('setEndMarkerBtn');
-    const exportBtn = $('exportBtn');
-    
-    const hasCollection = !!state.collection.active;
-    
-    if (setStartMarkerBtn) setStartMarkerBtn.disabled = !hasCollection;
-    if (setEndMarkerBtn) setEndMarkerBtn.disabled = !hasCollection;
-    if (exportBtn) {
-        // Enable export if we have a collection (markers are optional - defaults to full export)
-        exportBtn.disabled = !hasCollection;
-    }
-}
-
-function openExportModal() {
-    if (!state.collection.active) {
-        notify('Load a collection first', { type: 'warn' });
-        return;
-    }
-    
-    const modal = $('exportModal');
-    if (!modal) return;
-    
-    // Update export range display
-    updateExportRangeDisplay();
-    
-    // Check FFmpeg availability
-    checkFFmpegAvailability();
-    
-    // Reset progress
-    const progressEl = $('exportProgress');
-    const progressBar = $('exportProgressBar');
-    const progressText = $('exportProgressText');
-    if (progressEl) progressEl.classList.add('hidden');
-    if (progressBar) progressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Preparing...';
-    
-    // Set default filename
-    const filenameInput = $('exportFilename');
-    if (filenameInput) {
-        const date = new Date().toISOString().slice(0, 10);
-        const collName = state.collection.active?.label || 'export';
-        const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-        filenameInput.value = `tesla_${safeName}_${date}`;
-    }
-    
-    // Reset quality to high
-    const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
-    if (highQuality) highQuality.checked = true;
-    
-    // Set up quality and camera change listeners for size estimate
-    const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
-    qualityInputs.forEach(input => {
-        input.onchange = updateExportSizeEstimate;
-    });
-    const cameraInputs = document.querySelectorAll('.camera-checkbox input');
-    cameraInputs.forEach(input => {
-        input.onchange = updateExportSizeEstimate;
-    });
-    updateExportSizeEstimate();
-    
-    // Enable start button
-    const startBtn = $('startExportBtn');
-    if (startBtn) startBtn.disabled = false;
-    
-    modal.classList.remove('hidden');
-}
-
-function closeExportModalFn() {
-    const modal = $('exportModal');
-    if (modal) modal.classList.add('hidden');
-    
-    // Cancel ongoing export if any
-    if (exportState.isExporting && exportState.currentExportId) {
-        cancelExport();
-    }
-}
-
-function updateExportRangeDisplay() {
-    const startTimeEl = $('exportStartTime');
-    const endTimeEl = $('exportEndTime');
-    const durationEl = $('exportDuration');
-    
-    if (!state.collection.active) return;
-    
-    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    
-    // Use markers or default to full range
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    
-    const startSec = (startPct / 100) * totalSec;
-    const endSec = (endPct / 100) * totalSec;
-    const durationSec = Math.abs(endSec - startSec);
-    
-    if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
-    if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
-    if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
-}
-
-function updateExportSizeEstimate() {
-    const estimateEl = $('exportSizeEstimate');
-    const warningEl = $('frontCamWarning');
-    if (!estimateEl || !state.collection.active) return;
-    
-    // Get duration
-    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
-    
-    // Get selected cameras
-    const selectedCameras = document.querySelectorAll('.camera-checkbox input:checked');
-    const cameraCount = selectedCameras.length || 6;
-    const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
-    const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
-    
-    // Show/hide warning
-    if (warningEl) {
-        warningEl.classList.toggle('hidden', !hasFrontAndOthers);
-    }
-    
-    // Calculate grid layout (same logic as main.js)
-    let cols, rows;
-    if (cameraCount <= 1) { cols = 1; rows = 1; }
-    else if (cameraCount === 2) { cols = 2; rows = 1; }
-    else if (cameraCount === 3) { cols = 3; rows = 1; }
-    else if (cameraCount === 4) { cols = 2; rows = 2; }
-    else { cols = 3; rows = 2; }
-    
-    // Get quality settings based on selection
-    const quality = document.querySelector('input[name="exportQuality"]:checked')?.value || 'high';
-    let perCam;
-    if (isFrontOnly) {
-        // Front only - full front camera resolution
-        perCam = { mobile: [724, 469], medium: [1448, 938], high: [2172, 1407], max: [2896, 1876] }[quality] || [1448, 938];
-    } else {
-        // Multi-camera - side camera resolution
-        perCam = { mobile: [484, 314], medium: [724, 469], high: [1086, 704], max: [1448, 938] }[quality] || [1086, 704];
-    }
-    
-    // Calculate final grid resolution
-    const gridW = perCam[0] * cols;
-    const gridH = perCam[1] * rows;
-    
-    // Estimate MB/min based on resolution (roughly 0.015 MB per 1000 pixels per minute at CRF 23)
-    const pixels = gridW * gridH;
-    const mbPerMin = pixels * 0.000018; // Empirical factor for H.264
-    
-    const estimatedMB = Math.round(durationMin * mbPerMin);
-    const estimatedGB = (estimatedMB / 1024).toFixed(1);
-    
-    let sizeText;
-    if (estimatedMB > 1024) {
-        sizeText = `~${estimatedGB} GB`;
-    } else {
-        sizeText = `~${estimatedMB} MB`;
-    }
-    
-    estimateEl.textContent = `Output: ${gridW}×${gridH} • ${sizeText}`;
-}
-
-async function checkFFmpegAvailability() {
-    const statusEl = $('ffmpegStatus');
-    const startBtn = $('startExportBtn');
-    
-    if (!statusEl) return;
-    
-    statusEl.innerHTML = '<span class="status-icon">⏳</span><span class="status-text">Checking FFmpeg...</span>';
-    
-    try {
-        if (window.electronAPI?.checkFFmpeg) {
-            const result = await window.electronAPI.checkFFmpeg();
-            exportState.ffmpegAvailable = result.available;
-            
-            if (result.available) {
-                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg ready</span>';
-                if (startBtn) startBtn.disabled = false;
-            } else {
-                const isMac = navigator.platform.toLowerCase().includes('mac');
-                if (isMac) {
-                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg required. Run in Terminal: <code style="background:#333;padding:2px 6px;border-radius:3px;user-select:all;">brew install ffmpeg</code></span>';
-                } else {
-                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Place ffmpeg.exe in the ffmpeg_bin folder.</span>';
-                }
-                if (startBtn) startBtn.disabled = true;
-            }
-        } else {
-            statusEl.innerHTML = '<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">Export not available (running in browser)</span>';
-            if (startBtn) startBtn.disabled = true;
-        }
-    } catch (err) {
-        statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">Error checking FFmpeg</span>';
-        if (startBtn) startBtn.disabled = true;
-    }
-}
-
-async function startExport() {
-    if (!state.collection.active || !window.electronAPI?.startExport) {
-        notify('Export not available', { type: 'error' });
-        return;
-    }
-    
-    // Check if we have a base folder path (required for FFmpeg)
-    if (!baseFolderPath) {
-        notify('Export requires selecting a folder via the folder picker. Please re-select your TeslaCam folder.', { type: 'warn' });
-        return;
-    }
-    
-    // Get selected cameras
-    const cameraCheckboxes = document.querySelectorAll('.camera-checkbox input[type="checkbox"]:checked');
-    const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
-    
-    if (cameras.length === 0) {
-        notify('Please select at least one camera', { type: 'warn' });
-        return;
-    }
-    
-    // Get filename from input
-    const filenameInput = $('exportFilename');
-    let filename = filenameInput?.value?.trim() || `tesla_export_${new Date().toISOString().slice(0, 10)}`;
-    // Ensure .mp4 extension
-    if (!filename.toLowerCase().endsWith('.mp4')) filename += '.mp4';
-    
-    // Get quality option
-    const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
-    const quality = qualityInput?.value || 'high';
-    
-    // Get save location
-    const outputPath = await window.electronAPI.saveFile({
-        title: 'Save Tesla Export',
-        defaultPath: filename
-    });
-    
-    if (!outputPath) {
-        notify('Export cancelled', { type: 'info' });
-        return;
-    }
-    
-    // Calculate export range in milliseconds
-    const totalSec = nativeVideo.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    
-    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
-    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
-    
-    // Build segments data with file paths
-    const segments = [];
-    const groups = state.collection.active.groups || [];
-    const cumStarts = nativeVideo.cumulativeStarts || [];
-    
-    for (let i = 0; i < groups.length; i++) {
-        const group = groups[i];
-        const durationSec = nativeVideo.segmentDurations?.[i] || 60;
-        
-        // Get file paths for each camera
-        const files = {};
-        for (const camera of cameras) {
-            const entry = group.filesByCamera?.get(camera);
-            if (entry?.file) {
-                // Use direct path if available (Electron), otherwise construct from relative path
-                if (entry.file.path) {
-                    // Electron file object has direct path
-                    files[camera] = entry.file.path;
-                } else if (entry.file.webkitRelativePath && baseFolderPath) {
-                    // Browser File API - construct from relative path
-                    const relativePath = entry.file.webkitRelativePath;
-                    const pathParts = relativePath.split('/');
-                    const subPath = pathParts.slice(1).join('/');
-                    const fullPath = baseFolderPath + '/' + subPath;
-                    files[camera] = fullPath;
-                }
-            }
-        }
-        
-        segments.push({
-            index: i,
-            durationSec,
-            startSec: cumStarts[i] || 0,
-            files,
-            groupId: group.id
-        });
-    }
-    
-    // Verify we have valid file paths
-    const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
-    if (!hasFiles) {
-        notify('No video files found for export. Please ensure the folder was selected correctly.', { type: 'error' });
-        return;
-    }
-    
-    // Show progress
-    const progressEl = $('exportProgress');
-    const exportProgressBar = $('exportProgressBar');
-    const progressText = $('exportProgressText');
-    const startBtn = $('startExportBtn');
-    
-    if (progressEl) progressEl.classList.remove('hidden');
-    if (exportProgressBar) exportProgressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Starting export...';
-    if (startBtn) startBtn.disabled = true;
-    
-    // Generate export ID
-    const exportId = `export_${Date.now()}`;
-    exportState.currentExportId = exportId;
-    exportState.isExporting = true;
-    
-    // Set up progress listener
-    if (window.electronAPI?.on) {
-        window.electronAPI.on('export:progress', (receivedExportId, progress) => {
-            if (receivedExportId !== exportId) return;
-            
-            if (progress.type === 'progress') {
-                if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
-                if (progressText) progressText.textContent = progress.message;
-            } else if (progress.type === 'complete') {
-                exportState.isExporting = false;
-                exportState.currentExportId = null;
-                
-                if (progress.success) {
-                    if (exportProgressBar) exportProgressBar.style.width = '100%';
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'success' });
-                    
-                    // Offer to show file location
-                    setTimeout(() => {
-                        if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
-                            window.electronAPI.showItemInFolder(outputPath);
-                        }
-                        closeExportModalFn();
-                    }, 500);
-                } else {
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'error' });
-                    if (startBtn) startBtn.disabled = false;
-                }
-            }
-        });
-    }
-    
-    // Start export
-    try {
-        const exportData = {
-            segments,
-            startTimeMs,
-            endTimeMs,
-            outputPath,
-            cameras,
-            baseFolderPath,
-            quality
-        };
-        
-        console.log('Starting export with data:', exportData);
-        await window.electronAPI.startExport(exportId, exportData);
-    } catch (err) {
-        console.error('Export error:', err);
-        notify(`Export failed: ${err.message}`, { type: 'error' });
-        exportState.isExporting = false;
-        exportState.currentExportId = null;
-        if (startBtn) startBtn.disabled = false;
-    }
-}
-
-async function cancelExport() {
-    if (exportState.currentExportId && window.electronAPI?.cancelExport) {
-        await window.electronAPI.cancelExport(exportState.currentExportId);
-        notify('Export cancelled', { type: 'info' });
-    }
-    
-    exportState.isExporting = false;
-    exportState.currentExportId = null;
-    
-    const progressEl = $('exportProgress');
-    const startBtn = $('startExportBtn');
-    
-    if (progressEl) progressEl.classList.add('hidden');
-    if (startBtn) startBtn.disabled = false;
-    
-    // Close the modal
-    closeExportModalFn();
-}
+// Alias for closeExportModal (used internally)
+const closeExportModalFn = closeExportModal;
 
 // Update export button state when collection changes
 const originalSelectDayCollection = selectDayCollection;
 window.selectDayCollectionWrapper = function(dayKey) {
     originalSelectDayCollection.call(this, dayKey);
-    // Update export button state after collection loads
     setTimeout(updateExportButtonState, 100);
 };
 
@@ -6031,330 +3665,20 @@ window.selectDayCollectionWrapper = function(dayKey) {
 setTimeout(updateExportButtonState, 500);
 
 // ============================================================
-// Auto-Update System
+// Auto-Update System - moved to scripts/features/autoUpdate.js
 // ============================================================
-
-const updateModal = $('updateModal');
-const updateProgress = $('updateProgress');
-const updateProgressBar = $('updateProgressBar');
-const updateProgressText = $('updateProgressText');
-const currentVersionDisplay = $('currentVersionDisplay');
-const latestVersionDisplay = $('latestVersionDisplay');
-const updateCommitMessage = $('updateCommitMessage');
-const updateCommitDate = $('updateCommitDate');
-const skipUpdateBtn = $('skipUpdateBtn');
-const installUpdateBtn = $('installUpdateBtn');
-const updateModalFooter = $('updateModalFooter');
-let updateComplete = false; // Flag to prevent dismissing modal after update
-
-function showUpdateModal(updateInfo) {
-    updateComplete = false; // Reset flag when showing modal
-    if (!updateModal) return;
-    
-    if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
-    if (latestVersionDisplay) latestVersionDisplay.textContent = updateInfo.latestVersion;
-    if (updateCommitMessage) updateCommitMessage.textContent = updateInfo.message || 'New update available';
-    if (updateCommitDate) {
-        const date = new Date(updateInfo.date);
-        updateCommitDate.textContent = `${date.toLocaleDateString()} by ${updateInfo.author || 'Unknown'}`;
-    }
-    
-    // Reset state
-    if (updateProgress) updateProgress.classList.add('hidden');
-    if (updateModalFooter) updateModalFooter.style.display = '';
-    updateModal.querySelector('.update-modal')?.classList.remove('updating');
-    
-    updateModal.classList.remove('hidden');
-}
-
-function hideUpdateModal() {
-    if (updateModal) updateModal.classList.add('hidden');
-}
-
-async function handleInstallUpdate() {
-    if (!window.electronAPI?.installUpdate) return;
-    
-    // Show progress, hide buttons
-    if (updateProgress) updateProgress.classList.remove('hidden');
-    if (updateModalFooter) updateModalFooter.style.display = 'none';
-    updateModal.querySelector('.update-modal')?.classList.add('updating');
-    
-    if (updateProgressBar) updateProgressBar.style.width = '0%';
-    if (updateProgressText) updateProgressText.textContent = 'Starting update...';
-    
-    try {
-        const result = await window.electronAPI.installUpdate();
-        
-        if (!result.success) {
-            // Show error
-            if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
-            if (updateModalFooter) updateModalFooter.style.display = '';
-            updateModal.querySelector('.update-modal')?.classList.remove('updating');
-        } else {
-            // Update successful - show Exit button
-            showUpdateCompleteState();
-        }
-    } catch (err) {
-        console.error('Update install error:', err);
-        if (updateProgressText) updateProgressText.textContent = `Error: ${err.message}`;
-        if (updateModalFooter) updateModalFooter.style.display = '';
-        updateModal.querySelector('.update-modal')?.classList.remove('updating');
-    }
-}
-
-function showUpdateCompleteState() {
-    updateComplete = true; // Prevent dismissing modal
-    
-    // Update progress text
-    if (updateProgressText) {
-        updateProgressText.textContent = 'Update installed successfully!';
-    }
-    
-    // Show footer with Exit button
-    if (updateModalFooter) {
-        updateModalFooter.innerHTML = `
-            <p class="restart-message">Please restart the app with <code>npm start</code></p>
-            <button id="exitAppBtn" class="btn btn-danger">Exit App</button>
-        `;
-        updateModalFooter.style.display = '';
-        
-        // Add click handler for Exit button
-        const exitBtn = document.getElementById('exitAppBtn');
-        if (exitBtn) {
-            exitBtn.addEventListener('click', () => {
-                if (window.electronAPI?.exitApp) {
-                    window.electronAPI.exitApp();
-                }
-            });
-        }
-    }
-    
-    updateModal.querySelector('.update-modal')?.classList.remove('updating');
-}
-
-// Set up update event listeners
-if (window.electronAPI?.on) {
-    // Listen for update available event from main process
-    window.electronAPI.on('update:available', (updateInfo) => {
-        console.log('Update available:', updateInfo);
-        showUpdateModal(updateInfo);
-    });
-    
-    // Listen for update progress
-    window.electronAPI.on('update:progress', (progress) => {
-        if (updateProgressBar) updateProgressBar.style.width = `${progress.percentage}%`;
-        if (updateProgressText) updateProgressText.textContent = progress.message;
-    });
-}
-
-// Button handlers
-if (skipUpdateBtn) {
-    skipUpdateBtn.addEventListener('click', () => {
-        hideUpdateModal();
-        if (window.electronAPI?.skipUpdate) {
-            window.electronAPI.skipUpdate();
-        }
-    });
-}
-
-if (installUpdateBtn) {
-    installUpdateBtn.addEventListener('click', handleInstallUpdate);
-}
-
-// Close modal when clicking outside (but not after update is complete)
-if (updateModal) {
-    updateModal.addEventListener('click', (e) => {
-        if (e.target === updateModal && !updateComplete) {
-            hideUpdateModal();
-        }
-    });
-}
+initAutoUpdate();
 
 // -------------------------------------------------------------
-// Camera Rearrangement (Drag & Drop)
+// Camera Rearrangement - moved to scripts/features/cameraRearrange.js
 // -------------------------------------------------------------
-
-async function initCustomCameraOrder() {
-    if (window.electronAPI?.getSetting) {
-        try {
-            const saved = await window.electronAPI.getSetting('customCameraOrder');
-            if (saved) {
-                customCameraOrder = saved;
-                console.log('Loaded custom camera order:', customCameraOrder);
-            }
-        } catch (e) {
-            console.warn('Failed to load custom camera order:', e);
-            customCameraOrder = null;
-        }
-    }
-}
-
-function saveCustomCameraOrder() {
-    if (window.electronAPI?.setSetting) {
-        window.electronAPI.setSetting('customCameraOrder', customCameraOrder);
-    }
-}
-
-function resetCameraOrder() {
-    customCameraOrder = null;
-    saveCustomCameraOrder();
-    // Update labels and event camera highlight immediately
-    updateTileLabels();
-    updateEventCameraHighlight();
-    // Reload current segment to apply default order
-    if (state.collection.active && nativeVideo.currentSegmentIdx >= 0) {
-        loadNativeSegment(nativeVideo.currentSegmentIdx);
-    }
-    notify('Camera order reset to default', { type: 'info' });
-}
-
-function getEffectiveSlots() {
-    const layout = MULTI_LAYOUTS[multi.layoutId] || MULTI_LAYOUTS[DEFAULT_MULTI_LAYOUT];
-    const baseSlots = layout?.slots || [];
-    
-    if (!customCameraOrder) {
-        return baseSlots;
-    }
-    
-    // Apply custom camera order to slots
-    return baseSlots.map(slotDef => {
-        const customCamera = customCameraOrder[slotDef.slot];
-        if (customCamera) {
-            // Find the label for this camera from any slot definition
-            const originalSlotDef = baseSlots.find(s => s.camera === customCamera);
-            return {
-                ...slotDef,
-                camera: customCamera,
-                label: originalSlotDef?.label || customCamera
-            };
-        }
-        return slotDef;
-    });
-}
-
-function initCameraDragAndDrop() {
-    if (!multiCamGrid) return;
-    
-    const tiles = multiCamGrid.querySelectorAll('.multi-tile, .immersive-overlay');
-    let draggedSlot = null;
-    let draggedTile = null;
-    
-    tiles.forEach(tile => {
-        tile.setAttribute('draggable', 'true');
-        
-        tile.addEventListener('dragstart', (e) => {
-            // Don't allow drag during focused/zoomed mode
-            if (multiCamGrid.classList.contains('focused')) {
-                e.preventDefault();
-                return;
-            }
-            
-            draggedSlot = tile.getAttribute('data-slot');
-            draggedTile = tile;
-            tile.classList.add('dragging');
-            
-            // Set drag data
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', draggedSlot);
-            
-            // Add dragging class to grid for styling
-            multiCamGrid.classList.add('drag-active');
-        });
-        
-        tile.addEventListener('dragend', () => {
-            tile.classList.remove('dragging');
-            multiCamGrid.classList.remove('drag-active');
-            tiles.forEach(t => t.classList.remove('drag-over'));
-            draggedSlot = null;
-            draggedTile = null;
-        });
-        
-        tile.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            const targetSlot = tile.getAttribute('data-slot');
-            if (targetSlot !== draggedSlot) {
-                tile.classList.add('drag-over');
-            }
-        });
-        
-        tile.addEventListener('dragleave', () => {
-            tile.classList.remove('drag-over');
-        });
-        
-        tile.addEventListener('drop', (e) => {
-            e.preventDefault();
-            tile.classList.remove('drag-over');
-            
-            const targetSlot = tile.getAttribute('data-slot');
-            if (!draggedSlot || targetSlot === draggedSlot) return;
-            
-            // Get current camera assignments
-            const effectiveSlots = getEffectiveSlots();
-            const sourceSlotDef = effectiveSlots.find(s => s.slot === draggedSlot);
-            const targetSlotDef = effectiveSlots.find(s => s.slot === targetSlot);
-            
-            if (!sourceSlotDef || !targetSlotDef) return;
-            
-            // Initialize custom order if needed (copy from current effective slots)
-            if (!customCameraOrder) {
-                customCameraOrder = {};
-                effectiveSlots.forEach(s => {
-                    customCameraOrder[s.slot] = s.camera;
-                });
-            }
-            
-            // Swap cameras between slots
-            const sourceCamera = customCameraOrder[draggedSlot];
-            const targetCamera = customCameraOrder[targetSlot];
-            customCameraOrder[draggedSlot] = targetCamera;
-            customCameraOrder[targetSlot] = sourceCamera;
-            
-            // Save and apply
-            saveCustomCameraOrder();
-            
-            // Update labels and event camera highlight immediately
-            updateTileLabels();
-            updateEventCameraHighlight();
-            
-            // Reload segment to apply new order
-            if (state.collection.active && nativeVideo.currentSegmentIdx >= 0) {
-                const wasPlaying = nativeVideo.playing;
-                const currentTime = nativeVideo.master?.currentTime || 0;
-                
-                loadNativeSegment(nativeVideo.currentSegmentIdx).then(() => {
-                    if (nativeVideo.master) {
-                        nativeVideo.master.currentTime = currentTime;
-                        syncMultiVideos(currentTime);
-                    }
-                    if (wasPlaying) {
-                        playNative();
-                    }
-                });
-            }
-            
-            console.log('Swapped cameras:', draggedSlot, '<->', targetSlot);
-        });
-    });
-}
-
-function updateTileLabels() {
-    const effectiveSlots = getEffectiveSlots();
-    
-    effectiveSlots.forEach(({ slot, label }) => {
-        // Update standard grid tiles
-        const tile = multiCamGrid?.querySelector(`.multi-tile[data-slot="${slot}"]`);
-        if (tile) {
-            const labelEl = tile.querySelector('.multi-label');
-            if (labelEl) labelEl.textContent = label;
-        }
-        
-        // Update immersive overlays
-        const overlay = multiCamGrid?.querySelector(`.immersive-overlay[data-slot="${slot}"]`);
-        if (overlay) {
-            const labelEl = overlay.querySelector('.multi-label');
-            if (labelEl) labelEl.textContent = label;
-        }
-    });
-}
+initCameraRearrange({
+    getMultiCamGrid: () => multiCamGrid,
+    getState: () => state,
+    getMulti: () => multi,
+    loadNativeSegment,
+    getNativeVideo: () => nativeVideo,
+    syncMultiVideos,
+    playNative,
+    updateEventCameraHighlight
+});
