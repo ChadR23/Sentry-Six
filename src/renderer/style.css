@@ -2351,6 +2351,10 @@ canvas, .video-player, .tile-video {
    ============================================================ */
 .settings-modal {
     max-width: 480px;
+    background: linear-gradient(180deg, 
+        rgb(45, 45, 50) 0%, 
+        rgb(35, 35, 40) 50%,
+        rgb(28, 28, 32) 100%);
 }
 
 .settings-section {
