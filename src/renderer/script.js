@@ -1458,26 +1458,56 @@ function initSettingsModal() {
         });
     }
     
-    // Sentry camera highlight toggle
+    // Sentry camera highlight toggle - use file-based storage for reliability
     const settingsSentryCameraHighlight = $('settingsSentryCameraHighlight');
     if (settingsSentryCameraHighlight) {
-        const savedValue = localStorage.getItem(SENTRY_CAMERA_HIGHLIGHT_KEY);
-        settingsSentryCameraHighlight.checked = savedValue !== '0'; // default to enabled
+        // Load saved value from file-based storage
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('sentryCameraHighlight').then(savedValue => {
+                // Default to enabled (true) if not set
+                const enabled = savedValue !== false;
+                settingsSentryCameraHighlight.checked = enabled;
+                window._sentryCameraHighlightEnabled = enabled;
+                updateEventCameraHighlight();
+            });
+        } else {
+            window._sentryCameraHighlightEnabled = true;
+        }
         
-        settingsSentryCameraHighlight.addEventListener('change', function(e) {
-            localStorage.setItem(SENTRY_CAMERA_HIGHLIGHT_KEY, this.checked ? '1' : '0');
+        // Save to file-based storage on change
+        settingsSentryCameraHighlight.addEventListener('change', async function(e) {
+            const newValue = this.checked;
+            window._sentryCameraHighlightEnabled = newValue;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('sentryCameraHighlight', newValue);
+            }
             updateEventCameraHighlight();
         });
     }
     
-    // Saved camera highlight toggle
+    // Saved camera highlight toggle - use file-based storage for reliability
     const settingsSavedCameraHighlight = $('settingsSavedCameraHighlight');
     if (settingsSavedCameraHighlight) {
-        const savedValue = localStorage.getItem(SAVED_CAMERA_HIGHLIGHT_KEY);
-        settingsSavedCameraHighlight.checked = savedValue !== '0'; // default to enabled
+        // Load saved value from file-based storage
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('savedCameraHighlight').then(savedValue => {
+                // Default to enabled (true) if not set
+                const enabled = savedValue !== false;
+                settingsSavedCameraHighlight.checked = enabled;
+                window._savedCameraHighlightEnabled = enabled;
+                updateEventCameraHighlight();
+            });
+        } else {
+            window._savedCameraHighlightEnabled = true;
+        }
         
-        settingsSavedCameraHighlight.addEventListener('change', function(e) {
-            localStorage.setItem(SAVED_CAMERA_HIGHLIGHT_KEY, this.checked ? '1' : '0');
+        // Save to file-based storage on change
+        settingsSavedCameraHighlight.addEventListener('change', async function(e) {
+            const newValue = this.checked;
+            window._savedCameraHighlightEnabled = newValue;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('savedCameraHighlight', newValue);
+            }
             updateEventCameraHighlight();
         });
     }
@@ -5355,8 +5385,9 @@ function updateEventCameraHighlight() {
     
     // Check if the appropriate highlight setting is enabled
     const isSentry = tagLower === 'sentryclips';
-    const settingKey = isSentry ? SENTRY_CAMERA_HIGHLIGHT_KEY : SAVED_CAMERA_HIGHLIGHT_KEY;
-    const isEnabled = localStorage.getItem(settingKey) !== '0';
+    const isEnabled = isSentry 
+        ? (window._sentryCameraHighlightEnabled !== false)
+        : (window._savedCameraHighlightEnabled !== false);
     if (!isEnabled) return;
     
     // Get event metadata
