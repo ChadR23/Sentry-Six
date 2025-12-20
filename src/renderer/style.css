@@ -2495,8 +2495,16 @@ canvas, .video-player, .tile-video {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 0;
+    padding: 14px 16px;
     gap: 16px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.3);
+    cursor: default;
+    transition: background 0.15s;
+}
+
+.settings-slider:hover {
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .slider-control {
