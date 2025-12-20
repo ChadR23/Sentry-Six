@@ -3524,7 +3524,34 @@ function selectDayCollection(dayKey) {
     updateEventTimelineMarker();
     updateEventCameraHighlight();
 
-    // Load first segment with native video
+    // Calculate anchorMs from event metadata for Sentry/Saved clips
+    let anchorMs = 0;
+    const groups = coll.groups || [];
+    let eventMeta = null;
+    for (const g of groups) {
+        if (g.eventMeta) {
+            eventMeta = g.eventMeta;
+            break;
+        }
+    }
+    // Also check eventMetaByKey if not found in groups
+    if (!eventMeta && coll.tag && coll.eventId) {
+        const key = `${coll.tag}/${coll.eventId}`;
+        eventMeta = eventMetaByKey.get(key);
+    }
+    if (eventMeta?.timestamp) {
+        const eventEpoch = Date.parse(eventMeta.timestamp);
+        const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
+        if (Number.isFinite(eventEpoch) && startEpochMs > 0) {
+            anchorMs = Math.max(0, eventEpoch - startEpochMs);
+        }
+    }
+    
+    // Calculate start position: 15 seconds before event time, or 0 if no anchor
+    const startOffsetMs = Math.max(0, anchorMs - 15000); // 15 seconds before event
+    const startOffsetSec = startOffsetMs / 1000;
+
+    // Load first segment with native video, then seek to event offset
     loadNativeSegment(0).then(() => {
         // Update time display with total duration
         const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
@@ -3533,7 +3560,14 @@ function selectDayCollection(dayKey) {
         playBtn.disabled = false;
         progressBar.disabled = false;
         
-        if (autoplayToggle?.checked) {
+        // Seek to 15 seconds before event time if we have an anchor
+        if (startOffsetSec > 0) {
+            seekNativeDayCollectionBySec(startOffsetSec).then(() => {
+                if (autoplayToggle?.checked) {
+                    setTimeout(() => playNative(), 100);
+                }
+            });
+        } else if (autoplayToggle?.checked) {
             setTimeout(() => playNative(), 100);
         }
     }).catch(err => {
@@ -3598,6 +3632,21 @@ async function ingestSentryEventJson(eventAssetsByKey) {
                 // Also refresh timeline marker and camera highlight
                 updateEventTimelineMarker();
                 updateEventCameraHighlight();
+                
+                // Seek to 15 seconds before event time now that we have the metadata
+                if (meta?.timestamp) {
+                    const eventEpoch = Date.parse(meta.timestamp);
+                    const groups = state.collection.active.groups || [];
+                    const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
+                    if (Number.isFinite(eventEpoch) && startEpochMs > 0) {
+                        const anchorMs = Math.max(0, eventEpoch - startEpochMs);
+                        const startOffsetMs = Math.max(0, anchorMs - 15000);
+                        const startOffsetSec = startOffsetMs / 1000;
+                        if (startOffsetSec > 0) {
+                            seekNativeDayCollectionBySec(startOffsetSec);
+                        }
+                    }
+                }
             }
         } catch (err) {
             console.warn(`Error parsing event.json for ${key}:`, err);
