@@ -1481,7 +1481,178 @@ function initSettingsModal() {
             updateEventCameraHighlight();
         });
     }
+    
+    // Hidden Developer Settings trigger - click Settings title 5 times
+    const settingsModalHeader = settingsModal?.querySelector('.modal-header h2');
+    let settingsTitleClickCount = 0;
+    let settingsTitleClickTimer = null;
+    
+    if (settingsModalHeader) {
+        settingsModalHeader.style.cursor = 'default';
+        settingsModalHeader.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsTitleClickCount++;
+            
+            // Reset counter after 10 seconds of no clicks
+            clearTimeout(settingsTitleClickTimer);
+            settingsTitleClickTimer = setTimeout(() => {
+                settingsTitleClickCount = 0;
+            }, 10000);
+            
+            if (settingsTitleClickCount >= 5) {
+                settingsTitleClickCount = 0;
+                closeSettings();
+                openDevSettingsModal();
+            }
+        });
+    }
 }
+
+// Developer Settings Modal
+function openDevSettingsModal() {
+    const devSettingsModal = $('devSettingsModal');
+    if (devSettingsModal) {
+        devSettingsModal.classList.remove('hidden');
+    }
+}
+
+function closeDevSettingsModal() {
+    const devSettingsModal = $('devSettingsModal');
+    if (devSettingsModal) {
+        devSettingsModal.classList.add('hidden');
+    }
+    // Hide output panel
+    const devOutput = $('devOutput');
+    if (devOutput) devOutput.classList.add('hidden');
+}
+
+function showDevOutput(text) {
+    const devOutput = $('devOutput');
+    const devOutputText = $('devOutputText');
+    if (devOutput && devOutputText) {
+        devOutputText.textContent = text;
+        devOutput.classList.remove('hidden');
+    }
+}
+
+function initDevSettingsModal() {
+    const devSettingsModal = $('devSettingsModal');
+    const closeDevSettingsModal_btn = $('closeDevSettingsModal');
+    const closeDevSettingsBtn = $('closeDevSettingsBtn');
+    
+    // Close button handlers
+    if (closeDevSettingsModal_btn) closeDevSettingsModal_btn.onclick = closeDevSettingsModal;
+    if (closeDevSettingsBtn) closeDevSettingsBtn.onclick = closeDevSettingsModal;
+    
+    // Close on backdrop click
+    if (devSettingsModal) {
+        devSettingsModal.onclick = (e) => {
+            if (e.target === devSettingsModal) closeDevSettingsModal();
+        };
+    }
+    
+    // Open DevTools
+    const devOpenConsole = $('devOpenConsole');
+    if (devOpenConsole) {
+        devOpenConsole.onclick = async () => {
+            if (window.electronAPI?.devOpenDevTools) {
+                const result = await window.electronAPI.devOpenDevTools();
+                if (result.success) {
+                    showDevOutput('DevTools opened successfully');
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
+            }
+        };
+    }
+    
+    // Reset Settings
+    const devResetSettings = $('devResetSettings');
+    if (devResetSettings) {
+        devResetSettings.onclick = async () => {
+            if (window.electronAPI?.devResetSettings) {
+                if (confirm('Are you sure you want to reset all settings? This will reload the app.')) {
+                    const result = await window.electronAPI.devResetSettings();
+                    if (result.success) {
+                        showDevOutput('Settings reset successfully.\nDeleted: ' + result.path + '\n\nReloading app...');
+                        setTimeout(() => {
+                            if (window.electronAPI?.devReloadApp) {
+                                window.electronAPI.devReloadApp();
+                            }
+                        }, 1500);
+                    } else {
+                        showDevOutput('Error: ' + result.error);
+                    }
+                }
+            }
+        };
+    }
+    
+    // Force Latest Version
+    const devForceLatest = $('devForceLatest');
+    if (devForceLatest) {
+        devForceLatest.onclick = async () => {
+            if (window.electronAPI?.devForceLatestVersion) {
+                const result = await window.electronAPI.devForceLatestVersion();
+                if (result.success) {
+                    showDevOutput('Version forced to latest: ' + result.version + '\n\nUpdate check will now pass.');
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
+            }
+        };
+    }
+    
+    // Set Testing Version
+    const devSetTesting = $('devSetTesting');
+    if (devSetTesting) {
+        devSetTesting.onclick = async () => {
+            if (window.electronAPI?.devSetTestingVersion) {
+                const result = await window.electronAPI.devSetTestingVersion();
+                if (result.success) {
+                    showDevOutput('Version set to: ' + result.version + '\n\nThis will trigger an update prompt on next check.');
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
+            }
+        };
+    }
+    
+    // Show App Paths
+    const devShowPaths = $('devShowPaths');
+    if (devShowPaths) {
+        devShowPaths.onclick = async () => {
+            if (window.electronAPI?.devGetAppPaths) {
+                const paths = await window.electronAPI.devGetAppPaths();
+                showDevOutput(
+                    'Application Paths:\n' +
+                    '─────────────────────────────────\n' +
+                    'User Data:  ' + paths.userData + '\n' +
+                    'Settings:   ' + paths.settings + '\n' +
+                    'Version:    ' + paths.version + '\n' +
+                    'App:        ' + paths.app + '\n' +
+                    'Temp:       ' + paths.temp
+                );
+            }
+        };
+    }
+    
+    // Reload App
+    const devReloadApp = $('devReloadApp');
+    if (devReloadApp) {
+        devReloadApp.onclick = async () => {
+            if (window.electronAPI?.devReloadApp) {
+                showDevOutput('Reloading application...');
+                setTimeout(() => {
+                    window.electronAPI.devReloadApp();
+                }, 500);
+            }
+        };
+    }
+}
+
+// Initialize dev settings modal
+initDevSettingsModal();
 
 // Keybind System
 const keybindActions = {
@@ -5734,11 +5905,9 @@ const skipUpdateBtn = $('skipUpdateBtn');
 const installUpdateBtn = $('installUpdateBtn');
 const updateModalFooter = $('updateModalFooter');
 let updateComplete = false; // Flag to prevent dismissing modal after update
-let updateModalClickCount = 0; // Hidden dev bypass counter
 
 function showUpdateModal(updateInfo) {
     updateComplete = false; // Reset flag when showing modal
-    updateModalClickCount = 0; // Reset bypass counter
     if (!updateModal) return;
     
     if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
@@ -5859,24 +6028,6 @@ if (updateModal) {
         }
     });
     
-    // Hidden dev feature: click modal header 10 times to bypass update
-    const modalHeader = updateModal.querySelector('.modal-header');
-    if (modalHeader) {
-        modalHeader.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            updateModalClickCount++;
-            if (updateModalClickCount >= 10) {
-                if (window.electronAPI?.bypassUpdate) {
-                    const result = await window.electronAPI.bypassUpdate();
-                    if (result.success) {
-                        console.log('🔧 [DEV] Update bypassed to version:', result.version);
-                        hideUpdateModal();
-                    }
-                }
-                updateModalClickCount = 0;
-            }
-        });
-    }
 }
 
 

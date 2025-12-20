@@ -863,3 +863,69 @@ ipcMain.handle('update:bypass', async () => {
   }
 });
 
+// ============================================================
+// Developer Settings IPC Handlers
+// ============================================================
+
+ipcMain.handle('dev:openDevTools', async () => {
+  if (mainWindow) {
+    mainWindow.webContents.openDevTools();
+    return { success: true };
+  }
+  return { success: false, error: 'No main window' };
+});
+
+ipcMain.handle('dev:resetSettings', async () => {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      fs.unlinkSync(settingsPath);
+      console.log('🔧 [DEV] Settings reset - deleted:', settingsPath);
+    }
+    return { success: true, path: settingsPath };
+  } catch (err) {
+    console.error('Reset settings error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('dev:forceLatestVersion', async () => {
+  try {
+    const latestCommit = await getLatestCommit();
+    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
+    console.log('🔧 [DEV] Version forced to latest:', latestCommit.sha.substring(0, 7));
+    return { success: true, version: latestCommit.sha.substring(0, 7) };
+  } catch (err) {
+    console.error('Force latest version error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('dev:setTestingVersion', async () => {
+  try {
+    saveCurrentVersion('testing', new Date().toISOString(), 'Testing version');
+    console.log('🔧 [DEV] Version set to Testing');
+    return { success: true, version: 'Testing' };
+  } catch (err) {
+    console.error('Set testing version error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('dev:getAppPaths', async () => {
+  return {
+    userData: app.getPath('userData'),
+    settings: settingsPath,
+    version: UPDATE_CONFIG.versionFile,
+    app: app.getAppPath(),
+    temp: app.getPath('temp')
+  };
+});
+
+ipcMain.handle('dev:reloadApp', async () => {
+  if (mainWindow) {
+    mainWindow.reload();
+    return { success: true };
+  }
+  return { success: false, error: 'No main window' };
+});
+

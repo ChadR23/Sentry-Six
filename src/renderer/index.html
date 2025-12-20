@@ -636,6 +636,81 @@
         </div>
     </div>
 
+    <!-- Developer Settings Modal -->
+    <div id="devSettingsModal" class="modal hidden">
+        <div class="modal-content settings-modal dev-settings-modal">
+            <div class="modal-header">
+                <h2>🛠️ Developer Settings</h2>
+                <button id="closeDevSettingsModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Debug Tools</h3>
+                    <div class="dev-settings-grid">
+                        <button id="devOpenConsole" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">🔧</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Open DevTools</span>
+                                <span class="dev-btn-desc">Open Chrome Developer Tools console</span>
+                            </span>
+                        </button>
+                        <button id="devResetSettings" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">🗑️</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Reset Settings</span>
+                                <span class="dev-btn-desc">Delete settings.json and restore defaults</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Version Override</h3>
+                    <div class="dev-settings-grid">
+                        <button id="devForceLatest" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">⏩</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Force Version to Latest</span>
+                                <span class="dev-btn-desc">Mark current version as latest (bypass updates)</span>
+                            </span>
+                        </button>
+                        <button id="devSetTesting" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">🧪</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Set Version to "Testing"</span>
+                                <span class="dev-btn-desc">Set version string to "Testing" for development</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Diagnostics</h3>
+                    <div class="dev-settings-grid">
+                        <button id="devShowPaths" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">📁</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Show App Paths</span>
+                                <span class="dev-btn-desc">Display userData, settings, and version file paths</span>
+                            </span>
+                        </button>
+                        <button id="devReloadApp" class="btn btn-secondary dev-btn">
+                            <span class="dev-btn-icon">🔄</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Reload Application</span>
+                                <span class="dev-btn-desc">Force reload the renderer process</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div id="devOutput" class="dev-output hidden">
+                    <pre id="devOutputText"></pre>
+                </div>
+            </div>
+            <div class="modal-footer settings-footer">
+                <button id="closeDevSettingsBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Update Modal -->
     <div id="updateModal" class="modal hidden">
         <div class="modal-content update-modal">

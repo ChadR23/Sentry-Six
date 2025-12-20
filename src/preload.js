@@ -25,6 +25,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   bypassUpdate: () => ipcRenderer.invoke('update:bypass'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
   
+  // Developer settings operations
+  devOpenDevTools: () => ipcRenderer.invoke('dev:openDevTools'),
+  devResetSettings: () => ipcRenderer.invoke('dev:resetSettings'),
+  devForceLatestVersion: () => ipcRenderer.invoke('dev:forceLatestVersion'),
+  devSetTestingVersion: () => ipcRenderer.invoke('dev:setTestingVersion'),
+  devGetAppPaths: () => ipcRenderer.invoke('dev:getAppPaths'),
+  devReloadApp: () => ipcRenderer.invoke('dev:reloadApp'),
+  
   // Settings storage (file-based for reliability)
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
