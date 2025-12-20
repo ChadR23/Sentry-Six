@@ -94,6 +94,10 @@ const videoBySlot = {
 // URL object references for cleanup
 const videoUrls = new Map(); // video element -> objectURL
 
+// Custom camera order (slot -> camera) for user rearrangement
+// Loaded from settings.json on init, updated via drag-and-drop
+let customCameraOrder = null; // null = use default layout order
+
 // Visualization Elements
 const speedValue = $('speedValue');
 const gearState = $('gearState');
@@ -771,6 +775,12 @@ function hasValidGps(sei) {
     multi.enabled = savedMulti == null ? !!multiCamToggle?.checked : savedMulti === '1';
     if (multiCamToggle) multiCamToggle.checked = multi.enabled;
     if (multiLayoutSelect) multiLayoutSelect.disabled = !multi.enabled;
+
+    // Initialize custom camera order from localStorage
+    initCustomCameraOrder();
+    
+    // Initialize drag-and-drop for camera rearrangement
+    initCameraDragAndDrop();
 })();
 
 // -------------------------------------------------------------
@@ -1509,6 +1519,15 @@ function initSettingsModal() {
                 await window.electronAPI.setSetting('savedCameraHighlight', newValue);
             }
             updateEventCameraHighlight();
+        });
+    }
+    
+    // Reset camera order button
+    const resetCameraOrderBtn = $('resetCameraOrderBtn');
+    if (resetCameraOrderBtn) {
+        resetCameraOrderBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            resetCameraOrder();
         });
     }
     
@@ -4945,11 +4964,10 @@ async function loadNativeSegment(segIdx) {
     };
     
     if (multi.enabled) {
-        // Load all cameras
-        const layout = MULTI_LAYOUTS[multi.layoutId] || MULTI_LAYOUTS[DEFAULT_MULTI_LAYOUT];
-        const slotsArr = layout?.slots || [];
+        // Load all cameras (use custom order if set)
+        const slotsArr = getEffectiveSlots();
         
-        console.log('Multi-cam layout:', multi.layoutId, 'slots:', slotsArr);
+        console.log('Multi-cam layout:', multi.layoutId, 'slots:', slotsArr, 'custom:', !!customCameraOrder);
         
         for (const slotDef of slotsArr) {
             const { slot, camera } = slotDef;
@@ -4981,6 +4999,9 @@ async function loadNativeSegment(segIdx) {
         console.log('Master camera:', masterCam, 'slot:', masterSlot, 'video:', nativeVideo.master?.id);
         
         setMultiCamGridVisible(true);
+        
+        // Update tile labels to reflect custom camera order
+        updateTileLabels();
     } else {
         // Single camera
         const cam = selection.selectedCamera || 'front';
@@ -5457,29 +5478,36 @@ function updateEventCameraHighlight() {
     
     if (!eventMeta?.camera && eventMeta?.camera !== 0) return;
     
-    // Camera mapping based on Tesla camera indices
-    const cameraToSlot = {
-        '0': 'tc',  // Front
-        '1': 'tc',  // Front
-        '2': 'tc',  // Front
-        '3': 'tl',  // Left Pillar
-        '4': 'tr',  // Right Pillar
-        '5': 'bl',  // Left Repeater
-        '6': 'br',  // Right Repeater
-        '7': 'bc'   // Back
+    // Camera mapping based on Tesla camera indices to camera names
+    const cameraIndexToName = {
+        '0': 'front',
+        '1': 'front',
+        '2': 'front',
+        '3': 'left_pillar',
+        '4': 'right_pillar',
+        '5': 'left_repeater',
+        '6': 'right_repeater',
+        '7': 'back'
     };
     
     const cameraValue = String(eventMeta.camera);
-    const slot = cameraToSlot[cameraValue];
+    const cameraName = cameraIndexToName[cameraValue];
     
-    if (slot) {
-        const tile = document.querySelector(`.multi-tile[data-slot="${slot}"]`);
-        if (tile) {
-            // Use red for SentryClips, yellow for SavedClips
-            const highlightClass = isSentry 
-                ? 'event-camera-highlight-sentry' 
-                : 'event-camera-highlight-saved';
-            tile.classList.add(highlightClass);
+    if (cameraName) {
+        // Find which slot currently has this camera (respects custom order)
+        const effectiveSlots = getEffectiveSlots();
+        const slotDef = effectiveSlots.find(s => s.camera === cameraName);
+        const slot = slotDef?.slot;
+        
+        if (slot) {
+            const tile = document.querySelector(`.multi-tile[data-slot="${slot}"]`);
+            if (tile) {
+                // Use red for SentryClips, yellow for SavedClips
+                const highlightClass = isSentry 
+                    ? 'event-camera-highlight-sentry' 
+                    : 'event-camera-highlight-saved';
+                tile.classList.add(highlightClass);
+            }
         }
     }
 }
@@ -6140,7 +6168,190 @@ if (updateModal) {
             hideUpdateModal();
         }
     });
-    
 }
 
+// -------------------------------------------------------------
+// Camera Rearrangement (Drag & Drop)
+// -------------------------------------------------------------
 
+async function initCustomCameraOrder() {
+    if (window.electronAPI?.getSetting) {
+        try {
+            const saved = await window.electronAPI.getSetting('customCameraOrder');
+            if (saved) {
+                customCameraOrder = saved;
+                console.log('Loaded custom camera order:', customCameraOrder);
+            }
+        } catch (e) {
+            console.warn('Failed to load custom camera order:', e);
+            customCameraOrder = null;
+        }
+    }
+}
+
+function saveCustomCameraOrder() {
+    if (window.electronAPI?.setSetting) {
+        window.electronAPI.setSetting('customCameraOrder', customCameraOrder);
+    }
+}
+
+function resetCameraOrder() {
+    customCameraOrder = null;
+    saveCustomCameraOrder();
+    // Reload current segment to apply default order
+    if (state.collection.active && nativeVideo.currentSegmentIdx >= 0) {
+        loadNativeSegment(nativeVideo.currentSegmentIdx);
+    }
+    notify('Camera order reset to default', { type: 'info' });
+}
+
+function getEffectiveSlots() {
+    const layout = MULTI_LAYOUTS[multi.layoutId] || MULTI_LAYOUTS[DEFAULT_MULTI_LAYOUT];
+    const baseSlots = layout?.slots || [];
+    
+    if (!customCameraOrder) {
+        return baseSlots;
+    }
+    
+    // Apply custom camera order to slots
+    return baseSlots.map(slotDef => {
+        const customCamera = customCameraOrder[slotDef.slot];
+        if (customCamera) {
+            // Find the label for this camera from any slot definition
+            const originalSlotDef = baseSlots.find(s => s.camera === customCamera);
+            return {
+                ...slotDef,
+                camera: customCamera,
+                label: originalSlotDef?.label || customCamera
+            };
+        }
+        return slotDef;
+    });
+}
+
+function initCameraDragAndDrop() {
+    if (!multiCamGrid) return;
+    
+    const tiles = multiCamGrid.querySelectorAll('.multi-tile, .immersive-overlay');
+    let draggedSlot = null;
+    let draggedTile = null;
+    
+    tiles.forEach(tile => {
+        tile.setAttribute('draggable', 'true');
+        
+        tile.addEventListener('dragstart', (e) => {
+            // Don't allow drag during focused/zoomed mode
+            if (multiCamGrid.classList.contains('focused')) {
+                e.preventDefault();
+                return;
+            }
+            
+            draggedSlot = tile.getAttribute('data-slot');
+            draggedTile = tile;
+            tile.classList.add('dragging');
+            
+            // Set drag data
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', draggedSlot);
+            
+            // Add dragging class to grid for styling
+            multiCamGrid.classList.add('drag-active');
+        });
+        
+        tile.addEventListener('dragend', () => {
+            tile.classList.remove('dragging');
+            multiCamGrid.classList.remove('drag-active');
+            tiles.forEach(t => t.classList.remove('drag-over'));
+            draggedSlot = null;
+            draggedTile = null;
+        });
+        
+        tile.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const targetSlot = tile.getAttribute('data-slot');
+            if (targetSlot !== draggedSlot) {
+                tile.classList.add('drag-over');
+            }
+        });
+        
+        tile.addEventListener('dragleave', () => {
+            tile.classList.remove('drag-over');
+        });
+        
+        tile.addEventListener('drop', (e) => {
+            e.preventDefault();
+            tile.classList.remove('drag-over');
+            
+            const targetSlot = tile.getAttribute('data-slot');
+            if (!draggedSlot || targetSlot === draggedSlot) return;
+            
+            // Get current camera assignments
+            const effectiveSlots = getEffectiveSlots();
+            const sourceSlotDef = effectiveSlots.find(s => s.slot === draggedSlot);
+            const targetSlotDef = effectiveSlots.find(s => s.slot === targetSlot);
+            
+            if (!sourceSlotDef || !targetSlotDef) return;
+            
+            // Initialize custom order if needed (copy from current effective slots)
+            if (!customCameraOrder) {
+                customCameraOrder = {};
+                effectiveSlots.forEach(s => {
+                    customCameraOrder[s.slot] = s.camera;
+                });
+            }
+            
+            // Swap cameras between slots
+            const sourceCamera = customCameraOrder[draggedSlot];
+            const targetCamera = customCameraOrder[targetSlot];
+            customCameraOrder[draggedSlot] = targetCamera;
+            customCameraOrder[targetSlot] = sourceCamera;
+            
+            // Save and apply
+            saveCustomCameraOrder();
+            
+            // Update labels and event camera highlight immediately
+            updateTileLabels();
+            updateEventCameraHighlight();
+            
+            // Reload segment to apply new order
+            if (state.collection.active && nativeVideo.currentSegmentIdx >= 0) {
+                const wasPlaying = nativeVideo.playing;
+                const currentTime = nativeVideo.master?.currentTime || 0;
+                
+                loadNativeSegment(nativeVideo.currentSegmentIdx).then(() => {
+                    if (nativeVideo.master) {
+                        nativeVideo.master.currentTime = currentTime;
+                        syncMultiVideos(currentTime);
+                    }
+                    if (wasPlaying) {
+                        playNative();
+                    }
+                });
+            }
+            
+            console.log('Swapped cameras:', draggedSlot, '<->', targetSlot);
+        });
+    });
+}
+
+function updateTileLabels() {
+    const effectiveSlots = getEffectiveSlots();
+    
+    effectiveSlots.forEach(({ slot, label }) => {
+        // Update standard grid tiles
+        const tile = multiCamGrid?.querySelector(`.multi-tile[data-slot="${slot}"]`);
+        if (tile) {
+            const labelEl = tile.querySelector('.multi-label');
+            if (labelEl) labelEl.textContent = label;
+        }
+        
+        // Update immersive overlays
+        const overlay = multiCamGrid?.querySelector(`.immersive-overlay[data-slot="${slot}"]`);
+        if (overlay) {
+            const labelEl = overlay.querySelector('.multi-label');
+            if (labelEl) labelEl.textContent = label;
+        }
+    });
+}

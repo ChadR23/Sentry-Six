@@ -152,6 +152,26 @@ canvas, .video-player, .tile-video {
     z-index: 2;
 }
 
+/* Drag and drop camera rearrangement */
+.multi-tile[draggable="true"],
+.immersive-overlay[draggable="true"] {
+    cursor: grab;
+}
+.multi-tile.dragging,
+.immersive-overlay.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+.multi-tile.drag-over,
+.immersive-overlay.drag-over {
+    border: 2px dashed rgba(62, 156, 191, 0.8);
+    box-shadow: 0 0 12px rgba(62, 156, 191, 0.4);
+}
+.multi-cam-grid.drag-active .multi-tile:not(.dragging),
+.multi-cam-grid.drag-active .immersive-overlay:not(.dragging) {
+    transition: border 0.15s ease, box-shadow 0.15s ease;
+}
+
 /* Multi focus mode (click a tile to expand; click again / Esc to exit) */
 /* Keep all tiles visible - only layer focused tile on top with z-index */
 /* This prevents any visibility/display changes that could affect video playback */
@@ -2400,6 +2420,40 @@ canvas, .video-player, .tile-video {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
     line-height: 1.3;
+}
+
+.settings-action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 8px;
+}
+
+.settings-action-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.settings-action-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-action-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.3;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
 }
 
 .settings-toggle-track {
