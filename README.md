@@ -40,6 +40,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Set custom start/end points for trimming
   - Live progress with time and size estimates
   - *MacOS: Install ffmpeg via `brew install ffmpeg`*
+  - *Note: Overlays do not render during export, this is planned for a future release.*
 
 - **Customizable Settings**
   - Toggle dashboard and map overlays
@@ -71,12 +72,13 @@ npm start
 ## Notes on SEI Data
 
 - SEI telemetry is typically not recorded while parked
-- Brake/accelerator pedal data is not logged during FSD—if you see pedal activity while Autopilot is engaged, that's driver input
+- Brake/accelerator pedal data is not logged during Self Driving. If you see pedal activity while Autopilot/Self Driving is engaged, that's driver input.
 
 ## Project Origin & Credits
 
-Created by [**ChadR23**](https://github.com/ChadR23) with help from [Scottmg1](https://github.com/Scottmg1).  
-Special thanks to [**Parallax**](https://github.com/DennisGarvey) and **38tu** for beta testing and feedback.
+This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [Scottmg1](https://github.com/Scottmg1) and use of the **OpenAI Opus 4.5 AI Model** during development.
+
+Special thanks to [**Parallax**](https://github.com/DennisGarvey) and **38tu** for hands-on beta testing and invaluable feedback.
 
 ## License
 
