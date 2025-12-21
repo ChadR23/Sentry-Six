@@ -129,6 +129,33 @@ export function initCameraDragAndDrop() {
     const tiles = multiCamGrid.querySelectorAll('.multi-tile, .immersive-overlay');
     let draggedSlot = null;
     let draggedTile = null;
+    let dragIndicator = null;
+    
+    // Create floating indicator element
+    function createDragIndicator(label) {
+        const el = document.createElement('div');
+        el.className = 'camera-drag-indicator';
+        el.textContent = label;
+        document.body.appendChild(el);
+        return el;
+    }
+    
+    // Update indicator position to follow cursor
+    function updateIndicatorPosition(e) {
+        if (dragIndicator) {
+            dragIndicator.style.left = e.clientX + 'px';
+            dragIndicator.style.top = e.clientY + 'px';
+        }
+    }
+    
+    // Remove the indicator
+    function removeDragIndicator() {
+        if (dragIndicator) {
+            dragIndicator.remove();
+            dragIndicator = null;
+        }
+        document.removeEventListener('dragover', updateIndicatorPosition);
+    }
     
     tiles.forEach(tile => {
         tile.setAttribute('draggable', 'true');
@@ -143,6 +170,18 @@ export function initCameraDragAndDrop() {
             draggedTile = tile;
             tile.classList.add('dragging');
             
+            // Hide the default browser drag ghost - use transparent 1x1 image
+            const emptyImg = new Image();
+            emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            e.dataTransfer.setDragImage(emptyImg, 0, 0);
+            
+            // Create floating indicator with camera label
+            const label = tile.querySelector('.multi-label')?.textContent || draggedSlot;
+            dragIndicator = createDragIndicator(label);
+            dragIndicator.style.left = e.clientX + 'px';
+            dragIndicator.style.top = e.clientY + 'px';
+            document.addEventListener('dragover', updateIndicatorPosition);
+            
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', draggedSlot);
             
@@ -153,6 +192,7 @@ export function initCameraDragAndDrop() {
             tile.classList.remove('dragging');
             multiCamGrid.classList.remove('drag-active');
             tiles.forEach(t => t.classList.remove('drag-over'));
+            removeDragIndicator();
             draggedSlot = null;
             draggedTile = null;
         });

@@ -159,17 +159,36 @@ canvas, .video-player, .tile-video {
 }
 .multi-tile.dragging,
 .immersive-overlay.dragging {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: grabbing;
+    outline: 3px solid rgba(62, 156, 191, 0.6);
+    outline-offset: -3px;
 }
 .multi-tile.drag-over,
 .immersive-overlay.drag-over {
-    border: 2px dashed rgba(62, 156, 191, 0.8);
-    box-shadow: 0 0 12px rgba(62, 156, 191, 0.4);
+    outline: 3px solid rgba(62, 156, 191, 1);
+    outline-offset: -3px;
+    box-shadow: 0 0 20px rgba(62, 156, 191, 0.7), inset 0 0 30px rgba(62, 156, 191, 0.15);
 }
 .multi-cam-grid.drag-active .multi-tile:not(.dragging),
 .multi-cam-grid.drag-active .immersive-overlay:not(.dragging) {
-    transition: border 0.15s ease, box-shadow 0.15s ease;
+    transition: outline 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+/* Floating drag indicator that follows cursor */
+.camera-drag-indicator {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(62, 156, 191, 0.9);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+    transform: translate(12px, 12px);
 }
 
 /* Multi focus mode (click a tile to expand; click again / Esc to exit) */
