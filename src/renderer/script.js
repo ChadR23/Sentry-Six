@@ -2775,11 +2775,7 @@ const nativeVideo = {
     cumulativeStarts: [],   // Cumulative start time of each segment in seconds
     isTransitioning: false, // Guard to prevent double-triggering segment transitions
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
-    dashboardReset: false,  // Track if dashboard has been reset for no-SEI section
-    // SEI-based sync: per-slot mapping of frame_seq_no -> videoTimestampMs
-    // Used to sync cameras by matching frame sequence numbers
-    seiSyncData: new Map(), // slot -> Map<frame_seq_no, videoTimestampMs>
-    masterSeiSync: null     // Master camera's frame_seq_no -> videoTimestampMs map
+    dashboardReset: false   // Track if dashboard has been reset for no-SEI section
 };
 
 function initNativeVideoPlayback() {
@@ -2976,9 +2972,6 @@ async function loadNativeSegment(segIdx) {
     nativeVideo.mapPath = [];
     nativeVideo.lastSeiTimeMs = -Infinity;
     nativeVideo.dashboardReset = false;
-    // Clear SEI sync data for camera synchronization
-    nativeVideo.seiSyncData.clear();
-    nativeVideo.masterSeiSync = null;
     
     // Clean up old URLs
     videoUrls.forEach((url, vid) => {
@@ -3095,34 +3088,6 @@ async function loadNativeSegment(segIdx) {
                 }, 1000);
             }
         }).catch(err => console.warn('SEI extraction failed:', err));
-        
-        // Extract SEI sync data for master camera (frame_seq_no -> videoTimestampMs mapping)
-        extractSeiSyncFromEntry(masterEntry).then(syncMap => {
-            if (syncMap) {
-                nativeVideo.masterSeiSync = syncMap;
-                console.log('Master SEI sync data extracted:', syncMap.size, 'frames');
-            }
-        }).catch(err => console.warn('Master SEI sync extraction failed:', err));
-    }
-    
-    // Extract SEI sync data from ALL cameras for frame-accurate sync (runs in background)
-    if (multi.enabled && seiType) {
-        const slotsArr = getEffectiveSlots();
-        for (const slotDef of slotsArr) {
-            const { slot, camera } = slotDef;
-            // Skip master camera (already extracted above)
-            if (camera === masterCam) continue;
-            
-            const entry = group.filesByCamera.get(camera);
-            if (entry) {
-                extractSeiSyncFromEntry(entry).then(syncMap => {
-                    if (syncMap) {
-                        nativeVideo.seiSyncData.set(slot, syncMap);
-                        console.log('SEI sync data extracted for', camera, '(slot', slot + '):', syncMap.size, 'frames');
-                    }
-                }).catch(err => console.warn('SEI sync extraction failed for', camera, ':', err));
-            }
-        }
     }
     
     // Wait for master to be ready
@@ -3383,77 +3348,6 @@ function findSeiAtTime(timestampMs) {
     }
     
     return closest?.sei || null;
-}
-
-// Extract SEI sync data from an entry - builds frame_seq_no -> videoTimestampMs mapping
-async function extractSeiSyncFromEntry(entry) {
-    if (!entry || !seiType) return null;
-    
-    try {
-        let buffer;
-        if (entry.file?.isElectronFile && entry.file?.path) {
-            const filePath = entry.file.path;
-            const fileUrl = filePath.startsWith('/') 
-                ? `file://${filePath}` 
-                : `file:///${filePath.replace(/\\/g, '/')}`;
-            const response = await fetch(fileUrl);
-            buffer = await response.arrayBuffer();
-        } else if (entry.file && entry.file instanceof File) {
-            buffer = await entry.file.arrayBuffer();
-        } else {
-            return null;
-        }
-        
-        const mp4 = new DashcamMP4(buffer);
-        const frames = mp4.parseFrames(seiType);
-        
-        // Build frame_seq_no -> videoTimestampMs mapping
-        const syncMap = new Map();
-        let hasAnySei = false;
-        
-        for (const frame of frames) {
-            if (frame.sei) {
-                const frameSeqNo = frame.sei.frame_seq_no ?? frame.sei.frameSeqNo;
-                if (frameSeqNo !== undefined && frameSeqNo !== null) {
-                    syncMap.set(Number(frameSeqNo), frame.timestamp);
-                    hasAnySei = true;
-                }
-            }
-        }
-        
-        return hasAnySei ? syncMap : null;
-    } catch (err) {
-        console.warn('Failed to extract SEI sync data:', err);
-        return null;
-    }
-}
-
-// Find video timestamp for a given frame_seq_no in a sync map
-function findVideoTimeByFrameSeqNo(syncMap, frameSeqNo) {
-    if (!syncMap || frameSeqNo === undefined || frameSeqNo === null) return null;
-    return syncMap.get(Number(frameSeqNo)) ?? null;
-}
-
-// Get the frame_seq_no for current master video time
-function getMasterFrameSeqNo(masterTimeMs) {
-    const data = nativeVideo.seiData;
-    if (!data || !data.length) return null;
-    
-    // Find closest SEI frame to the target time
-    let closest = data[0];
-    let minDiff = Math.abs(data[0].timestampMs - masterTimeMs);
-    
-    for (let i = 1; i < data.length; i++) {
-        const diff = Math.abs(data[i].timestampMs - masterTimeMs);
-        if (diff < minDiff) {
-            minDiff = diff;
-            closest = data[i];
-        }
-        if (data[i].timestampMs > masterTimeMs && diff > minDiff) break;
-    }
-    
-    if (!closest?.sei) return null;
-    return closest.sei.frame_seq_no ?? closest.sei.frameSeqNo ?? null;
 }
 
 function seekNative(pct) {
