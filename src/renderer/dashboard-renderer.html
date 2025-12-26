@@ -13,19 +13,25 @@
             background: transparent;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Base size: 600x250, scale everything proportionally */
+        html {
+            font-size: calc(100vw / 600 * 16); /* Base font size scales with width */
         }
         #dashboardVis {
             position: absolute;
             top: 0;
             left: 0;
-            width: 600px;
-            height: 250px;
+            width: 100%;
+            height: 100%;
             background: linear-gradient(180deg, 
                 rgba(45, 45, 50, 0.25) 0%, 
                 rgba(35, 35, 40, 0.20) 50%,
                 rgba(28, 28, 32, 0.25) 100%);
-            backdrop-filter: blur(20px) saturate(100%);
-            -webkit-backdrop-filter: blur(20px) saturate(100%);
+            backdrop-filter: blur(7px) saturate(100%);
+            -webkit-backdrop-filter: blur(7px) saturate(100%);
             border-radius: 24px;
             border: 1px solid rgba(255, 255, 255, 0.12);
             box-shadow: 
@@ -33,6 +39,7 @@
                 0 2px 8px rgba(0, 0, 0, 0.2),
                 inset 0 1px 1px rgba(255, 255, 255, 0.08);
             display: block;
+            overflow: visible;
         }
         .vis-content {
             padding: 0px 0px 2px 0px;
@@ -45,69 +52,90 @@
         }
         .autosteer-section {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 80px;
+            gap: 6px;
+            width: 150px;
+            flex-shrink: 0;
+            overflow: visible;
+            margin-left: 0;
+            margin-top: 0;
+            transform: none;
         }
         .autosteer-wrapper {
-            width: 48px;
-            height: 48px;
+            width: 145px;
+            height: 145px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.1s linear;
+            will-change: transform;
         }
         .autosteer-icon {
-            width: 32px;
-            height: 32px;
-            filter: brightness(0.6);
-            transition: filter 0.2s;
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
         }
         .autosteer-icon.active {
-            filter: brightness(1.2);
+            filter: none;
+            opacity: 1;
+            filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
         }
         .center-cluster {
             display: flex;
+            flex-direction: row;
             align-items: center;
+            justify-content: center;
             gap: 16px;
             flex: 1;
-            justify-content: center;
+            min-width: 0;
+            margin-left: -45px;
         }
-        .turn-signal {
+        .center-cluster .turn-signal {
             width: 32px;
             height: 32px;
-            color: rgba(255, 255, 255, 0.3);
-            transition: color 0.2s;
+            color: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: -60px;
         }
-        .turn-signal.active {
-            color: #ffa500;
-            animation: blink 0.5s infinite;
+        .center-cluster .turn-signal svg {
+            width: 28px;
+            height: 28px;
         }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+        .center-cluster .turn-signal.active {
+            color: #22c55e;
+            filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
         }
         .speed-display {
+            text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
+            margin-top: -60px;
         }
         .gear-state {
             font-size: 14px;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.5);
-            text-transform: uppercase;
+            color: #fff;
             letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: color 0.3s ease;
+            white-space: nowrap;
         }
         .gear-state.active {
-            color: rgba(62, 156, 191, 0.9);
+            color: #0048ff;
         }
         .speed-value {
-            font-size: 48px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.95);
+            font-size: 36px;
+            font-weight: 300;
             line-height: 1;
+            color: #fff;
             font-variant-numeric: tabular-nums;
         }
         .speed-unit {
@@ -120,67 +148,153 @@
         .autopilot-label-container {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-top: 4px;
+            justify-content: center;
+            gap: 6px;
         }
-        .brake-icon, .accel-icon {
-            width: 20px;
-            height: 20px;
-            filter: brightness(0.5);
-            transition: filter 0.2s;
+        .brake-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
         }
         .brake-icon.active {
-            filter: brightness(1.2);
-        }
-        .autopilot-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.5);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .autopilot-label.active {
-            color: rgba(62, 156, 191, 0.9);
+            filter: brightness(0) saturate(100%) invert(10%) sepia(100%) saturate(7471%) hue-rotate(349deg) brightness(98%) contrast(98%);
+            opacity: 1;
         }
         .accel-pedal-container {
-            position: relative;
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
+        }
+        .accel-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
         }
         .accel-pedal-container.active .accel-icon {
-            filter: brightness(1.2);
+            filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+            opacity: 1;
+        }
+        .autopilot-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        .autopilot-label.active {
+            color: #0048ff;
+            text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
         }
         .accel-fill {
             display: none;
         }
         .right-cluster {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 120px;
+            min-width: 90px;
+            flex-shrink: 0;
+            margin-left: auto;
+            transform: translateX(-20px);
+            padding-right: 5px;
+            margin-top: -60px;
         }
         .recording-time {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
             font-size: 14px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.6);
-            font-variant-numeric: tabular-nums;
         }
         .instruments-row {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 16px;
-            padding: 8px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 12px;
+            padding: 2px 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: -65px;
+            margin-left: 25px;
         }
-        .gforce-section, .compass-section {
+        .gforce-section {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 6px;
         }
-        .gforce-meter, .compass {
-            width: 60px;
-            height: 60px;
+        .gforce-meter {
+            position: relative;
+            width: 50px;
+            height: 50px;
+        }
+        .gforce-label {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 7px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+        }
+        .gforce-values {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .gforce-val {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            color: #666;
+            min-width: 36px;
+            text-align: right;
+            transition: color 0.15s;
+        }
+        .gforce-val.positive {
+            color: #4caf50;
+        }
+        .gforce-val.negative {
+            color: #ff9800;
+        }
+        .gforce-val.high {
+            color: #f44336;
+        }
+        #gforceDot.braking {
+            fill: #f44336;
+        }
+        #gforceDot.accelerating {
+            fill: #4caf50;
+        }
+        #gforceDot.cornering-hard {
+            fill: #ff9800;
+        }
+        .compass-section {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+        }
+        .compass-meter {
+            position: relative;
+            width: 45px;
+            height: 45px;
+        }
+        .compass-value {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            color: #888;
+            text-align: left;
+            min-width: 36px;
+        }
+        .compass {
+            width: 45px;
+            height: 45px;
         }
         .gforce-meter svg, .compass svg {
             width: 100%;
@@ -188,10 +302,6 @@
         }
         #gforceDot {
             transition: cx 0.1s linear, cy 0.1s linear;
-        }
-        #compassNeedle {
-            transition: transform 0.2s ease-out;
-            transform-origin: 30px 30px;
         }
     </style>
 </head>
@@ -253,22 +363,36 @@
                         <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
                         <circle id="gforceDot" cx="30" cy="30" r="4" fill="#3e9cbf"/>
                     </svg>
+                    <div class="gforce-label">G</div>
+                </div>
+                <div class="gforce-values">
+                    <div class="gforce-val" id="gforceX" title="Lateral G">0.0</div>
+                    <div class="gforce-val" id="gforceY" title="Longitudinal G">0.0</div>
                 </div>
             </div>
 
-            <!-- Compass -->
+            <!-- Heading Compass -->
             <div class="compass-section">
-                <div class="compass" id="compass">
+                <div class="compass-meter" id="compassMeter">
                     <svg viewBox="0 0 60 60">
                         <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
                         <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-                        <text x="30" y="12" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">N</text>
-                        <text x="48" y="34" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">E</text>
-                        <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">S</text>
-                        <text x="12" y="34" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">W</text>
-                        <line id="compassNeedle" x1="30" y1="30" x2="30" y2="10" stroke="#3e9cbf" stroke-width="2" stroke-linecap="round"/>
+                        <text x="30" y="10" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="8" font-weight="700">N</text>
+                        <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">S</text>
+                        <text x="7" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">W</text>
+                        <text x="53" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">E</text>
+                        <line x1="30" y1="12" x2="30" y2="16" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="30" y1="44" x2="30" y2="48" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="12" y1="30" x2="16" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="44" y1="30" x2="48" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <g id="compassNeedle" transform="rotate(0 30 30)">
+                            <polygon points="30,14 26,30 30,28 34,30" fill="#e74c3c"/>
+                            <polygon points="30,46 26,30 30,32 34,30" fill="rgba(255,255,255,0.4)"/>
+                            <circle cx="30" cy="30" r="3" fill="#222" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                        </g>
                     </svg>
                 </div>
+                <div class="compass-value" id="compassValue" title="Heading">0°</div>
             </div>
         </div>
     </div>
@@ -302,7 +426,7 @@
         const MPS_TO_KMH = 3.6;
         const useMetric = false; // Can be made configurable
         
-        function updateVisualization(sei) {
+        function updateVisualization(sei, frameNumber = 0) {
             if (!sei) return;
             
             const get = (camel, snake) => sei[camel] ?? sei[snake];
@@ -322,29 +446,35 @@
             else if (gear === 3) gearText = 'Neutral';
             document.getElementById('gearState').textContent = gearText;
             
-            // Blinkers - manually control visibility for frame captures (CSS animations don't work in static captures)
+            // Blinkers - simulate realistic car blinker timing (0.8s cycle = ~29 frames at 36fps)
+            // Real car blinkers: on for ~0.4s, off for ~0.4s (0.8s total cycle)
             const blinkLeft = document.getElementById('blinkLeft');
             const blinkRight = document.getElementById('blinkRight');
             const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
             const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
             
-            // For frame captures, simulate blinking based on frame number
-            // Blink every ~18 frames (0.5 seconds at 36fps)
-            const frameNum = sei._frameNumber ?? 0;
-            const blinkCycle = Math.floor(frameNum / 18) % 2; // Blink every 18 frames (0.5s at 36fps)
+            // Calculate blink state based on frame number and time
+            // 0.8s cycle at 36fps = 28.8 frames per cycle
+            // On for first half (0-14 frames), off for second half (15-28 frames)
+            const frameNum = frameNumber ?? 0;
+            const framesPerCycle = 29; // ~0.8s at 36fps
+            const frameInCycle = frameNum % framesPerCycle;
+            const isBlinkOn = frameInCycle < Math.floor(framesPerCycle / 2); // First half is on
             
             if (blinkLeft) {
-                const shouldShow = leftBlinkerOn && blinkCycle === 0;
+                const shouldShow = leftBlinkerOn && isBlinkOn;
                 blinkLeft.classList.toggle('active', shouldShow);
-                // Set opacity directly for frame captures
-                blinkLeft.style.opacity = shouldShow ? '1' : '0.3';
-                blinkLeft.style.color = shouldShow ? '#ffa500' : 'rgba(255, 255, 255, 0.3)';
+                // Match UI styling: green color #22c55e when active
+                blinkLeft.style.color = shouldShow ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
+                blinkLeft.style.opacity = shouldShow ? '1' : '0.15';
+                blinkLeft.style.filter = shouldShow ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))' : 'none';
             }
             if (blinkRight) {
-                const shouldShow = rightBlinkerOn && blinkCycle === 0;
+                const shouldShow = rightBlinkerOn && isBlinkOn;
                 blinkRight.classList.toggle('active', shouldShow);
-                blinkRight.style.opacity = shouldShow ? '1' : '0.3';
-                blinkRight.style.color = shouldShow ? '#ffa500' : 'rgba(255, 255, 255, 0.3)';
+                blinkRight.style.color = shouldShow ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
+                blinkRight.style.opacity = shouldShow ? '1' : '0.15';
+                blinkRight.style.filter = shouldShow ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))' : 'none';
             }
             
             // Steering
@@ -387,21 +517,71 @@
             // G-Force Meter
             const accX = get('linearAccelerationMps2X', 'linear_acceleration_mps2_x') || 0;
             const accY = get('linearAccelerationMps2Y', 'linear_acceleration_mps2_y') || 0;
-            const gforceDot = document.getElementById('gforceDot');
-            if (gforceDot) {
-                // Scale: 1g = 18px (so max display is ~2g in each direction)
-                const scale = 18;
-                const x = 30 + (accX / 9.81) * scale;
-                const y = 30 - (accY / 9.81) * scale; // Invert Y for screen coordinates
-                gforceDot.setAttribute('cx', Math.max(2, Math.min(58, x)));
-                gforceDot.setAttribute('cy', Math.max(2, Math.min(58, y)));
-            }
+            const latG = accX / 9.81; // Convert m/s² to G
+            const longG = accY / 9.81;
+            updateGForceMeter(latG, longG);
             
             // Compass
             const heading = get('headingDeg', 'heading_deg') || 0;
+            updateCompass(heading);
+        }
+        
+        function updateGForceMeter(latG, longG) {
+            const gforceDot = document.getElementById('gforceDot');
+            if (gforceDot) {
+                const centerX = 30;
+                const centerY = 30;
+                const maxG = 1.0;
+                const scale = 18;
+                const x = centerX + (latG * scale);
+                const y = centerY - (longG * scale);
+                gforceDot.setAttribute('cx', Math.max(2, Math.min(58, x)));
+                gforceDot.setAttribute('cy', Math.max(2, Math.min(58, y)));
+                
+                // Update color based on G-force
+                gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
+                if (longG < -0.3) {
+                    gforceDot.classList.add('braking');
+                } else if (longG > 0.3) {
+                    gforceDot.classList.add('accelerating');
+                } else if (Math.abs(latG) > 0.5) {
+                    gforceDot.classList.add('cornering-hard');
+                }
+            }
+            
+            const gforceX = document.getElementById('gforceX');
+            const gforceY = document.getElementById('gforceY');
+            if (gforceX) {
+                gforceX.textContent = latG.toFixed(1);
+                gforceX.classList.remove('positive', 'negative', 'high');
+                if (latG > 0.1) gforceX.classList.add('positive');
+                else if (latG < -0.1) gforceX.classList.add('negative');
+                if (Math.abs(latG) > 0.5) gforceX.classList.add('high');
+            }
+            if (gforceY) {
+                gforceY.textContent = longG.toFixed(1);
+                gforceY.classList.remove('positive', 'negative', 'high');
+                if (longG > 0.1) gforceY.classList.add('positive');
+                else if (longG < -0.1) gforceY.classList.add('negative');
+                if (Math.abs(longG) > 0.5) gforceY.classList.add('high');
+            }
+        }
+        
+        function updateCompass(heading) {
+            // Normalize heading to 0-360 range (same as UI)
+            if (!Number.isFinite(heading)) heading = 0;
+            heading = ((heading % 360) + 360) % 360;
+            
             const compassNeedle = document.getElementById('compassNeedle');
             if (compassNeedle) {
-                compassNeedle.style.transform = `rotate(${heading}deg)`;
+                // Use SVG transform attribute with center point (30, 30)
+                // This rotates around the center of the SVG viewBox
+                compassNeedle.setAttribute('transform', `rotate(${heading} 30 30)`);
+            }
+            
+            const compassValue = document.getElementById('compassValue');
+            if (compassValue) {
+                compassValue.textContent = `${Math.round(heading)}°`;
             }
         }
         
@@ -425,11 +605,11 @@
         
         // Listen for SEI data updates
         if (ipcRenderer && ipcRenderer.on) {
-            ipcRenderer.on('dashboard:update', (event, sei) => {
+            ipcRenderer.on('dashboard:update', (event, sei, frameNumber) => {
                 if (sei) {
-                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps);
+                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber);
                 }
-                updateVisualization(sei);
+                updateVisualization(sei, frameNumber);
                 
                 // Force a reflow to ensure DOM updates are rendered
                 void document.body.offsetHeight;

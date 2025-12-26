@@ -187,8 +187,8 @@ function findSeiAtTime(seiData, timestampMs) {
 async function createDashboardRenderer() {
   return new Promise((resolve, reject) => {
     const dashboardWindow = new BrowserWindow({
-      width: 600,
-      height: 250,
+      width: BASE_DASHBOARD_WIDTH,
+      height: BASE_DASHBOARD_HEIGHT,
       show: false,
       transparent: true,
       frame: false,
@@ -280,8 +280,12 @@ ipcMain.on('dashboard:ready', (event) => {
   }
 });
 
+// Base dashboard dimensions (fixed size, same as UI)
+const BASE_DASHBOARD_WIDTH = 600;
+const BASE_DASHBOARD_HEIGHT = 250;
+
 // Render dashboard frame for a specific timestamp
-async function renderDashboardFrame(dashboardWindow, sei) {
+async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
   return new Promise((resolve) => {
     const webContents = dashboardWindow.webContents;
     const webContentsId = webContents.id;
@@ -293,7 +297,11 @@ async function renderDashboardFrame(dashboardWindow, sei) {
       resolved = true;
       // Small delay to ensure rendering is complete after RAF callbacks
       setTimeout(() => {
-        webContents.capturePage().then(image => {
+        webContents.capturePage({
+          x: 0, y: 0,
+          width: BASE_DASHBOARD_WIDTH,
+          height: BASE_DASHBOARD_HEIGHT
+        }).then(image => {
           resolve(image);
         }).catch(err => {
           console.error('Capture error:', err);
@@ -305,12 +313,12 @@ async function renderDashboardFrame(dashboardWindow, sei) {
     // Store callback for IPC handler
     dashboardReadyCallbacks.set(webContentsId, onReady);
     
-    // Send SEI data update
+    // Send SEI data update with frame number for blinker timing
     if (sei) {
       const speed = sei.vehicleSpeedMps ?? sei.vehicle_speed_mps;
-      console.log(`Rendering frame with SEI: speed=${speed?.toFixed(1)} m/s`);
+      console.log(`Rendering frame ${frameNumber} with SEI: speed=${speed?.toFixed(1)} m/s`);
     }
-    webContents.send('dashboard:update', sei);
+    webContents.send('dashboard:update', sei, frameNumber);
     
     // Fallback timeout (in case IPC doesn't work)
     setTimeout(() => {
@@ -318,7 +326,11 @@ async function renderDashboardFrame(dashboardWindow, sei) {
         resolved = true;
         dashboardReadyCallbacks.delete(webContentsId);
         console.log('Frame render timeout, capturing anyway');
-        webContents.capturePage().then(image => {
+        webContents.capturePage({
+          x: 0, y: 0,
+          width: BASE_DASHBOARD_WIDTH,
+          height: BASE_DASHBOARD_HEIGHT
+        }).then(image => {
           resolve(image);
         }).catch(() => resolve(null));
       }
@@ -371,12 +383,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const sendProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'progress', percentage, message });
   };
+  
+  const sendDashboardProgress = (percentage, message) => {
+    event.sender.send('export:progress', exportId, { type: 'dashboard-progress', percentage, message });
+  };
 
   const sendComplete = (success, message) => {
     event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
   };
 
   const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch {} });
+
+  // Declare dashboardWindow in outer scope so it's accessible in catch block
+  let dashboardWindow = null;
 
   try {
     console.log('🎬 Starting video export...');
@@ -489,28 +508,43 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const blackInputIdx = inputs.length;
     cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${w}x${h}:r=${FPS}:d=${durationSec}`);
 
-    // Dashboard overlay setup - must be done before filter complex
-    let dashboardWindow = null;
-    const DASHBOARD_WIDTH = 600;
-    const DASHBOARD_HEIGHT = 250;
-    const dashboardInputIdx = inputs.length + 1; // After black source
+    // Build filter complex - determine which cameras are active for grid
+    const activeCamerasForGrid = CAMERA_ORDER.filter(c => selectedCameras.has(c));
+
+    // Calculate grid dimensions and total output resolution
+    const numStreams = activeCamerasForGrid.length;
+    let cols, rows;
+    if (numStreams <= 1) { cols = 1; rows = 1; }
+    else if (numStreams === 2) { cols = 2; rows = 1; }
+    else if (numStreams === 3) { cols = 3; rows = 1; }
+    else if (numStreams === 4) { cols = 2; rows = 2; }
+    else { cols = 3; rows = 2; }
     
-    if (includeDashboard && seiData && seiData.length > 0) {
-      sendProgress(6, 'Initializing dashboard renderer...');
-      try {
-        console.log('Creating dashboard renderer...');
-        dashboardWindow = await createDashboardRenderer();
-        console.log('✅ Dashboard renderer created successfully');
-        sendProgress(7, 'Dashboard renderer ready');
-        
-        // Add dashboard input BEFORE filter complex
-        cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
-                 '-video_size', `${DASHBOARD_WIDTH}x${DASHBOARD_HEIGHT}`, 
-                 '-framerate', FPS.toString(),
-                 '-i', 'pipe:3');
+        const totalW = w * cols;
+        const totalH = h * rows;
+
+        // Dashboard overlay setup - must be done before filter complex
+        // Use fixed dashboard size (same as UI)
+        // Declare dashboardWindow in outer scope so it's accessible in catch block
+        let dashboardWindow = null;
+        const dashboardInputIdx = inputs.length + 1; // After black source
+
+        if (includeDashboard && seiData && seiData.length > 0) {
+          sendDashboardProgress(0, 'Initializing dashboard renderer...');
+          try {
+            console.log(`Creating dashboard renderer at ${BASE_DASHBOARD_WIDTH}x${BASE_DASHBOARD_HEIGHT}...`);
+            dashboardWindow = await createDashboardRenderer();
+            console.log('✅ Dashboard renderer created successfully');
+            sendDashboardProgress(5, 'Dashboard renderer ready');
+            
+            // Add dashboard input BEFORE filter complex
+            cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
+                     '-video_size', `${BASE_DASHBOARD_WIDTH}x${BASE_DASHBOARD_HEIGHT}`, 
+                     '-framerate', FPS.toString(),
+                     '-i', 'pipe:3');
       } catch (err) {
         console.error('❌ Failed to create dashboard renderer:', err);
-        sendProgress(6, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
+        sendDashboardProgress(0, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
         // Continue export without dashboard
         dashboardWindow = null;
       }
@@ -521,7 +555,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // Build filter complex - always use full 6-camera grid
     const filters = [];
     const streamTags = [];
-    const activeCamerasForGrid = CAMERA_ORDER.filter(c => selectedCameras.has(c));
 
     for (let i = 0; i < activeCamerasForGrid.length; i++) {
       const camera = activeCamerasForGrid[i];
@@ -539,14 +572,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       streamTags.push(`[v${i}]`);
     }
 
-    // Grid layout
-    const numStreams = streamTags.length;
-    let cols, rows;
-    if (numStreams <= 1) { cols = 1; rows = 1; }
-    else if (numStreams === 2) { cols = 2; rows = 1; }
-    else if (numStreams === 3) { cols = 3; rows = 1; }
-    else if (numStreams === 4) { cols = 2; rows = 2; }
-    else { cols = 3; rows = 2; }
+    // Grid layout (cols/rows already calculated above)
     
     if (numStreams > 1) {
       const layout = [];
@@ -570,9 +596,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
-    // Calculate total output resolution for GPU limit check
-    const totalW = w * cols;
-    const totalH = h * rows;
+    // GPU limit check (totalW and totalH already calculated above)
     const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
 
     // NOTE: Temporarily disable GPU encoders for all exports.
@@ -653,8 +677,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         // Start rendering loop in background
         (async () => {
           try {
-            sendProgress(10, 'Rendering dashboard frames...');
-            const blackFrame = Buffer.alloc(DASHBOARD_WIDTH * DASHBOARD_HEIGHT * 4, 0);
+            sendDashboardProgress(10, 'Rendering dashboard frames...');
+            const blackFrame = Buffer.alloc(BASE_DASHBOARD_WIDTH * BASE_DASHBOARD_HEIGHT * 4, 0);
             
             for (let frame = 0; frame < totalFrames; frame++) {
               // Check if FFmpeg process is still running
@@ -672,13 +696,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               const currentTimeMs = startTimeMs + (frame * frameTimeMs);
               const sei = findSeiAtTime(seiData, currentTimeMs);
               
-              // Add frame number to SEI data so dashboard can calculate blinker state for frame captures
-              const seiWithFrame = sei ? { ...sei, _frameNumber: frame } : null;
-              
-              const image = await renderDashboardFrame(dashboardWindow, seiWithFrame);
+              // Pass frame number separately for blinker timing calculation
+              const image = await renderDashboardFrame(dashboardWindow, sei, frame);
               if (image) {
                 try {
-                  const rgba = imageToRGBA(image, DASHBOARD_WIDTH, DASHBOARD_HEIGHT);
+                  const rgba = imageToRGBA(image, BASE_DASHBOARD_WIDTH, BASE_DASHBOARD_HEIGHT);
                   const written = safeWrite(dashboardPipe, rgba);
                   if (!written && dashboardPipe.writable && !dashboardPipe.destroyed) {
                     // Wait for drain if buffer is full
@@ -705,12 +727,15 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
                 safeWrite(dashboardPipe, blackFrame);
               }
               
-              // Update progress every 100 frames
+              // Update dashboard rendering progress every 100 frames
               if (frame % 100 === 0 && frame > 0) {
-                const renderPct = Math.min(15, 10 + Math.floor((frame / totalFrames) * 5));
-                sendProgress(renderPct, `Rendering dashboard... ${Math.floor((frame / totalFrames) * 100)}%`);
+                const renderPct = Math.min(100, 10 + Math.floor((frame / totalFrames) * 90));
+                sendDashboardProgress(renderPct, `Rendering dashboard... ${Math.floor((frame / totalFrames) * 100)}%`);
               }
             }
+            
+            // Mark dashboard rendering as complete
+            sendDashboardProgress(100, 'Dashboard rendering complete');
             
             // Close dashboard pipe when done (gracefully)
             if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {

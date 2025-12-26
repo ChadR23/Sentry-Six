@@ -198,9 +198,11 @@ export function openExportModal() {
     const progressEl = $('exportProgress');
     const progressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
+    const dashboardProgressEl = $('dashboardProgress');
     if (progressEl) progressEl.classList.add('hidden');
     if (progressBar) progressBar.style.width = '0%';
     if (progressText) progressText.textContent = 'Preparing...';
+    if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
     
     const filenameInput = $('exportFilename');
     if (filenameInput) {
@@ -556,11 +558,26 @@ export async function startExport() {
     const progressEl = $('exportProgress');
     const exportProgressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
+    const dashboardProgressEl = $('dashboardProgress');
+    const dashboardProgressBar = $('dashboardProgressBar');
+    const dashboardProgressText = $('dashboardProgressText');
     const startBtn = $('startExportBtn');
+    
+    // Use the includeDashboard variable already declared above (line 388)
     
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
     if (progressText) progressText.textContent = 'Starting export...';
+    
+    // Show/hide dashboard progress bar based on checkbox
+    if (includeDashboard && dashboardProgressEl) {
+        dashboardProgressEl.classList.remove('hidden');
+        if (dashboardProgressBar) dashboardProgressBar.style.width = '0%';
+        if (dashboardProgressText) dashboardProgressText.textContent = 'Waiting...';
+    } else {
+        if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+    }
+    
     if (startBtn) startBtn.disabled = true;
     
     const exportId = `export_${Date.now()}`;
@@ -572,8 +589,13 @@ export async function startExport() {
             if (receivedExportId !== exportId) return;
             
             if (progress.type === 'progress') {
+                // Main export progress
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
                 if (progressText) progressText.textContent = progress.message;
+            } else if (progress.type === 'dashboard-progress') {
+                // Dashboard rendering progress
+                if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
+                if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
@@ -581,6 +603,8 @@ export async function startExport() {
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
                     if (progressText) progressText.textContent = progress.message;
+                    if (dashboardProgressBar) dashboardProgressBar.style.width = '100%';
+                    if (dashboardProgressText) dashboardProgressText.textContent = 'Complete';
                     notify(progress.message, { type: 'success' });
                     
                     setTimeout(() => {
