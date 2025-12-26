@@ -16,9 +16,8 @@
             width: 100vw;
             height: 100vh;
         }
-        /* Base size: 600x250, scale everything proportionally */
         html {
-            font-size: calc(100vw / 600 * 16); /* Base font size scales with width */
+            font-size: calc(100vw / 600 * 16);
         }
         #dashboardVis {
             position: absolute;
@@ -398,24 +397,17 @@
     </div>
 
     <script>
-        // Get ipcRenderer - handle both require and window.electronAPI cases
         let ipcRenderer;
         try {
             if (typeof require !== 'undefined') {
                 ipcRenderer = require('electron').ipcRenderer;
             } else if (window.electronAPI) {
-                // Fallback if contextIsolation is enabled
                 ipcRenderer = {
-                    send: (channel, ...args) => {
-                        console.log('IPC send:', channel, args);
-                    },
-                    on: (channel, callback) => {
-                        console.log('IPC on:', channel);
-                    }
+                    send: () => {},
+                    on: () => {}
                 };
             }
         } catch (err) {
-            console.error('Failed to get ipcRenderer:', err);
             ipcRenderer = {
                 send: () => {},
                 on: () => {}
@@ -424,7 +416,7 @@
         
         const MPS_TO_MPH = 2.23694;
         const MPS_TO_KMH = 3.6;
-        const useMetric = false; // Can be made configurable
+        const useMetric = false;
         
         function updateVisualization(sei, frameNumber = 0) {
             if (!sei) return;
@@ -446,25 +438,21 @@
             else if (gear === 3) gearText = 'Neutral';
             document.getElementById('gearState').textContent = gearText;
             
-            // Blinkers - simulate realistic car blinker timing (0.8s cycle = ~29 frames at 36fps)
-            // Real car blinkers: on for ~0.4s, off for ~0.4s (0.8s total cycle)
             const blinkLeft = document.getElementById('blinkLeft');
             const blinkRight = document.getElementById('blinkRight');
             const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
             const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
             
-            // Calculate blink state based on frame number and time
-            // 0.8s cycle at 36fps = 28.8 frames per cycle
-            // On for first half (0-14 frames), off for second half (15-28 frames)
+            // Frame-based blinker animation: 0.8s cycle at 36fps = 29 frames
+            // First half (0-14 frames) = on, second half (15-28 frames) = off
             const frameNum = frameNumber ?? 0;
-            const framesPerCycle = 29; // ~0.8s at 36fps
+            const framesPerCycle = 29;
             const frameInCycle = frameNum % framesPerCycle;
-            const isBlinkOn = frameInCycle < Math.floor(framesPerCycle / 2); // First half is on
+            const isBlinkOn = frameInCycle < Math.floor(framesPerCycle / 2);
             
             if (blinkLeft) {
                 const shouldShow = leftBlinkerOn && isBlinkOn;
                 blinkLeft.classList.toggle('active', shouldShow);
-                // Match UI styling: green color #22c55e when active
                 blinkLeft.style.color = shouldShow ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
                 blinkLeft.style.opacity = shouldShow ? '1' : '0.15';
                 blinkLeft.style.filter = shouldShow ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))' : 'none';
@@ -514,14 +502,12 @@
             const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
             document.getElementById('accelPedal').classList.toggle('active', isPressed);
             
-            // G-Force Meter
             const accX = get('linearAccelerationMps2X', 'linear_acceleration_mps2_x') || 0;
             const accY = get('linearAccelerationMps2Y', 'linear_acceleration_mps2_y') || 0;
-            const latG = accX / 9.81; // Convert m/s² to G
+            const latG = accX / 9.81;
             const longG = accY / 9.81;
             updateGForceMeter(latG, longG);
             
-            // Compass
             const heading = get('headingDeg', 'heading_deg') || 0;
             updateCompass(heading);
         }
@@ -529,16 +515,16 @@
         function updateGForceMeter(latG, longG) {
             const gforceDot = document.getElementById('gforceDot');
             if (gforceDot) {
+                // SVG viewBox is 60x60, center at (30, 30)
+                // Scale: 1g = 18px, clamp to viewBox bounds (2-58)
                 const centerX = 30;
                 const centerY = 30;
-                const maxG = 1.0;
                 const scale = 18;
                 const x = centerX + (latG * scale);
                 const y = centerY - (longG * scale);
                 gforceDot.setAttribute('cx', Math.max(2, Math.min(58, x)));
                 gforceDot.setAttribute('cy', Math.max(2, Math.min(58, y)));
                 
-                // Update color based on G-force
                 gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
                 if (longG < -0.3) {
                     gforceDot.classList.add('braking');
@@ -568,14 +554,12 @@
         }
         
         function updateCompass(heading) {
-            // Normalize heading to 0-360 range (same as UI)
             if (!Number.isFinite(heading)) heading = 0;
+            // Normalize to 0-360 range
             heading = ((heading % 360) + 360) % 360;
             
             const compassNeedle = document.getElementById('compassNeedle');
             if (compassNeedle) {
-                // Use SVG transform attribute with center point (30, 30)
-                // This rotates around the center of the SVG viewBox
                 compassNeedle.setAttribute('transform', `rotate(${heading} 30 30)`);
             }
             
@@ -589,16 +573,14 @@
         
         // Signal ready when loaded
         window.addEventListener('DOMContentLoaded', () => {
-            console.log('Dashboard renderer DOM loaded');
             isReady = true;
-            if (ipcRenderer && ipcRenderer.send) {
+            if (ipcRenderer?.send) {
                 ipcRenderer.send('dashboard:ready');
             }
         });
         
-        // Also signal ready after a short delay to ensure everything is rendered
         setTimeout(() => {
-            if (isReady && ipcRenderer && ipcRenderer.send) {
+            if (isReady && ipcRenderer?.send) {
                 ipcRenderer.send('dashboard:ready');
             }
         }, 100);

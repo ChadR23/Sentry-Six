@@ -280,22 +280,20 @@ ipcMain.on('dashboard:ready', (event) => {
   }
 });
 
-// Base dashboard dimensions (fixed size, same as UI)
 const BASE_DASHBOARD_WIDTH = 600;
 const BASE_DASHBOARD_HEIGHT = 250;
 
-// Render dashboard frame for a specific timestamp
 async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
   return new Promise((resolve) => {
     const webContents = dashboardWindow.webContents;
     const webContentsId = webContents.id;
     let resolved = false;
     
-    // Set up one-time listener for ready signal via IPC
+    // IPC callback: dashboard signals ready after DOM updates are painted
     const onReady = () => {
       if (resolved) return;
       resolved = true;
-      // Small delay to ensure rendering is complete after RAF callbacks
+      // Delay ensures requestAnimationFrame callbacks complete before capture
       setTimeout(() => {
         webContents.capturePage({
           x: 0, y: 0,
@@ -303,29 +301,20 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
           height: BASE_DASHBOARD_HEIGHT
         }).then(image => {
           resolve(image);
-        }).catch(err => {
-          console.error('Capture error:', err);
+        }).catch(() => {
           resolve(null);
         });
-      }, 100); // Increased delay to ensure paint is complete
+      }, 100);
     };
     
-    // Store callback for IPC handler
     dashboardReadyCallbacks.set(webContentsId, onReady);
-    
-    // Send SEI data update with frame number for blinker timing
-    if (sei) {
-      const speed = sei.vehicleSpeedMps ?? sei.vehicle_speed_mps;
-      console.log(`Rendering frame ${frameNumber} with SEI: speed=${speed?.toFixed(1)} m/s`);
-    }
     webContents.send('dashboard:update', sei, frameNumber);
     
-    // Fallback timeout (in case IPC doesn't work)
+    // Fallback timeout if IPC doesn't work
     setTimeout(() => {
       if (!resolved) {
         resolved = true;
         dashboardReadyCallbacks.delete(webContentsId);
-        console.log('Frame render timeout, capturing anyway');
         webContents.capturePage({
           x: 0, y: 0,
           width: BASE_DASHBOARD_WIDTH,
@@ -334,13 +323,11 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
           resolve(image);
         }).catch(() => resolve(null));
       }
-    }, 1000); // Increased timeout
+    }, 1000);
   });
 }
 
-// Convert NativeImage to raw RGBA buffer
 function imageToRGBA(image, width, height) {
-  // Resize image to exact dimensions if needed
   const resized = image.getSize();
   let finalImage = image;
   
@@ -348,10 +335,9 @@ function imageToRGBA(image, width, height) {
     finalImage = image.resize({ width, height });
   }
   
-  // Use toBitmap() instead of deprecated getBitmap()
   const bitmap = finalImage.toBitmap();
-  // NativeImage.toBitmap() returns a Buffer in BGRA format on Windows, RGBA on others
-  // We need RGBA for FFmpeg
+  // NativeImage.toBitmap() returns BGRA on Windows, RGBA on macOS/Linux
+  // FFmpeg requires RGBA, so we swap R and B channels on Windows
   const rgba = Buffer.allocUnsafe(width * height * 4);
   
   if (process.platform === 'win32') {
@@ -523,36 +509,27 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const totalW = w * cols;
         const totalH = h * rows;
 
-        // Dashboard overlay setup - must be done before filter complex
-        // Use fixed dashboard size (same as UI)
-        // Declare dashboardWindow in outer scope so it's accessible in catch block
         let dashboardWindow = null;
-        const dashboardInputIdx = inputs.length + 1; // After black source
+        // Dashboard input index: after black source, before filter_complex
+        const dashboardInputIdx = inputs.length + 1;
 
         if (includeDashboard && seiData && seiData.length > 0) {
           sendDashboardProgress(0, 'Initializing dashboard renderer...');
           try {
-            console.log(`Creating dashboard renderer at ${BASE_DASHBOARD_WIDTH}x${BASE_DASHBOARD_HEIGHT}...`);
             dashboardWindow = await createDashboardRenderer();
-            console.log('✅ Dashboard renderer created successfully');
             sendDashboardProgress(5, 'Dashboard renderer ready');
             
-            // Add dashboard input BEFORE filter complex
+            // Add dashboard input before filter_complex (FFmpeg requires input order)
             cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
                      '-video_size', `${BASE_DASHBOARD_WIDTH}x${BASE_DASHBOARD_HEIGHT}`, 
                      '-framerate', FPS.toString(),
                      '-i', 'pipe:3');
-      } catch (err) {
-        console.error('❌ Failed to create dashboard renderer:', err);
-        sendDashboardProgress(0, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
-        // Continue export without dashboard
-        dashboardWindow = null;
-      }
-    } else {
-      console.log('Dashboard overlay disabled or no SEI data available');
-    }
+          } catch (err) {
+            sendDashboardProgress(0, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
+            dashboardWindow = null;
+          }
+        }
 
-    // Build filter complex - always use full 6-camera grid
     const filters = [];
     const streamTags = [];
 
@@ -563,7 +540,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       const srcIdx = hasVideo ? inputIdx : blackInputIdx;
       const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
 
-      // Force constant frame rate (Tesla cameras use VFR which causes playback issues)
       let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
       if (hasVideo && isMirrored) chain += ',hflip';
       chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
@@ -599,13 +575,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // GPU limit check (totalW and totalH already calculated above)
     const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
 
-    // NOTE: Temporarily disable GPU encoders for all exports.
-    // NVENC on some systems fails with "Could not open encoder before EOF" even with
-    // a simple filter graph. To prioritise a stable export experience (especially
-    // while iterating on the telemetry overlay), we force CPU encoding here.
-    // Once the pipeline is fully hardened, this can be re-enabled behind a setting.
     const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
-    const useGpu = false; // gpuAllowed && !includeDashboard;
+    const useGpu = false;
 
     // Encoding settings
     if (useGpu) {
@@ -668,96 +639,76 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         
         // Set up pipe error handler
         dashboardPipe.on('error', (err) => {
-          // Ignore EPIPE errors - they're expected when FFmpeg closes the pipe
           if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
             console.error('Dashboard pipe error:', err.message);
           }
         });
         
-        // Start rendering loop in background
         (async () => {
           try {
             sendDashboardProgress(10, 'Rendering dashboard frames...');
             const blackFrame = Buffer.alloc(BASE_DASHBOARD_WIDTH * BASE_DASHBOARD_HEIGHT * 4, 0);
             
             for (let frame = 0; frame < totalFrames; frame++) {
-              // Check if FFmpeg process is still running
               if (proc.killed || proc.exitCode !== null) {
-                console.log('FFmpeg process ended, stopping dashboard rendering');
                 break;
               }
               
-              // Check if pipe is still writable
               if (!dashboardPipe || dashboardPipe.destroyed || dashboardPipe.writableEnded || !dashboardPipe.writable) {
-                console.log('Dashboard pipe closed, stopping rendering');
                 break;
               }
               
+              // Calculate timestamp for this frame and find matching SEI data
               const currentTimeMs = startTimeMs + (frame * frameTimeMs);
               const sei = findSeiAtTime(seiData, currentTimeMs);
-              
-              // Pass frame number separately for blinker timing calculation
               const image = await renderDashboardFrame(dashboardWindow, sei, frame);
+              
               if (image) {
                 try {
                   const rgba = imageToRGBA(image, BASE_DASHBOARD_WIDTH, BASE_DASHBOARD_HEIGHT);
                   const written = safeWrite(dashboardPipe, rgba);
                   if (!written && dashboardPipe.writable && !dashboardPipe.destroyed) {
-                    // Wait for drain if buffer is full
                     await new Promise(resolve => {
                       if (dashboardPipe.destroyed || dashboardPipe.writableEnded) {
                         resolve();
                         return;
                       }
                       dashboardPipe.once('drain', resolve);
-                      // Timeout to prevent hanging
                       setTimeout(resolve, 1000);
                     });
                   }
                 } catch (writeErr) {
-                  // Ignore EPIPE and EOF errors
                   if (writeErr.code !== 'EPIPE' && writeErr.message !== 'write EOF') {
                     console.error('Error writing dashboard frame:', writeErr.message);
                   }
-                  // Try to write black frame as fallback, but don't error if it fails
                   safeWrite(dashboardPipe, blackFrame);
                 }
               } else {
-                // Write black frame if no image
                 safeWrite(dashboardPipe, blackFrame);
               }
               
-              // Update dashboard rendering progress every 100 frames
+              // Update progress: 10-100% range (10% reserved for initialization)
               if (frame % 100 === 0 && frame > 0) {
                 const renderPct = Math.min(100, 10 + Math.floor((frame / totalFrames) * 90));
                 sendDashboardProgress(renderPct, `Rendering dashboard... ${Math.floor((frame / totalFrames) * 100)}%`);
               }
             }
             
-            // Mark dashboard rendering as complete
             sendDashboardProgress(100, 'Dashboard rendering complete');
             
-            // Close dashboard pipe when done (gracefully)
             if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
               try {
                 dashboardPipe.end();
-              } catch (err) {
-                // Ignore errors when closing
-              }
+              } catch {}
             }
             
-            // Close dashboard window
             if (dashboardWindow && !dashboardWindow.isDestroyed()) {
               dashboardWindow.close();
             }
-            
-            console.log('✅ Dashboard rendering complete');
           } catch (err) {
-            // Ignore EPIPE and EOF errors - they're expected
             if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
               console.error('Dashboard rendering error:', err);
             }
-            // Clean up
             if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
               try {
                 dashboardPipe.end();
