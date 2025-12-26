@@ -1998,6 +1998,43 @@ canvas, .video-player, .tile-video {
     color: rgba(255, 255, 255, 0.85);
 }
 
+/* Export Option */
+.export-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 8px;
+}
+
+.export-option:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.export-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3e9cbf;
+    margin: 0;
+}
+
+.export-option span {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+}
+
+.export-option-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-left: 28px;
+    line-height: 1.4;
+}
+
 /* FFmpeg Status */
 .ffmpeg-status {
     display: flex;

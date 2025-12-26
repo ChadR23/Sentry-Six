@@ -23,6 +23,7 @@ let getState = null;
 let getNativeVideo = null;
 let getBaseFolderPath = null;
 let getProgressBar = null;
+let getFindSeiAtTime = null;
 
 /**
  * Initialize export module with dependencies
@@ -33,6 +34,7 @@ export function initExportModule(deps) {
     getNativeVideo = deps.getNativeVideo;
     getBaseFolderPath = deps.getBaseFolderPath;
     getProgressBar = deps.getProgressBar;
+    getFindSeiAtTime = deps.getFindSeiAtTime;
 }
 
 /**
@@ -380,6 +382,129 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
+    const includeDashboardCheckbox = $('includeDashboard');
+    let includeDashboard = includeDashboardCheckbox?.checked ?? true;
+    
+    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    
+    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
+    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
+    
+    // Get SEI data if dashboard is enabled - collect from all segments in export range
+    let seiData = null;
+    if (includeDashboard) {
+        try {
+            const cumStarts = nativeVideo?.cumulativeStarts || [];
+            const groups = state.collection.active.groups || [];
+            const allSeiData = [];
+            
+            // Collect SEI data from all segments in the export range
+            for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const segStartMs = (cumStarts[i] || 0) * 1000;
+            const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
+            const segEndMs = segStartMs + segDurationMs;
+            
+            // Check if this segment overlaps with export range
+            if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
+                // Get master camera file for SEI extraction - try front first, then any available camera
+                let entry = group.filesByCamera?.get('front');
+                if (!entry) {
+                    // Try any camera if front is not available
+                    const firstCamera = group.filesByCamera?.keys().next().value;
+                    entry = firstCamera ? group.filesByCamera?.get(firstCamera) : null;
+                }
+                
+                console.log(`Segment ${i}: segStart=${segStartMs}ms, entry=`, entry ? 'found' : 'not found', entry?.file?.path || entry?.file?.name || 'no file');
+                
+                if (entry?.file) {
+                    try {
+                        // Use the same extraction method as the UI (extractSeiFromEntry logic)
+                        // DashcamMP4 is available globally via window.DashcamMP4
+                        if (!window.DashcamMP4) {
+                            console.warn('DashcamMP4 not available, skipping SEI extraction');
+                            continue;
+                        }
+                        const DashcamMP4 = window.DashcamMP4;
+                        
+                        // Get protobuf metadata type (use global DashcamHelpers)
+                        if (!window.DashcamHelpers) {
+                            console.warn('DashcamHelpers not available, skipping SEI extraction');
+                            continue;
+                        }
+                        const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
+                        
+                        let buffer;
+                        // Check for Electron file first (same logic as extractSeiFromEntry)
+                        if (entry.file?.isElectronFile && entry.file?.path) {
+                            const filePath = entry.file.path;
+                            const fileUrl = filePath.startsWith('/') 
+                                ? `file://${filePath}` 
+                                : `file:///${filePath.replace(/\\/g, '/')}`;
+                            const response = await fetch(fileUrl);
+                            buffer = await response.arrayBuffer();
+                        } else if (entry.file instanceof File) {
+                            // Regular File object - can read directly
+                            buffer = await entry.file.arrayBuffer();
+                        } else if (entry.file.path) {
+                            // Fallback: try path even if isElectronFile is not set
+                            const filePath = entry.file.path;
+                            const fileUrl = filePath.startsWith('/') 
+                                ? `file://${filePath}` 
+                                : `file:///${filePath.replace(/\\/g, '/')}`;
+                            const response = await fetch(fileUrl);
+                            buffer = await response.arrayBuffer();
+                        } else {
+                            console.warn(`No valid file path for segment ${i}, entry:`, entry);
+                            continue;
+                        }
+                        
+                        const mp4 = new DashcamMP4(buffer);
+                        const frames = mp4.parseFrames(SeiMetadata);
+                        
+                        // Adjust timestamps to absolute time (add segment start time)
+                        for (const frame of frames) {
+                            if (frame.sei) {
+                                allSeiData.push({
+                                    timestampMs: segStartMs + frame.timestamp,
+                                    sei: frame.sei
+                                });
+                            }
+                        }
+                        
+                        console.log(`Extracted ${frames.filter(f => f.sei).length} SEI frames from segment ${i}`);
+                    } catch (err) {
+                        console.warn(`Failed to extract SEI from segment ${i}:`, err);
+                        console.error('SEI extraction error details:', err.message, err.stack);
+                    }
+                } else {
+                    console.warn(`No file entry for segment ${i}, front camera`);
+                }
+            }
+        }
+        
+            // Sort by timestamp
+            allSeiData.sort((a, b) => a.timestampMs - b.timestampMs);
+            
+            if (allSeiData.length > 0) {
+                seiData = allSeiData;
+                console.log(`Collected ${allSeiData.length} SEI data points from ${groups.length} segments`);
+            } else {
+                console.warn('No SEI data extracted from any segments');
+                notify('No telemetry data available for dashboard overlay. Dashboard will be disabled.', { type: 'warn' });
+                // Disable dashboard if no SEI data
+                includeDashboard = false;
+            }
+        } catch (err) {
+            console.error('Failed to collect SEI data for export:', err);
+            notify('Failed to extract telemetry data. Dashboard will be disabled.', { type: 'warn' });
+            // Disable dashboard on error
+            includeDashboard = false;
+        }
+    }
+    
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
         defaultPath: filename
@@ -389,13 +514,6 @@ export async function startExport() {
         notify('Export cancelled', { type: 'info' });
         return;
     }
-    
-    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    
-    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
-    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
     
     const segments = [];
     const groups = state.collection.active.groups || [];
@@ -488,7 +606,9 @@ export async function startExport() {
             outputPath,
             cameras,
             baseFolderPath,
-            quality
+            quality,
+            includeDashboard: includeDashboard && seiData !== null,
+            seiData: seiData || []
         };
         
         console.log('Starting export with data:', exportData);

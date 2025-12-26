@@ -160,10 +160,210 @@ function makeEven(n) {
 }
 
 // ============================================================
+// Dashboard Rendering Utilities
+// ============================================================
+
+// Find SEI data for a given timestamp (similar to renderer's findSeiAtTime)
+function findSeiAtTime(seiData, timestampMs) {
+  if (!seiData || !seiData.length) return null;
+  
+  let closest = seiData[0];
+  let minDiff = Math.abs(seiData[0].timestampMs - timestampMs);
+  
+  for (let i = 1; i < seiData.length; i++) {
+    const diff = Math.abs(seiData[i].timestampMs - timestampMs);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = seiData[i];
+    }
+    // Since data is sorted, if diff starts increasing, we passed the closest
+    if (seiData[i].timestampMs > timestampMs && diff > minDiff) break;
+  }
+  
+  return closest?.sei || null;
+}
+
+// Create a hidden BrowserWindow for dashboard rendering
+async function createDashboardRenderer() {
+  return new Promise((resolve, reject) => {
+    const dashboardWindow = new BrowserWindow({
+      width: 600,
+      height: 250,
+      show: false,
+      transparent: true,
+      frame: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        webSecurity: false
+      }
+    });
+    
+    // Try multiple possible paths for the dashboard renderer
+    const possiblePaths = [
+      path.join(__dirname, 'renderer', 'dashboard-renderer.html'),
+      path.join(app.getAppPath(), 'src', 'renderer', 'dashboard-renderer.html'),
+      path.join(process.resourcesPath || __dirname, 'src', 'renderer', 'dashboard-renderer.html')
+    ];
+    
+    let dashboardPath = null;
+    for (const testPath of possiblePaths) {
+      if (fs.existsSync(testPath)) {
+        dashboardPath = testPath;
+        break;
+      }
+    }
+    
+    if (!dashboardPath) {
+      console.error('Dashboard renderer HTML not found. Tried:', possiblePaths);
+      dashboardWindow.close();
+      reject(new Error('Dashboard renderer HTML file not found'));
+      return;
+    }
+    
+    console.log('Loading dashboard renderer from:', dashboardPath);
+    
+    // Enable console logging for debugging
+    dashboardWindow.webContents.on('console-message', (event, level, message) => {
+      console.log(`[Dashboard Renderer] ${message}`);
+    });
+    
+    // Set up error handlers
+    dashboardWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame) {
+        console.error('Dashboard renderer failed to load:', errorCode, errorDescription, validatedURL);
+        clearTimeout(timeout);
+        dashboardWindow.close();
+        reject(new Error(`Failed to load dashboard: ${errorDescription} (code: ${errorCode})`));
+      }
+    });
+    
+    // Wait for window to be ready with timeout
+    const timeout = setTimeout(() => {
+      console.error('Dashboard renderer timeout - taking too long to load');
+      dashboardWindow.close();
+      reject(new Error('Dashboard renderer initialization timeout (10s)'));
+    }, 10000); // 10 second timeout
+    
+    dashboardWindow.webContents.once('did-finish-load', () => {
+      clearTimeout(timeout);
+      console.log('Dashboard renderer loaded successfully');
+      
+      // Wait a bit more for rendering and DOM to be ready, then resolve
+      setTimeout(() => {
+        console.log('Dashboard renderer ready for use');
+        resolve(dashboardWindow);
+      }, 800);
+    });
+    
+    // Load the file
+    console.log('Attempting to load dashboard file:', dashboardPath);
+    dashboardWindow.loadFile(dashboardPath).catch(err => {
+      clearTimeout(timeout);
+      console.error('Error loading dashboard file:', err);
+      dashboardWindow.close();
+      reject(err);
+    });
+  });
+}
+
+// Store active dashboard renderers and their ready callbacks
+const dashboardReadyCallbacks = new Map();
+
+// IPC handler for dashboard ready signals
+ipcMain.on('dashboard:ready', (event) => {
+  const webContentsId = event.sender.id;
+  const callback = dashboardReadyCallbacks.get(webContentsId);
+  if (callback) {
+    dashboardReadyCallbacks.delete(webContentsId);
+    callback();
+  }
+});
+
+// Render dashboard frame for a specific timestamp
+async function renderDashboardFrame(dashboardWindow, sei) {
+  return new Promise((resolve) => {
+    const webContents = dashboardWindow.webContents;
+    const webContentsId = webContents.id;
+    let resolved = false;
+    
+    // Set up one-time listener for ready signal via IPC
+    const onReady = () => {
+      if (resolved) return;
+      resolved = true;
+      // Small delay to ensure rendering is complete after RAF callbacks
+      setTimeout(() => {
+        webContents.capturePage().then(image => {
+          resolve(image);
+        }).catch(err => {
+          console.error('Capture error:', err);
+          resolve(null);
+        });
+      }, 100); // Increased delay to ensure paint is complete
+    };
+    
+    // Store callback for IPC handler
+    dashboardReadyCallbacks.set(webContentsId, onReady);
+    
+    // Send SEI data update
+    if (sei) {
+      const speed = sei.vehicleSpeedMps ?? sei.vehicle_speed_mps;
+      console.log(`Rendering frame with SEI: speed=${speed?.toFixed(1)} m/s`);
+    }
+    webContents.send('dashboard:update', sei);
+    
+    // Fallback timeout (in case IPC doesn't work)
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        dashboardReadyCallbacks.delete(webContentsId);
+        console.log('Frame render timeout, capturing anyway');
+        webContents.capturePage().then(image => {
+          resolve(image);
+        }).catch(() => resolve(null));
+      }
+    }, 1000); // Increased timeout
+  });
+}
+
+// Convert NativeImage to raw RGBA buffer
+function imageToRGBA(image, width, height) {
+  // Resize image to exact dimensions if needed
+  const resized = image.getSize();
+  let finalImage = image;
+  
+  if (resized.width !== width || resized.height !== height) {
+    finalImage = image.resize({ width, height });
+  }
+  
+  // Use toBitmap() instead of deprecated getBitmap()
+  const bitmap = finalImage.toBitmap();
+  // NativeImage.toBitmap() returns a Buffer in BGRA format on Windows, RGBA on others
+  // We need RGBA for FFmpeg
+  const rgba = Buffer.allocUnsafe(width * height * 4);
+  
+  if (process.platform === 'win32') {
+    // Convert BGRA to RGBA on Windows
+    const bitmapSize = Math.min(bitmap.length, rgba.length);
+    for (let i = 0; i < bitmapSize; i += 4) {
+      rgba[i] = bitmap[i + 2];     // R
+      rgba[i + 1] = bitmap[i + 1];  // G
+      rgba[i + 2] = bitmap[i];      // B
+      rgba[i + 3] = bitmap[i + 3];  // A
+    }
+  } else {
+    const copySize = Math.min(bitmap.length, rgba.length);
+    bitmap.copy(rgba, 0, 0, copySize);
+  }
+  
+  return rgba;
+}
+
+// ============================================================
 // Video Export Implementation
 // ============================================================
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -289,6 +489,35 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const blackInputIdx = inputs.length;
     cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${w}x${h}:r=${FPS}:d=${durationSec}`);
 
+    // Dashboard overlay setup - must be done before filter complex
+    let dashboardWindow = null;
+    const DASHBOARD_WIDTH = 600;
+    const DASHBOARD_HEIGHT = 250;
+    const dashboardInputIdx = inputs.length + 1; // After black source
+    
+    if (includeDashboard && seiData && seiData.length > 0) {
+      sendProgress(6, 'Initializing dashboard renderer...');
+      try {
+        console.log('Creating dashboard renderer...');
+        dashboardWindow = await createDashboardRenderer();
+        console.log('✅ Dashboard renderer created successfully');
+        sendProgress(7, 'Dashboard renderer ready');
+        
+        // Add dashboard input BEFORE filter complex
+        cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
+                 '-video_size', `${DASHBOARD_WIDTH}x${DASHBOARD_HEIGHT}`, 
+                 '-framerate', FPS.toString(),
+                 '-i', 'pipe:3');
+      } catch (err) {
+        console.error('❌ Failed to create dashboard renderer:', err);
+        sendProgress(6, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
+        // Continue export without dashboard
+        dashboardWindow = null;
+      }
+    } else {
+      console.log('Dashboard overlay disabled or no SEI data available');
+    }
+
     // Build filter complex - always use full 6-camera grid
     const filters = [];
     const streamTags = [];
@@ -304,7 +533,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       // Force constant frame rate (Tesla cameras use VFR which causes playback issues)
       let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
       if (hasVideo && isMirrored) chain += ',hflip';
-      chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
+      chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
       
       filters.push(chain);
       streamTags.push(`[v${i}]`);
@@ -318,15 +547,24 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     else if (numStreams === 3) { cols = 3; rows = 1; }
     else if (numStreams === 4) { cols = 2; rows = 2; }
     else { cols = 3; rows = 2; }
-
+    
     if (numStreams > 1) {
       const layout = [];
       for (let i = 0; i < numStreams; i++) {
         layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
       }
-      filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[out]`);
+      filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[grid]`);
     } else {
-      filters.push(`${streamTags[0]}copy[out]`);
+      filters.push(`${streamTags[0]}copy[grid]`);
+    }
+    
+    // Add dashboard overlay if enabled
+    if (dashboardWindow) {
+      // Add dashboard input as rawvideo pipe
+      filters.push(`[grid][${dashboardInputIdx}:v]overlay=(W-w)/2:H-h-20:format=auto[out]`);
+    } else {
+      // Ensure output format is set for NVENC compatibility
+      filters.push(`[grid]format=yuv420p[out]`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));
@@ -336,13 +574,21 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const totalW = w * cols;
     const totalH = h * rows;
     const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
-    const useGpu = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
+
+    // NOTE: Temporarily disable GPU encoders for all exports.
+    // NVENC on some systems fails with "Could not open encoder before EOF" even with
+    // a simple filter graph. To prioritise a stable export experience (especially
+    // while iterating on the telemetry overlay), we force CPU encoding here.
+    // Once the pipeline is fully hardened, this can be re-enabled behind a setting.
+    const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
+    const useGpu = false; // gpuAllowed && !includeDashboard;
 
     // Encoding settings
     if (useGpu) {
       cmd.push('-c:v', gpu.codec);
       if (gpu.codec === 'h264_nvenc') {
-        cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString());
+        // NVENC VBR mode requires b:v to be set (0 means use CQ)
+        cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString(), '-b:v', '0', '-maxrate', '0');
       } else if (gpu.codec === 'h264_amf') {
         cmd.push('-quality', 'balanced', '-rc', 'vbr_latency');
       } else if (gpu.codec === 'h264_videotoolbox') {
@@ -357,7 +603,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
     }
-
+    
     cmd.push('-r', FPS.toString(), '-t', durationSec.toString());
     cmd.push('-movflags', '+faststart'); // Better streaming
     cmd.push('-pix_fmt', 'yuv420p'); // Compatibility
@@ -367,9 +613,137 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     sendProgress(8, useGpu ? `Exporting with ${gpu.name}...` : 'Exporting with CPU...');
 
     // Execute
-    return new Promise((resolve, reject) => {
-      const proc = spawn(cmd[0], cmd.slice(1));
+    return new Promise(async (resolve, reject) => {
+      const proc = spawn(cmd[0], cmd.slice(1), {
+        stdio: ['pipe', 'pipe', 'pipe', dashboardWindow ? 'pipe' : 'ignore']
+      });
       let stderr = '', lastPct = 0;
+      
+      // Dashboard frame rendering loop
+      let dashboardPipe = null;
+      if (dashboardWindow && proc.stdio[3]) {
+        dashboardPipe = proc.stdio[3];
+        const frameTimeMs = 1000 / FPS;
+        const totalFrames = Math.ceil(durationSec * FPS);
+        
+        // Helper function to safely write to pipe
+        const safeWrite = (pipe, data) => {
+          if (!pipe || pipe.destroyed || pipe.writableEnded || !pipe.writable) {
+            return false;
+          }
+          try {
+            return pipe.write(data);
+          } catch (err) {
+            // Ignore EPIPE (broken pipe) and EOF errors - pipe was closed
+            if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+              console.error('Pipe write error:', err.message);
+            }
+            return false;
+          }
+        };
+        
+        // Set up pipe error handler
+        dashboardPipe.on('error', (err) => {
+          // Ignore EPIPE errors - they're expected when FFmpeg closes the pipe
+          if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+            console.error('Dashboard pipe error:', err.message);
+          }
+        });
+        
+        // Start rendering loop in background
+        (async () => {
+          try {
+            sendProgress(10, 'Rendering dashboard frames...');
+            const blackFrame = Buffer.alloc(DASHBOARD_WIDTH * DASHBOARD_HEIGHT * 4, 0);
+            
+            for (let frame = 0; frame < totalFrames; frame++) {
+              // Check if FFmpeg process is still running
+              if (proc.killed || proc.exitCode !== null) {
+                console.log('FFmpeg process ended, stopping dashboard rendering');
+                break;
+              }
+              
+              // Check if pipe is still writable
+              if (!dashboardPipe || dashboardPipe.destroyed || dashboardPipe.writableEnded || !dashboardPipe.writable) {
+                console.log('Dashboard pipe closed, stopping rendering');
+                break;
+              }
+              
+              const currentTimeMs = startTimeMs + (frame * frameTimeMs);
+              const sei = findSeiAtTime(seiData, currentTimeMs);
+              
+              // Add frame number to SEI data so dashboard can calculate blinker state for frame captures
+              const seiWithFrame = sei ? { ...sei, _frameNumber: frame } : null;
+              
+              const image = await renderDashboardFrame(dashboardWindow, seiWithFrame);
+              if (image) {
+                try {
+                  const rgba = imageToRGBA(image, DASHBOARD_WIDTH, DASHBOARD_HEIGHT);
+                  const written = safeWrite(dashboardPipe, rgba);
+                  if (!written && dashboardPipe.writable && !dashboardPipe.destroyed) {
+                    // Wait for drain if buffer is full
+                    await new Promise(resolve => {
+                      if (dashboardPipe.destroyed || dashboardPipe.writableEnded) {
+                        resolve();
+                        return;
+                      }
+                      dashboardPipe.once('drain', resolve);
+                      // Timeout to prevent hanging
+                      setTimeout(resolve, 1000);
+                    });
+                  }
+                } catch (writeErr) {
+                  // Ignore EPIPE and EOF errors
+                  if (writeErr.code !== 'EPIPE' && writeErr.message !== 'write EOF') {
+                    console.error('Error writing dashboard frame:', writeErr.message);
+                  }
+                  // Try to write black frame as fallback, but don't error if it fails
+                  safeWrite(dashboardPipe, blackFrame);
+                }
+              } else {
+                // Write black frame if no image
+                safeWrite(dashboardPipe, blackFrame);
+              }
+              
+              // Update progress every 100 frames
+              if (frame % 100 === 0 && frame > 0) {
+                const renderPct = Math.min(15, 10 + Math.floor((frame / totalFrames) * 5));
+                sendProgress(renderPct, `Rendering dashboard... ${Math.floor((frame / totalFrames) * 100)}%`);
+              }
+            }
+            
+            // Close dashboard pipe when done (gracefully)
+            if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
+              try {
+                dashboardPipe.end();
+              } catch (err) {
+                // Ignore errors when closing
+              }
+            }
+            
+            // Close dashboard window
+            if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+              dashboardWindow.close();
+            }
+            
+            console.log('✅ Dashboard rendering complete');
+          } catch (err) {
+            // Ignore EPIPE and EOF errors - they're expected
+            if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+              console.error('Dashboard rendering error:', err);
+            }
+            // Clean up
+            if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
+              try {
+                dashboardPipe.end();
+              } catch {}
+            }
+            if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+              dashboardWindow.close();
+            }
+          }
+        })();
+      }
 
       proc.stderr.on('data', (data) => {
         stderr += data.toString();
@@ -387,6 +761,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       proc.on('close', (code) => {
         delete activeExports[exportId];
         cleanup();
+        
+        // Clean up dashboard window
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+          dashboardWindow.close();
+        }
 
         if (code === 0) {
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
@@ -401,6 +780,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       proc.on('error', (err) => {
         cleanup();
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+          dashboardWindow.close();
+        }
         sendComplete(false, `FFmpeg error: ${err.message}`);
         reject(err);
       });
@@ -411,6 +793,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   } catch (error) {
     console.error('Export error:', error);
     cleanup();
+    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+      dashboardWindow.close();
+    }
     throw error;
   }
 }

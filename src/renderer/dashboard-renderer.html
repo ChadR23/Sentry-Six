@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Renderer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: transparent;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        #dashboardVis {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 600px;
+            height: 250px;
+            background: linear-gradient(180deg, 
+                rgba(45, 45, 50, 0.25) 0%, 
+                rgba(35, 35, 40, 0.20) 50%,
+                rgba(28, 28, 32, 0.25) 100%);
+            backdrop-filter: blur(20px) saturate(100%);
+            -webkit-backdrop-filter: blur(20px) saturate(100%);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.08);
+            display: block;
+        }
+        .vis-content {
+            padding: 0px 0px 2px 0px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 24px;
+            overflow: visible;
+            height: 100%;
+        }
+        .autosteer-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+        }
+        .autosteer-wrapper {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s linear;
+        }
+        .autosteer-icon {
+            width: 32px;
+            height: 32px;
+            filter: brightness(0.6);
+            transition: filter 0.2s;
+        }
+        .autosteer-icon.active {
+            filter: brightness(1.2);
+        }
+        .center-cluster {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            justify-content: center;
+        }
+        .turn-signal {
+            width: 32px;
+            height: 32px;
+            color: rgba(255, 255, 255, 0.3);
+            transition: color 0.2s;
+        }
+        .turn-signal.active {
+            color: #ffa500;
+            animation: blink 0.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .speed-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .gear-state {
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .gear-state.active {
+            color: rgba(62, 156, 191, 0.9);
+        }
+        .speed-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+        .speed-unit {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .autopilot-label-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .brake-icon, .accel-icon {
+            width: 20px;
+            height: 20px;
+            filter: brightness(0.5);
+            transition: filter 0.2s;
+        }
+        .brake-icon.active {
+            filter: brightness(1.2);
+        }
+        .autopilot-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .autopilot-label.active {
+            color: rgba(62, 156, 191, 0.9);
+        }
+        .accel-pedal-container {
+            position: relative;
+            width: 20px;
+            height: 20px;
+        }
+        .accel-pedal-container.active .accel-icon {
+            filter: brightness(1.2);
+        }
+        .accel-fill {
+            display: none;
+        }
+        .right-cluster {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 120px;
+        }
+        .recording-time {
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            font-variant-numeric: tabular-nums;
+        }
+        .instruments-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 8px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gforce-section, .compass-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .gforce-meter, .compass {
+            width: 60px;
+            height: 60px;
+        }
+        .gforce-meter svg, .compass svg {
+            width: 100%;
+            height: 100%;
+        }
+        #gforceDot {
+            transition: cx 0.1s linear, cy 0.1s linear;
+        }
+        #compassNeedle {
+            transition: transform 0.2s ease-out;
+            transform-origin: 30px 30px;
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboardVis" class="dashboard-vis">
+        <div class="vis-content">
+            <!-- Left: Autosteer Icon -->
+            <div class="autosteer-section">
+                <div class="autosteer-wrapper" id="steeringIcon">
+                    <img src="../../assets/autosteer-icon.png" class="autosteer-icon" id="autosteerIcon" alt="Autosteer">
+                </div>
+            </div>
+
+            <!-- Center: Speed -->
+            <div class="center-cluster">
+                <div class="turn-signal left" id="blinkLeft">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 5l-7 7 7 7"/>
+                    </svg>
+                </div>
+                <div class="speed-display">
+                    <div class="gear-state" id="gearState">--</div>
+                    <div class="speed-value" id="speedValue">0</div>
+                    <div class="speed-unit" id="speedUnit">MPH</div>
+                    <div class="autopilot-label-container">
+                        <img src="../../assets/pedal_brake.png" class="brake-icon" id="brakeIcon" alt="Brake">
+                        <span class="autopilot-label" id="apText">Manual</span>
+                        <div class="accel-pedal-container" id="accelPedal">
+                            <img src="../../assets/pedal_acc.png" class="accel-icon" alt="Accelerator">
+                            <div class="accel-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="turn-signal right" id="blinkRight">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Right: Time display -->
+            <div class="right-cluster">
+                <div class="recording-time" id="recordingTime">
+                    <span id="recordingTimeText">--:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instruments Row: G-Force & Compass -->
+        <div class="instruments-row">
+            <!-- G-Force Meter -->
+            <div class="gforce-section">
+                <div class="gforce-meter" id="gforceMeter">
+                    <svg viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="9" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <line x1="30" y1="2" x2="30" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <circle id="gforceDot" cx="30" cy="30" r="4" fill="#3e9cbf"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Compass -->
+            <div class="compass-section">
+                <div class="compass" id="compass">
+                    <svg viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <text x="30" y="12" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">N</text>
+                        <text x="48" y="34" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">E</text>
+                        <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">S</text>
+                        <text x="12" y="34" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="10" font-weight="600">W</text>
+                        <line id="compassNeedle" x1="30" y1="30" x2="30" y2="10" stroke="#3e9cbf" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get ipcRenderer - handle both require and window.electronAPI cases
+        let ipcRenderer;
+        try {
+            if (typeof require !== 'undefined') {
+                ipcRenderer = require('electron').ipcRenderer;
+            } else if (window.electronAPI) {
+                // Fallback if contextIsolation is enabled
+                ipcRenderer = {
+                    send: (channel, ...args) => {
+                        console.log('IPC send:', channel, args);
+                    },
+                    on: (channel, callback) => {
+                        console.log('IPC on:', channel);
+                    }
+                };
+            }
+        } catch (err) {
+            console.error('Failed to get ipcRenderer:', err);
+            ipcRenderer = {
+                send: () => {},
+                on: () => {}
+            };
+        }
+        
+        const MPS_TO_MPH = 2.23694;
+        const MPS_TO_KMH = 3.6;
+        const useMetric = false; // Can be made configurable
+        
+        function updateVisualization(sei) {
+            if (!sei) return;
+            
+            const get = (camel, snake) => sei[camel] ?? sei[snake];
+            
+            // Speed
+            const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+            const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
+            document.getElementById('speedValue').textContent = speed;
+            document.getElementById('speedUnit').textContent = useMetric ? 'KM/H' : 'MPH';
+            
+            // Gear
+            const gear = get('gearState', 'gear_state');
+            let gearText = '--';
+            if (gear === 0) gearText = 'Park';
+            else if (gear === 1) gearText = 'Drive';
+            else if (gear === 2) gearText = 'Reverse';
+            else if (gear === 3) gearText = 'Neutral';
+            document.getElementById('gearState').textContent = gearText;
+            
+            // Blinkers - manually control visibility for frame captures (CSS animations don't work in static captures)
+            const blinkLeft = document.getElementById('blinkLeft');
+            const blinkRight = document.getElementById('blinkRight');
+            const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+            const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+            
+            // For frame captures, simulate blinking based on frame number
+            // Blink every ~18 frames (0.5 seconds at 36fps)
+            const frameNum = sei._frameNumber ?? 0;
+            const blinkCycle = Math.floor(frameNum / 18) % 2; // Blink every 18 frames (0.5s at 36fps)
+            
+            if (blinkLeft) {
+                const shouldShow = leftBlinkerOn && blinkCycle === 0;
+                blinkLeft.classList.toggle('active', shouldShow);
+                // Set opacity directly for frame captures
+                blinkLeft.style.opacity = shouldShow ? '1' : '0.3';
+                blinkLeft.style.color = shouldShow ? '#ffa500' : 'rgba(255, 255, 255, 0.3)';
+            }
+            if (blinkRight) {
+                const shouldShow = rightBlinkerOn && blinkCycle === 0;
+                blinkRight.classList.toggle('active', shouldShow);
+                blinkRight.style.opacity = shouldShow ? '1' : '0.3';
+                blinkRight.style.color = shouldShow ? '#ffa500' : 'rgba(255, 255, 255, 0.3)';
+            }
+            
+            // Steering
+            const targetAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
+            const steeringIcon = document.getElementById('steeringIcon');
+            if (steeringIcon) {
+                steeringIcon.style.transform = `rotate(${targetAngle}deg)`;
+            }
+            
+            // Autopilot
+            const apState = get('autopilotState', 'autopilot_state');
+            const autosteerIcon = document.getElementById('autosteerIcon');
+            const isActive = apState === 1 || apState === 2;
+            if (autosteerIcon) {
+                autosteerIcon.classList.toggle('active', isActive);
+            }
+            document.getElementById('apText').classList.toggle('active', isActive);
+            document.getElementById('gearState').classList.toggle('active', isActive);
+            
+            if (apState === 1) {
+                document.getElementById('apText').textContent = 'Self Driving';
+            } else if (apState === 2) {
+                document.getElementById('apText').textContent = 'Autosteer';
+            } else if (apState === 3) {
+                document.getElementById('apText').textContent = 'TACC';
+            } else {
+                document.getElementById('apText').textContent = 'Manual';
+            }
+            
+            // Brake
+            const brakeState = get('brakeApplied', 'brake_applied');
+            const isAutoHold = gear === 1 && mps < 0.01;
+            document.getElementById('brakeIcon').classList.toggle('active', !!brakeState || isAutoHold);
+            
+            // Accelerator
+            const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+            const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
+            document.getElementById('accelPedal').classList.toggle('active', isPressed);
+            
+            // G-Force Meter
+            const accX = get('linearAccelerationMps2X', 'linear_acceleration_mps2_x') || 0;
+            const accY = get('linearAccelerationMps2Y', 'linear_acceleration_mps2_y') || 0;
+            const gforceDot = document.getElementById('gforceDot');
+            if (gforceDot) {
+                // Scale: 1g = 18px (so max display is ~2g in each direction)
+                const scale = 18;
+                const x = 30 + (accX / 9.81) * scale;
+                const y = 30 - (accY / 9.81) * scale; // Invert Y for screen coordinates
+                gforceDot.setAttribute('cx', Math.max(2, Math.min(58, x)));
+                gforceDot.setAttribute('cy', Math.max(2, Math.min(58, y)));
+            }
+            
+            // Compass
+            const heading = get('headingDeg', 'heading_deg') || 0;
+            const compassNeedle = document.getElementById('compassNeedle');
+            if (compassNeedle) {
+                compassNeedle.style.transform = `rotate(${heading}deg)`;
+            }
+        }
+        
+        let isReady = false;
+        
+        // Signal ready when loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Dashboard renderer DOM loaded');
+            isReady = true;
+            if (ipcRenderer && ipcRenderer.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        });
+        
+        // Also signal ready after a short delay to ensure everything is rendered
+        setTimeout(() => {
+            if (isReady && ipcRenderer && ipcRenderer.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        }, 100);
+        
+        // Listen for SEI data updates
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('dashboard:update', (event, sei) => {
+                if (sei) {
+                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps);
+                }
+                updateVisualization(sei);
+                
+                // Force a reflow to ensure DOM updates are rendered
+                void document.body.offsetHeight;
+                
+                // Use requestAnimationFrame to ensure browser has painted the changes
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        // Double RAF ensures the frame is actually painted
+                        if (isReady && ipcRenderer && ipcRenderer.send) {
+                            ipcRenderer.send('dashboard:ready');
+                        }
+                    });
+                });
+            });
+        }
+    </script>
+</body>
+</html>
+
