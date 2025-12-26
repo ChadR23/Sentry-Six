@@ -470,7 +470,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       // Multi-camera - scale to side camera resolution
       switch (q) {
         case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
-        case 'medium':   w = 724;  h = 469;  crf = 26; break;  // 0.5x side native
+        case 'medium':   w = 724;  h = 470;  crf = 26; break;  // 0.5x side native (h must be even)
         case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
         case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
         default:         w = 1086; h = 704;  crf = 23;
