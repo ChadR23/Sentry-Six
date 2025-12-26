@@ -9,15 +9,20 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            /* Base size - actual scaling handled by transform */
+            font-size: 16px;
+        }
         body {
             background: transparent;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            width: 100vw;
-            height: 100vh;
-        }
-        html {
-            font-size: calc(100vw / 600 * 16);
+            /* Base dashboard size - scaled via transform */
+            width: 600px;
+            height: 250px;
+            transform-origin: top left;
+            /* Scale factors injected by main process */
+            transform: scale(var(--scale-x, 1), var(--scale-y, 1));
         }
         #dashboardVis {
             position: absolute;
@@ -397,6 +402,22 @@
     </div>
 
     <script>
+        // Base dashboard dimensions (must match main.js constants)
+        const BASE_WIDTH = 600;
+        const BASE_HEIGHT = 250;
+        
+        // Calculate and apply scale based on window size
+        function applyScale() {
+            const scaleX = window.innerWidth / BASE_WIDTH;
+            const scaleY = window.innerHeight / BASE_HEIGHT;
+            document.body.style.setProperty('--scale-x', scaleX);
+            document.body.style.setProperty('--scale-y', scaleY);
+        }
+        
+        // Apply scale on load and resize
+        applyScale();
+        window.addEventListener('resize', applyScale);
+        
         let ipcRenderer;
         try {
             if (typeof require !== 'undefined') {
@@ -573,6 +594,7 @@
         
         // Signal ready when loaded
         window.addEventListener('DOMContentLoaded', () => {
+            applyScale(); // Ensure scale is applied after DOM ready
             isReady = true;
             if (ipcRenderer?.send) {
                 ipcRenderer.send('dashboard:ready');

@@ -184,11 +184,11 @@ function findSeiAtTime(seiData, timestampMs) {
 }
 
 // Create a hidden BrowserWindow for dashboard rendering
-async function createDashboardRenderer() {
+async function createDashboardRenderer(dashboardWidth, dashboardHeight) {
   return new Promise((resolve, reject) => {
     const dashboardWindow = new BrowserWindow({
-      width: BASE_DASHBOARD_WIDTH,
-      height: BASE_DASHBOARD_HEIGHT,
+      width: dashboardWidth,
+      height: dashboardHeight,
       show: false,
       transparent: true,
       frame: false,
@@ -280,10 +280,24 @@ ipcMain.on('dashboard:ready', (event) => {
   }
 });
 
+// Base dashboard dimensions (reference for scaling)
 const BASE_DASHBOARD_WIDTH = 600;
 const BASE_DASHBOARD_HEIGHT = 250;
+const DASHBOARD_ASPECT_RATIO = BASE_DASHBOARD_WIDTH / BASE_DASHBOARD_HEIGHT; // 2.4:1
 
-async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
+// Calculate dashboard size based on output video dimensions
+function calculateDashboardSize(outputWidth, outputHeight) {
+  // Dashboard should be ~30% of output width, maintaining aspect ratio
+  const targetWidth = Math.round(outputWidth * 0.3);
+  const targetHeight = Math.round(targetWidth / DASHBOARD_ASPECT_RATIO);
+  // Ensure even dimensions (required for video encoding)
+  return {
+    width: targetWidth + (targetWidth % 2),
+    height: targetHeight + (targetHeight % 2)
+  };
+}
+
+async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight) {
   return new Promise((resolve) => {
     const webContents = dashboardWindow.webContents;
     const webContentsId = webContents.id;
@@ -297,8 +311,8 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
       setTimeout(() => {
         webContents.capturePage({
           x: 0, y: 0,
-          width: BASE_DASHBOARD_WIDTH,
-          height: BASE_DASHBOARD_HEIGHT
+          width: dashboardWidth,
+          height: dashboardHeight
         }).then(image => {
           resolve(image);
         }).catch(() => {
@@ -317,8 +331,8 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber) {
         dashboardReadyCallbacks.delete(webContentsId);
         webContents.capturePage({
           x: 0, y: 0,
-          width: BASE_DASHBOARD_WIDTH,
-          height: BASE_DASHBOARD_HEIGHT
+          width: dashboardWidth,
+          height: dashboardHeight
         }).then(image => {
           resolve(image);
         }).catch(() => resolve(null));
@@ -512,16 +526,22 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         let dashboardWindow = null;
         // Dashboard input index: after black source, before filter_complex
         const dashboardInputIdx = inputs.length + 1;
+        
+        // Calculate dashboard size based on output resolution
+        const dashboardSize = calculateDashboardSize(totalW, totalH);
+        const dashboardWidth = dashboardSize.width;
+        const dashboardHeight = dashboardSize.height;
 
         if (includeDashboard && seiData && seiData.length > 0) {
           sendDashboardProgress(0, 'Initializing dashboard renderer...');
           try {
-            dashboardWindow = await createDashboardRenderer();
+            dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight);
             sendDashboardProgress(5, 'Dashboard renderer ready');
+            console.log(`📊 Dashboard size: ${dashboardWidth}x${dashboardHeight} for output ${totalW}x${totalH}`);
             
             // Add dashboard input before filter_complex (FFmpeg requires input order)
             cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
-                     '-video_size', `${BASE_DASHBOARD_WIDTH}x${BASE_DASHBOARD_HEIGHT}`, 
+                     '-video_size', `${dashboardWidth}x${dashboardHeight}`, 
                      '-framerate', FPS.toString(),
                      '-i', 'pipe:3');
           } catch (err) {
@@ -647,7 +667,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         (async () => {
           try {
             sendDashboardProgress(10, 'Rendering dashboard frames...');
-            const blackFrame = Buffer.alloc(BASE_DASHBOARD_WIDTH * BASE_DASHBOARD_HEIGHT * 4, 0);
+            const blackFrame = Buffer.alloc(dashboardWidth * dashboardHeight * 4, 0);
             
             for (let frame = 0; frame < totalFrames; frame++) {
               if (proc.killed || proc.exitCode !== null) {
@@ -661,11 +681,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               // Calculate timestamp for this frame and find matching SEI data
               const currentTimeMs = startTimeMs + (frame * frameTimeMs);
               const sei = findSeiAtTime(seiData, currentTimeMs);
-              const image = await renderDashboardFrame(dashboardWindow, sei, frame);
+              const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight);
               
               if (image) {
                 try {
-                  const rgba = imageToRGBA(image, BASE_DASHBOARD_WIDTH, BASE_DASHBOARD_HEIGHT);
+                  const rgba = imageToRGBA(image, dashboardWidth, dashboardHeight);
                   const written = safeWrite(dashboardPipe, rgba);
                   if (!written && dashboardPipe.writable && !dashboardPipe.destroyed) {
                     await new Promise(resolve => {
