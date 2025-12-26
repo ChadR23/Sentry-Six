@@ -74,6 +74,7 @@ export function scheduleResync() {
 
 /**
  * Force resync all videos to master
+ * Uses SEI frame_seq_no for accurate sync when available, falls back to time-based sync
  */
 export function forceResyncAllVideos() {
     const nativeVideo = getNativeVideo?.();
@@ -85,25 +86,65 @@ export function forceResyncAllVideos() {
     const masterTime = nativeVideo.master.currentTime;
     const masterPlaying = !nativeVideo.master.paused;
     
-    console.log('Force resyncing all videos to', masterTime.toFixed(2), 'masterPlaying:', masterPlaying);
+    // Try to get current frame_seq_no from master's SEI data for accurate sync
+    const masterTimeMs = masterTime * 1000;
+    let masterFrameSeqNo = null;
     
-    const secondaryVideos = Object.values(videoBySlot || {}).filter(vid => 
+    const seiData = nativeVideo?.seiData;
+    if (seiData && seiData.length > 0) {
+        let closest = seiData[0];
+        let minDiff = Math.abs(seiData[0].timestampMs - masterTimeMs);
+        
+        for (let i = 1; i < seiData.length; i++) {
+            const diff = Math.abs(seiData[i].timestampMs - masterTimeMs);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = seiData[i];
+            }
+            if (seiData[i].timestampMs > masterTimeMs && diff > minDiff) break;
+        }
+        
+        if (closest?.sei) {
+            masterFrameSeqNo = closest.sei.frame_seq_no ?? closest.sei.frameSeqNo ?? null;
+        }
+    }
+    
+    const usingSeiSync = masterFrameSeqNo !== null && nativeVideo?.seiSyncData?.size > 0;
+    console.log('Force resyncing all videos to', masterTime.toFixed(2), 
+        'masterPlaying:', masterPlaying, 
+        'usingSeiSync:', usingSeiSync,
+        'frame_seq_no:', masterFrameSeqNo);
+    
+    const secondarySlots = Object.entries(videoBySlot || {}).filter(([slot, vid]) => 
         vid && vid !== nativeVideo.master && vid.src
     );
     
-    secondaryVideos.forEach(vid => {
+    secondarySlots.forEach(([slot, vid]) => {
         try { vid.pause(); } catch(e) {}
     });
     
-    secondaryVideos.forEach(vid => {
+    secondarySlots.forEach(([slot, vid]) => {
         if (vid.readyState >= 1) {
-            vid.currentTime = masterTime;
+            let syncTargetTime = masterTime;
+            
+            // Try SEI-based sync if available
+            if (masterFrameSeqNo !== null && nativeVideo?.seiSyncData) {
+                const slotSyncMap = nativeVideo.seiSyncData.get(slot);
+                if (slotSyncMap) {
+                    const slotTimeMs = slotSyncMap.get(Number(masterFrameSeqNo));
+                    if (slotTimeMs !== undefined && slotTimeMs !== null) {
+                        syncTargetTime = slotTimeMs / 1000;
+                    }
+                }
+            }
+            
+            vid.currentTime = syncTargetTime;
         }
     });
     
     if (masterPlaying) {
         setTimeout(() => {
-            secondaryVideos.forEach(vid => {
+            secondarySlots.forEach(([slot, vid]) => {
                 if (vid.readyState >= 1 && vid.paused) {
                     vid.play().catch(err => {
                         console.warn('Resync play failed:', err.message);
@@ -116,7 +157,8 @@ export function forceResyncAllVideos() {
 
 /**
  * Regular sync for timeupdate events (less aggressive)
- * @param {number} targetTime - Target time to sync to
+ * Uses SEI frame_seq_no for accurate sync when available, falls back to time-based sync
+ * @param {number} targetTime - Target time to sync to (in seconds)
  */
 export function syncMultiVideos(targetTime) {
     const nativeVideo = getNativeVideo?.();
@@ -125,13 +167,52 @@ export function syncMultiVideos(targetTime) {
     
     if (!state?.multi?.enabled) return;
     
+    // Try to get current frame_seq_no from master's SEI data for accurate sync
+    const masterTimeMs = targetTime * 1000;
+    let masterFrameSeqNo = null;
+    
+    // Find master's frame_seq_no from seiData
+    const seiData = nativeVideo?.seiData;
+    if (seiData && seiData.length > 0) {
+        let closest = seiData[0];
+        let minDiff = Math.abs(seiData[0].timestampMs - masterTimeMs);
+        
+        for (let i = 1; i < seiData.length; i++) {
+            const diff = Math.abs(seiData[i].timestampMs - masterTimeMs);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = seiData[i];
+            }
+            if (seiData[i].timestampMs > masterTimeMs && diff > minDiff) break;
+        }
+        
+        if (closest?.sei) {
+            masterFrameSeqNo = closest.sei.frame_seq_no ?? closest.sei.frameSeqNo ?? null;
+        }
+    }
+    
     Object.entries(videoBySlot || {}).forEach(([slot, vid]) => {
         if (!vid || vid === nativeVideo?.master) return;
         if (!vid.src || vid.readyState < 1) return;
         
-        const drift = Math.abs(vid.currentTime - targetTime);
+        let syncTargetTime = targetTime;
+        let usedSeiSync = false;
+        
+        // Try SEI-based sync if we have frame_seq_no data for this slot
+        if (masterFrameSeqNo !== null && nativeVideo?.seiSyncData) {
+            const slotSyncMap = nativeVideo.seiSyncData.get(slot);
+            if (slotSyncMap) {
+                const slotTimeMs = slotSyncMap.get(Number(masterFrameSeqNo));
+                if (slotTimeMs !== undefined && slotTimeMs !== null) {
+                    syncTargetTime = slotTimeMs / 1000;
+                    usedSeiSync = true;
+                }
+            }
+        }
+        
+        const drift = Math.abs(vid.currentTime - syncTargetTime);
         if (drift > 0.15) {
-            vid.currentTime = targetTime;
+            vid.currentTime = syncTargetTime;
         }
     });
 }
