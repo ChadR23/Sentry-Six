@@ -17,7 +17,7 @@ import {
     startExport, cancelExport, clearExportMarkers 
 } from './scripts/features/exportVideo.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
-import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan } from './scripts/ui/zoomPan.js';
+import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings } from './scripts/ui/settingsModal.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
@@ -3043,6 +3043,9 @@ async function loadNativeSegment(segIdx) {
         
         // Update tile labels to reflect custom camera order
         updateTileLabels();
+        
+        // Apply mirror transforms to repeater cameras
+        applyMirrorTransforms();
     } else {
         // Single camera
         const cam = selection.selectedCamera || 'front';
