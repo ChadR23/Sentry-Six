@@ -1965,14 +1965,20 @@ canvas, .video-player, .tile-video {
     font-family: 'SF Mono', monospace;
 }
 
-/* Camera Grid */
-.camera-grid {
+/* Layout Lab */
+.layout-lab-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.camera-selection-toggles {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
 }
 
-.camera-checkbox {
+.camera-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1983,19 +1989,93 @@ canvas, .video-player, .tile-video {
     transition: all 0.15s;
 }
 
-.camera-checkbox:hover {
+.camera-toggle:hover {
     background: rgba(0, 0, 0, 0.4);
 }
 
-.camera-checkbox input[type="checkbox"] {
+.camera-toggle input[type="checkbox"] {
     width: 16px;
     height: 16px;
     accent-color: #3e9cbf;
 }
 
-.camera-checkbox span {
+.camera-toggle span {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.85);
+}
+
+.layout-canvas-container {
+    position: relative;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    padding: 20px;
+    overflow: visible;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.layout-canvas {
+    position: relative;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    touch-action: none;
+    flex-shrink: 0;
+}
+
+.layout-card {
+    position: absolute;
+    background: rgba(62, 156, 191, 0.2);
+    border: 2px solid #3e9cbf;
+    border-radius: 4px;
+    cursor: move;
+    user-select: none;
+    min-width: 80px;
+    min-height: 45px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.layout-card:hover {
+    background: rgba(62, 156, 191, 0.3);
+    border-color: #4db8d9;
+}
+
+.layout-card.dragging {
+    cursor: grabbing;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(62, 156, 191, 0.5);
+}
+
+.layout-card.snapping {
+    border-color: #4db8d9;
+    box-shadow: 0 0 0 2px rgba(77, 184, 217, 0.5), 0 0 20px rgba(77, 184, 217, 0.4);
+}
+
+.layout-card .card-label {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    padding: 2px 6px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.layout-hint {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 8px;
+    font-style: italic;
 }
 
 /* Export Option */

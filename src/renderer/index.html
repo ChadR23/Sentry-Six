@@ -376,34 +376,44 @@
                     </div>
                 </div>
 
-                <!-- Cameras (all 6 selected by default) -->
+                <!-- Layout Lab -->
                 <div class="export-section">
-                    <h3>Cameras</h3>
-                    <div class="camera-grid">
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="left_pillar" checked>
-                            <span>Left Pillar</span>
-                        </label>
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="front" checked>
-                            <span>Front</span>
-                        </label>
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="right_pillar" checked>
-                            <span>Right Pillar</span>
-                        </label>
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="left_repeater" checked>
-                            <span>Left Repeater</span>
-                        </label>
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="back" checked>
-                            <span>Back</span>
-                        </label>
-                        <label class="camera-checkbox">
-                            <input type="checkbox" data-camera="right_repeater" checked>
-                            <span>Right Repeater</span>
-                        </label>
+                    <h3>Layout Lab</h3>
+                    <div class="layout-lab-container">
+                        <!-- Camera Selection Toggles -->
+                        <div class="camera-selection-toggles">
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="left_pillar" checked>
+                                <span>Left Pillar</span>
+                            </label>
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="front" checked>
+                                <span>Front</span>
+                            </label>
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="right_pillar" checked>
+                                <span>Right Pillar</span>
+                            </label>
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="left_repeater" checked>
+                                <span>Left Repeater</span>
+                            </label>
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="back" checked>
+                                <span>Back</span>
+                            </label>
+                            <label class="camera-toggle">
+                                <input type="checkbox" data-camera="right_repeater" checked>
+                                <span>Right Repeater</span>
+                            </label>
+                        </div>
+                        <!-- Layout Canvas -->
+                        <div class="layout-canvas-container">
+                            <div id="layoutCanvas" class="layout-canvas">
+                                <!-- Camera cards will be dynamically added here -->
+                            </div>
+                        </div>
+                        <div class="layout-hint">Drag cards to reposition • Cards snap to edges and other cards</div>
                     </div>
                 </div>
 

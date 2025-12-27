@@ -192,8 +192,21 @@ export function openExportModal() {
     const modal = $('exportModal');
     if (!modal) return;
     
+    // Show modal first so dimensions are accurate
+    modal.classList.remove('hidden');
+    
     updateExportRangeDisplay();
     checkFFmpegAvailability();
+    
+    // Initialize Layout Lab after modal is visible
+    import('../ui/layoutLab.js').then(({ initLayoutLab }) => {
+        // Wait for next frame to ensure modal is fully rendered
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                initLayoutLab();
+            });
+        });
+    });
     
     const progressEl = $('exportProgress');
     const progressBar = $('exportProgressBar');
@@ -217,14 +230,12 @@ export function openExportModal() {
     
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
-    const cameraInputs = document.querySelectorAll('.camera-checkbox input');
+    const cameraInputs = document.querySelectorAll('.camera-toggle input');
     cameraInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     updateExportSizeEstimate();
     
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
-    
-    modal.classList.remove('hidden');
 }
 
 /**
@@ -280,7 +291,7 @@ export function updateExportSizeEstimate() {
     const endPct = exportState.endMarkerPct ?? 100;
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
     
-    const selectedCameras = document.querySelectorAll('.camera-checkbox input:checked');
+    const selectedCameras = document.querySelectorAll('.camera-toggle input:checked');
     const cameraCount = selectedCameras.length || 6;
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
@@ -369,12 +380,21 @@ export async function startExport() {
         return;
     }
     
-    const cameraCheckboxes = document.querySelectorAll('.camera-checkbox input[type="checkbox"]:checked');
+    const cameraCheckboxes = document.querySelectorAll('.camera-toggle input[type="checkbox"]:checked');
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
         notify('Please select at least one camera', { type: 'warn' });
         return;
+    }
+    
+    // Get layout data from Layout Lab
+    let layoutData = null;
+    try {
+        const layoutLab = await import('../ui/layoutLab.js');
+        layoutData = layoutLab.getLayoutData();
+    } catch (err) {
+        console.error('Failed to get layout data:', err);
     }
     
     const filenameInput = $('exportFilename');
@@ -602,7 +622,8 @@ export async function startExport() {
             baseFolderPath,
             quality,
             includeDashboard: includeDashboard && seiData !== null,
-            seiData: seiData || []
+            seiData: seiData || [],
+            layoutData: layoutData || null
         };
         
         await window.electronAPI.startExport(exportId, exportData);

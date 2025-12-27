@@ -375,7 +375,7 @@ function imageToRGBA(image, width, height) {
 // Video Export Implementation
 // ============================================================
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -470,24 +470,27 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
     
+    // Base resolution for per-camera scaling (used when layoutData is provided)
+    let basePerCamW, basePerCamH;
+    
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile':   w = 724;  h = 469;  crf = 28; break;
-        case 'medium':   w = 1448; h = 938;  crf = 26; break;
-        case 'high':     w = 2172; h = 1407; crf = 23; break;
-        case 'max':      w = 2896; h = 1876; crf = 20; break;  // Full front native
-        default:         w = 1448; h = 938;  crf = 23;
+        case 'mobile':   w = 724;  h = 469;  crf = 28; basePerCamW = 724;  basePerCamH = 469; break;
+        case 'medium':   w = 1448; h = 938;  crf = 26; basePerCamW = 1448; basePerCamH = 938; break;
+        case 'high':     w = 2172; h = 1407; crf = 23; basePerCamW = 2172; basePerCamH = 1407; break;
+        case 'max':      w = 2896; h = 1876; crf = 20; basePerCamW = 2896; basePerCamH = 1876; break;  // Full front native
+        default:         w = 1448; h = 938;  crf = 23; basePerCamW = 1448; basePerCamH = 938;
       }
       console.log('📹 Front camera only - using full front camera resolution');
     } else {
       // Multi-camera - scale to side camera resolution
       switch (q) {
-        case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
-        case 'medium':   w = 724;  h = 470;  crf = 26; break;  // 0.5x side native (h must be even)
-        case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
-        case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
-        default:         w = 1086; h = 704;  crf = 23;
+        case 'mobile':   w = 484;  h = 314;  crf = 28; basePerCamW = 484;  basePerCamH = 314; break;  // 0.33x side native
+        case 'medium':   w = 724;  h = 470;  crf = 26; basePerCamW = 724;  basePerCamH = 470; break;  // 0.5x side native (h must be even)
+        case 'high':     w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704; break;  // 0.75x side native
+        case 'max':      w = 1448; h = 938;  crf = 20; basePerCamW = 1448; basePerCamH = 938; break;  // Side native (front scaled down)
+        default:         w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704;
       }
     }
 
@@ -511,21 +514,77 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // Build filter complex - determine which cameras are active for grid
     const activeCamerasForGrid = CAMERA_ORDER.filter(c => selectedCameras.has(c));
 
-    // Calculate grid dimensions and total output resolution
-    const numStreams = activeCamerasForGrid.length;
-    let cols, rows;
-    if (numStreams <= 1) { cols = 1; rows = 1; }
-    else if (numStreams === 2) { cols = 2; rows = 1; }
-    else if (numStreams === 3) { cols = 3; rows = 1; }
-    else if (numStreams === 4) { cols = 2; rows = 2; }
-    else { cols = 3; rows = 2; }
+    // Calculate output dimensions
+    let totalW, totalH, cols, rows;
+    let baseInputIdx = null;
     
-        const totalW = w * cols;
-        const totalH = h * rows;
+    if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
+      // Use custom layout - map canvas positions to video coordinates
+      const cameraLayouts = layoutData.cameras;
+      
+      // Get card dimensions from layout (all cards have the same size)
+      // This is the size of each card on the canvas
+      const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
+      const cardWidth = firstLayout?.width || 200;
+      const cardHeight = firstLayout?.height || 112;
+      
+      // Scale factors: map canvas card size to native camera size
+      // Each card on the canvas represents one camera at native size (w x h)
+      const scaleX = w / cardWidth; // Map card width to camera width
+      const scaleY = h / cardHeight; // Map card height to camera height
+      
+      // Calculate bounding box: find min position and max position + camera size
+      let minX = Infinity, minY = Infinity;
+      let maxRight = -Infinity, maxBottom = -Infinity;
+      
+      for (const camera of activeCamerasForGrid) {
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        
+        // Position in video coordinates (scale from canvas)
+        const videoX = layout.x * scaleX;
+        const videoY = layout.y * scaleY;
+        
+        // Camera ends at position + native size
+        const cameraRight = videoX + w;
+        const cameraBottom = videoY + h;
+        
+        if (videoX < minX) minX = videoX;
+        if (videoY < minY) minY = videoY;
+        if (cameraRight > maxRight) maxRight = cameraRight;
+        if (cameraBottom > maxBottom) maxBottom = cameraBottom;
+      }
+      
+      // Total output size is from 0 to max (we'll offset positions to start at 0)
+      totalW = Math.ceil(maxRight - minX);
+      totalH = Math.ceil(maxBottom - minY);
+      
+      // Ensure even dimensions for video encoding
+      totalW = totalW + (totalW % 2);
+      totalH = totalH + (totalH % 2);
+      
+      cols = 0; rows = 0; // Not used for custom layout
+      console.log(`📐 Custom layout: ${totalW}x${totalH} (cameras at native ${w}x${h}, card ${cardWidth}x${cardHeight}, scale ${scaleX.toFixed(3)}x/${scaleY.toFixed(3)}y)`);
+      
+      // Add base canvas input for custom layout (after black source)
+      baseInputIdx = inputs.length + 1;
+      cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${totalW}x${totalH}:r=${FPS}:d=${durationSec}`);
+    } else {
+      // Grid layout - calculate grid dimensions and total output resolution
+      const numStreams = activeCamerasForGrid.length;
+      if (numStreams <= 1) { cols = 1; rows = 1; }
+      else if (numStreams === 2) { cols = 2; rows = 1; }
+      else if (numStreams === 3) { cols = 3; rows = 1; }
+      else if (numStreams === 4) { cols = 2; rows = 2; }
+      else { cols = 3; rows = 2; }
+      
+      totalW = w * cols;
+      totalH = h * rows;
+    }
 
         let dashboardWindow = null;
-        // Dashboard input index: after black source, before filter_complex
-        const dashboardInputIdx = inputs.length + 1;
+        // Dashboard input index: after black source (and base canvas if custom layout)
+        const dashboardInputIdx = baseInputIdx !== null ? baseInputIdx + 1 : inputs.length + 1;
         
         // Calculate dashboard size based on output resolution
         const dashboardSize = calculateDashboardSize(totalW, totalH);
@@ -553,36 +612,106 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const filters = [];
     const streamTags = [];
 
-    for (let i = 0; i < activeCamerasForGrid.length; i++) {
-      const camera = activeCamerasForGrid[i];
-      const inputIdx = cameraInputMap.get(camera);
-      const hasVideo = inputIdx !== undefined;
-      const srcIdx = hasVideo ? inputIdx : blackInputIdx;
-      const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
-
-      let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
-      if (hasVideo && isMirrored) chain += ',hflip';
-      chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
+    if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
+      // Custom layout using overlay filters (base canvas already added as input)
+      // Cameras use native size (w x h), only positioning comes from layout
       
-      filters.push(chain);
-      streamTags.push(`[v${i}]`);
-    }
-
-    // Grid layout (cols/rows already calculated above)
-    
-    if (numStreams > 1) {
-      const layout = [];
-      for (let i = 0; i < numStreams; i++) {
-        layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
+      const cameraLayouts = layoutData.cameras;
+      
+      // Get card dimensions from layout (all cards have the same size)
+      const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
+      const cardWidth = firstLayout?.width || 200;
+      const cardHeight = firstLayout?.height || 112;
+      
+      // Calculate scale factors: map canvas card size to native camera size
+      const scaleX = w / cardWidth;
+      const scaleY = h / cardHeight;
+      
+      // Find minimum positions to offset all cameras (so output starts at 0,0)
+      let minX = Infinity, minY = Infinity;
+      for (const camera of activeCamerasForGrid) {
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        const videoX = layout.x * scaleX;
+        const videoY = layout.y * scaleY;
+        if (videoX < minX) minX = videoX;
+        if (videoY < minY) minY = videoY;
       }
-      filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[grid]`);
+      
+      const cameraStreams = [];
+      
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const camera = activeCamerasForGrid[i];
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        
+        const inputIdx = cameraInputMap.get(camera);
+        const hasVideo = inputIdx !== undefined;
+        const srcIdx = hasVideo ? inputIdx : blackInputIdx;
+        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+        
+        // Scale camera to native size (w x h) - exactly like old grid code
+        // Ensure even dimensions
+        const finalW = w + (w % 2);
+        const finalH = h + (h % 2);
+        
+        // Calculate position from canvas layout (scale and offset)
+        const x = Math.round((layout.x * scaleX) - minX);
+        const y = Math.round((layout.y * scaleY) - minY);
+        
+        let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
+        if (hasVideo && isMirrored) chain += ',hflip';
+        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
+        
+        filters.push(chain);
+        cameraStreams.push({ tag: `[v${i}]`, x, y });
+      }
+      
+      // Chain overlays: start with base, overlay each camera in order
+      let currentTag = `[${baseInputIdx}:v]`;
+      for (let i = 0; i < cameraStreams.length; i++) {
+        const stream = cameraStreams[i];
+        const nextTag = i === cameraStreams.length - 1 ? '[grid]' : `[overlay${i}]`;
+        filters.push(`${currentTag}${stream.tag}overlay=${stream.x}:${stream.y}:format=auto${nextTag}`);
+        currentTag = nextTag;
+      }
+      
+      // If no cameras, just copy base to grid
+      if (cameraStreams.length === 0) {
+        filters.push(`[${baseInputIdx}:v]copy[grid]`);
+      }
+      
     } else {
-      filters.push(`${streamTags[0]}copy[grid]`);
+      // Grid layout (original code)
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const camera = activeCamerasForGrid[i];
+        const inputIdx = cameraInputMap.get(camera);
+        const hasVideo = inputIdx !== undefined;
+        const srcIdx = hasVideo ? inputIdx : blackInputIdx;
+        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+
+        let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
+        if (hasVideo && isMirrored) chain += ',hflip';
+        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
+        
+        filters.push(chain);
+        streamTags.push(`[v${i}]`);
+      }
+      
+      const numStreams = activeCamerasForGrid.length;
+      if (numStreams > 1) {
+        const layout = [];
+        for (let i = 0; i < numStreams; i++) {
+          layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
+        }
+        filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[grid]`);
+      } else {
+        filters.push(`${streamTags[0]}copy[grid]`);
+      }
     }
     
     // Add dashboard overlay if enabled
     if (dashboardWindow) {
-      // Add dashboard input as rawvideo pipe
       filters.push(`[grid][${dashboardInputIdx}:v]overlay=(W-w)/2:H-h-20:format=auto[out]`);
     } else {
       // Ensure output format is set for NVENC compatibility

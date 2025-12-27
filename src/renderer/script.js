@@ -16,6 +16,7 @@ import {
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
     startExport, cancelExport, clearExportMarkers 
 } from './scripts/features/exportVideo.js';
+import { initLayoutLab } from './scripts/ui/layoutLab.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings } from './scripts/ui/settingsModal.js';
