@@ -128,28 +128,168 @@ function findFFmpegPath() {
   return null;
 }
 
+/**
+ * Detects and tests available GPU hardware encoders.
+ * Returns the first working encoder found, or null if none are available.
+ * Caches result to avoid repeated detection.
+ */
 function detectGpuEncoder(ffmpegPath) {
   if (gpuEncoder !== null) return gpuEncoder;
   
   try {
-    const result = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
-    const output = result.stdout?.toString() || '';
+    // Query FFmpeg for available hardware accelerators and encoders
+    const hwaccelResult = spawnSync(ffmpegPath, ['-hwaccels'], { timeout: 3000, windowsHide: true });
+    const hwaccelsOutput = (hwaccelResult.stdout?.toString() || '') + (hwaccelResult.stderr?.toString() || '');
     
-    // Check for GPU encoders in order of preference
-    if (process.platform === 'darwin' && output.includes('h264_videotoolbox')) {
-      gpuEncoder = { codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' };
-    } else if (output.includes('h264_nvenc')) {
-      gpuEncoder = { codec: 'h264_nvenc', name: 'NVIDIA NVENC' };
-    } else if (output.includes('h264_amf')) {
-      gpuEncoder = { codec: 'h264_amf', name: 'AMD AMF' };
-    } else if (output.includes('h264_qsv')) {
-      gpuEncoder = { codec: 'h264_qsv', name: 'Intel QuickSync' };
+    const encoderResult = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
+    const encoderOutput = encoderResult.stdout?.toString() || '';
+    
+    /**
+     * Tests if a GPU encoder can actually access hardware.
+     * FFmpeg may list encoders that aren't usable (e.g., NVENC listed but no NVIDIA GPU).
+     */
+    const testEncoder = (codec) => {
+      try {
+        // Verify encoder exists in FFmpeg build
+        const helpResult = spawnSync(ffmpegPath, ['-hide_banner', '-h', `encoder=${codec}`], { 
+          timeout: 2000, 
+          windowsHide: true,
+          stdio: 'pipe'
+        });
+        
+        const helpOutput = (helpResult.stdout?.toString() || '') + (helpResult.stderr?.toString() || '');
+        
+        if (helpOutput.includes('Unknown encoder') || 
+            helpOutput.includes('No such encoder') ||
+            helpOutput.includes('not found')) {
+          return false;
+        }
+        
+        // Test encoder with minimal encode to verify hardware access
+        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'color=c=black:s=2x2:d=0.01:r=1'];
+        
+        // Add hardware acceleration hints for Windows (improves detection accuracy)
+        if (process.platform === 'win32') {
+          if (codec === 'h264_amf' && hwaccelsOutput.includes('d3d11va')) {
+            testArgs.push('-hwaccel', 'd3d11va');
+          } else if (codec === 'h264_nvenc' && hwaccelsOutput.includes('cuda')) {
+            testArgs.push('-hwaccel', 'cuda');
+          } else if (codec === 'h264_qsv' && hwaccelsOutput.includes('qsv')) {
+            testArgs.push('-hwaccel', 'qsv');
+          }
+        }
+        
+        testArgs.push('-c:v', codec, '-frames:v', '1', '-f', 'null', '-');
+        
+        const testResult = spawnSync(ffmpegPath, testArgs, { 
+          timeout: 3000,
+          windowsHide: true,
+          stdio: 'pipe'
+        });
+        
+        const testOutput = (testResult.stdout?.toString() || '') + (testResult.stderr?.toString() || '');
+        
+        // Log first few lines of test output for debugging
+        if (testOutput.length > 0) {
+          const shortOutput = testOutput.split('\n').slice(0, 5).join(' ').substring(0, 200);
+          console.log(`  Test output: ${shortOutput}...`);
+        }
+        
+        // Check for definitive hardware errors
+        const fatalErrors = [
+          'No such device',
+          'Could not open encoder',
+          'Failed to create encoder',
+          'Cannot load',
+          'Device creation failed',
+          'No capable devices found',
+          'No device available',
+          'No hardware device found'
+        ];
+        
+        for (const error of fatalErrors) {
+          if (testOutput.toLowerCase().includes(error.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Invalid argument errors related to encoder indicate hardware unavailable
+        if (testOutput.includes('Invalid argument') && 
+            (testOutput.includes('encoder') || testOutput.includes(codec))) {
+          return false;
+        }
+        
+        // Success: encoder initialized and encoded at least one frame
+        if (testResult.status === 0) {
+          return true;
+        }
+        
+        // Partial success: saw encoding output but non-zero status (may be test-specific)
+        if (testOutput.includes('frame=') || 
+            testOutput.includes('Stream #') ||
+            testOutput.includes('Video:') ||
+            testOutput.includes('encoder')) {
+          return true;
+        }
+        
+        // Hardware-specific error in task failure
+        if (testOutput.includes('Task finished with error') && 
+            testOutput.includes(codec) &&
+            (testOutput.includes('device') || testOutput.includes('hardware'))) {
+          return false;
+        }
+        
+        // Default: encoder exists and no hardware errors detected
+        // Actual export will handle any remaining issues
+        return true;
+      } catch (err) {
+        return false;
+      }
+    };
+    
+    // Define encoder priority by platform
+    // Windows: AMD first (both AMD and NVIDIA encoders may be listed, but only one works)
+    const encodersToCheck = [];
+    
+    if (process.platform === 'darwin') {
+      encodersToCheck.push({ codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' });
+    } else if (process.platform === 'win32') {
+      const hasD3D11 = hwaccelsOutput.includes('d3d11va');
+      const hasDXVA2 = hwaccelsOutput.includes('dxva2');
+      
+      encodersToCheck.push(
+        { codec: 'h264_amf', name: 'AMD AMF', priority: hasD3D11 || hasDXVA2 ? 1 : 2 },
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
+        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
+      );
     } else {
-      gpuEncoder = null;
+      encodersToCheck.push(
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC' },
+        { codec: 'h264_amf', name: 'AMD AMF' },
+        { codec: 'h264_qsv', name: 'Intel QuickSync' }
+      );
     }
     
-    if (gpuEncoder) console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
-  } catch {
+    encodersToCheck.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+    
+    // Test each encoder in priority order, return first working one
+    for (const encoder of encodersToCheck) {
+      if (encoderOutput.includes(encoder.codec)) {
+        console.log(`🔍 Testing ${encoder.name} (${encoder.codec})...`);
+        if (testEncoder(encoder.codec)) {
+          gpuEncoder = encoder;
+          console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
+          return gpuEncoder;
+        } else {
+          console.log(`⚠️ ${encoder.codec} is listed but not usable (no hardware available)`);
+        }
+      }
+    }
+    
+    gpuEncoder = null;
+    console.log('ℹ️ No usable GPU encoder found, will use CPU encoding');
+  } catch (err) {
+    console.error('Error detecting GPU encoder:', err.message);
     gpuEncoder = null;
   }
   return gpuEncoder;
@@ -160,10 +300,222 @@ function makeEven(n) {
 }
 
 // ============================================================
+// Dashboard Rendering Utilities
+// ============================================================
+
+// Find SEI data for a given timestamp (similar to renderer's findSeiAtTime)
+function findSeiAtTime(seiData, timestampMs) {
+  if (!seiData || !seiData.length) return null;
+  
+  let closest = seiData[0];
+  let minDiff = Math.abs(seiData[0].timestampMs - timestampMs);
+  
+  for (let i = 1; i < seiData.length; i++) {
+    const diff = Math.abs(seiData[i].timestampMs - timestampMs);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = seiData[i];
+    }
+    // Since data is sorted, if diff starts increasing, we passed the closest
+    if (seiData[i].timestampMs > timestampMs && diff > minDiff) break;
+  }
+  
+  return closest?.sei || null;
+}
+
+// Create a hidden BrowserWindow for dashboard rendering
+async function createDashboardRenderer(dashboardWidth, dashboardHeight) {
+  return new Promise((resolve, reject) => {
+    const dashboardWindow = new BrowserWindow({
+      width: dashboardWidth,
+      height: dashboardHeight,
+      show: false,
+      transparent: true,
+      frame: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        webSecurity: false
+      }
+    });
+    
+    // Try multiple possible paths for the dashboard renderer
+    const possiblePaths = [
+      path.join(__dirname, 'renderer', 'dashboard-renderer.html'),
+      path.join(app.getAppPath(), 'src', 'renderer', 'dashboard-renderer.html'),
+      path.join(process.resourcesPath || __dirname, 'src', 'renderer', 'dashboard-renderer.html')
+    ];
+    
+    let dashboardPath = null;
+    for (const testPath of possiblePaths) {
+      if (fs.existsSync(testPath)) {
+        dashboardPath = testPath;
+        break;
+      }
+    }
+    
+    if (!dashboardPath) {
+      console.error('Dashboard renderer HTML not found. Tried:', possiblePaths);
+      dashboardWindow.close();
+      reject(new Error('Dashboard renderer HTML file not found'));
+      return;
+    }
+    
+    console.log('Loading dashboard renderer from:', dashboardPath);
+    
+    // Enable console logging for debugging
+    dashboardWindow.webContents.on('console-message', (event, level, message) => {
+      console.log(`[Dashboard Renderer] ${message}`);
+    });
+    
+    // Set up error handlers
+    dashboardWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame) {
+        console.error('Dashboard renderer failed to load:', errorCode, errorDescription, validatedURL);
+        clearTimeout(timeout);
+        dashboardWindow.close();
+        reject(new Error(`Failed to load dashboard: ${errorDescription} (code: ${errorCode})`));
+      }
+    });
+    
+    // Wait for window to be ready with timeout
+    const timeout = setTimeout(() => {
+      console.error('Dashboard renderer timeout - taking too long to load');
+      dashboardWindow.close();
+      reject(new Error('Dashboard renderer initialization timeout (10s)'));
+    }, 10000); // 10 second timeout
+    
+    dashboardWindow.webContents.once('did-finish-load', () => {
+      clearTimeout(timeout);
+      console.log('Dashboard renderer loaded successfully');
+      
+      // Wait a bit more for rendering and DOM to be ready, then resolve
+      setTimeout(() => {
+        console.log('Dashboard renderer ready for use');
+        resolve(dashboardWindow);
+      }, 800);
+    });
+    
+    // Load the file
+    console.log('Attempting to load dashboard file:', dashboardPath);
+    dashboardWindow.loadFile(dashboardPath).catch(err => {
+      clearTimeout(timeout);
+      console.error('Error loading dashboard file:', err);
+      dashboardWindow.close();
+      reject(err);
+    });
+  });
+}
+
+// Store active dashboard renderers and their ready callbacks
+const dashboardReadyCallbacks = new Map();
+
+// IPC handler for dashboard ready signals
+ipcMain.on('dashboard:ready', (event) => {
+  const webContentsId = event.sender.id;
+  const callback = dashboardReadyCallbacks.get(webContentsId);
+  if (callback) {
+    dashboardReadyCallbacks.delete(webContentsId);
+    callback();
+  }
+});
+
+// Base dashboard dimensions (reference for scaling)
+const BASE_DASHBOARD_WIDTH = 600;
+const BASE_DASHBOARD_HEIGHT = 250;
+const DASHBOARD_ASPECT_RATIO = BASE_DASHBOARD_WIDTH / BASE_DASHBOARD_HEIGHT; // 2.4:1
+
+// Calculate dashboard size based on output video dimensions
+function calculateDashboardSize(outputWidth, outputHeight) {
+  // Dashboard should be ~30% of output width, maintaining aspect ratio
+  const targetWidth = Math.round(outputWidth * 0.3);
+  const targetHeight = Math.round(targetWidth / DASHBOARD_ASPECT_RATIO);
+  // Ensure even dimensions (required for video encoding)
+  return {
+    width: targetWidth + (targetWidth % 2),
+    height: targetHeight + (targetHeight % 2)
+  };
+}
+
+async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight) {
+  return new Promise((resolve) => {
+    const webContents = dashboardWindow.webContents;
+    const webContentsId = webContents.id;
+    let resolved = false;
+    
+    // IPC callback: dashboard signals ready after DOM updates are painted
+    const onReady = () => {
+      if (resolved) return;
+      resolved = true;
+      // Delay ensures requestAnimationFrame callbacks complete before capture
+      setTimeout(() => {
+        webContents.capturePage({
+          x: 0, y: 0,
+          width: dashboardWidth,
+          height: dashboardHeight
+        }).then(image => {
+          resolve(image);
+        }).catch(() => {
+          resolve(null);
+        });
+      }, 100);
+    };
+    
+    dashboardReadyCallbacks.set(webContentsId, onReady);
+    webContents.send('dashboard:update', sei, frameNumber);
+    
+    // Fallback timeout if IPC doesn't work
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        dashboardReadyCallbacks.delete(webContentsId);
+        webContents.capturePage({
+          x: 0, y: 0,
+          width: dashboardWidth,
+          height: dashboardHeight
+        }).then(image => {
+          resolve(image);
+        }).catch(() => resolve(null));
+      }
+    }, 1000);
+  });
+}
+
+function imageToRGBA(image, width, height) {
+  const resized = image.getSize();
+  let finalImage = image;
+  
+  if (resized.width !== width || resized.height !== height) {
+    finalImage = image.resize({ width, height });
+  }
+  
+  const bitmap = finalImage.toBitmap();
+  // NativeImage.toBitmap() returns BGRA on Windows, RGBA on macOS/Linux
+  // FFmpeg requires RGBA, so we swap R and B channels on Windows
+  const rgba = Buffer.allocUnsafe(width * height * 4);
+  
+  if (process.platform === 'win32') {
+    // Convert BGRA to RGBA on Windows
+    const bitmapSize = Math.min(bitmap.length, rgba.length);
+    for (let i = 0; i < bitmapSize; i += 4) {
+      rgba[i] = bitmap[i + 2];     // R
+      rgba[i + 1] = bitmap[i + 1];  // G
+      rgba[i + 2] = bitmap[i];      // B
+      rgba[i + 3] = bitmap[i + 3];  // A
+    }
+  } else {
+    const copySize = Math.min(bitmap.length, rgba.length);
+    bitmap.copy(rgba, 0, 0, copySize);
+  }
+  
+  return rgba;
+}
+
+// ============================================================
 // Video Export Implementation
 // ============================================================
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -171,12 +523,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const sendProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'progress', percentage, message });
   };
+  
+  const sendDashboardProgress = (percentage, message) => {
+    event.sender.send('export:progress', exportId, { type: 'dashboard-progress', percentage, message });
+  };
 
   const sendComplete = (success, message) => {
     event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
   };
 
   const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch {} });
+
+  // Declare dashboardWindow in outer scope so it's accessible in catch block
+  let dashboardWindow = null;
 
   try {
     console.log('🎬 Starting video export...');
@@ -251,36 +610,50 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
     
+    // Base resolution for per-camera scaling (used when layoutData is provided)
+    let basePerCamW, basePerCamH;
+    
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile':   w = 724;  h = 469;  crf = 28; break;
-        case 'medium':   w = 1448; h = 938;  crf = 26; break;
-        case 'high':     w = 2172; h = 1407; crf = 23; break;
-        case 'max':      w = 2896; h = 1876; crf = 20; break;  // Full front native
-        default:         w = 1448; h = 938;  crf = 23;
+        case 'mobile':   w = 724;  h = 469;  crf = 28; basePerCamW = 724;  basePerCamH = 469; break;
+        case 'medium':   w = 1448; h = 938;  crf = 26; basePerCamW = 1448; basePerCamH = 938; break;
+        case 'high':     w = 2172; h = 1407; crf = 23; basePerCamW = 2172; basePerCamH = 1407; break;
+        case 'max':      w = 2896; h = 1876; crf = 20; basePerCamW = 2896; basePerCamH = 1876; break;  // Full front native
+        default:         w = 1448; h = 938;  crf = 23; basePerCamW = 1448; basePerCamH = 938;
       }
       console.log('📹 Front camera only - using full front camera resolution');
     } else {
       // Multi-camera - scale to side camera resolution
       switch (q) {
-        case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
-        case 'medium':   w = 724;  h = 469;  crf = 26; break;  // 0.5x side native
-        case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
-        case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
-        default:         w = 1086; h = 704;  crf = 23;
+        case 'mobile':   w = 484;  h = 314;  crf = 28; basePerCamW = 484;  basePerCamH = 314; break;  // 0.33x side native
+        case 'medium':   w = 724;  h = 470;  crf = 26; basePerCamW = 724;  basePerCamH = 470; break;  // 0.5x side native (h must be even)
+        case 'high':     w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704; break;  // 0.75x side native
+        case 'max':      w = 1448; h = 938;  crf = 20; basePerCamW = 1448; basePerCamH = 938; break;  // Side native (front scaled down)
+        default:         w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704;
       }
     }
 
     // Detect GPU encoder
     const gpu = detectGpuEncoder(ffmpegPath);
 
-    // Build FFmpeg command
+    // Build FFmpeg command with memory optimization flags
     const cmd = [ffmpegPath, '-y'];
+    
+    // Memory optimization: limit input buffer sizes and reduce buffering
+    // Note: thread_queue_size applies to all inputs, keeping it low reduces RAM
+    cmd.push('-thread_queue_size', '512'); // Limit input queue size (default is often 8MB+ per input)
+    cmd.push('-probesize', '32M'); // Limit probe size for format detection
+    cmd.push('-analyzeduration', '10M'); // Limit analysis duration
+    
+    // Additional memory optimizations
+    cmd.push('-fflags', '+genpts+discardcorrupt'); // Generate PTS and discard corrupt frames (reduces buffering)
+    cmd.push('-flags', '+low_delay'); // Low delay mode (reduces buffering)
 
     // Add video inputs
     for (const input of inputs) {
       if (input.isConcat) cmd.push('-f', 'concat', '-safe', '0');
+      // Use -ss before -i for better memory efficiency (FFmpeg can skip decoding)
       if (input.offset > 0) cmd.push('-ss', input.offset.toString());
       cmd.push('-i', input.path);
     }
@@ -289,91 +662,420 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const blackInputIdx = inputs.length;
     cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${w}x${h}:r=${FPS}:d=${durationSec}`);
 
-    // Build filter complex - always use full 6-camera grid
-    const filters = [];
-    const streamTags = [];
+    // Build filter complex - determine which cameras are active for grid
     const activeCamerasForGrid = CAMERA_ORDER.filter(c => selectedCameras.has(c));
 
-    for (let i = 0; i < activeCamerasForGrid.length; i++) {
-      const camera = activeCamerasForGrid[i];
-      const inputIdx = cameraInputMap.get(camera);
-      const hasVideo = inputIdx !== undefined;
-      const srcIdx = hasVideo ? inputIdx : blackInputIdx;
-      const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
-
-      // Force constant frame rate (Tesla cameras use VFR which causes playback issues)
-      let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
-      if (hasVideo && isMirrored) chain += ',hflip';
-      chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
+    // Calculate output dimensions
+    let totalW, totalH, cols, rows;
+    let baseInputIdx = null;
+    
+    if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
+      // Use custom layout - map canvas positions to video coordinates
+      const cameraLayouts = layoutData.cameras;
       
-      filters.push(chain);
-      streamTags.push(`[v${i}]`);
+      // Get card dimensions from layout (all cards have the same size)
+      // This is the size of each card on the canvas
+      const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
+      const cardWidth = firstLayout?.width || 200;
+      const cardHeight = firstLayout?.height || 112;
+      
+      // Scale factors: map canvas card size to native camera size
+      // Each card on the canvas represents one camera at native size (w x h)
+      const scaleX = w / cardWidth; // Map card width to camera width
+      const scaleY = h / cardHeight; // Map card height to camera height
+      
+      // Calculate bounding box: find min position and max position + camera size
+      let minX = Infinity, minY = Infinity;
+      let maxRight = -Infinity, maxBottom = -Infinity;
+      
+      for (const camera of activeCamerasForGrid) {
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        
+        // Position in video coordinates (scale from canvas)
+        const videoX = layout.x * scaleX;
+        const videoY = layout.y * scaleY;
+        
+        // Camera ends at position + native size
+        const cameraRight = videoX + w;
+        const cameraBottom = videoY + h;
+        
+        if (videoX < minX) minX = videoX;
+        if (videoY < minY) minY = videoY;
+        if (cameraRight > maxRight) maxRight = cameraRight;
+        if (cameraBottom > maxBottom) maxBottom = cameraBottom;
+      }
+      
+      // Total output size is from 0 to max (we'll offset positions to start at 0)
+      totalW = Math.ceil(maxRight - minX);
+      totalH = Math.ceil(maxBottom - minY);
+      
+      // Ensure even dimensions for video encoding
+      totalW = totalW + (totalW % 2);
+      totalH = totalH + (totalH % 2);
+      
+      cols = 0; rows = 0; // Not used for custom layout
+      console.log(`📐 Custom layout: ${totalW}x${totalH} (cameras at native ${w}x${h}, card ${cardWidth}x${cardHeight}, scale ${scaleX.toFixed(3)}x/${scaleY.toFixed(3)}y)`);
+      
+      // Add base canvas input for custom layout (after black source)
+      baseInputIdx = inputs.length + 1;
+      cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${totalW}x${totalH}:r=${FPS}:d=${durationSec}`);
+    } else {
+      // Grid layout - calculate grid dimensions and total output resolution
+      const numStreams = activeCamerasForGrid.length;
+      if (numStreams <= 1) { cols = 1; rows = 1; }
+      else if (numStreams === 2) { cols = 2; rows = 1; }
+      else if (numStreams === 3) { cols = 3; rows = 1; }
+      else if (numStreams === 4) { cols = 2; rows = 2; }
+      else { cols = 3; rows = 2; }
+      
+      totalW = w * cols;
+      totalH = h * rows;
     }
 
-    // Grid layout
-    const numStreams = streamTags.length;
-    let cols, rows;
-    if (numStreams <= 1) { cols = 1; rows = 1; }
-    else if (numStreams === 2) { cols = 2; rows = 1; }
-    else if (numStreams === 3) { cols = 3; rows = 1; }
-    else if (numStreams === 4) { cols = 2; rows = 2; }
-    else { cols = 3; rows = 2; }
+        let dashboardWindow = null;
+        // Dashboard input index: after black source (and base canvas if custom layout)
+        const dashboardInputIdx = baseInputIdx !== null ? baseInputIdx + 1 : inputs.length + 1;
+        
+        // Calculate dashboard size based on output resolution
+        const dashboardSize = calculateDashboardSize(totalW, totalH);
+        const dashboardWidth = dashboardSize.width;
+        const dashboardHeight = dashboardSize.height;
 
-    if (numStreams > 1) {
-      const layout = [];
-      for (let i = 0; i < numStreams; i++) {
-        layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
+        if (includeDashboard && seiData && seiData.length > 0) {
+          sendDashboardProgress(0, 'Initializing dashboard renderer...');
+          try {
+            dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight);
+            sendDashboardProgress(5, 'Dashboard renderer ready');
+            console.log(`📊 Dashboard size: ${dashboardWidth}x${dashboardHeight} for output ${totalW}x${totalH}`);
+            
+            // Add dashboard input before filter_complex (FFmpeg requires input order)
+            cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
+                     '-video_size', `${dashboardWidth}x${dashboardHeight}`, 
+                     '-framerate', FPS.toString(),
+                     '-i', 'pipe:3');
+          } catch (err) {
+            sendDashboardProgress(0, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
+            dashboardWindow = null;
+          }
+        }
+
+    const filters = [];
+    const streamTags = [];
+
+    if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
+      // Custom layout using overlay filters (base canvas already added as input)
+      // Cameras use native size (w x h), only positioning comes from layout
+      
+      const cameraLayouts = layoutData.cameras;
+      
+      // Get card dimensions from layout (all cards have the same size)
+      const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
+      const cardWidth = firstLayout?.width || 200;
+      const cardHeight = firstLayout?.height || 112;
+      
+      // Calculate scale factors: map canvas card size to native camera size
+      const scaleX = w / cardWidth;
+      const scaleY = h / cardHeight;
+      
+      // Find minimum positions to offset all cameras (so output starts at 0,0)
+      let minX = Infinity, minY = Infinity;
+      for (const camera of activeCamerasForGrid) {
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        const videoX = layout.x * scaleX;
+        const videoY = layout.y * scaleY;
+        if (videoX < minX) minX = videoX;
+        if (videoY < minY) minY = videoY;
       }
-      filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[out]`);
+      
+      const cameraStreams = [];
+      
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const camera = activeCamerasForGrid[i];
+        const layout = cameraLayouts[camera];
+        if (!layout) continue;
+        
+        const inputIdx = cameraInputMap.get(camera);
+        const hasVideo = inputIdx !== undefined;
+        const srcIdx = hasVideo ? inputIdx : blackInputIdx;
+        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+        
+        // Scale camera to native size (w x h) - exactly like old grid code
+        // Ensure even dimensions
+        const finalW = w + (w % 2);
+        const finalH = h + (h % 2);
+        
+        // Calculate position from canvas layout (scale and offset)
+        const x = Math.round((layout.x * scaleX) - minX);
+        const y = Math.round((layout.y * scaleY) - minY);
+        
+        // Use smoother frame rate conversion
+        // Normalize timestamps, convert frame rate, mirror if needed, scale to target size
+        let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+        chain += `,fps=${FPS}:round=near`; // Smooth frame rate conversion
+        if (hasVideo && isMirrored) chain += ',hflip';
+        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
+        
+        filters.push(chain);
+        cameraStreams.push({ tag: `[v${i}]`, x, y });
+      }
+      
+      // Chain overlays: start with base, overlay each camera in order
+      let currentTag = `[${baseInputIdx}:v]`;
+      for (let i = 0; i < cameraStreams.length; i++) {
+        const stream = cameraStreams[i];
+        const nextTag = i === cameraStreams.length - 1 ? '[grid]' : `[overlay${i}]`;
+        filters.push(`${currentTag}${stream.tag}overlay=${stream.x}:${stream.y}:format=auto${nextTag}`);
+        currentTag = nextTag;
+      }
+      
+      // If no cameras, just copy base to grid
+      if (cameraStreams.length === 0) {
+        filters.push(`[${baseInputIdx}:v]copy[grid]`);
+      }
+      
     } else {
-      filters.push(`${streamTags[0]}copy[out]`);
+      // Grid layout (original code)
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const camera = activeCamerasForGrid[i];
+        const inputIdx = cameraInputMap.get(camera);
+        const hasVideo = inputIdx !== undefined;
+        const srcIdx = hasVideo ? inputIdx : blackInputIdx;
+        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+
+        // Use minterpolate for smoother frame rate conversion to avoid pulsing
+        // fps filter can cause frame drops/duplicates, minterpolate is smoother
+        // Normalize timestamps, convert frame rate, mirror if needed, scale to target size
+        let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+        chain += `,fps=${FPS}:round=near`; // Smooth frame rate conversion
+        if (hasVideo && isMirrored) chain += ',hflip';
+        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
+        
+        filters.push(chain);
+        streamTags.push(`[v${i}]`);
+      }
+      
+      const numStreams = activeCamerasForGrid.length;
+      if (numStreams > 1) {
+        const layout = [];
+        for (let i = 0; i < numStreams; i++) {
+          layout.push(`${(i % cols) * w}_${Math.floor(i / cols) * h}`);
+        }
+        filters.push(`${streamTags.join('')}xstack=inputs=${numStreams}:layout=${layout.join('|')}:fill=black[grid]`);
+      } else {
+        filters.push(`${streamTags[0]}copy[grid]`);
+      }
+    }
+    
+    // Determine if GPU encoding can be used
+    // GPU is only used when: encoder available, not mobile export, resolution within limits, no dashboard overlay
+    const gpuMaxRes = 4096; // Most GPU encoders have 4096px limit on one dimension
+    const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
+    const useGpu = gpuAllowed && !includeDashboard; // Dashboard overlay requires CPU encoding
+
+    // Add dashboard overlay if enabled, otherwise ensure proper pixel format
+    if (dashboardWindow) {
+      filters.push(`[grid][${dashboardInputIdx}:v]overlay=(W-w)/2:H-h-20:format=auto[out]`);
+    } else {
+      filters.push(`[grid]format=yuv420p[out]`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
-    // Calculate total output resolution for GPU limit check
-    const totalW = w * cols;
-    const totalH = h * rows;
-    const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
-    const useGpu = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
-
-    // Encoding settings
+    // Configure video encoder based on GPU availability
     if (useGpu) {
       cmd.push('-c:v', gpu.codec);
+      
       if (gpu.codec === 'h264_nvenc') {
-        cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString());
+        // NVIDIA NVENC: CQP mode prevents quality pulsing/glitches
+        const cq = Math.max(0, Math.min(51, crf));
+        cmd.push('-preset', 'p4', '-rc', 'constqp', '-qp', cq.toString());
+        cmd.push('-g', (FPS * 2).toString()); // Keyframe every 2 seconds
+        cmd.push('-forced-idr', '1');
       } else if (gpu.codec === 'h264_amf') {
-        cmd.push('-quality', 'balanced', '-rc', 'vbr_latency');
+        // AMD AMF: CQP mode with quality preset based on CRF
+        let quality = 'quality';
+        if (crf >= 28) quality = 'speed';
+        else if (crf >= 24) quality = 'balanced';
+        
+        cmd.push('-quality', quality);
+        cmd.push('-rc', 'cqp');
+        cmd.push('-qp_i', Math.max(18, Math.min(46, crf)).toString());
+        cmd.push('-qp_p', Math.max(18, Math.min(46, crf + 2)).toString());
+        cmd.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString());
+        cmd.push('-g', (FPS * 2).toString());
       } else if (gpu.codec === 'h264_videotoolbox') {
+        // Apple VideoToolbox: Quality scale inverted (higher = better)
         cmd.push('-q:v', Math.max(40, 100 - crf * 2).toString());
+        cmd.push('-g', (FPS * 2).toString());
+      } else if (gpu.codec === 'h264_qsv') {
+        // Intel QuickSync: CQP mode
+        const qsvQp = Math.max(18, Math.min(46, crf));
+        cmd.push('-preset', 'balanced');
+        cmd.push('-global_quality', qsvQp.toString());
+        cmd.push('-g', (FPS * 2).toString());
       } else {
+        // Fallback for unknown GPU encoders
+        console.log(`⚠️ Using generic settings for unknown GPU encoder: ${gpu.codec}`);
         cmd.push('-preset', 'fast', '-crf', crf.toString());
+        cmd.push('-g', (FPS * 2).toString());
       }
       console.log(`🎮 Using GPU encoder: ${gpu.name}`);
     } else {
+      // CPU encoding: libx264 with memory-optimized threading
       if (gpu && (totalW > gpuMaxRes || totalH > gpuMaxRes)) {
         console.log(`⚠️ Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
       }
+      const maxThreads = Math.min(4, Math.floor(require('os').cpus().length / 2));
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
+      cmd.push('-threads', maxThreads.toString());
+      cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`);
     }
-
-    cmd.push('-r', FPS.toString(), '-t', durationSec.toString());
-    cmd.push('-movflags', '+faststart'); // Better streaming
-    cmd.push('-pix_fmt', 'yuv420p'); // Compatibility
+    
+    cmd.push('-t', durationSec.toString());
+    cmd.push('-movflags', '+faststart');
+    cmd.push('-pix_fmt', 'yuv420p');
+    
+    // GPU encoders: use constant frame rate to prevent frame drops
+    if (useGpu) {
+      cmd.push('-vsync', 'cfr');
+      cmd.push('-r', FPS.toString());
+    } else {
+      cmd.push('-r', FPS.toString());
+    }
+    // Memory optimization: limit output buffer
+    cmd.push('-max_muxing_queue_size', '1024'); // Limit muxer queue size
     cmd.push(outputPath);
 
     console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
     sendProgress(8, useGpu ? `Exporting with ${gpu.name}...` : 'Exporting with CPU...');
 
     // Execute
-    return new Promise((resolve, reject) => {
-      const proc = spawn(cmd[0], cmd.slice(1));
+    return new Promise(async (resolve, reject) => {
+      const proc = spawn(cmd[0], cmd.slice(1), {
+        stdio: ['pipe', 'pipe', 'pipe', dashboardWindow ? 'pipe' : 'ignore']
+      });
+      // Limit stderr buffer to prevent excessive RAM usage (keep only last 100KB)
       let stderr = '', lastPct = 0;
+      const MAX_STDERR_SIZE = 100 * 1024; // 100KB max
+      
+      // Dashboard frame rendering loop
+      let dashboardPipe = null;
+      if (dashboardWindow && proc.stdio[3]) {
+        dashboardPipe = proc.stdio[3];
+        const frameTimeMs = 1000 / FPS;
+        const totalFrames = Math.ceil(durationSec * FPS);
+        
+        // Helper function to safely write to pipe
+        const safeWrite = (pipe, data) => {
+          if (!pipe || pipe.destroyed || pipe.writableEnded || !pipe.writable) {
+            return false;
+          }
+          try {
+            return pipe.write(data);
+          } catch (err) {
+            // Ignore EPIPE (broken pipe) and EOF errors - pipe was closed
+            if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+              console.error('Pipe write error:', err.message);
+            }
+            return false;
+          }
+        };
+        
+        // Set up pipe error handler
+        dashboardPipe.on('error', (err) => {
+          if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+            console.error('Dashboard pipe error:', err.message);
+          }
+        });
+        
+        (async () => {
+          try {
+            sendDashboardProgress(10, 'Rendering dashboard frames...');
+            const blackFrame = Buffer.alloc(dashboardWidth * dashboardHeight * 4, 0);
+            
+            for (let frame = 0; frame < totalFrames; frame++) {
+              if (proc.killed || proc.exitCode !== null) {
+                break;
+              }
+              
+              if (!dashboardPipe || dashboardPipe.destroyed || dashboardPipe.writableEnded || !dashboardPipe.writable) {
+                break;
+              }
+              
+              // Calculate timestamp for this frame and find matching SEI data
+              const currentTimeMs = startTimeMs + (frame * frameTimeMs);
+              const sei = findSeiAtTime(seiData, currentTimeMs);
+              const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight);
+              
+              if (image) {
+                try {
+                  const rgba = imageToRGBA(image, dashboardWidth, dashboardHeight);
+                  const written = safeWrite(dashboardPipe, rgba);
+                  if (!written && dashboardPipe.writable && !dashboardPipe.destroyed) {
+                    await new Promise(resolve => {
+                      if (dashboardPipe.destroyed || dashboardPipe.writableEnded) {
+                        resolve();
+                        return;
+                      }
+                      dashboardPipe.once('drain', resolve);
+                      setTimeout(resolve, 1000);
+                    });
+                  }
+                } catch (writeErr) {
+                  if (writeErr.code !== 'EPIPE' && writeErr.message !== 'write EOF') {
+                    console.error('Error writing dashboard frame:', writeErr.message);
+                  }
+                  safeWrite(dashboardPipe, blackFrame);
+                }
+              } else {
+                safeWrite(dashboardPipe, blackFrame);
+              }
+              
+              // Update progress: 10-100% range (10% reserved for initialization)
+              if (frame % 100 === 0 && frame > 0) {
+                const renderPct = Math.min(100, 10 + Math.floor((frame / totalFrames) * 90));
+                sendDashboardProgress(renderPct, `Rendering dashboard... ${Math.floor((frame / totalFrames) * 100)}%`);
+              }
+            }
+            
+            sendDashboardProgress(100, 'Dashboard rendering complete');
+            
+            if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
+              try {
+                dashboardPipe.end();
+              } catch {}
+            }
+            
+            if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+              dashboardWindow.close();
+            }
+          } catch (err) {
+            if (err.code !== 'EPIPE' && err.message !== 'write EOF') {
+              console.error('Dashboard rendering error:', err);
+            }
+            if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
+              try {
+                dashboardPipe.end();
+              } catch {}
+            }
+            if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+              dashboardWindow.close();
+            }
+          }
+        })();
+      }
 
       proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-        const match = data.toString().match(/time=(\d+):(\d+):(\d+)/);
+        const dataStr = data.toString();
+        stderr += dataStr;
+        // Limit stderr buffer size to prevent excessive RAM usage
+        if (stderr.length > MAX_STDERR_SIZE) {
+          stderr = stderr.slice(-MAX_STDERR_SIZE);
+        }
+        const match = dataStr.match(/time=(\d+):(\d+):(\d+)/);
         if (match && durationSec > 0) {
           const sec = +match[1] * 3600 + +match[2] * 60 + +match[3];
           const pct = Math.min(95, Math.floor((sec / durationSec) * 100));
@@ -387,6 +1089,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       proc.on('close', (code) => {
         delete activeExports[exportId];
         cleanup();
+        
+        // Clean up dashboard window
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+          dashboardWindow.close();
+        }
 
         if (code === 0) {
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
@@ -401,6 +1108,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       proc.on('error', (err) => {
         cleanup();
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+          dashboardWindow.close();
+        }
         sendComplete(false, `FFmpeg error: ${err.message}`);
         reject(err);
       });
@@ -411,6 +1121,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   } catch (error) {
     console.error('Export error:', error);
     cleanup();
+    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+      dashboardWindow.close();
+    }
     throw error;
   }
 }

@@ -23,6 +23,7 @@ let getState = null;
 let getNativeVideo = null;
 let getBaseFolderPath = null;
 let getProgressBar = null;
+let getFindSeiAtTime = null;
 
 /**
  * Initialize export module with dependencies
@@ -33,6 +34,7 @@ export function initExportModule(deps) {
     getNativeVideo = deps.getNativeVideo;
     getBaseFolderPath = deps.getBaseFolderPath;
     getProgressBar = deps.getProgressBar;
+    getFindSeiAtTime = deps.getFindSeiAtTime;
 }
 
 /**
@@ -190,15 +192,30 @@ export function openExportModal() {
     const modal = $('exportModal');
     if (!modal) return;
     
+    // Show modal first so dimensions are accurate
+    modal.classList.remove('hidden');
+    
     updateExportRangeDisplay();
     checkFFmpegAvailability();
+    
+    // Initialize Layout Lab after modal is visible
+    import('../ui/layoutLab.js').then(({ initLayoutLab }) => {
+        // Wait for next frame to ensure modal is fully rendered
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                initLayoutLab();
+            });
+        });
+    });
     
     const progressEl = $('exportProgress');
     const progressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
+    const dashboardProgressEl = $('dashboardProgress');
     if (progressEl) progressEl.classList.add('hidden');
     if (progressBar) progressBar.style.width = '0%';
     if (progressText) progressText.textContent = 'Preparing...';
+    if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
     
     const filenameInput = $('exportFilename');
     if (filenameInput) {
@@ -213,14 +230,12 @@ export function openExportModal() {
     
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
-    const cameraInputs = document.querySelectorAll('.camera-checkbox input');
+    const cameraInputs = document.querySelectorAll('.camera-toggle input');
     cameraInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     updateExportSizeEstimate();
     
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
-    
-    modal.classList.remove('hidden');
 }
 
 /**
@@ -276,7 +291,7 @@ export function updateExportSizeEstimate() {
     const endPct = exportState.endMarkerPct ?? 100;
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
     
-    const selectedCameras = document.querySelectorAll('.camera-checkbox input:checked');
+    const selectedCameras = document.querySelectorAll('.camera-toggle input:checked');
     const cameraCount = selectedCameras.length || 6;
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
@@ -365,12 +380,21 @@ export async function startExport() {
         return;
     }
     
-    const cameraCheckboxes = document.querySelectorAll('.camera-checkbox input[type="checkbox"]:checked');
+    const cameraCheckboxes = document.querySelectorAll('.camera-toggle input[type="checkbox"]:checked');
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
         notify('Please select at least one camera', { type: 'warn' });
         return;
+    }
+    
+    // Get layout data from Layout Lab
+    let layoutData = null;
+    try {
+        const layoutLab = await import('../ui/layoutLab.js');
+        layoutData = layoutLab.getLayoutData();
+    } catch (err) {
+        console.error('Failed to get layout data:', err);
     }
     
     const filenameInput = $('exportFilename');
@@ -379,6 +403,112 @@ export async function startExport() {
     
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
+    
+    const includeDashboardCheckbox = $('includeDashboard');
+    const includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    
+    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    
+    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
+    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
+    
+    // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
+    // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
+    let seiData = null;
+    if (includeDashboard) {
+        try {
+            const cumStarts = nativeVideo?.cumulativeStarts || [];
+            const groups = state.collection.active.groups || [];
+            const allSeiData = [];
+            
+            if (!window.DashcamMP4 || !window.DashcamHelpers) {
+                throw new Error('Dashcam parser not available');
+            }
+            
+            const DashcamMP4 = window.DashcamMP4;
+            const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
+            
+            // Extract SEI data one segment at a time to minimize RAM usage
+            for (let i = 0; i < groups.length; i++) {
+                const group = groups[i];
+                const segStartMs = (cumStarts[i] || 0) * 1000;
+                const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
+                const segEndMs = segStartMs + segDurationMs;
+                
+                if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
+                    // Prefer front camera for SEI extraction, fallback to any available camera
+                    let entry = group.filesByCamera?.get('front');
+                    if (!entry) {
+                        const firstCamera = group.filesByCamera?.keys().next().value;
+                        entry = firstCamera ? group.filesByCamera?.get(firstCamera) : null;
+                    }
+                    
+                    if (entry?.file) {
+                        try {
+                            let buffer = null;
+                            
+                            // Load file into buffer (one at a time)
+                            if (entry.file?.isElectronFile && entry.file?.path) {
+                                const filePath = entry.file.path;
+                                const fileUrl = filePath.startsWith('/') 
+                                    ? `file://${filePath}` 
+                                    : `file:///${filePath.replace(/\\/g, '/')}`;
+                                const response = await fetch(fileUrl);
+                                buffer = await response.arrayBuffer();
+                            } else if (entry.file instanceof File) {
+                                buffer = await entry.file.arrayBuffer();
+                            } else if (entry.file.path) {
+                                const filePath = entry.file.path;
+                                const fileUrl = filePath.startsWith('/') 
+                                    ? `file://${filePath}` 
+                                    : `file:///${filePath.replace(/\\/g, '/')}`;
+                                const response = await fetch(fileUrl);
+                                buffer = await response.arrayBuffer();
+                            }
+                            
+                            if (buffer) {
+                                // Extract SEI data from this segment
+                                const mp4 = new DashcamMP4(buffer);
+                                const frames = mp4.parseFrames(SeiMetadata);
+                                
+                                // Convert segment-relative timestamps to absolute time
+                                for (const frame of frames) {
+                                    if (frame.sei) {
+                                        allSeiData.push({
+                                            timestampMs: segStartMs + frame.timestamp,
+                                            sei: frame.sei
+                                        });
+                                    }
+                                }
+                                
+                                // Explicitly clear buffer reference to help GC
+                                buffer = null;
+                            }
+                        } catch (err) {
+                            console.warn(`Failed to extract SEI from segment ${i}:`, err);
+                            // Continue with other segments
+                        }
+                    }
+                }
+            }
+            
+            // Sort by timestamp for efficient lookup during rendering
+            allSeiData.sort((a, b) => a.timestampMs - b.timestampMs);
+            
+            if (allSeiData.length > 0) {
+                seiData = allSeiData;
+            } else {
+                notify('No telemetry data available for dashboard overlay. Dashboard will be disabled.', { type: 'warn' });
+                seiData = null; // Clear SEI data if extraction failed
+            }
+        } catch (err) {
+            notify('Failed to extract telemetry data. Dashboard will be disabled.', { type: 'warn' });
+            seiData = null; // Clear SEI data if extraction failed
+        }
+    }
+    // If dashboard is disabled, seiData remains null and no files are loaded into memory
     
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
@@ -389,13 +519,6 @@ export async function startExport() {
         notify('Export cancelled', { type: 'info' });
         return;
     }
-    
-    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    
-    const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
-    const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
     
     const segments = [];
     const groups = state.collection.active.groups || [];
@@ -438,11 +561,23 @@ export async function startExport() {
     const progressEl = $('exportProgress');
     const exportProgressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
+    const dashboardProgressEl = $('dashboardProgress');
+    const dashboardProgressBar = $('dashboardProgressBar');
+    const dashboardProgressText = $('dashboardProgressText');
     const startBtn = $('startExportBtn');
     
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
     if (progressText) progressText.textContent = 'Starting export...';
+    
+    if (includeDashboard && dashboardProgressEl) {
+        dashboardProgressEl.classList.remove('hidden');
+        if (dashboardProgressBar) dashboardProgressBar.style.width = '0%';
+        if (dashboardProgressText) dashboardProgressText.textContent = 'Waiting...';
+    } else {
+        if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+    }
+    
     if (startBtn) startBtn.disabled = true;
     
     const exportId = `export_${Date.now()}`;
@@ -456,6 +591,9 @@ export async function startExport() {
             if (progress.type === 'progress') {
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
                 if (progressText) progressText.textContent = progress.message;
+            } else if (progress.type === 'dashboard-progress') {
+                if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
+                if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
@@ -463,6 +601,8 @@ export async function startExport() {
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
                     if (progressText) progressText.textContent = progress.message;
+                    if (dashboardProgressBar) dashboardProgressBar.style.width = '100%';
+                    if (dashboardProgressText) dashboardProgressText.textContent = 'Complete';
                     notify(progress.message, { type: 'success' });
                     
                     setTimeout(() => {
@@ -488,10 +628,13 @@ export async function startExport() {
             outputPath,
             cameras,
             baseFolderPath,
-            quality
+            quality,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
+            seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
+            layoutData: layoutData || null
         };
         
-        console.log('Starting export with data:', exportData);
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {
         console.error('Export error:', err);

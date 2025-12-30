@@ -3,6 +3,8 @@
  * Handles zooming and panning in focused multi-camera view
  */
 
+import { getEffectiveSlots } from '../features/cameraRearrange.js';
+
 // Zoom/Pan state
 export const zoomPanState = {
     zoom: 1,
@@ -20,6 +22,92 @@ export const zoomPanState = {
 // Dependencies set via init
 let getMultiCamGrid = null;
 let getState = null;
+
+/**
+ * Check if a camera should be mirrored (Back, Left/Right Repeater cameras)
+ */
+function shouldMirrorCamera(camera) {
+    return camera === 'back' || camera === 'left_repeater' || camera === 'right_repeater';
+}
+
+/**
+ * Get the camera assigned to a slot
+ */
+function getCameraForSlot(slot) {
+    const effectiveSlots = getEffectiveSlots();
+    const slotDef = effectiveSlots.find(s => s.slot === slot);
+    return slotDef?.camera;
+}
+
+/**
+ * Apply mirror transform to all video elements based on their camera assignments
+ */
+export function applyMirrorTransforms() {
+    const multiCamGrid = getMultiCamGrid?.();
+    if (!multiCamGrid) return;
+    
+    const effectiveSlots = getEffectiveSlots();
+    
+    // Map of slot to camera
+    const slotToCamera = {};
+    effectiveSlots.forEach(({ slot, camera }) => {
+        slotToCamera[slot] = camera;
+    });
+    
+    // Apply to regular tiles
+    multiCamGrid.querySelectorAll('.multi-tile').forEach(tile => {
+        const slot = tile.getAttribute('data-slot');
+        const camera = slotToCamera[slot];
+        const media = tile.querySelector('video, canvas');
+        
+        if (media && camera) {
+            const needsMirror = shouldMirrorCamera(camera);
+            if (needsMirror && !media.classList.contains('mirrored')) {
+                media.classList.add('mirrored');
+                // Apply base mirror transform if not zoomed
+                if (!tile.classList.contains('zoomed')) {
+                    media.style.transform = 'scaleX(-1)';
+                }
+            } else if (!needsMirror && media.classList.contains('mirrored')) {
+                media.classList.remove('mirrored');
+                if (!tile.classList.contains('zoomed')) {
+                    media.style.transform = '';
+                }
+            }
+        }
+    });
+    
+    // Apply to immersive overlays (overlay slots map to base slots: overlay_tl -> tl, overlay_bl -> bl, etc.)
+    const overlaySlotMap = {
+        'overlay_tl': 'tl',
+        'overlay_tr': 'tr',
+        'overlay_bl': 'bl',
+        'overlay_bc': 'bc',
+        'overlay_br': 'br'
+    };
+    
+    multiCamGrid.querySelectorAll('.immersive-overlay').forEach(overlay => {
+        const overlaySlot = overlay.getAttribute('data-slot');
+        const baseSlot = overlaySlotMap[overlaySlot];
+        const camera = baseSlot ? slotToCamera[baseSlot] : null;
+        const media = overlay.querySelector('video, canvas');
+        
+        if (media && camera) {
+            const needsMirror = shouldMirrorCamera(camera);
+            if (needsMirror && !media.classList.contains('mirrored')) {
+                media.classList.add('mirrored');
+                if (!overlay.classList.contains('zoomed')) {
+                    media.style.transform = 'scaleX(-1)';
+                }
+            } else if (!needsMirror && media.classList.contains('mirrored')) {
+                media.classList.remove('mirrored');
+                if (!overlay.classList.contains('zoomed')) {
+                    media.style.transform = '';
+                }
+            }
+        }
+    });
+}
 
 /**
  * Initialize zoom/pan module with dependencies
@@ -46,7 +134,12 @@ export function resetZoomPan() {
         tile.classList.remove('zoomed');
         const media = tile.querySelector('video, canvas');
         if (media) {
-            media.style.transform = '';
+            // Preserve mirror transform if this video should be mirrored
+            if (media.classList.contains('mirrored')) {
+                media.style.transform = 'scaleX(-1)';
+            } else {
+                media.style.transform = '';
+            }
             media.classList.remove('panning');
         }
         const indicator = tile.querySelector('.zoom-indicator');
@@ -72,7 +165,46 @@ export function applyZoomPan() {
     const media = focusedTile.querySelector('video, canvas');
     if (!media) return;
     
-    media.style.transform = `scale(${zoomPanState.zoom}) translate(${zoomPanState.panX}px, ${zoomPanState.panY}px)`;
+    // Check if this camera should be mirrored
+    const slot = focusedTile.getAttribute('data-slot');
+    // Handle immersive overlay slots (map to base slots)
+    const overlaySlotMap = {
+        'overlay_tl': 'tl',
+        'overlay_tr': 'tr',
+        'overlay_bl': 'bl',
+        'overlay_bc': 'bc',
+        'overlay_br': 'br'
+    };
+    const baseSlot = overlaySlotMap[slot] || slot;
+    const camera = getCameraForSlot(baseSlot);
+    const needsMirror = camera && shouldMirrorCamera(camera);
+    
+    // Build transform string
+    // CSS transforms are applied right-to-left, so to get: mirror -> zoom -> pan
+    // we need to write: translate -> scale -> scaleX(-1)
+    let transform = '';
+    if (zoomPanState.zoom > 1 || zoomPanState.panX !== 0 || zoomPanState.panY !== 0) {
+        // Apply zoom and pan transforms
+        transform = `translate(${zoomPanState.panX}px, ${zoomPanState.panY}px) scale(${zoomPanState.zoom})`;
+        // Add mirror at the end (applied first visually) if needed
+        if (needsMirror) {
+            transform += ' scaleX(-1)';
+        }
+    } else {
+        // No zoom/pan, just mirror if needed
+        if (needsMirror) {
+            transform = 'scaleX(-1)';
+        }
+    }
+    
+    media.style.transform = transform;
+    
+    // Track mirror state for reset
+    if (needsMirror) {
+        media.classList.add('mirrored');
+    } else {
+        media.classList.remove('mirrored');
+    }
     
     if (zoomPanState.zoom > 1) {
         focusedTile.classList.add('zoomed');
