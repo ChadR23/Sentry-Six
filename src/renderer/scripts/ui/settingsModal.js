@@ -5,6 +5,46 @@
 
 import { initKeybindSettings } from '../lib/keybinds.js';
 
+/**
+ * Initialize modal tabs functionality
+ * @param {HTMLElement} modal - The modal element containing tabs
+ */
+function initModalTabs(modal) {
+    if (!modal) return;
+    
+    const tabs = modal.querySelectorAll('.modal-tab');
+    const contents = modal.querySelectorAll('.modal-tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+            
+            // Update active tab
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Update active content
+            contents.forEach(c => {
+                c.classList.toggle('active', c.dataset.tab === targetTab);
+            });
+        });
+    });
+}
+
+/**
+ * Initialize collapsible sections
+ */
+export function initCollapsibleSections() {
+    document.querySelectorAll('.collapsible-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const section = header.closest('.collapsible-section');
+            if (section) {
+                section.classList.toggle('open');
+            }
+        });
+    });
+}
+
 // DOM helper
 const $ = id => document.getElementById(id);
 
@@ -36,6 +76,13 @@ export function initSettingsModal() {
     
     const settingsBtn = $('settingsBtn');
     const settingsModal = $('settingsModal');
+    
+    // Initialize tabs
+    initModalTabs(settingsModal);
+    
+    // Initialize collapsible sections (for export modal)
+    initCollapsibleSections();
+    
     const closeSettingsModal = $('closeSettingsModal');
     const closeSettingsBtn = $('closeSettingsBtn');
     
@@ -293,6 +340,15 @@ export function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('glassBlur', parseInt(this.value, 10));
             }
+        });
+    }
+    
+    // Include Dashboard toggle in export modal - show/hide options
+    const includeDashboard = document.getElementById('includeDashboard');
+    const dashboardOptions = document.getElementById('dashboardOptions');
+    if (includeDashboard && dashboardOptions) {
+        includeDashboard.addEventListener('change', () => {
+            dashboardOptions.classList.toggle('hidden', !includeDashboard.checked);
         });
     }
     

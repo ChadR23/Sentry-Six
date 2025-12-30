@@ -205,12 +205,23 @@ export function openExportModal() {
     updateExportRangeDisplay();
     checkFFmpegAvailability();
     
-    // Initialize Layout Lab after modal is visible
+    // Initialize Layout Lab and collapsible sections after modal is visible
     import('../ui/layoutLab.js').then(({ initLayoutLab }) => {
         // Wait for next frame to ensure modal is fully rendered
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 initLayoutLab();
+                
+                // Initialize collapsible sections
+                modal.querySelectorAll('.collapsible-header').forEach(header => {
+                    // Remove existing listener to avoid duplicates
+                    const newHeader = header.cloneNode(true);
+                    header.parentNode.replaceChild(newHeader, header);
+                    newHeader.addEventListener('click', () => {
+                        const section = newHeader.closest('.collapsible-section');
+                        if (section) section.classList.toggle('open');
+                    });
+                });
             });
         });
     });
@@ -224,20 +235,18 @@ export function openExportModal() {
     if (progressText) progressText.textContent = 'Preparing...';
     if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
     
-    const filenameInput = $('exportFilename');
-    if (filenameInput) {
-        const date = new Date().toISOString().slice(0, 10);
-        const collName = state.collection.active?.label || 'export';
-        const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-        filenameInput.value = `tesla_${safeName}_${date}`;
-    }
+    // Generate default filename (used when saving via dialog)
+    const date = new Date().toISOString().slice(0, 10);
+    const collName = state.collection.active?.label || 'export';
+    const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+    exportState.defaultFilename = `tesla_${safeName}_${date}.mp4`;
     
     const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
     if (highQuality) highQuality.checked = true;
     
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
-    const cameraInputs = document.querySelectorAll('.camera-toggle input');
+    const cameraInputs = document.querySelectorAll('.option-card input[data-camera]');
     cameraInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     updateExportSizeEstimate();
     
@@ -306,7 +315,7 @@ export function updateExportSizeEstimate() {
     const endPct = exportState.endMarkerPct ?? 100;
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
     
-    const selectedCameras = document.querySelectorAll('.camera-toggle input:checked');
+    const selectedCameras = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameraCount = selectedCameras.length || 6;
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
@@ -460,7 +469,7 @@ export async function startExport() {
         return;
     }
     
-    const cameraCheckboxes = document.querySelectorAll('.camera-toggle input[type="checkbox"]:checked');
+    const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
@@ -477,9 +486,8 @@ export async function startExport() {
         console.error('Failed to get layout data:', err);
     }
     
-    const filenameInput = $('exportFilename');
-    let filename = filenameInput?.value?.trim() || `tesla_export_${new Date().toISOString().slice(0, 10)}`;
-    if (!filename.toLowerCase().endsWith('.mp4')) filename += '.mp4';
+    // Use the default filename generated when modal opened
+    let filename = exportState.defaultFilename || `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`;
     
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';

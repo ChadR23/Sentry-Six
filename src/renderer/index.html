@@ -353,163 +353,179 @@
     <div id="exportModal" class="modal hidden">
         <div class="modal-content export-modal">
             <div class="modal-header">
-                <h2>Export Video</h2>
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Export Video
+                </h2>
                 <button id="closeExportModal" class="modal-close">&times;</button>
             </div>
-            <div class="modal-body">
-                <!-- Export Range -->
-                <div class="export-section">
-                    <h3>Export Range</h3>
-                    <div class="export-range-info">
-                        <div class="range-item">
-                            <span class="range-label">Start:</span>
-                            <span id="exportStartTime" class="range-value">--:--</span>
+            <div class="modal-body modal-body-padded">
+                <!-- Export Range - Always visible -->
+                <div class="modal-section">
+                    <div class="stat-row">
+                        <div class="stat-item">
+                            <div class="stat-label">Start</div>
+                            <div id="exportStartTime" class="stat-value">--:--</div>
                         </div>
-                        <div class="range-item">
-                            <span class="range-label">End:</span>
-                            <span id="exportEndTime" class="range-value">--:--</span>
+                        <div class="stat-item">
+                            <div class="stat-label">End</div>
+                            <div id="exportEndTime" class="stat-value">--:--</div>
                         </div>
-                        <div class="range-item">
-                            <span class="range-label">Duration:</span>
-                            <span id="exportDuration" class="range-value">--:--</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Layout Lab -->
-                <div class="export-section">
-                    <h3>Layout Lab</h3>
-                    <div class="layout-lab-container">
-                        <!-- Camera Selection Toggles -->
-                        <div class="camera-selection-toggles">
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="left_pillar" checked>
-                                <span>Left Pillar</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="front" checked>
-                                <span>Front</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="right_pillar" checked>
-                                <span>Right Pillar</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="left_repeater" checked>
-                                <span>Left Repeater</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="back" checked>
-                                <span>Back</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" data-camera="right_repeater" checked>
-                                <span>Right Repeater</span>
-                            </label>
-                        </div>
-                        <!-- Layout Canvas -->
-                        <div class="layout-canvas-container">
-                            <div id="layoutCanvas" class="layout-canvas">
-                                <!-- Camera cards will be dynamically added here -->
-                            </div>
-                        </div>
-                        <div class="layout-hint">Drag cards to reposition • Cards snap to edges and other cards</div>
-                    </div>
-                </div>
-
-                <!-- Export Quality -->
-                <div class="export-section">
-                    <h3>Quality</h3>
-                    <div class="export-quality-options">
-                        <label class="quality-option">
-                            <input type="radio" name="exportQuality" value="mobile">
-                            <div class="quality-info">
-                                <span class="quality-name">Mobile</span>
-                                <span class="quality-desc">484×314 per cam</span>
-                            </div>
-                        </label>
-                        <label class="quality-option">
-                            <input type="radio" name="exportQuality" value="medium">
-                            <div class="quality-info">
-                                <span class="quality-name">Medium</span>
-                                <span class="quality-desc">724×469 per cam</span>
-                            </div>
-                        </label>
-                        <label class="quality-option">
-                            <input type="radio" name="exportQuality" value="high" checked>
-                            <div class="quality-info">
-                                <span class="quality-name">High</span>
-                                <span class="quality-desc">1086×704 per cam</span>
-                            </div>
-                        </label>
-                        <label class="quality-option">
-                            <input type="radio" name="exportQuality" value="max">
-                            <div class="quality-info">
-                                <span class="quality-name">Maximum</span>
-                                <span class="quality-desc">1448×938 per cam</span>
-                            </div>
-                        </label>
-                    </div>
-                    <div id="exportSizeEstimate" class="export-size-estimate"></div>
-                    <div id="maxQualityWarning" class="export-warning hidden">
-                        <span class="warning-icon">ℹ️</span>
-                        <span class="warning-text">Maximum quality may use HEVC (H.265) encoding for GPU acceleration at high resolutions. If no HEVC GPU encoder is available, CPU encoding will be used.</span>
-                    </div>
-                    <div id="frontCamWarning" class="export-warning hidden">
-                        <span class="warning-icon">⚠️</span>
-                        <span class="warning-text">Front camera will be scaled down to match other cameras. Select only Front for full 2896×1876 quality.</span>
-                    </div>
-                </div>
-
-                <!-- Telemetry Dashboard -->
-                <div class="export-section">
-                    <div class="export-option-warning-container">
-                        <label class="export-option">
-                            <input type="checkbox" id="includeDashboard">
-                            <span>Include Telemetry Dashboard</span>
-                        </label>
-                        <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay</div>
-                        
-                        <!-- Dashboard Options (shown when checkbox is checked) -->
-                        <div id="dashboardOptions" class="dashboard-options hidden">
-                            <div class="dashboard-option-row">
-                                <label for="dashboardPosition">Position:</label>
-                                <select id="dashboardPosition" class="dashboard-select">
-                                    <option value="bottom-center">Bottom Center</option>
-                                    <option value="bottom-left">Bottom Left</option>
-                                    <option value="bottom-right">Bottom Right</option>
-                                    <option value="top-center">Top Center</option>
-                                    <option value="top-left">Top Left</option>
-                                    <option value="top-right">Top Right</option>
-                                </select>
-                            </div>
-                            <div class="dashboard-option-row">
-                                <label for="dashboardSize">Size:</label>
-                                <select id="dashboardSize" class="dashboard-select">
-                                    <option value="small">Small (20%)</option>
-                                    <option value="medium" selected>Medium (30%)</option>
-                                    <option value="large">Large (40%)</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="export-option-warning-text">
-                            <span class="warning-icon">ℹ️</span>
-                            <span>Dashboard is pre-rendered before export for optimal performance.</span>
+                        <div class="stat-item">
+                            <div class="stat-label">Duration</div>
+                            <div id="exportDuration" class="stat-value">--:--</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Filename -->
-                <div class="export-section">
-                    <h3>Filename</h3>
-                    <input type="text" id="exportFilename" class="export-filename-input" placeholder="Enter filename...">
+                <!-- Layout Lab - Collapsible -->
+                <div class="collapsible-section open" data-section="layout">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Layout</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <div class="option-grid option-grid-3" style="margin-bottom: 10px;">
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="left_pillar" checked>
+                                    <span class="option-card-label">L Pillar</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="front" checked>
+                                    <span class="option-card-label">Front</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="right_pillar" checked>
+                                    <span class="option-card-label">R Pillar</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="left_repeater" checked>
+                                    <span class="option-card-label">L Repeater</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="back" checked>
+                                    <span class="option-card-label">Back</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="right_repeater" checked>
+                                    <span class="option-card-label">R Repeater</span>
+                                </label>
+                            </div>
+                            <div class="layout-canvas-container">
+                                <div id="layoutCanvas" class="layout-canvas"></div>
+                            </div>
+                            <div class="layout-hint">Drag to reposition • Cards snap to edges</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality - Collapsible -->
+                <div class="collapsible-section open" data-section="quality">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Quality</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <div class="option-grid">
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="mobile">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Mobile</span>
+                                        <span class="option-card-desc">484×314</span>
+                                    </div>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="medium">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Medium</span>
+                                        <span class="option-card-desc">724×469</span>
+                                    </div>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="high" checked>
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">High</span>
+                                        <span class="option-card-desc">1086×704</span>
+                                    </div>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="max">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Maximum</span>
+                                        <span class="option-card-desc">1448×938</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div id="exportSizeEstimate" class="info-box info-blue" style="margin-top: 10px;"></div>
+                            <div id="maxQualityWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">ℹ️</span>
+                                <span>Maximum quality uses HEVC encoding if GPU available.</span>
+                            </div>
+                            <div id="frontCamWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">⚠️</span>
+                                <span>Front camera will be scaled down to match other cameras.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard - Collapsible -->
+                <div class="collapsible-section" data-section="dashboard">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Telemetry Overlay</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Include Dashboard</span>
+                                    <span class="toggle-row-desc">Burn-in speed, gear, and telemetry</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="includeDashboard">
+                                    <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                </div>
+                            </label>
+                            <div id="dashboardOptions" class="hidden" style="margin-top: 10px;">
+                                <div class="option-grid">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Position</label>
+                                        <select id="dashboardPosition" class="text-input" style="padding: 6px 10px;">
+                                            <option value="bottom-center">Bottom Center</option>
+                                            <option value="bottom-left">Bottom Left</option>
+                                            <option value="bottom-right">Bottom Right</option>
+                                            <option value="top-center">Top Center</option>
+                                            <option value="top-left">Top Left</option>
+                                            <option value="top-right">Top Right</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Size</label>
+                                        <select id="dashboardSize" class="text-input" style="padding: 6px 10px;">
+                                            <option value="small">Small (20%)</option>
+                                            <option value="medium" selected>Medium (30%)</option>
+                                            <option value="large">Large (40%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="info-box info-blue" style="margin-top: 10px;">
+                                <span class="info-box-icon">ℹ️</span>
+                                <span>Dashboard is pre-rendered for optimal performance.</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- FFmpeg Status -->
-                <div class="export-section">
-                    <div id="ffmpegStatus" class="ffmpeg-status">
-                        <span class="status-icon">⏳</span>
+                <div class="modal-section" style="margin-top: 6px;">
+                    <div id="ffmpegStatus" class="info-box info-green">
+                        <span class="info-box-icon">⏳</span>
                         <span class="status-text">Checking FFmpeg...</span>
                     </div>
                 </div>
@@ -522,7 +538,6 @@
                     <div id="exportProgressText" class="progress-text">Preparing...</div>
                 </div>
                 
-                <!-- Dashboard Rendering Progress (only shown when dashboard is enabled) -->
                 <div id="dashboardProgress" class="export-progress hidden">
                     <div class="progress-bar-container">
                         <div id="dashboardProgressBar" class="progress-bar-fill"></div>
@@ -541,262 +556,296 @@
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content settings-modal">
             <div class="modal-header">
-                <h2>⚙️ Settings</h2>
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                    </svg>
+                    Settings
+                </h2>
                 <button id="closeSettingsModal" class="modal-close">&times;</button>
             </div>
+            
+            <!-- Tabs -->
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="general">General</button>
+                <button class="modal-tab" data-tab="shortcuts">Shortcuts</button>
+                <button class="modal-tab" data-tab="advanced">Advanced</button>
+            </div>
+            
             <div class="modal-body">
-                <!-- Display Settings -->
-                <div class="settings-section">
-                    <h3>Display</h3>
-                    <div class="settings-grid">
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Dashboard</span>
-                                <span class="settings-toggle-desc">Show speed, gear, steering and telemetry overlay</span>
-                            </span>
-                            <input type="checkbox" id="settingsDashboardToggle" checked>
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <!-- General Tab -->
+                <div class="modal-tab-content active" data-tab="general">
+                    <!-- Display Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Display</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Dashboard Overlay</span>
+                                <span class="toggle-row-desc">Speed, gear, steering and telemetry</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsDashboardToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Map</span>
-                                <span class="settings-toggle-desc">Show GPS route map overlay</span>
-                            </span>
-                            <input type="checkbox" id="settingsMapToggle" checked>
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">GPS Map</span>
+                                <span class="toggle-row-desc">Show route map overlay</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMapToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
-                        <div class="settings-slider">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Glass Blur</span>
-                                <span class="settings-toggle-desc">Adjust dashboard blur (0-20px)</span>
-                            </span>
-                            <div class="slider-control">
+                        <div class="slider-row">
+                            <div class="slider-row-info">
+                                <span class="slider-row-label">Glass Blur</span>
+                                <span class="slider-row-desc">Panel blur intensity</span>
+                            </div>
+                            <div class="slider-row-control">
                                 <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
-                                <span id="glassBlurValue" class="slider-value">7px</span>
+                                <span id="glassBlurValue" class="slider-row-value">7px</span>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Units Settings -->
-                <div class="settings-section">
-                    <h3>Units</h3>
-                    <div class="settings-grid">
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Use Metric (KM/H)</span>
-                                <span class="settings-toggle-desc">Display speed in kilometers per hour instead of miles per hour</span>
-                            </span>
-                            <input type="checkbox" id="settingsMetricToggle">
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                    
+                    <!-- Units Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Units</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Metric Units (KM/H)</span>
+                                <span class="toggle-row-desc">Use kilometers per hour</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMetricToggle">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
                     </div>
-                </div>
-
-                <!-- Default Folder -->
-                <div class="settings-section">
-                    <h3>Default TeslaCam Folder</h3>
-                    <p class="settings-section-desc">Set a default folder to automatically load on startup</p>
-                    <div class="folder-path-input">
-                        <input type="text" id="defaultFolderPath" class="settings-text-input" placeholder="No default folder set" readonly>
-                        <button id="browseDefaultFolderBtn" class="btn btn-secondary">Browse</button>
-                        <button id="clearDefaultFolderBtn" class="btn btn-secondary" title="Clear default folder">✕</button>
+                    
+                    <!-- Default Folder Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Default TeslaCam Folder</div>
+                        <div class="modal-section-desc">Auto-load this folder on startup</div>
+                        <div class="input-row">
+                            <input type="text" id="defaultFolderPath" class="text-input" placeholder="No folder set" readonly>
+                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small">Browse</button>
+                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
+                        </div>
+                        <div id="defaultFolderStatus" class="folder-status"></div>
                     </div>
-                    <div id="defaultFolderStatus" class="folder-status"></div>
                 </div>
-
-                <!-- Keyboard Shortcuts -->
-                <div class="settings-section">
-                    <h3>Keyboard Shortcuts</h3>
-                    <p class="settings-section-desc">Click on a field and press any key to set a shortcut</p>
-                    <div class="keybind-grid">
-                        <div class="keybind-row">
+                
+                <!-- Shortcuts Tab -->
+                <div class="modal-tab-content" data-tab="shortcuts">
+                    <div class="modal-section">
+                        <div class="modal-section-title">Keyboard Shortcuts</div>
+                        <div class="modal-section-desc">Click a field and press any key</div>
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Play / Pause</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="playPause" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Skip Forward 15s</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Skip Backward 15s</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Toggle Dashboard</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleDash" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Toggle Map</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMap" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Toggle MPH / KMH</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMetric" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row">
+                        <div class="keybind-row-compact">
                             <span class="keybind-label">Toggle Clips Panel</span>
                             <div class="keybind-input-wrapper">
-                                <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="Not set" readonly>
+                                <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer settings-footer">
-                <button id="advancedSettingsToggle" class="btn btn-secondary advanced-toggle">
-                    <span class="advanced-toggle-text">Advanced</span>
-                    <svg class="advanced-toggle-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M7 10l5 5 5-5z"/>
-                    </svg>
-                </button>
-                <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
-            </div>
-            
-            <!-- Advanced Settings (hidden by default) -->
-            <div id="advancedSettingsSection" class="advanced-settings-section hidden">
-                <div class="settings-section">
-                    <h3>Advanced</h3>
-                    <div class="settings-grid">
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Disable Auto-Update Check</span>
-                                <span class="settings-toggle-desc">Prevent automatic update checking on app launch</span>
-                            </span>
-                            <input type="checkbox" id="settingsDisableAutoUpdate">
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                
+                <!-- Advanced Tab -->
+                <div class="modal-tab-content" data-tab="advanced">
+                    <div class="modal-section">
+                        <div class="modal-section-title">Updates</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Disable Auto-Update</span>
+                                <span class="toggle-row-desc">Don't check for updates on launch</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsDisableAutoUpdate">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Sentry Event Camera Glow</span>
-                                <span class="settings-toggle-desc">Show red pulsing glow on the camera that triggered Sentry events</span>
-                            </span>
-                            <input type="checkbox" id="settingsSentryCameraHighlight" checked>
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <div class="modal-section-title">Event Highlights</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Sentry Camera Glow</span>
+                                <span class="toggle-row-desc">Red glow on triggered camera</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSentryCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
-                        <label class="settings-toggle">
-                            <span class="settings-toggle-info">
-                                <span class="settings-toggle-label">Saved Event Camera Glow</span>
-                                <span class="settings-toggle-desc">Show yellow pulsing glow on the camera that triggered Saved events</span>
-                            </span>
-                            <input type="checkbox" id="settingsSavedCameraHighlight" checked>
-                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Saved Camera Glow</span>
+                                <span class="toggle-row-desc">Yellow glow on triggered camera</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSavedCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
                         </label>
-                        <div class="settings-action-row">
-                            <span class="settings-action-info">
-                                <span class="settings-action-label">Camera Layout</span>
-                                <span class="settings-action-desc">Reset cameras to their default grid positions</span>
-                            </span>
-                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small">Reset Order</button>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <div class="modal-section-title">Camera Layout</div>
+                        <div class="action-row">
+                            <div class="action-row-info">
+                                <span class="action-row-label">Reset Camera Order</span>
+                                <span class="action-row-desc">Restore default grid positions</span>
+                            </div>
+                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small">Reset</button>
                         </div>
                     </div>
                 </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
             </div>
         </div>
     </div>
 
     <!-- Developer Settings Modal -->
     <div id="devSettingsModal" class="modal hidden">
-        <div class="modal-content settings-modal dev-settings-modal">
+        <div class="modal-content dev-modal">
             <div class="modal-header">
-                <h2>🛠️ Developer Settings</h2>
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #ff9800;">
+                        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                    </svg>
+                    Developer
+                </h2>
                 <button id="closeDevSettingsModal" class="modal-close">&times;</button>
             </div>
-            <div class="modal-body">
-                <div class="settings-section">
-                    <h3>Debug Tools</h3>
-                    <div class="dev-settings-grid">
-                        <button id="devOpenConsole" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">🔧</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Open DevTools</span>
-                                <span class="dev-btn-desc">Open Chrome Developer Tools console</span>
-                            </span>
+            <div class="modal-body modal-body-padded">
+                <div class="modal-section">
+                    <div class="modal-section-title">Debug Tools</div>
+                    <div class="dev-grid">
+                        <button id="devOpenConsole" class="dev-card">
+                            <span class="dev-card-icon">🔧</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Open DevTools</span>
+                                <span class="dev-card-desc">Chrome Developer Tools</span>
+                            </div>
                         </button>
-                        <button id="devResetSettings" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">🗑️</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Reset Settings</span>
-                                <span class="dev-btn-desc">Delete settings.json and restore defaults</span>
-                            </span>
-                        </button>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <h3>Version Override</h3>
-                    <div class="dev-settings-grid">
-                        <button id="devForceLatest" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">⏩</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Force Version to Latest</span>
-                                <span class="dev-btn-desc">Mark current version as latest (bypass updates)</span>
-                            </span>
-                        </button>
-                        <button id="devSetTesting" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">🧪</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Set Version to "Testing"</span>
-                                <span class="dev-btn-desc">Set version string to "Testing" for development</span>
-                            </span>
+                        <button id="devResetSettings" class="dev-card">
+                            <span class="dev-card-icon">🗑️</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reset Settings</span>
+                                <span class="dev-card-desc">Restore defaults</span>
+                            </div>
                         </button>
                     </div>
                 </div>
-                <div class="settings-section">
-                    <h3>Export Testing</h3>
-                    <div class="dev-settings-grid">
-                        <label class="dev-toggle-btn">
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Version Override</div>
+                    <div class="dev-grid">
+                        <button id="devForceLatest" class="dev-card">
+                            <span class="dev-card-icon">⏩</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Force Latest</span>
+                                <span class="dev-card-desc">Bypass update check</span>
+                            </div>
+                        </button>
+                        <button id="devSetTesting" class="dev-card">
+                            <span class="dev-card-icon">🧪</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Set "Testing"</span>
+                                <span class="dev-card-desc">Trigger update prompt</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Export Testing</div>
+                    <label class="toggle-row">
+                        <div class="toggle-row-info">
+                            <span class="toggle-row-label">Fake No GPU</span>
+                            <span class="toggle-row-desc">Simulate CPU-only encoding mode</span>
+                        </div>
+                        <div class="toggle-switch">
                             <input type="checkbox" id="devFakeNoGpu">
-                            <span class="dev-btn-icon">🎮</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Fake No GPU</span>
-                                <span class="dev-btn-desc">Simulate no GPU encoder for testing CPU-only mode</span>
-                            </span>
-                        </label>
-                    </div>
+                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                        </div>
+                    </label>
                 </div>
-                <div class="settings-section">
-                    <h3>Diagnostics</h3>
-                    <div class="dev-settings-grid">
-                        <button id="devShowPaths" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">📁</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Show App Paths</span>
-                                <span class="dev-btn-desc">Display userData, settings, and version file paths</span>
-                            </span>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Diagnostics</div>
+                    <div class="dev-grid">
+                        <button id="devShowPaths" class="dev-card">
+                            <span class="dev-card-icon">📁</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">App Paths</span>
+                                <span class="dev-card-desc">Show file locations</span>
+                            </div>
                         </button>
-                        <button id="devReloadApp" class="btn btn-secondary dev-btn">
-                            <span class="dev-btn-icon">🔄</span>
-                            <span class="dev-btn-text">
-                                <span class="dev-btn-label">Reload Application</span>
-                                <span class="dev-btn-desc">Force reload the renderer process</span>
-                            </span>
+                        <button id="devReloadApp" class="dev-card">
+                            <span class="dev-card-icon">🔄</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reload App</span>
+                                <span class="dev-card-desc">Force renderer reload</span>
+                            </div>
                         </button>
                     </div>
                 </div>
-                <div id="devOutput" class="dev-output hidden">
+                
+                <div id="devOutput" class="dev-output-box hidden">
                     <pre id="devOutputText"></pre>
                 </div>
             </div>
-            <div class="modal-footer settings-footer">
+            <div class="modal-footer">
                 <button id="closeDevSettingsBtn" class="btn btn-primary">Close</button>
             </div>
         </div>

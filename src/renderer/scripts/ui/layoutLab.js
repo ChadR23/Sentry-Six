@@ -25,7 +25,7 @@ export const layoutState = {
  */
 export function initLayoutLab() {
     const canvas = document.getElementById('layoutCanvas');
-    const toggles = document.querySelectorAll('.camera-toggle input[type="checkbox"]');
+    const toggles = document.querySelectorAll('.option-card input[data-camera]');
     
     if (!canvas) return;
     
@@ -111,7 +111,7 @@ function updateCanvas() {
     const canvas = document.getElementById('layoutCanvas');
     if (!canvas || layoutState.canvasWidth === 0) return; // Wait for canvas to be initialized
     
-    const checkedCameras = Array.from(document.querySelectorAll('.camera-toggle input:checked'))
+    const checkedCameras = Array.from(document.querySelectorAll('.option-card input[data-camera]:checked'))
         .map(cb => cb.dataset.camera);
     
     // Check if we're going from 0 cameras to having cameras (reset all positions)
