@@ -1,0 +1,35 @@
+{
+  "versions": [
+    {
+      "version": "1.0.0",
+      "date": "2025-12-30",
+      "title": "Initial Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed rare issue of export cancellation not working properly"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed FFmpeg memory leak"
+        },
+        {
+          "type": "improvement",
+          "description": "Improved GPU encoding & added HEVC encoder detection"
+        },
+        {
+          "type": "improvement",
+          "description": "Significantly reduced export time when Dashboard Overlay is enabled"
+        },
+        {
+          "type": "feature",
+          "description": "Added ability for Maximum Quality export to be done with GPU if HEVC is available"
+        },
+        {
+          "type": "improvement",
+          "description": "Overhaul of Settings & Export UI to improve tidiness and match the design language between the modals"
+        }
+      ]
+    }
+  ]
+}

@@ -24,12 +24,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
   bypassUpdate: () => ipcRenderer.invoke('update:bypass'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
+  getChangelog: () => ipcRenderer.invoke('update:getChangelog'),
   
   // Developer settings operations
   devOpenDevTools: () => ipcRenderer.invoke('dev:openDevTools'),
   devResetSettings: () => ipcRenderer.invoke('dev:resetSettings'),
   devForceLatestVersion: () => ipcRenderer.invoke('dev:forceLatestVersion'),
-  devSetTestingVersion: () => ipcRenderer.invoke('dev:setTestingVersion'),
+  devSetOldVersion: () => ipcRenderer.invoke('dev:setOldVersion'),
+  devGetCurrentVersion: () => ipcRenderer.invoke('dev:getCurrentVersion'),
   devGetAppPaths: () => ipcRenderer.invoke('dev:getAppPaths'),
   devReloadApp: () => ipcRenderer.invoke('dev:reloadApp'),
   

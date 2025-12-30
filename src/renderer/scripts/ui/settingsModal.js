@@ -442,22 +442,40 @@ export function initDevSettingsModal() {
         devForceLatest.onclick = async () => {
             if (window.electronAPI?.devForceLatestVersion) {
                 const result = await window.electronAPI.devForceLatestVersion();
-                showDevOutput(result.success 
-                    ? 'Version forced to latest: ' + result.version + '\n\nUpdate check will now pass.'
-                    : 'Error: ' + result.error);
+                if (result.success) {
+                    showDevOutput('Version forced to latest: v' + result.version + '\n\nUpdate check will now pass.');
+                    updateDevVersionDisplay();
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
             }
         };
     }
     
-    // Set Testing Version
-    const devSetTesting = $('devSetTesting');
-    if (devSetTesting) {
-        devSetTesting.onclick = async () => {
-            if (window.electronAPI?.devSetTestingVersion) {
-                const result = await window.electronAPI.devSetTestingVersion();
-                showDevOutput(result.success
-                    ? 'Version set to: ' + result.version + '\n\nThis will trigger an update prompt on next check.'
-                    : 'Error: ' + result.error);
+    // Set Old Version (triggers update)
+    const devSetOldVersion = $('devSetOldVersion');
+    if (devSetOldVersion) {
+        devSetOldVersion.onclick = async () => {
+            if (window.electronAPI?.devSetOldVersion) {
+                const result = await window.electronAPI.devSetOldVersion();
+                if (result.success) {
+                    showDevOutput('Version set to: v' + result.version + '\n\nThis will trigger an update prompt.\nUse "Check Updates" to test.');
+                    updateDevVersionDisplay();
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
+            }
+        };
+    }
+    
+    // Check for Updates
+    const devCheckUpdate = $('devCheckUpdate');
+    if (devCheckUpdate) {
+        devCheckUpdate.onclick = async () => {
+            if (window.electronAPI?.checkForUpdates) {
+                showDevOutput('Checking for updates...');
+                await window.electronAPI.checkForUpdates();
+                showDevOutput('Update check complete.\nIf an update is available, the update modal will appear.');
             }
         };
     }
@@ -510,9 +528,118 @@ export function initDevSettingsModal() {
 }
 
 /**
+ * Update the version display in dev settings
+ */
+async function updateDevVersionDisplay() {
+    const devCurrentVersion = $('devCurrentVersion');
+    if (devCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
+        const versionInfo = await window.electronAPI.devGetCurrentVersion();
+        devCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
+    }
+}
+
+/**
  * Open the developer settings modal
  */
 export function openDevSettings() {
     const devSettingsModal = $('devSettingsModal');
-    if (devSettingsModal) devSettingsModal.classList.remove('hidden');
+    if (devSettingsModal) {
+        devSettingsModal.classList.remove('hidden');
+        updateDevVersionDisplay();
+    }
+}
+
+/**
+ * Initialize changelog modal and settings version display
+ */
+export function initChangelogModal() {
+    const changelogModal = $('changelogModal');
+    const closeChangelogModal = $('closeChangelogModal');
+    const closeChangelogBtn = $('closeChangelogBtn');
+    const viewChangelogBtn = $('viewChangelogBtn');
+    const settingsCurrentVersion = $('settingsCurrentVersion');
+    
+    // Load and display current version in settings
+    if (settingsCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
+        window.electronAPI.devGetCurrentVersion().then(versionInfo => {
+            settingsCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
+        });
+    }
+    
+    function closeChangelog() {
+        if (changelogModal) changelogModal.classList.add('hidden');
+    }
+    
+    if (closeChangelogModal) closeChangelogModal.onclick = closeChangelog;
+    if (closeChangelogBtn) closeChangelogBtn.onclick = closeChangelog;
+    
+    if (changelogModal) {
+        changelogModal.onclick = (e) => {
+            if (e.target === changelogModal) closeChangelog();
+        };
+    }
+    
+    // View Changelog button
+    if (viewChangelogBtn) {
+        viewChangelogBtn.onclick = async () => {
+            if (changelogModal) {
+                changelogModal.classList.remove('hidden');
+                
+                const fullChangelogContent = $('fullChangelogContent');
+                if (fullChangelogContent) {
+                    fullChangelogContent.innerHTML = '<div class="changelog-loading">Loading changelog...</div>';
+                    
+                    // Load changelog
+                    if (window.electronAPI?.getChangelog) {
+                        const changelog = await window.electronAPI.getChangelog();
+                        fullChangelogContent.innerHTML = renderFullChangelog(changelog.versions || []);
+                    } else {
+                        fullChangelogContent.innerHTML = '<div class="changelog-loading">Unable to load changelog</div>';
+                    }
+                }
+            }
+        };
+    }
+}
+
+/**
+ * Render full changelog (all versions)
+ */
+function renderFullChangelog(versions) {
+    if (!versions || versions.length === 0) {
+        return '<div class="changelog-loading">No changelog available</div>';
+    }
+    
+    const typeIcons = {
+        feature: '✦',
+        improvement: '↑',
+        fix: '✓'
+    };
+    
+    const formatDate = (dateStr) => {
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
+    
+    return versions.map(entry => `
+        <div class="changelog-version">
+            <div class="changelog-version-header">
+                <span class="changelog-version-tag">v${entry.version}</span>
+                <span class="changelog-version-date">${formatDate(entry.date)}</span>
+            </div>
+            <div class="changelog-version-title">${entry.title}</div>
+            <div class="changelog-changes">
+                ${entry.changes.map(change => `
+                    <div class="changelog-item">
+                        <span class="changelog-item-type ${change.type}">${typeIcons[change.type] || '•'}</span>
+                        <span>${change.description}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
 }

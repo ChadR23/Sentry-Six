@@ -1686,85 +1686,101 @@ function downloadFile(url, destPath, onProgress) {
   });
 }
 
+/**
+ * Get the current installed version from local version.json
+ * @returns {Object|null} Version info or null if not found
+ */
 function getCurrentVersion() {
   try {
-    if (fs.existsSync(UPDATE_CONFIG.versionFile)) {
-      const data = JSON.parse(fs.readFileSync(UPDATE_CONFIG.versionFile, 'utf8'));
-      return data.commitSha || null;
+    // First check the app's version.json (source of truth)
+    const localVersionPath = path.join(__dirname, '..', 'version.json');
+    if (fs.existsSync(localVersionPath)) {
+      const data = JSON.parse(fs.readFileSync(localVersionPath, 'utf8'));
+      return data;
     }
   } catch (err) {
-    console.error('Error reading version file:', err);
+    console.error('Error reading local version file:', err);
   }
   return null;
 }
 
-function saveCurrentVersion(commitSha, commitDate, commitMessage) {
-  try {
-    const dir = path.dirname(UPDATE_CONFIG.versionFile);
-    if (!fs.existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(UPDATE_CONFIG.versionFile, JSON.stringify({
-      commitSha,
-      commitDate,
-      commitMessage,
-      updatedAt: new Date().toISOString()
-    }, null, 2));
-  } catch (err) {
-    console.error('Error saving version file:', err);
+/**
+ * Compare two semantic version strings
+ * @param {string} v1 - First version
+ * @param {string} v2 - Second version
+ * @returns {number} -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+ */
+function compareVersions(v1, v2) {
+  const parts1 = v1.replace(/^v/i, '').split('.').map(Number);
+  const parts2 = v2.replace(/^v/i, '').split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 < p2) return -1;
+    if (p1 > p2) return 1;
   }
+  return 0;
 }
 
-async function getLatestCommit() {
-  const url = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/commits/${UPDATE_CONFIG.branch}`;
+/**
+ * Fetch the latest version.json from GitHub
+ * @returns {Object|null} Latest version info or null if not found
+ */
+async function getLatestVersion() {
+  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/version.json`;
   const response = await httpsGet(url);
   
-  if (response.statusCode !== 200) {
-    throw new Error(`GitHub API error: ${response.statusCode}`);
+  if (response.statusCode === 404) {
+    // version.json not yet pushed to repo - this is expected for initial setup
+    console.log('[UPDATE] Remote version.json not found (not yet pushed to repo)');
+    return null;
   }
   
-  const commit = JSON.parse(response.data);
-  return {
-    sha: commit.sha,
-    shortSha: commit.sha.substring(0, 7),
-    message: commit.commit.message.split('\n')[0],
-    date: commit.commit.author.date,
-    author: commit.commit.author.name
-  };
+  if (response.statusCode !== 200) {
+    throw new Error(`Failed to fetch version.json: ${response.statusCode}`);
+  }
+  
+  return JSON.parse(response.data);
 }
 
+/**
+ * Check for updates on startup
+ */
 async function checkForUpdatesOnStartup() {
   try {
     console.log('[UPDATE] Checking for updates...');
-    const latestCommit = await getLatestCommit();
+    const latestVersion = await getLatestVersion();
     const currentVersion = getCurrentVersion();
     
-    console.log(`[CURRENT] Current: ${currentVersion || 'unknown'}`);
-    console.log(`[LATEST] Latest: ${latestCommit.sha}`);
-    
-    if (!currentVersion) {
-      // First run - save current version without prompting
-      saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-      console.log('[OK] Version initialized');
+    // If remote version.json doesn't exist yet, skip update check
+    if (!latestVersion) {
+      console.log('[UPDATE] No remote version available - skipping update check');
       return;
     }
     
-    if (currentVersion !== latestCommit.sha) {
+    const currentVer = currentVersion?.version || '0.0.0';
+    const latestVer = latestVersion?.version || '0.0.0';
+    
+    console.log(`[UPDATE] Current: v${currentVer}`);
+    console.log(`[UPDATE] Latest: v${latestVer}`);
+    
+    if (compareVersions(currentVer, latestVer) < 0) {
       // New version available - notify renderer
+      console.log('[UPDATE] New version available!');
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update:available', {
-          currentVersion: currentVersion.substring(0, 7),
-          latestVersion: latestCommit.shortSha,
-          message: latestCommit.message,
-          date: latestCommit.date,
-          author: latestCommit.author
+          currentVersion: currentVer,
+          latestVersion: latestVer,
+          releaseName: latestVersion.releaseName || 'New Update',
+          releaseDate: latestVersion.releaseDate
         });
       }
     } else {
-      console.log('[OK] App is up to date');
+      console.log('[UPDATE] App is up to date');
     }
   } catch (err) {
-    console.error('[ERROR] Update check failed:', err.message);
+    console.error('[UPDATE] Check failed:', err.message);
   }
 }
 
@@ -1775,7 +1791,7 @@ async function performUpdate(event) {
   
   try {
     sendProgress(5, 'Fetching latest version info...');
-    const latestCommit = await getLatestCommit();
+    const latestVersion = await getLatestVersion();
     
     const zipUrl = `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/archive/refs/heads/${UPDATE_CONFIG.branch}.zip`;
     const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
@@ -1839,8 +1855,8 @@ async function performUpdate(event) {
     // Cleanup temp files
     rmSync(tempDir, { recursive: true, force: true });
     
-    // Save new version
-    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
+    // version.json is already copied from the downloaded repo
+    console.log(`[UPDATE] Updated to v${latestVersion.version}`);
     
     sendProgress(100, 'Update complete!');
     
@@ -1896,13 +1912,29 @@ ipcMain.handle('update:skip', async () => {
   return { skipped: true };
 });
 
-ipcMain.handle('update:bypass', async () => {
-  // Hidden dev feature - mark current version as latest without downloading
+ipcMain.handle('update:getChangelog', async () => {
+  // Load changelog from project root
   try {
-    const latestCommit = await getLatestCommit();
-    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-    console.log('[DEV] Update bypassed - version set to:', latestCommit.sha.substring(0, 7));
-    return { success: true, version: latestCommit.shortSha };
+    const changelogPath = path.join(__dirname, '..', 'changelog.json');
+    if (fs.existsSync(changelogPath)) {
+      const data = fs.readFileSync(changelogPath, 'utf8');
+      return JSON.parse(data);
+    }
+    return { versions: [] };
+  } catch (err) {
+    console.error('[UPDATE] Failed to load changelog:', err);
+    return { versions: [] };
+  }
+});
+
+ipcMain.handle('update:bypass', async () => {
+  // Hidden dev feature - update local version.json to match remote
+  try {
+    const latestVersion = await getLatestVersion();
+    const localVersionPath = path.join(__dirname, '..', 'version.json');
+    fs.writeFileSync(localVersionPath, JSON.stringify(latestVersion, null, 2));
+    console.log('[DEV] Update bypassed - version set to:', latestVersion.version);
+    return { success: true, version: latestVersion.version };
   } catch (err) {
     console.error('Bypass update error:', err);
     return { success: false, error: err.message };
@@ -1936,25 +1968,38 @@ ipcMain.handle('dev:resetSettings', async () => {
 
 ipcMain.handle('dev:forceLatestVersion', async () => {
   try {
-    const latestCommit = await getLatestCommit();
-    saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-    console.log('[DEV] Version forced to latest:', latestCommit.sha.substring(0, 7));
-    return { success: true, version: latestCommit.sha.substring(0, 7) };
+    const latestVersion = await getLatestVersion();
+    const localVersionPath = path.join(__dirname, '..', 'version.json');
+    fs.writeFileSync(localVersionPath, JSON.stringify(latestVersion, null, 2));
+    console.log('[DEV] Version forced to latest:', latestVersion.version);
+    return { success: true, version: latestVersion.version };
   } catch (err) {
     console.error('Force latest version error:', err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('dev:setTestingVersion', async () => {
+ipcMain.handle('dev:setOldVersion', async () => {
+  // Set version to 0.0.1 to trigger update prompt
   try {
-    saveCurrentVersion('testing', new Date().toISOString(), 'Testing version');
-    console.log('[DEV] Version set to Testing');
-    return { success: true, version: 'Testing' };
+    const localVersionPath = path.join(__dirname, '..', 'version.json');
+    const oldVersion = {
+      version: '0.0.1',
+      releaseDate: '2020-01-01',
+      releaseName: 'Test Old Version'
+    };
+    fs.writeFileSync(localVersionPath, JSON.stringify(oldVersion, null, 2));
+    console.log('[DEV] Version set to 0.0.1 (will trigger update)');
+    return { success: true, version: '0.0.1' };
   } catch (err) {
-    console.error('Set testing version error:', err);
+    console.error('Set old version error:', err);
     return { success: false, error: err.message };
   }
+});
+
+ipcMain.handle('dev:getCurrentVersion', async () => {
+  const version = getCurrentVersion();
+  return version || { version: 'unknown' };
 });
 
 ipcMain.handle('dev:getAppPaths', async () => {

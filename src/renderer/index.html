@@ -636,6 +636,24 @@
                         </div>
                         <div id="defaultFolderStatus" class="folder-status"></div>
                     </div>
+                    
+                    <!-- About Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">About</div>
+                        <div class="about-version-row">
+                            <span class="about-version-label">Version</span>
+                            <span id="settingsCurrentVersion" class="about-version-value">---</span>
+                        </div>
+                        <button id="viewChangelogBtn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                            View Changelog
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Shortcuts Tab -->
@@ -788,20 +806,31 @@
                 </div>
                 
                 <div class="modal-section">
-                    <div class="modal-section-title">Version Override</div>
+                    <div class="modal-section-title">Version Control</div>
+                    <div class="dev-version-display">
+                        <span class="dev-version-label">Current Version:</span>
+                        <span id="devCurrentVersion" class="dev-version-value">Loading...</span>
+                    </div>
                     <div class="dev-grid">
                         <button id="devForceLatest" class="dev-card">
                             <span class="dev-card-icon">⏩</span>
                             <div class="dev-card-info">
                                 <span class="dev-card-label">Force Latest</span>
-                                <span class="dev-card-desc">Bypass update check</span>
+                                <span class="dev-card-desc">Set to remote version</span>
                             </div>
                         </button>
-                        <button id="devSetTesting" class="dev-card">
-                            <span class="dev-card-icon">🧪</span>
+                        <button id="devSetOldVersion" class="dev-card">
+                            <span class="dev-card-icon">⏪</span>
                             <div class="dev-card-info">
-                                <span class="dev-card-label">Set "Testing"</span>
-                                <span class="dev-card-desc">Trigger update prompt</span>
+                                <span class="dev-card-label">Set Old Version</span>
+                                <span class="dev-card-desc">Set to v0.0.1 for testing</span>
+                            </div>
+                        </button>
+                        <button id="devCheckUpdate" class="dev-card">
+                            <span class="dev-card-icon">🔍</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Check Updates</span>
+                                <span class="dev-card-desc">Trigger update check now</span>
                             </div>
                         </button>
                     </div>
@@ -851,30 +880,80 @@
         </div>
     </div>
 
+    <!-- Changelog Modal -->
+    <div id="changelogModal" class="modal hidden">
+        <div class="modal-content changelog-modal">
+            <div class="modal-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <h2>Changelog</h2>
+                <button id="closeChangelogModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="changelog-section" style="background: transparent;">
+                    <div id="fullChangelogContent" class="changelog-content">
+                        <div class="changelog-loading">Loading changelog...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeChangelogBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Update Modal -->
     <div id="updateModal" class="modal hidden">
         <div class="modal-content update-modal">
             <div class="modal-header">
-                <h2>🚀 Update Available</h2>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #4caf50;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <h2>Update Available</h2>
             </div>
             <div class="modal-body">
-                <div class="update-info">
-                    <p class="update-message">A new version of Sentry Six is available!</p>
-                    <div class="update-details">
-                        <div class="version-info">
-                            <span class="version-label">Current:</span>
-                            <span id="currentVersionDisplay" class="version-value">---</span>
-                        </div>
-                        <div class="version-info">
-                            <span class="version-label">Latest:</span>
-                            <span id="latestVersionDisplay" class="version-value">---</span>
-                        </div>
+                <!-- Version Badge -->
+                <div class="update-version-badge">
+                    <div class="version-current">
+                        <span class="version-label">Current</span>
+                        <span id="currentVersionDisplay" class="version-number">---</span>
                     </div>
-                    <div class="commit-info">
-                        <div class="commit-message" id="updateCommitMessage"></div>
-                        <div class="commit-date" id="updateCommitDate"></div>
+                    <div class="version-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                    <div class="version-new">
+                        <span class="version-label">New</span>
+                        <span id="latestVersionDisplay" class="version-number">---</span>
                     </div>
                 </div>
+
+                <!-- Changelog Section -->
+                <div class="changelog-section">
+                    <div class="changelog-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        <span>What's New</span>
+                    </div>
+                    <div id="changelogContent" class="changelog-content">
+                        <!-- Changelog entries will be inserted here -->
+                        <div class="changelog-loading">Loading changelog...</div>
+                    </div>
+                </div>
+
+                <!-- Progress Section -->
                 <div id="updateProgress" class="update-progress hidden">
                     <div class="progress-bar-container">
                         <div id="updateProgressBar" class="progress-bar-fill"></div>
@@ -884,7 +963,14 @@
             </div>
             <div class="modal-footer" id="updateModalFooter">
                 <button id="skipUpdateBtn" class="btn btn-secondary">Later</button>
-                <button id="installUpdateBtn" class="btn btn-primary">Update Now</button>
+                <button id="installUpdateBtn" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Update Now
+                </button>
             </div>
         </div>
     </div>
