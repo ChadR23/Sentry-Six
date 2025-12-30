@@ -497,12 +497,23 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // Detect GPU encoder
     const gpu = detectGpuEncoder(ffmpegPath);
 
-    // Build FFmpeg command
+    // Build FFmpeg command with memory optimization flags
     const cmd = [ffmpegPath, '-y'];
+    
+    // Memory optimization: limit input buffer sizes and reduce buffering
+    // Note: thread_queue_size applies to all inputs, keeping it low reduces RAM
+    cmd.push('-thread_queue_size', '512'); // Limit input queue size (default is often 8MB+ per input)
+    cmd.push('-probesize', '32M'); // Limit probe size for format detection
+    cmd.push('-analyzeduration', '10M'); // Limit analysis duration
+    
+    // Additional memory optimizations
+    cmd.push('-fflags', '+genpts+discardcorrupt'); // Generate PTS and discard corrupt frames (reduces buffering)
+    cmd.push('-flags', '+low_delay'); // Low delay mode (reduces buffering)
 
     // Add video inputs
     for (const input of inputs) {
       if (input.isConcat) cmd.push('-f', 'concat', '-safe', '0');
+      // Use -ss before -i for better memory efficiency (FFmpeg can skip decoding)
       if (input.offset > 0) cmd.push('-ss', input.offset.toString());
       cmd.push('-i', input.path);
     }
@@ -661,7 +672,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         
         let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
         if (hasVideo && isMirrored) chain += ',hflip';
-        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
+        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
         
         filters.push(chain);
         cameraStreams.push({ tag: `[v${i}]`, x, y });
@@ -692,7 +703,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
         let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
         if (hasVideo && isMirrored) chain += ',hflip';
-        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1,format=yuv420p[v${i}]`;
+        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
         
         filters.push(chain);
         streamTags.push(`[v${i}]`);
@@ -745,12 +756,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       if (gpu && (totalW > gpuMaxRes || totalH > gpuMaxRes)) {
         console.log(`⚠️ Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
       }
+      // Memory optimization: limit threads and buffer sizes for libx264
+      // Use fewer threads to reduce RAM usage (threads = cores can use 2-4x RAM)
+      const maxThreads = Math.min(4, Math.floor(require('os').cpus().length / 2));
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
+      cmd.push('-threads', maxThreads.toString()); // Limit encoding threads
+      cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`); // Further limit x264 threading
     }
     
     cmd.push('-r', FPS.toString(), '-t', durationSec.toString());
     cmd.push('-movflags', '+faststart'); // Better streaming
     cmd.push('-pix_fmt', 'yuv420p'); // Compatibility
+    // Memory optimization: limit output buffer
+    cmd.push('-max_muxing_queue_size', '1024'); // Limit muxer queue size
     cmd.push(outputPath);
 
     console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
@@ -761,7 +779,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       const proc = spawn(cmd[0], cmd.slice(1), {
         stdio: ['pipe', 'pipe', 'pipe', dashboardWindow ? 'pipe' : 'ignore']
       });
+      // Limit stderr buffer to prevent excessive RAM usage (keep only last 100KB)
       let stderr = '', lastPct = 0;
+      const MAX_STDERR_SIZE = 100 * 1024; // 100KB max
       
       // Dashboard frame rendering loop
       let dashboardPipe = null;
@@ -871,8 +891,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
 
       proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-        const match = data.toString().match(/time=(\d+):(\d+):(\d+)/);
+        const dataStr = data.toString();
+        stderr += dataStr;
+        // Limit stderr buffer size to prevent excessive RAM usage
+        if (stderr.length > MAX_STDERR_SIZE) {
+          stderr = stderr.slice(-MAX_STDERR_SIZE);
+        }
+        const match = dataStr.match(/time=(\d+):(\d+):(\d+)/);
         if (match && durationSec > 0) {
           const sec = +match[1] * 3600 + +match[2] * 60 + +match[3];
           const pct = Math.min(95, Math.floor((sec / durationSec) * 100));

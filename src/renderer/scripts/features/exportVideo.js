@@ -405,7 +405,7 @@ export async function startExport() {
     const quality = qualityInput?.value || 'high';
     
     const includeDashboardCheckbox = $('includeDashboard');
-    let includeDashboard = includeDashboardCheckbox?.checked ?? true;
+    const includeDashboard = includeDashboardCheckbox?.checked ?? false;
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -414,6 +414,8 @@ export async function startExport() {
     const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
     
+    // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
+    // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
     let seiData = null;
     if (includeDashboard) {
         try {
@@ -421,8 +423,14 @@ export async function startExport() {
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
             
-            // Collect SEI data from all segments that overlap with export range
-            // Timestamps are adjusted from segment-relative to absolute time
+            if (!window.DashcamMP4 || !window.DashcamHelpers) {
+                throw new Error('Dashcam parser not available');
+            }
+            
+            const DashcamMP4 = window.DashcamMP4;
+            const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
+            
+            // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
                 const group = groups[i];
                 const segStartMs = (cumStarts[i] || 0) * 1000;
@@ -439,15 +447,9 @@ export async function startExport() {
                     
                     if (entry?.file) {
                         try {
-                            if (!window.DashcamMP4 || !window.DashcamHelpers) {
-                                continue;
-                            }
+                            let buffer = null;
                             
-                            const DashcamMP4 = window.DashcamMP4;
-                            const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
-                            
-                            // Handle both Electron file paths and regular File objects
-                            let buffer;
+                            // Load file into buffer (one at a time)
                             if (entry.file?.isElectronFile && entry.file?.path) {
                                 const filePath = entry.file.path;
                                 const fileUrl = filePath.startsWith('/') 
@@ -464,24 +466,29 @@ export async function startExport() {
                                     : `file:///${filePath.replace(/\\/g, '/')}`;
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
-                            } else {
-                                continue;
                             }
                             
-                            const mp4 = new DashcamMP4(buffer);
-                            const frames = mp4.parseFrames(SeiMetadata);
-                            
-                            // Convert segment-relative timestamps to absolute time
-                            for (const frame of frames) {
-                                if (frame.sei) {
-                                    allSeiData.push({
-                                        timestampMs: segStartMs + frame.timestamp,
-                                        sei: frame.sei
-                                    });
+                            if (buffer) {
+                                // Extract SEI data from this segment
+                                const mp4 = new DashcamMP4(buffer);
+                                const frames = mp4.parseFrames(SeiMetadata);
+                                
+                                // Convert segment-relative timestamps to absolute time
+                                for (const frame of frames) {
+                                    if (frame.sei) {
+                                        allSeiData.push({
+                                            timestampMs: segStartMs + frame.timestamp,
+                                            sei: frame.sei
+                                        });
+                                    }
                                 }
+                                
+                                // Explicitly clear buffer reference to help GC
+                                buffer = null;
                             }
                         } catch (err) {
-                            // Skip segment on error
+                            console.warn(`Failed to extract SEI from segment ${i}:`, err);
+                            // Continue with other segments
                         }
                     }
                 }
@@ -494,13 +501,14 @@ export async function startExport() {
                 seiData = allSeiData;
             } else {
                 notify('No telemetry data available for dashboard overlay. Dashboard will be disabled.', { type: 'warn' });
-                includeDashboard = false;
+                seiData = null; // Clear SEI data if extraction failed
             }
         } catch (err) {
             notify('Failed to extract telemetry data. Dashboard will be disabled.', { type: 'warn' });
-            includeDashboard = false;
+            seiData = null; // Clear SEI data if extraction failed
         }
     }
+    // If dashboard is disabled, seiData remains null and no files are loaded into memory
     
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
@@ -621,8 +629,9 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            includeDashboard: includeDashboard && seiData !== null,
-            seiData: seiData || [],
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
+            seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null
         };
         
