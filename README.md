@@ -35,20 +35,26 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - *Requires Tesla software 2025.44.25.1 or newer on HW3+ vehicles*
 
 - **Clip Export**
-  - Export clips with hardware-accelerated encoding
+  - Export clips with hardware-accelerated GPU encoding (NVENC/HEVC)
+  - Dashboard overlay rendering during export
   - Choose from Mobile, Medium, High, or Maximum quality
+  - Maximum quality uses HEVC encoder when available
+  - Customizable camera layout with drag-and-drop arrangement
   - Set custom start/end points for trimming
   - Live progress with time and size estimates
   - *MacOS: Install ffmpeg via `brew install ffmpeg`*
-  - *Note: Overlays do not render during export, this is planned for a future release.*
 
 - **Customizable Settings**
   - Toggle dashboard and map overlays
+  - Adjustable glass blur intensity
   - Customizable keyboard shortcuts
-  - Default Teslacam folder auto-load
+  - Default TeslaCam folder auto-load
+  - View changelog from settings
 
 - **Auto-Update**
   - Checks for updates on startup and installs with one click
+  - Shows changelog with release notes for each version
+  - Developer tools for testing update system
 
 ## Requirements
 

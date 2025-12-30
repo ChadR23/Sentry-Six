@@ -1,9 +1,9 @@
 {
   "versions": [
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "date": "2025-12-30",
-      "title": "Initial Release",
+      "title": "UI Overhaul & Export Improvements",
       "changes": [
         {
           "type": "fix",
@@ -28,6 +28,25 @@
         {
           "type": "improvement",
           "description": "Overhaul of Settings & Export UI to improve tidiness and match the design language between the modals"
+        },
+        {
+          "type": "feature",
+          "description": "Added changelog viewer in Settings"
+        },
+        {
+          "type": "feature",
+          "description": "New version-based update system with semantic versioning"
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-12-28",
+      "title": "Initial Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Inital Release"
         }
       ]
     }
