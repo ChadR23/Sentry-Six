@@ -97,7 +97,7 @@ function findFFmpegPath() {
   // Always try PATH as last resort
   paths.push('ffmpeg');
 
-  console.log('🔍 Searching for FFmpeg in:', paths);
+  console.log('[SEARCH] Searching for FFmpeg in:', paths);
 
   for (const p of paths) {
     try {
@@ -125,7 +125,7 @@ function findFFmpegPath() {
     }
   }
   
-  console.warn('❌ FFmpeg not found in any of the checked paths');
+  console.warn('[ERROR] FFmpeg not found in any of the checked paths');
   return null;
 }
 
@@ -309,19 +309,19 @@ function detectGpuEncoder(ffmpegPath) {
     // Test each encoder in priority order, return first working one
     for (const encoder of encodersToCheck) {
       if (encoderOutput.includes(encoder.codec)) {
-        console.log(`🔍 Testing ${encoder.name} (${encoder.codec})...`);
+        console.log(`[TEST] Testing ${encoder.name} (${encoder.codec})...`);
         if (testEncoder(encoder.codec)) {
           gpuEncoder = encoder;
-          console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
+          console.log(`[GPU] GPU encoder available: ${gpuEncoder.name}`);
           return gpuEncoder;
         } else {
-          console.log(`⚠️ ${encoder.codec} is listed but not usable (no hardware available)`);
+          console.log(`[WARN] ${encoder.codec} is listed but not usable (no hardware available)`);
         }
       }
     }
     
     gpuEncoder = null;
-    console.log('ℹ️ No usable GPU encoder found, will use CPU encoding');
+    console.log('[INFO] No usable GPU encoder found, will use CPU encoding');
   } catch (err) {
     console.error('Error detecting GPU encoder:', err.message);
     gpuEncoder = null;
@@ -579,7 +579,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   }
 
   try {
-    console.log('🎬 Starting video export...');
+    console.log('[EXPORT] Starting video export...');
     sendProgress(2, 'Analyzing segments...');
 
     const durationSec = (endTimeMs - startTimeMs) / 1000;
@@ -598,7 +598,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
 
     if (!relevantSegments.length) throw new Error('No segments found in export range');
-    console.log(`📹 Found ${relevantSegments.length} segments for export`);
+    console.log(`[SEGMENTS] Found ${relevantSegments.length} segments for export`);
 
     // Build camera inputs for ALL cameras in order (use black for missing/unselected)
     const inputs = [];
@@ -663,7 +663,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         case 'max':      w = 2896; h = 1876; crf = 20; basePerCamW = 2896; basePerCamH = 1876; break;  // Full front native
         default:         w = 1448; h = 938;  crf = 23; basePerCamW = 1448; basePerCamH = 938;
       }
-      console.log('📹 Front camera only - using full front camera resolution');
+      console.log('[RESOLUTION] Front camera only - using full front camera resolution');
     } else {
       // Multi-camera - scale to side camera resolution
       switch (q) {
@@ -805,7 +805,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             }
             
             sendDashboardProgress(5, 'Dashboard renderer ready');
-            console.log(`📊 Dashboard size: ${dashboardWidth}x${dashboardHeight} for output ${totalW}x${totalH}`);
+            console.log(`[DASHBOARD] Dashboard size: ${dashboardWidth}x${dashboardHeight} for output ${totalW}x${totalH}`);
             
             // Add dashboard input before filter_complex (FFmpeg requires input order)
             cmd.push('-f', 'rawvideo', '-pixel_format', 'rgba', 
@@ -989,15 +989,15 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cmd.push('-g', (FPS * 2).toString());
       } else {
         // Fallback for unknown GPU encoders
-        console.log(`⚠️ Using generic settings for unknown GPU encoder: ${gpu.codec}`);
+        console.log(`[WARN] Using generic settings for unknown GPU encoder: ${gpu.codec}`);
         cmd.push('-preset', 'fast', '-crf', crf.toString());
         cmd.push('-g', (FPS * 2).toString());
       }
-      console.log(`🎮 Using GPU encoder: ${gpu.name}`);
+      console.log(`[GPU] Using GPU encoder: ${gpu.name}`);
     } else {
       // CPU encoding: libx264 with memory-optimized threading
       if (gpu && (totalW > gpuMaxRes || totalH > gpuMaxRes)) {
-        console.log(`⚠️ Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
+        console.log(`[WARN] Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
       }
       const maxThreads = Math.min(4, Math.floor(require('os').cpus().length / 2));
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
@@ -1020,7 +1020,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-max_muxing_queue_size', '1024'); // Limit muxer queue size
     cmd.push(outputPath);
 
-    console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
+    console.log('[FFMPEG] FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
     
     // Final cancellation check before spawning FFmpeg
     if (cancelledExports.has(exportId)) {
@@ -1321,7 +1321,7 @@ ipcMain.handle('dialog:saveFile', async (_event, options) => {
 });
 
 ipcMain.handle('export:start', async (event, exportId, exportData) => {
-  console.log('🚀 Starting export:', exportId);
+  console.log('[EXPORT] Starting export:', exportId);
   
   // Check if already cancelled before starting
   if (cancelledExports.has(exportId)) {
