@@ -463,11 +463,17 @@
 
                 <!-- Telemetry Dashboard -->
                 <div class="export-section">
-                    <label class="export-option">
-                        <input type="checkbox" id="includeDashboard">
-                        <span>Include Telemetry Dashboard</span>
-                    </label>
-                    <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay at the bottom center of the video</div>
+                    <div class="export-option-warning-container">
+                        <label class="export-option">
+                            <input type="checkbox" id="includeDashboard">
+                            <span>Include Telemetry Dashboard</span>
+                        </label>
+                        <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay at the bottom center of the video</div>
+                        <div class="export-option-warning-text">
+                            <span class="warning-icon">⚠️</span>
+                            <span>This feature is in beta and experimental. No guarantees it will work properly. CPU encoding only - GPU encoding is not supported for dashboard overlay yet. Export will take considerably longer.</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Filename -->

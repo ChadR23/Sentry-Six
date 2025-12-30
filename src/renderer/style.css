@@ -2121,6 +2121,29 @@ canvas, .video-player, .tile-video {
     line-height: 1.4;
 }
 
+.export-option-warning-container {
+    padding: 12px;
+    background: rgba(255, 193, 7, 0.08);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    border-radius: 6px;
+}
+
+.export-option-warning-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+    margin-left: 28px;
+    font-size: 11px;
+    color: #ffc107;
+    line-height: 1.4;
+}
+
+.export-option-warning-text .warning-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
 /* FFmpeg Status */
 .ffmpeg-status {
     display: flex;
