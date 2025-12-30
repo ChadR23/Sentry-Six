@@ -429,11 +429,25 @@ export async function startExport() {
     const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
     
+    // Open file dialog FIRST for instant response, before any heavy processing
+    const outputPath = await window.electronAPI.saveFile({
+        title: 'Save Tesla Export',
+        defaultPath: filename
+    });
+    
+    if (!outputPath) {
+        notify('Export cancelled', { type: 'info' });
+        return;
+    }
+    
     // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
+    // This happens AFTER file dialog so user gets instant feedback
     let seiData = null;
     if (includeDashboard) {
         try {
+            notify('Extracting telemetry data...', { type: 'info' });
+            
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
@@ -524,16 +538,6 @@ export async function startExport() {
         }
     }
     // If dashboard is disabled, seiData remains null and no files are loaded into memory
-    
-    const outputPath = await window.electronAPI.saveFile({
-        title: 'Save Tesla Export',
-        defaultPath: filename
-    });
-    
-    if (!outputPath) {
-        notify('Export cancelled', { type: 'info' });
-        return;
-    }
     
     const segments = [];
     const groups = state.collection.active.groups || [];
