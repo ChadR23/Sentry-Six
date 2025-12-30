@@ -323,6 +323,13 @@ export function updateExportSizeEstimate() {
     
     const gridW = perCam[0] * cols;
     const gridH = perCam[1] * rows;
+    
+    // Show warning for Maximum quality (exceeds GPU encoder limits)
+    const maxQualityWarningEl = $('maxQualityWarning');
+    if (maxQualityWarningEl) {
+        const isMaxQuality = quality === 'max';
+        maxQualityWarningEl.classList.toggle('hidden', !isMaxQuality);
+    }
     const pixels = gridW * gridH;
     const mbPerMin = pixels * 0.000018;
     const estimatedMB = Math.round(durationMin * mbPerMin);

@@ -2227,6 +2227,12 @@ canvas, .video-player, .tile-video {
     line-height: 1.4;
 }
 
+.export-warning.warning-red {
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid rgba(244, 67, 54, 0.4);
+    color: #f44336;
+}
+
 .export-size-estimate {
     margin-top: 10px;
     padding: 8px 12px;
