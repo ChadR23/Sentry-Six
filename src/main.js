@@ -116,7 +116,7 @@ function findFFmpegPath() {
       console.log(`  Spawn result: status=${result.status}, error=${result.error?.message || 'none'}`);
       
       if (result.status === 0) {
-        console.log(`✅ Found FFmpeg at: ${p}`);
+        console.log(`[OK] Found FFmpeg at: ${p}`);
         return p;
       }
     } catch (err) {
@@ -1435,17 +1435,17 @@ async function getLatestCommit() {
 
 async function checkForUpdatesOnStartup() {
   try {
-    console.log('🔄 Checking for updates...');
+    console.log('[UPDATE] Checking for updates...');
     const latestCommit = await getLatestCommit();
     const currentVersion = getCurrentVersion();
     
-    console.log(`📌 Current: ${currentVersion || 'unknown'}`);
-    console.log(`📦 Latest: ${latestCommit.sha}`);
+    console.log(`[CURRENT] Current: ${currentVersion || 'unknown'}`);
+    console.log(`[LATEST] Latest: ${latestCommit.sha}`);
     
     if (!currentVersion) {
       // First run - save current version without prompting
       saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-      console.log('✅ Version initialized');
+      console.log('[OK] Version initialized');
       return;
     }
     
@@ -1461,10 +1461,10 @@ async function checkForUpdatesOnStartup() {
         });
       }
     } else {
-      console.log('✅ App is up to date');
+      console.log('[OK] App is up to date');
     }
   } catch (err) {
-    console.error('❌ Update check failed:', err.message);
+    console.error('[ERROR] Update check failed:', err.message);
   }
 }
 
@@ -1601,7 +1601,7 @@ ipcMain.handle('update:bypass', async () => {
   try {
     const latestCommit = await getLatestCommit();
     saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-    console.log('🔧 [DEV] Update bypassed - version set to:', latestCommit.sha.substring(0, 7));
+    console.log('[DEV] Update bypassed - version set to:', latestCommit.sha.substring(0, 7));
     return { success: true, version: latestCommit.shortSha };
   } catch (err) {
     console.error('Bypass update error:', err);
@@ -1625,7 +1625,7 @@ ipcMain.handle('dev:resetSettings', async () => {
   try {
     if (fs.existsSync(settingsPath)) {
       fs.unlinkSync(settingsPath);
-      console.log('🔧 [DEV] Settings reset - deleted:', settingsPath);
+      console.log('[DEV] Settings reset - deleted:', settingsPath);
     }
     return { success: true, path: settingsPath };
   } catch (err) {
@@ -1638,7 +1638,7 @@ ipcMain.handle('dev:forceLatestVersion', async () => {
   try {
     const latestCommit = await getLatestCommit();
     saveCurrentVersion(latestCommit.sha, latestCommit.date, latestCommit.message);
-    console.log('🔧 [DEV] Version forced to latest:', latestCommit.sha.substring(0, 7));
+    console.log('[DEV] Version forced to latest:', latestCommit.sha.substring(0, 7));
     return { success: true, version: latestCommit.sha.substring(0, 7) };
   } catch (err) {
     console.error('Force latest version error:', err);
@@ -1649,7 +1649,7 @@ ipcMain.handle('dev:forceLatestVersion', async () => {
 ipcMain.handle('dev:setTestingVersion', async () => {
   try {
     saveCurrentVersion('testing', new Date().toISOString(), 'Testing version');
-    console.log('🔧 [DEV] Version set to Testing');
+    console.log('[DEV] Version set to Testing');
     return { success: true, version: 'Testing' };
   } catch (err) {
     console.error('Set testing version error:', err);
