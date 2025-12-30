@@ -248,20 +248,53 @@ function detectGpuEncoder(ffmpegPath) {
     };
     
     // Define encoder priority by platform
-    // Windows: AMD first (both AMD and NVIDIA encoders may be listed, but only one works)
+    // Windows: Detect actual GPU vendor and prioritize matching encoder
     const encodersToCheck = [];
     
     if (process.platform === 'darwin') {
       encodersToCheck.push({ codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' });
     } else if (process.platform === 'win32') {
+      // Detect actual GPU vendor by checking vendor-specific hardware acceleration
+      // CUDA is NVIDIA-specific, QSV is Intel-specific, AMF is AMD-specific
+      const hasCUDA = hwaccelsOutput.includes('cuda');
+      const hasQSV = hwaccelsOutput.includes('qsv');
       const hasD3D11 = hwaccelsOutput.includes('d3d11va');
-      const hasDXVA2 = hwaccelsOutput.includes('dxva2');
       
-      encodersToCheck.push(
-        { codec: 'h264_amf', name: 'AMD AMF', priority: hasD3D11 || hasDXVA2 ? 1 : 2 },
-        { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
-        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
-      );
+      // Prioritize based on actual GPU vendor detection
+      // NVIDIA: CUDA available -> prioritize NVENC
+      // Intel: QSV available -> prioritize QuickSync
+      // AMD: D3D11 available but no CUDA/QSV -> prioritize AMF
+      // Otherwise: test all in order
+      if (hasCUDA) {
+        // NVIDIA GPU detected
+        encodersToCheck.push(
+          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
+          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 2 },
+          { codec: 'h264_amf', name: 'AMD AMF', priority: 3 }
+        );
+      } else if (hasQSV) {
+        // Intel GPU detected
+        encodersToCheck.push(
+          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 1 },
+          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
+          { codec: 'h264_amf', name: 'AMD AMF', priority: 3 }
+        );
+      } else if (hasD3D11) {
+        // D3D11 available but no vendor-specific detection - likely AMD or unknown
+        // Test AMF first, then others
+        encodersToCheck.push(
+          { codec: 'h264_amf', name: 'AMD AMF', priority: 1 },
+          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
+          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
+        );
+      } else {
+        // No specific detection - test all in default order
+        encodersToCheck.push(
+          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
+          { codec: 'h264_amf', name: 'AMD AMF', priority: 2 },
+          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
+        );
+      }
     } else {
       encodersToCheck.push(
         { codec: 'h264_nvenc', name: 'NVIDIA NVENC' },
