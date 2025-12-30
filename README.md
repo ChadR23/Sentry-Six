@@ -1,8 +1,6 @@
 # Sentry Six Revamped
 
-A modern viewer for **Tesla Dashcam & Sentry** footage featuring **multi-camera playback**, **SEI telemetry overlays** (speed, GPS, steering, G-force, and more), and an interactive route map.
-
-https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
+A modern viewer for **Tesla Dashcam & Sentry** footage featuring **multi-camera playback**, **SEI telemetry overlays** (speed, GPS, steering, G-force, and more), and a route map.
 
 ## Community & Support
 
@@ -33,16 +31,17 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Toggle between MPH and KM/H
   - Works with partial SEI data (shows "No Data" when unavailable)
   - *Requires Tesla software 2025.44.25.1 or newer on HW3+ vehicles*
+   <img width="404" height="221.6" alt="SEIDashboard" src="https://github.com/user-attachments/assets/0f367d16-2f98-4d0b-b6a9-4b40e994a7fe" />
 
 - **Clip Export**
   - Export clips with hardware-accelerated GPU encoding (NVENC/HEVC)
   - Dashboard overlay rendering during export
   - Choose from Mobile, Medium, High, or Maximum quality
-  - Maximum quality uses HEVC encoder when available
   - Customizable camera layout with drag-and-drop arrangement
   - Set custom start/end points for trimming
   - Live progress with time and size estimates
   - *MacOS: Install ffmpeg via `brew install ffmpeg`*
+   <img width="208.5" height="299" alt="ClipExport" src="https://github.com/user-attachments/assets/525a20d2-447b-44c6-8396-55159c29a555" />
 
 - **Customizable Settings**
   - Toggle dashboard and map overlays
@@ -50,11 +49,12 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Customizable keyboard shortcuts
   - Default TeslaCam folder auto-load
   - View changelog from settings
+   <img width="205.5" height="303" alt="Settings" src="https://github.com/user-attachments/assets/bc90c81a-1bf5-4807-844d-2a4c6bed5070" />
 
 - **Auto-Update**
   - Checks for updates on startup and installs with one click
   - Shows changelog with release notes for each version
-  - Developer tools for testing update system
+   <img width="214" height="248" alt="AutoUpdate" src="https://github.com/user-attachments/assets/1c96f5d6-367b-493d-9fa3-d92a72f2080d" />
 
 ## Requirements
 
