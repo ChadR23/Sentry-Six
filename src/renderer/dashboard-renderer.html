@@ -437,9 +437,10 @@
         
         const MPS_TO_MPH = 2.23694;
         const MPS_TO_KMH = 3.6;
-        const useMetric = false;
+        let currentUseMetric = false; // Will be set per frame from main process
         
-        function updateVisualization(sei, frameNumber = 0) {
+        function updateVisualization(sei, frameNumber = 0, useMetric = false) {
+            currentUseMetric = useMetric;
             if (!sei) return;
             
             const get = (camel, snake) => sei[camel] ?? sei[snake];
@@ -609,11 +610,11 @@
         
         // Listen for SEI data updates
         if (ipcRenderer && ipcRenderer.on) {
-            ipcRenderer.on('dashboard:update', (event, sei, frameNumber) => {
+            ipcRenderer.on('dashboard:update', (event, sei, frameNumber, useMetric) => {
                 if (sei) {
-                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber);
+                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber, 'metric:', useMetric);
                 }
-                updateVisualization(sei, frameNumber);
+                updateVisualization(sei, frameNumber, useMetric);
                 
                 // Force a reflow to ensure DOM updates are rendered
                 void document.body.offsetHeight;

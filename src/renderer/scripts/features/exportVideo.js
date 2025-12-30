@@ -13,6 +13,10 @@ export const exportState = {
     isExporting: false,
     currentExportId: null,
     ffmpegAvailable: false,
+    gpuAvailable: false,
+    gpuName: null,
+    hevcAvailable: false,
+    hevcName: null,
     cancelled: false
 };
 
@@ -25,6 +29,7 @@ let getNativeVideo = null;
 let getBaseFolderPath = null;
 let getProgressBar = null;
 let getFindSeiAtTime = null;
+let getUseMetric = null;
 
 /**
  * Initialize export module with dependencies
@@ -36,6 +41,7 @@ export function initExportModule(deps) {
     getBaseFolderPath = deps.getBaseFolderPath;
     getProgressBar = deps.getProgressBar;
     getFindSeiAtTime = deps.getFindSeiAtTime;
+    getUseMetric = deps.getUseMetric;
 }
 
 /**
@@ -346,6 +352,20 @@ export function updateExportSizeEstimate() {
 export async function checkFFmpegAvailability() {
     const statusEl = $('ffmpegStatus');
     const startBtn = $('startExportBtn');
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
+    const dashboardWarning = document.querySelector('.export-option-warning-text');
+    
+    // Set up dashboard checkbox toggle for options visibility
+    if (dashboardCheckbox && dashboardOptions) {
+        dashboardCheckbox.addEventListener('change', () => {
+            if (dashboardCheckbox.checked) {
+                dashboardOptions.classList.remove('hidden');
+            } else {
+                dashboardOptions.classList.add('hidden');
+            }
+        });
+    }
     
     if (!statusEl) return;
     
@@ -355,10 +375,46 @@ export async function checkFFmpegAvailability() {
         if (window.electronAPI?.checkFFmpeg) {
             const result = await window.electronAPI.checkFFmpeg();
             exportState.ffmpegAvailable = result.available;
+            exportState.gpuAvailable = !!result.gpu;
+            exportState.gpuName = result.gpu?.name || null;
+            exportState.hevcAvailable = !!result.hevc;
+            exportState.hevcName = result.hevc?.name || null;
             
             if (result.available) {
-                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg ready</span>';
+                // Build status text with GPU info
+                let statusText = 'FFmpeg ready';
+                if (result.gpu) {
+                    statusText += ` • GPU: ${result.gpu.name}`;
+                    if (result.hevc) {
+                        statusText += ` + HEVC`;
+                    }
+                } else {
+                    statusText += ' • CPU only (no GPU encoder)';
+                }
+                if (result.fakeNoGpu) {
+                    statusText += ' [DEV: Fake No GPU]';
+                }
+                
+                statusEl.innerHTML = `<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">${statusText}</span>`;
                 if (startBtn) startBtn.disabled = false;
+                
+                // Dashboard overlay requires GPU - disable checkbox if no GPU
+                if (dashboardCheckbox) {
+                    if (!result.gpu) {
+                        dashboardCheckbox.disabled = true;
+                        dashboardCheckbox.checked = false;
+                        dashboardCheckbox.parentElement?.classList.add('disabled');
+                        if (dashboardWarning) {
+                            dashboardWarning.innerHTML = '<span class="warning-icon">⚠️</span><span>Dashboard overlay requires GPU encoding. No GPU encoder detected on this system.</span>';
+                        }
+                    } else {
+                        dashboardCheckbox.disabled = false;
+                        dashboardCheckbox.parentElement?.classList.remove('disabled');
+                        if (dashboardWarning) {
+                            dashboardWarning.innerHTML = '<span class="warning-icon">ℹ️</span><span>This feature is in beta. Dashboard frames are rendered in real-time during export, which may increase export time.</span>';
+                        }
+                    }
+                }
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -367,10 +423,18 @@ export async function checkFFmpegAvailability() {
                     statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Place ffmpeg.exe in the ffmpeg_bin folder.</span>';
                 }
                 if (startBtn) startBtn.disabled = true;
+                if (dashboardCheckbox) {
+                    dashboardCheckbox.disabled = true;
+                    dashboardCheckbox.checked = false;
+                }
             }
         } else {
             statusEl.innerHTML = '<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">Export not available (running in browser)</span>';
             if (startBtn) startBtn.disabled = true;
+            if (dashboardCheckbox) {
+                dashboardCheckbox.disabled = true;
+                dashboardCheckbox.checked = false;
+            }
         }
     } catch (err) {
         statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">Error checking FFmpeg</span>';
@@ -422,6 +486,8 @@ export async function startExport() {
     
     const includeDashboardCheckbox = $('includeDashboard');
     const includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
+    const dashboardSize = $('dashboardSize')?.value || 'medium';
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -694,7 +760,10 @@ export async function startExport() {
             // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
             includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
-            layoutData: layoutData || null
+            layoutData: layoutData || null,
+            useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
+            dashboardPosition, // Position: bottom-center, bottom-left, bottom-right, top-center, etc.
+            dashboardSize // Size: small (20%), medium (30%), large (40%)
         };
         
         await window.electronAPI.startExport(exportId, exportData);

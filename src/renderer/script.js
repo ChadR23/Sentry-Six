@@ -3435,7 +3435,8 @@ initExportModule({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
     getBaseFolderPath: () => baseFolderPath,
-    getProgressBar: () => progressBar
+    getProgressBar: () => progressBar,
+    getUseMetric: () => useMetric
 });
 
 // Alias for closeExportModal (used internally)

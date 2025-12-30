@@ -434,6 +434,23 @@ export function initDevSettingsModal() {
             }
         };
     }
+    
+    // Fake No GPU Toggle
+    const devFakeNoGpu = $('devFakeNoGpu');
+    if (devFakeNoGpu) {
+        // Load current setting
+        window.electronAPI?.getSetting?.('devFakeNoGpu').then(value => {
+            devFakeNoGpu.checked = value === true;
+        });
+        
+        devFakeNoGpu.onchange = async () => {
+            const value = devFakeNoGpu.checked;
+            await window.electronAPI?.setSetting?.('devFakeNoGpu', value);
+            showDevOutput(value 
+                ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
+                : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
+        };
+    }
 }
 
 /**

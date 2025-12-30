@@ -2144,6 +2144,53 @@ canvas, .video-player, .tile-video {
     margin-top: 1px;
 }
 
+/* Dashboard Options */
+.dashboard-options {
+    margin: 12px 0 12px 28px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dashboard-options.hidden {
+    display: none;
+}
+
+.dashboard-option-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dashboard-option-row label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    min-width: 60px;
+}
+
+.dashboard-select {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.dashboard-select:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dashboard-select:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
 /* FFmpeg Status */
 .ffmpeg-status {
     display: flex;
@@ -2975,4 +3022,36 @@ canvas, .video-player, .tile-video {
 
 .dev-output.hidden {
     display: none;
+}
+
+/* Dev toggle button (checkbox styled as button) */
+.dev-toggle-btn {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 152, 0, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.dev-toggle-btn:hover {
+    background: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.3);
+}
+
+.dev-toggle-btn input[type="checkbox"] {
+    display: none;
+}
+
+.dev-toggle-btn:has(input:checked) {
+    background: rgba(255, 152, 0, 0.25);
+    border-color: rgba(255, 152, 0, 0.5);
+}
+
+.dev-toggle-btn:has(input:checked) .dev-btn-icon::after {
+    content: ' ✓';
+    color: #4caf50;
 }

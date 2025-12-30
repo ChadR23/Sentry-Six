@@ -468,10 +468,34 @@
                             <input type="checkbox" id="includeDashboard">
                             <span>Include Telemetry Dashboard</span>
                         </label>
-                        <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay at the bottom center of the video</div>
+                        <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay</div>
+                        
+                        <!-- Dashboard Options (shown when checkbox is checked) -->
+                        <div id="dashboardOptions" class="dashboard-options hidden">
+                            <div class="dashboard-option-row">
+                                <label for="dashboardPosition">Position:</label>
+                                <select id="dashboardPosition" class="dashboard-select">
+                                    <option value="bottom-center">Bottom Center</option>
+                                    <option value="bottom-left">Bottom Left</option>
+                                    <option value="bottom-right">Bottom Right</option>
+                                    <option value="top-center">Top Center</option>
+                                    <option value="top-left">Top Left</option>
+                                    <option value="top-right">Top Right</option>
+                                </select>
+                            </div>
+                            <div class="dashboard-option-row">
+                                <label for="dashboardSize">Size:</label>
+                                <select id="dashboardSize" class="dashboard-select">
+                                    <option value="small">Small (20%)</option>
+                                    <option value="medium" selected>Medium (30%)</option>
+                                    <option value="large">Large (40%)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <div class="export-option-warning-text">
                             <span class="warning-icon">ℹ️</span>
-                            <span>This feature is in beta. Dashboard frames are rendered in real-time during export, which may increase export time.</span>
+                            <span>Dashboard is pre-rendered before export for optimal performance.</span>
                         </div>
                     </div>
                 </div>
@@ -734,6 +758,19 @@
                                 <span class="dev-btn-desc">Set version string to "Testing" for development</span>
                             </span>
                         </button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Export Testing</h3>
+                    <div class="dev-settings-grid">
+                        <label class="dev-toggle-btn">
+                            <input type="checkbox" id="devFakeNoGpu">
+                            <span class="dev-btn-icon">🎮</span>
+                            <span class="dev-btn-text">
+                                <span class="dev-btn-label">Fake No GPU</span>
+                                <span class="dev-btn-desc">Simulate no GPU encoder for testing CPU-only mode</span>
+                            </span>
+                        </label>
                     </div>
                 </div>
                 <div class="settings-section">
