@@ -451,9 +451,9 @@
                         </label>
                     </div>
                     <div id="exportSizeEstimate" class="export-size-estimate"></div>
-                    <div id="maxQualityWarning" class="export-warning warning-red hidden">
-                        <span class="warning-icon">⚠️</span>
-                        <span class="warning-text">Maximum quality resolution exceeds GPU encoder limits (4096px). Export will use CPU encoding, which takes considerably longer.</span>
+                    <div id="maxQualityWarning" class="export-warning hidden">
+                        <span class="warning-icon">ℹ️</span>
+                        <span class="warning-text">Maximum quality may use HEVC (H.265) encoding for GPU acceleration at high resolutions. If no HEVC GPU encoder is available, CPU encoding will be used.</span>
                     </div>
                     <div id="frontCamWarning" class="export-warning hidden">
                         <span class="warning-icon">⚠️</span>
@@ -470,8 +470,8 @@
                         </label>
                         <div class="export-option-desc">Burn-in the speed, gear, autopilot state, and telemetry overlay at the bottom center of the video</div>
                         <div class="export-option-warning-text">
-                            <span class="warning-icon">⚠️</span>
-                            <span>This feature is in beta and experimental. No guarantees it will work properly. CPU encoding only - GPU encoding is not supported for dashboard overlay yet. Export will take considerably longer.</span>
+                            <span class="warning-icon">ℹ️</span>
+                            <span>This feature is in beta. Dashboard frames are rendered in real-time during export, which may increase export time.</span>
                         </div>
                     </div>
                 </div>

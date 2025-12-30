@@ -20,7 +20,8 @@ const UPDATE_CONFIG = {
 const activeExports = {};
 const cancelledExports = new Set(); // Track cancelled exports by ID
 let mainWindow = null;
-let gpuEncoder = null; // Cached GPU encoder detection
+let gpuEncoder = null; // Cached GPU encoder detection (H.264)
+let gpuEncoderHEVC = null; // Cached HEVC encoder detection (higher resolution support)
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -329,6 +330,71 @@ function detectGpuEncoder(ffmpegPath) {
   return gpuEncoder;
 }
 
+/**
+ * Detects HEVC (H.265) GPU encoders for higher resolution support.
+ * HEVC encoders support up to 8192px (vs H.264's 4096px limit).
+ * Used when H.264 GPU encoding would exceed resolution limits.
+ */
+function detectHEVCEncoder(ffmpegPath) {
+  if (gpuEncoderHEVC !== null) return gpuEncoderHEVC;
+  
+  try {
+    const encoderResult = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
+    const encoderOutput = encoderResult.stdout?.toString() || '';
+    
+    const testEncoder = (codec) => {
+      try {
+        const helpResult = spawnSync(ffmpegPath, ['-hide_banner', '-h', `encoder=${codec}`], { 
+          timeout: 2000, windowsHide: true, stdio: 'pipe'
+        });
+        const helpOutput = (helpResult.stdout?.toString() || '') + (helpResult.stderr?.toString() || '');
+        if (helpOutput.includes('Unknown encoder') || helpOutput.includes('not found')) return false;
+        
+        const testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'color=c=black:s=2x2:d=0.01:r=1',
+                         '-c:v', codec, '-frames:v', '1', '-f', 'null', '-'];
+        const testResult = spawnSync(ffmpegPath, testArgs, { timeout: 3000, windowsHide: true, stdio: 'pipe' });
+        return testResult.status === 0;
+      } catch { return false; }
+    };
+    
+    // HEVC encoders by platform
+    const hevcEncoders = [];
+    if (process.platform === 'darwin') {
+      hevcEncoders.push({ codec: 'hevc_videotoolbox', name: 'Apple VideoToolbox HEVC', maxRes: 8192 });
+    } else if (process.platform === 'win32') {
+      hevcEncoders.push(
+        { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192 },
+        { codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192 },
+        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192 }
+      );
+    } else {
+      hevcEncoders.push(
+        { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192 },
+        { codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192 },
+        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192 }
+      );
+    }
+    
+    for (const encoder of hevcEncoders) {
+      if (encoderOutput.includes(encoder.codec)) {
+        console.log(`[TEST] Testing HEVC encoder ${encoder.name} (${encoder.codec})...`);
+        if (testEncoder(encoder.codec)) {
+          gpuEncoderHEVC = encoder;
+          console.log(`[GPU] HEVC encoder available: ${gpuEncoderHEVC.name}`);
+          return gpuEncoderHEVC;
+        }
+      }
+    }
+    
+    gpuEncoderHEVC = null;
+    console.log('[INFO] No HEVC GPU encoder found');
+  } catch (err) {
+    console.error('Error detecting HEVC encoder:', err.message);
+    gpuEncoderHEVC = null;
+  }
+  return gpuEncoderHEVC;
+}
+
 function makeEven(n) {
   return Math.floor(n / 2) * 2;
 }
@@ -481,7 +547,8 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboard
     const onReady = () => {
       if (resolved) return;
       resolved = true;
-      // Delay ensures requestAnimationFrame callbacks complete before capture
+      // Reduced delay: 16ms (one frame) is sufficient for DOM paint to complete
+      // Previous 100ms was excessive and caused major slowdown
       setTimeout(() => {
         webContents.capturePage({
           x: 0, y: 0,
@@ -492,13 +559,13 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboard
         }).catch(() => {
           resolve(null);
         });
-      }, 100);
+      }, 16);
     };
     
     dashboardReadyCallbacks.set(webContentsId, onReady);
     webContents.send('dashboard:update', sei, frameNumber);
     
-    // Fallback timeout if IPC doesn't work
+    // Fallback timeout if IPC doesn't work (reduced from 1000ms to 200ms)
     setTimeout(() => {
       if (!resolved) {
         resolved = true;
@@ -511,7 +578,7 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboard
           resolve(image);
         }).catch(() => resolve(null));
       }
-    }, 1000);
+    }, 200);
   });
 }
 
@@ -940,10 +1007,31 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
     
     // Determine if GPU encoding can be used
-    // GPU is only used when: encoder available, not mobile export, resolution within limits, no dashboard overlay
-    const gpuMaxRes = 4096; // Most GPU encoders have 4096px limit on one dimension
-    const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
-    const useGpu = gpuAllowed && !includeDashboard; // Dashboard overlay requires CPU encoding
+    // H.264 GPU encoders: 4096px limit, HEVC GPU encoders: 8192px limit
+    const h264MaxRes = 4096;
+    const hevcMaxRes = 8192;
+    
+    // Check HEVC encoder for high resolutions (Maximum quality often exceeds H.264 limits)
+    const hevcGpu = detectHEVCEncoder(ffmpegPath);
+    
+    // Determine best encoder: prefer H.264 GPU, fall back to HEVC GPU for high res, then CPU
+    let useGpu = false;
+    let useHEVC = false;
+    let activeEncoder = null;
+    
+    if (!mobileExport && gpu) {
+      if (totalW <= h264MaxRes && totalH <= h264MaxRes) {
+        // Resolution within H.264 GPU limits - use H.264 GPU
+        useGpu = true;
+        activeEncoder = gpu;
+      } else if (hevcGpu && totalW <= hevcMaxRes && totalH <= hevcMaxRes) {
+        // Resolution exceeds H.264 but within HEVC limits - use HEVC GPU
+        useGpu = true;
+        useHEVC = true;
+        activeEncoder = hevcGpu;
+        console.log(`[GPU] Resolution ${totalW}×${totalH} exceeds H.264 limit, using HEVC encoder`);
+      }
+    }
 
     // Add dashboard overlay if enabled, otherwise ensure proper pixel format
     if (dashboardWindow) {
@@ -956,16 +1044,16 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-map', '[out]');
 
     // Configure video encoder based on GPU availability
-    if (useGpu) {
-      cmd.push('-c:v', gpu.codec);
+    if (useGpu && activeEncoder) {
+      cmd.push('-c:v', activeEncoder.codec);
       
-      if (gpu.codec === 'h264_nvenc') {
+      if (activeEncoder.codec === 'h264_nvenc' || activeEncoder.codec === 'hevc_nvenc') {
         // NVIDIA NVENC: CQP mode prevents quality pulsing/glitches
         const cq = Math.max(0, Math.min(51, crf));
         cmd.push('-preset', 'p4', '-rc', 'constqp', '-qp', cq.toString());
         cmd.push('-g', (FPS * 2).toString()); // Keyframe every 2 seconds
         cmd.push('-forced-idr', '1');
-      } else if (gpu.codec === 'h264_amf') {
+      } else if (activeEncoder.codec === 'h264_amf' || activeEncoder.codec === 'hevc_amf') {
         // AMD AMF: CQP mode with quality preset based on CRF
         let quality = 'quality';
         if (crf >= 28) quality = 'speed';
@@ -977,11 +1065,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cmd.push('-qp_p', Math.max(18, Math.min(46, crf + 2)).toString());
         cmd.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString());
         cmd.push('-g', (FPS * 2).toString());
-      } else if (gpu.codec === 'h264_videotoolbox') {
+      } else if (activeEncoder.codec === 'h264_videotoolbox' || activeEncoder.codec === 'hevc_videotoolbox') {
         // Apple VideoToolbox: Quality scale inverted (higher = better)
         cmd.push('-q:v', Math.max(40, 100 - crf * 2).toString());
         cmd.push('-g', (FPS * 2).toString());
-      } else if (gpu.codec === 'h264_qsv') {
+      } else if (activeEncoder.codec === 'h264_qsv' || activeEncoder.codec === 'hevc_qsv') {
         // Intel QuickSync: CQP mode
         const qsvQp = Math.max(18, Math.min(46, crf));
         cmd.push('-preset', 'balanced');
@@ -989,15 +1077,15 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cmd.push('-g', (FPS * 2).toString());
       } else {
         // Fallback for unknown GPU encoders
-        console.log(`[WARN] Using generic settings for unknown GPU encoder: ${gpu.codec}`);
+        console.log(`[WARN] Using generic settings for unknown GPU encoder: ${activeEncoder.codec}`);
         cmd.push('-preset', 'fast', '-crf', crf.toString());
         cmd.push('-g', (FPS * 2).toString());
       }
-      console.log(`[GPU] Using GPU encoder: ${gpu.name}`);
+      console.log(`[GPU] Using GPU encoder: ${activeEncoder.name}`);
     } else {
-      // CPU encoding: libx264 with memory-optimized threading
-      if (gpu && (totalW > gpuMaxRes || totalH > gpuMaxRes)) {
-        console.log(`[WARN] Resolution ${totalW}×${totalH} exceeds GPU limit (${gpuMaxRes}), using CPU encoder`);
+      // CPU encoding: libx264/libx265 with memory-optimized threading
+      if (gpu && (totalW > h264MaxRes || totalH > h264MaxRes)) {
+        console.log(`[WARN] Resolution ${totalW}×${totalH} exceeds GPU limits, using CPU encoder`);
       }
       const maxThreads = Math.min(4, Math.floor(require('os').cpus().length / 2));
       cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
@@ -1031,7 +1119,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       throw new Error('Export cancelled');
     }
     
-    sendProgress(8, useGpu ? `Exporting with ${gpu.name}...` : 'Exporting with CPU...');
+    sendProgress(8, useGpu ? `Exporting with ${activeEncoder.name}...` : 'Exporting with CPU...');
 
     // Execute
     return new Promise(async (resolve, reject) => {
