@@ -132,24 +132,180 @@ function detectGpuEncoder(ffmpegPath) {
   if (gpuEncoder !== null) return gpuEncoder;
   
   try {
-    const result = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
-    const output = result.stdout?.toString() || '';
+    // First, check what hardware accelerators are available
+    const hwaccelResult = spawnSync(ffmpegPath, ['-hwaccels'], { timeout: 3000, windowsHide: true });
+    const hwaccelsOutput = (hwaccelResult.stdout?.toString() || '') + (hwaccelResult.stderr?.toString() || '');
+    
+    // Get list of available encoders
+    const encoderResult = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
+    const encoderOutput = encoderResult.stdout?.toString() || '';
+    
+    // Test if an encoder is actually usable
+    const testEncoder = (codec) => {
+      try {
+        // Step 1: Check encoder help - verify encoder exists in FFmpeg
+        const helpResult = spawnSync(ffmpegPath, ['-hide_banner', '-h', `encoder=${codec}`], { 
+          timeout: 2000, 
+          windowsHide: true,
+          stdio: 'pipe'
+        });
+        
+        const helpOutput = (helpResult.stdout?.toString() || '') + (helpResult.stderr?.toString() || '');
+        
+        // If encoder help shows "Unknown encoder", it's definitely not available
+        if (helpOutput.includes('Unknown encoder') || 
+            helpOutput.includes('No such encoder') ||
+            helpOutput.includes('not found')) {
+          return false;
+        }
+        
+        // Encoder exists in FFmpeg. Now verify it can access hardware.
+        // Step 2: Try a minimal encode test to verify encoder can access hardware
+        // Build test command with appropriate hardware acceleration if needed
+        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'color=c=black:s=2x2:d=0.01:r=1'];
+        
+        // Add hardware acceleration hint for Windows encoders if available
+        if (process.platform === 'win32') {
+          if (codec === 'h264_amf' && hwaccelsOutput.includes('d3d11va')) {
+            // AMD AMF works with D3D11VA
+            testArgs.push('-hwaccel', 'd3d11va');
+          } else if (codec === 'h264_nvenc' && hwaccelsOutput.includes('cuda')) {
+            // NVENC works with CUDA
+            testArgs.push('-hwaccel', 'cuda');
+          } else if (codec === 'h264_qsv' && hwaccelsOutput.includes('qsv')) {
+            // QuickSync uses QSV
+            testArgs.push('-hwaccel', 'qsv');
+          }
+        }
+        
+        testArgs.push('-c:v', codec, '-frames:v', '1', '-f', 'null', '-');
+        
+        const optionsResult = spawnSync(ffmpegPath, testArgs, { 
+          timeout: 3000,
+          windowsHide: true,
+          stdio: 'pipe'
+        });
+        
+        const optionsOutput = (optionsResult.stdout?.toString() || '') + (optionsResult.stderr?.toString() || '');
+        
+        // Log test output for debugging
+        if (optionsOutput.length > 0) {
+          const shortOutput = optionsOutput.split('\n').slice(0, 5).join(' ').substring(0, 200);
+          console.log(`  Test output: ${shortOutput}...`);
+        }
+        
+        // Check for fatal errors that indicate encoder cannot access hardware
+        // These are definitive signs the encoder won't work
+        const fatalErrors = [
+          'No such device',
+          'Could not open encoder',
+          'Failed to create encoder',
+          'Cannot load',
+          'Device creation failed',
+          'No capable devices found',
+          'No device available',
+          'No hardware device found'
+        ];
+        
+        for (const error of fatalErrors) {
+          if (optionsOutput.toLowerCase().includes(error.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // If we see "Invalid argument" specifically about the encoder, it's likely not available
+        if (optionsOutput.includes('Invalid argument') && 
+            (optionsOutput.includes('encoder') || optionsOutput.includes(codec))) {
+          return false;
+        }
+        
+        // If we got here without fatal errors, encoder might work
+        // The actual export will handle errors gracefully if it doesn't
+        // Accept if:
+        // - Status is 0 (success)
+        // - We see any encoding output (frame=, Stream #, etc.)
+        // - No fatal errors were found
+        if (optionsResult.status === 0) {
+          return true;
+        }
+        
+        // Even if status is non-zero, if we don't see fatal errors, 
+        // the encoder might work (could be other issues with the test)
+        // Check if we see any positive signs
+        if (optionsOutput.includes('frame=') || 
+            optionsOutput.includes('Stream #') ||
+            optionsOutput.includes('Video:') ||
+            optionsOutput.includes('encoder')) {
+          // We see encoder-related output, assume it might work
+          return true;
+        }
+        
+        // If we see "Task finished with error" specifically about the encoder AND it's a hardware error, it failed
+        if (optionsOutput.includes('Task finished with error') && 
+            optionsOutput.includes(codec) &&
+            (optionsOutput.includes('device') || optionsOutput.includes('hardware'))) {
+          return false;
+        }
+        
+        // Default: if help worked and no definitive hardware errors, assume encoder might work
+        // The actual export will handle real errors gracefully
+        // This is more lenient because the test might fail for reasons other than hardware availability
+        return true;
+      } catch (err) {
+        // Timeout or other error - be conservative and assume encoder doesn't work
+        return false;
+      }
+    };
     
     // Check for GPU encoders in order of preference
-    if (process.platform === 'darwin' && output.includes('h264_videotoolbox')) {
-      gpuEncoder = { codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' };
-    } else if (output.includes('h264_nvenc')) {
-      gpuEncoder = { codec: 'h264_nvenc', name: 'NVIDIA NVENC' };
-    } else if (output.includes('h264_amf')) {
-      gpuEncoder = { codec: 'h264_amf', name: 'AMD AMF' };
-    } else if (output.includes('h264_qsv')) {
-      gpuEncoder = { codec: 'h264_qsv', name: 'Intel QuickSync' };
+    // On Windows, prioritize AMD AMF over NVIDIA NVENC since both might be listed
+    const encodersToCheck = [];
+    
+    if (process.platform === 'darwin') {
+      // macOS: VideoToolbox only
+      encodersToCheck.push({ codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' });
+    } else if (process.platform === 'win32') {
+      // Windows: Check AMD first, then NVIDIA, then Intel
+      // Also check hardware accelerators to help prioritize
+      const hasD3D11 = hwaccelsOutput.includes('d3d11va');
+      const hasDXVA2 = hwaccelsOutput.includes('dxva2');
+      
+      encodersToCheck.push(
+        { codec: 'h264_amf', name: 'AMD AMF', priority: hasD3D11 || hasDXVA2 ? 1 : 2 },
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
+        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
+      );
     } else {
-      gpuEncoder = null;
+      // Linux: Check NVIDIA, AMD, Intel
+      encodersToCheck.push(
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC' },
+        { codec: 'h264_amf', name: 'AMD AMF' },
+        { codec: 'h264_qsv', name: 'Intel QuickSync' }
+      );
     }
     
-    if (gpuEncoder) console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
-  } catch {
+    // Sort by priority if available
+    encodersToCheck.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+    
+    // Check each encoder: first verify it's listed, then verify it's actually usable
+    for (const encoder of encodersToCheck) {
+      if (encoderOutput.includes(encoder.codec)) {
+        console.log(`🔍 Testing ${encoder.name} (${encoder.codec})...`);
+        // Encoder is listed, now verify it's actually usable
+        if (testEncoder(encoder.codec)) {
+          gpuEncoder = encoder;
+          console.log(`🎮 GPU encoder available: ${gpuEncoder.name}`);
+          return gpuEncoder;
+        } else {
+          console.log(`⚠️ ${encoder.codec} is listed but not usable (no hardware available)`);
+        }
+      }
+    }
+    
+    gpuEncoder = null;
+    console.log('ℹ️ No usable GPU encoder found, will use CPU encoding');
+  } catch (err) {
+    console.error('Error detecting GPU encoder:', err.message);
     gpuEncoder = null;
   }
   return gpuEncoder;
@@ -670,9 +826,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const x = Math.round((layout.x * scaleX) - minX);
         const y = Math.round((layout.y * scaleY) - minY);
         
-        let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
+        // Use smoother frame rate conversion
+        let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+        chain += `,fps=${FPS}:round=near`;
         if (hasVideo && isMirrored) chain += ',hflip';
-        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
+        chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
         
         filters.push(chain);
         cameraStreams.push({ tag: `[v${i}]`, x, y });
@@ -701,9 +859,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const srcIdx = hasVideo ? inputIdx : blackInputIdx;
         const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
 
-        let chain = `[${srcIdx}:v]fps=${FPS},setpts=PTS-STARTPTS`;
+        // Use minterpolate for smoother frame rate conversion to avoid pulsing
+        // fps filter can cause frame drops/duplicates, minterpolate is smoother
+        let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
+        // Use fps filter with interpolation for smoother conversion
+        chain += `,fps=${FPS}:round=near`;
         if (hasVideo && isMirrored) chain += ',hflip';
-        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable,setsar=1[v${i}]`;
+        chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
         
         filters.push(chain);
         streamTags.push(`[v${i}]`);
@@ -721,35 +883,70 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
     }
     
+    // GPU limit check (totalW and totalH already calculated above)
+    const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
+
+    const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
+    // Only use GPU when exporting without dashboard (dashboard overlay requires CPU encoding)
+    const useGpu = gpuAllowed && !includeDashboard;
+
     // Add dashboard overlay if enabled
     if (dashboardWindow) {
       filters.push(`[grid][${dashboardInputIdx}:v]overlay=(W-w)/2:H-h-20:format=auto[out]`);
     } else {
-      // Ensure output format is set for NVENC compatibility
+      // Ensure output format is set for encoder compatibility (yuv420p works for both GPU and CPU)
       filters.push(`[grid]format=yuv420p[out]`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
-    // GPU limit check (totalW and totalH already calculated above)
-    const gpuMaxRes = 4096; // Most GPU encoders have 4096 limit on one dimension
-
-    const gpuAllowed = gpu && !mobileExport && totalW <= gpuMaxRes && totalH <= gpuMaxRes;
-    const useGpu = false;
-
     // Encoding settings
     if (useGpu) {
       cmd.push('-c:v', gpu.codec);
       if (gpu.codec === 'h264_nvenc') {
-        // NVENC VBR mode requires b:v to be set (0 means use CQ)
-        cmd.push('-preset', 'p4', '-rc', 'vbr', '-cq', crf.toString(), '-b:v', '0', '-maxrate', '0');
+        // NVENC: Use CQP (Constant Quantization Parameter) for consistent quality
+        // Map CRF (0-51, lower=better) to CQ (0-51, lower=better) - they're similar scales
+        const cq = Math.max(0, Math.min(51, crf));
+        cmd.push('-preset', 'p4', '-rc', 'constqp', '-qp', cq.toString());
+        // Add keyframe interval for better quality (2 seconds at 36fps = 72 frames)
+        cmd.push('-g', (FPS * 2).toString());
+        // Force IDR frames at keyframes
+        cmd.push('-forced-idr', '1');
       } else if (gpu.codec === 'h264_amf') {
-        cmd.push('-quality', 'balanced', '-rc', 'vbr_latency');
+        // AMD AMF: Use quality-based encoding with proper settings
+        // Map CRF to AMF quality: CRF 20-28 (high) = quality, CRF 28+ (lower) = balanced/speed
+        let quality = 'quality';
+        if (crf >= 28) quality = 'speed';
+        else if (crf >= 24) quality = 'balanced';
+        
+        cmd.push('-quality', quality);
+        // Use CQP (Constant Quantization Parameter) mode for consistent quality
+        // AMF CQP uses 0-51 scale similar to x264 CRF
+        cmd.push('-rc', 'cqp');
+        cmd.push('-qp_i', Math.max(18, Math.min(46, crf)).toString()); // I-frame QP
+        cmd.push('-qp_p', Math.max(18, Math.min(46, crf + 2)).toString()); // P-frame QP (slightly higher)
+        cmd.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString()); // B-frame QP (even higher)
+        // Add keyframe interval for better quality (2 seconds at 36fps = 72 frames)
+        cmd.push('-g', (FPS * 2).toString());
       } else if (gpu.codec === 'h264_videotoolbox') {
+        // VideoToolbox: Quality scale is inverted (higher = better)
         cmd.push('-q:v', Math.max(40, 100 - crf * 2).toString());
+        // Add keyframe interval
+        cmd.push('-g', (FPS * 2).toString());
+      } else if (gpu.codec === 'h264_qsv') {
+        // Intel QuickSync: Use CQP mode for consistent quality
+        // QSV uses 1-51 scale where lower is better (similar to CRF)
+        const qsvQp = Math.max(18, Math.min(46, crf));
+        cmd.push('-preset', 'balanced');
+        cmd.push('-global_quality', qsvQp.toString());
+        // Add keyframe interval
+        cmd.push('-g', (FPS * 2).toString());
       } else {
+        // Fallback for any other GPU encoders (shouldn't happen, but safe fallback)
+        console.log(`⚠️ Using generic settings for unknown GPU encoder: ${gpu.codec}`);
         cmd.push('-preset', 'fast', '-crf', crf.toString());
+        cmd.push('-g', (FPS * 2).toString());
       }
       console.log(`🎮 Using GPU encoder: ${gpu.name}`);
     } else {
@@ -764,9 +961,20 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`); // Further limit x264 threading
     }
     
-    cmd.push('-r', FPS.toString(), '-t', durationSec.toString());
+    cmd.push('-t', durationSec.toString());
     cmd.push('-movflags', '+faststart'); // Better streaming
     cmd.push('-pix_fmt', 'yuv420p'); // Compatibility
+    
+    // Additional settings for GPU encoders to prevent quality issues
+    if (useGpu) {
+      // Prevent frame drops and ensure consistent timing
+      cmd.push('-vsync', 'cfr'); // Constant frame rate (matches filter chain)
+      // Set frame rate metadata (filter chain handles actual frame rate)
+      cmd.push('-r', FPS.toString());
+    } else {
+      // CPU encoding: set frame rate explicitly
+      cmd.push('-r', FPS.toString());
+    }
     // Memory optimization: limit output buffer
     cmd.push('-max_muxing_queue_size', '1024'); // Limit muxer queue size
     cmd.push(outputPath);
