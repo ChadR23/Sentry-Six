@@ -39,7 +39,10 @@
         }
       ],
       "sign": null,
-      "signDlls": false
+      "signDlls": false,
+      "verifyUpdateCodeSignature": false,
+      "certificateFile": null,
+      "certificatePassword": null
     },
     "files": [
       "src/**/*",
