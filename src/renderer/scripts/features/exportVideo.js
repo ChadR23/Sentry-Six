@@ -236,6 +236,14 @@ export function openExportModal() {
     
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
+    
+    // Ensure close button is enabled when modal opens
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.disabled = false;
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.opacity = '1';
+    }
 }
 
 /**
@@ -580,6 +588,14 @@ export async function startExport() {
     
     if (startBtn) startBtn.disabled = true;
     
+    // Disable close button during export to prevent accidental closing
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.disabled = true;
+        closeBtn.style.cursor = 'not-allowed';
+        closeBtn.style.opacity = '0.5';
+    }
+    
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
     exportState.isExporting = true;
@@ -597,6 +613,14 @@ export async function startExport() {
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
+                
+                // Re-enable close button after export completes
+                const closeBtn = $('closeExportModal');
+                if (closeBtn) {
+                    closeBtn.disabled = false;
+                    closeBtn.style.cursor = 'pointer';
+                    closeBtn.style.opacity = '1';
+                }
                 
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
@@ -642,6 +666,14 @@ export async function startExport() {
         exportState.isExporting = false;
         exportState.currentExportId = null;
         if (startBtn) startBtn.disabled = false;
+        
+        // Re-enable close button after export fails
+        const closeBtn = $('closeExportModal');
+        if (closeBtn) {
+            closeBtn.disabled = false;
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.opacity = '1';
+        }
     }
 }
 
@@ -659,6 +691,14 @@ export async function cancelExport() {
     
     const progressEl = $('exportProgress');
     const startBtn = $('startExportBtn');
+    
+    // Re-enable close button after export is cancelled
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.disabled = false;
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.opacity = '1';
+    }
     
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;

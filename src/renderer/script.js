@@ -573,7 +573,13 @@ function hasValidGps(sei) {
         exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); };
     }
     if (closeExportModal) {
-        closeExportModal.onclick = (e) => { e.preventDefault(); closeExportModalFn(); };
+        closeExportModal.onclick = (e) => { 
+            e.preventDefault(); 
+            // Prevent closing during active export
+            if (!exportState.isExporting) {
+                closeExportModalFn(); 
+            }
+        };
     }
     if (cancelExportBtn) {
         cancelExportBtn.onclick = (e) => { e.preventDefault(); cancelExport(); };
@@ -584,7 +590,10 @@ function hasValidGps(sei) {
     // Close modal on backdrop click
     if (exportModal) {
         exportModal.onclick = (e) => {
-            if (e.target === exportModal) closeExportModalFn();
+            // Prevent closing during active export
+            if (e.target === exportModal && !exportState.isExporting) {
+                closeExportModalFn();
+            }
         };
     }
 
