@@ -145,6 +145,12 @@ export function resetZoomPan() {
         const indicator = tile.querySelector('.zoom-indicator');
         if (indicator) indicator.remove();
     });
+    
+    // Reset video container overflow
+    const videoContainer = document.getElementById('videoContainer');
+    if (videoContainer) {
+        videoContainer.style.overflow = 'hidden';
+    }
 }
 
 /**
@@ -180,12 +186,14 @@ export function applyZoomPan() {
     const needsMirror = camera && shouldMirrorCamera(camera);
     
     // Build transform string
-    // CSS transforms are applied right-to-left, so to get: mirror -> zoom -> pan
-    // we need to write: translate -> scale -> scaleX(-1)
+    // CSS transforms are applied right-to-left, so to match old behavior:
+    // Old: scale(zoom) translate(panX, panY) = translate first, then scale
+    // New: scale(zoom) translate(panX, panY) scaleX(-1) = mirror first, then translate, then scale
+    // This gives us: mirror -> translate -> scale (visually)
     let transform = '';
     if (zoomPanState.zoom > 1 || zoomPanState.panX !== 0 || zoomPanState.panY !== 0) {
-        // Apply zoom and pan transforms
-        transform = `translate(${zoomPanState.panX}px, ${zoomPanState.panY}px) scale(${zoomPanState.zoom})`;
+        // Match old transform order: scale then translate
+        transform = `scale(${zoomPanState.zoom}) translate(${zoomPanState.panX}px, ${zoomPanState.panY}px)`;
         // Add mirror at the end (applied first visually) if needed
         if (needsMirror) {
             transform += ' scaleX(-1)';
@@ -210,6 +218,16 @@ export function applyZoomPan() {
         focusedTile.classList.add('zoomed');
     } else {
         focusedTile.classList.remove('zoomed');
+    }
+    
+    // Toggle overflow on video container to allow panned content to be visible
+    const videoContainer = document.getElementById('videoContainer');
+    if (videoContainer) {
+        if (zoomPanState.zoom > 1) {
+            videoContainer.style.overflow = 'visible';
+        } else {
+            videoContainer.style.overflow = 'hidden';
+        }
     }
     
     updateZoomIndicator(focusedTile);
@@ -274,9 +292,54 @@ function constrainPan() {
         return;
     }
     
-    const maxPan = (zoomPanState.zoom - 1) * 150;
-    zoomPanState.panX = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panX));
-    zoomPanState.panY = Math.max(-maxPan, Math.min(maxPan, zoomPanState.panY));
+    // Get the focused tile to calculate proper pan constraints based on actual element size
+    const multiCamGrid = getMultiCamGrid?.();
+    const state = getState?.();
+    if (!state?.ui?.multiFocusSlot || !multiCamGrid) {
+        return;
+    }
+    
+    const focusedTile = multiCamGrid.querySelector(
+        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"], ` +
+        `.immersive-main[data-slot="${state.ui.multiFocusSlot}"], ` +
+        `.immersive-overlay[data-slot="${state.ui.multiFocusSlot}"]`
+    );
+    
+    if (!focusedTile) {
+        return;
+    }
+    
+    const media = focusedTile.querySelector('video, canvas');
+    if (!media) {
+        return;
+    }
+    
+    // Get the container (tile) dimensions - use offsetWidth/offsetHeight to get base size
+    const width = focusedTile.offsetWidth;
+    const height = focusedTile.offsetHeight;
+    
+    if (width === 0 || height === 0) {
+        return;
+    }
+    
+    // Transform: scale(zoom) translate(panX, panY)
+    // Applied right-to-left: translate first, then scale
+    // 
+    // When zoomed, content extends beyond container
+    // Extra content per side: (width * zoom - width) / 2 = width * (zoom - 1) / 2
+    // 
+    // Since translate happens BEFORE scale, pan values are in original coordinate space
+    // and get multiplied by zoom when rendered. So:
+    // - Visual movement = panX * zoom
+    // - To move 'delta' pixels visually, we need panX = delta / zoom
+    // - Maximum visual movement per side: width * (zoom - 1) / 2
+    // - Maximum pan per side: (width * (zoom - 1) / 2) / zoom = width * (zoom - 1) / (2 * zoom)
+    const maxPanX = (width * (zoomPanState.zoom - 1)) / (2 * zoomPanState.zoom);
+    const maxPanY = (height * (zoomPanState.zoom - 1)) / (2 * zoomPanState.zoom);
+    
+    // Apply constraint with small tolerance to ensure we can see edges
+    zoomPanState.panX = Math.max(-maxPanX - 1, Math.min(maxPanX + 1, zoomPanState.panX));
+    zoomPanState.panY = Math.max(-maxPanY - 1, Math.min(maxPanY + 1, zoomPanState.panY));
 }
 
 function handlePanStart(e) {

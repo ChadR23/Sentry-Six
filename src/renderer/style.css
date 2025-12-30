@@ -130,6 +130,12 @@ canvas, .video-player, .tile-video {
     align-items: center;
     justify-content: center;
 }
+/* Allow overflow when zoomed so panned content is visible */
+.multi-cam-grid.focused .multi-tile.zoomed,
+.multi-cam-grid.focused .immersive-main.zoomed,
+.multi-cam-grid.focused .immersive-overlay.zoomed {
+    overflow: visible;
+}
 .multi-tile canvas,
 .multi-tile video {
     width: 100%;
