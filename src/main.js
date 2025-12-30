@@ -18,6 +18,7 @@ const UPDATE_CONFIG = {
 
 // Active exports tracking
 const activeExports = {};
+const cancelledExports = new Set(); // Track cancelled exports by ID
 let mainWindow = null;
 let gpuEncoder = null; // Cached GPU encoder detection
 
@@ -570,6 +571,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   // Declare dashboardWindow in outer scope so it's accessible in catch block
   let dashboardWindow = null;
 
+  // Check if export was cancelled before starting
+  if (cancelledExports.has(exportId)) {
+    console.log('Export cancelled before starting:', exportId);
+    cancelledExports.delete(exportId);
+    return Promise.reject(new Error('Export cancelled'));
+  }
+
   try {
     console.log('🎬 Starting video export...');
     sendProgress(2, 'Analyzing segments...');
@@ -777,8 +785,25 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
         if (includeDashboard && seiData && seiData.length > 0) {
           sendDashboardProgress(0, 'Initializing dashboard renderer...');
+          
+          // Check for cancellation before creating dashboard window
+          if (cancelledExports.has(exportId)) {
+            console.log('Export cancelled during dashboard initialization');
+            throw new Error('Export cancelled');
+          }
+          
           try {
             dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight);
+            
+            // Check for cancellation after dashboard window is created
+            if (cancelledExports.has(exportId)) {
+              console.log('Export cancelled after dashboard window creation');
+              if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+                dashboardWindow.close();
+              }
+              throw new Error('Export cancelled');
+            }
+            
             sendDashboardProgress(5, 'Dashboard renderer ready');
             console.log(`📊 Dashboard size: ${dashboardWidth}x${dashboardHeight} for output ${totalW}x${totalH}`);
             
@@ -788,9 +813,22 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
                      '-framerate', FPS.toString(),
                      '-i', 'pipe:3');
           } catch (err) {
+            // If cancelled, re-throw to stop the export
+            if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+              throw err;
+            }
             sendDashboardProgress(0, `Dashboard renderer failed: ${err.message}. Continuing without overlay...`);
             dashboardWindow = null;
           }
+        }
+        
+        // Check for cancellation after dashboard setup, before spawning FFmpeg
+        if (cancelledExports.has(exportId)) {
+          console.log('Export cancelled before spawning FFmpeg');
+          if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+            dashboardWindow.close();
+          }
+          throw new Error('Export cancelled');
         }
 
     const filters = [];
@@ -983,6 +1021,16 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push(outputPath);
 
     console.log('🚀 FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
+    
+    // Final cancellation check before spawning FFmpeg
+    if (cancelledExports.has(exportId)) {
+      console.log('Export cancelled before spawning FFmpeg process');
+      if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+        dashboardWindow.close();
+      }
+      throw new Error('Export cancelled');
+    }
+    
     sendProgress(8, useGpu ? `Exporting with ${gpu.name}...` : 'Exporting with CPU...');
 
     // Execute
@@ -1026,11 +1074,23 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         
         (async () => {
           try {
+            // Check for cancellation before starting dashboard rendering
+            if (cancelledExports.has(exportId)) {
+              console.log('Dashboard rendering cancelled before starting');
+              return;
+            }
+            
             sendDashboardProgress(10, 'Rendering dashboard frames...');
             const blackFrame = Buffer.alloc(dashboardWidth * dashboardHeight * 4, 0);
             
             for (let frame = 0; frame < totalFrames; frame++) {
-              if (proc.killed || proc.exitCode !== null) {
+              // Check for cancellation or process termination
+              if (cancelledExports.has(exportId) || proc.killed || proc.exitCode !== null) {
+                console.log('Dashboard rendering cancelled or process terminated');
+                // Close dashboard window immediately on cancellation
+                if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+                  dashboardWindow.close();
+                }
                 break;
               }
               
@@ -1074,7 +1134,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               }
             }
             
-            sendDashboardProgress(100, 'Dashboard rendering complete');
+            // Only send completion message if not cancelled
+            if (!cancelledExports.has(exportId)) {
+              sendDashboardProgress(100, 'Dashboard rendering complete');
+            }
             
             if (dashboardPipe && !dashboardPipe.destroyed && !dashboardPipe.writableEnded && dashboardPipe.writable) {
               try {
@@ -1121,6 +1184,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       proc.on('close', (code) => {
         delete activeExports[exportId];
+        cancelledExports.delete(exportId); // Clean up cancellation flag
         cleanup();
         
         // Clean up dashboard window
@@ -1141,6 +1205,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       proc.on('error', (err) => {
         cleanup();
+        cancelledExports.delete(exportId); // Clean up cancellation flag
         if (dashboardWindow && !dashboardWindow.isDestroyed()) {
           dashboardWindow.close();
         }
@@ -1148,11 +1213,26 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         reject(err);
       });
 
+      // Register export early so cancellation can find it
       activeExports[exportId] = proc;
+      
+      // Check for cancellation immediately after spawning (race condition protection)
+      if (cancelledExports.has(exportId)) {
+        console.log('Export cancelled immediately after spawning FFmpeg, killing process');
+        proc.kill('SIGTERM');
+        delete activeExports[exportId];
+        cancelledExports.delete(exportId);
+        if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+          dashboardWindow.close();
+        }
+        reject(new Error('Export cancelled'));
+        return;
+      }
     });
 
   } catch (error) {
     console.error('Export error:', error);
+    cancelledExports.delete(exportId); // Clean up cancellation flag
     cleanup();
     if (dashboardWindow && !dashboardWindow.isDestroyed()) {
       dashboardWindow.close();
@@ -1243,6 +1323,18 @@ ipcMain.handle('dialog:saveFile', async (_event, options) => {
 ipcMain.handle('export:start', async (event, exportId, exportData) => {
   console.log('🚀 Starting export:', exportId);
   
+  // Check if already cancelled before starting
+  if (cancelledExports.has(exportId)) {
+    console.log('Export cancelled before starting:', exportId);
+    cancelledExports.delete(exportId);
+    event.sender.send('export:progress', exportId, {
+      type: 'complete',
+      success: false,
+      message: 'Export cancelled'
+    });
+    return false;
+  }
+  
   try {
     const ffmpegPath = findFFmpegPath();
     if (!ffmpegPath) {
@@ -1253,6 +1345,7 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
     return result;
   } catch (error) {
     console.error('Export failed:', error);
+    cancelledExports.delete(exportId); // Clean up cancellation flag
     event.sender.send('export:progress', exportId, {
       type: 'complete',
       success: false,
@@ -1263,13 +1356,18 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
 });
 
 ipcMain.handle('export:cancel', async (_event, exportId) => {
+  // Mark as cancelled immediately so dashboard rendering loop can check it
+  cancelledExports.add(exportId);
+  
   const proc = activeExports[exportId];
   if (proc) {
     proc.kill('SIGTERM');
     delete activeExports[exportId];
+    cancelledExports.delete(exportId); // Clean up immediately after killing
     return true;
   }
-  return false;
+  // Even if process not found, mark as cancelled so it won't start
+  return true;
 });
 
 ipcMain.handle('fs:showItemInFolder', async (_event, filePath) => {

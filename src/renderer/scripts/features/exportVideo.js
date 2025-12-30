@@ -12,7 +12,8 @@ export const exportState = {
     endMarkerPct: null,
     isExporting: false,
     currentExportId: null,
-    ffmpegAvailable: false
+    ffmpegAvailable: false,
+    cancelled: false
 };
 
 // DOM helper
@@ -461,6 +462,13 @@ export async function startExport() {
             
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
+                // Check for cancellation before processing each segment
+                if (exportState.cancelled) {
+                    console.log('SEI extraction cancelled by user');
+                    seiData = null;
+                    break;
+                }
+                
                 const group = groups[i];
                 const segStartMs = (cumStarts[i] || 0) * 1000;
                 const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
@@ -610,6 +618,7 @@ export async function startExport() {
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
     exportState.isExporting = true;
+    exportState.cancelled = false; // Reset cancellation flag
     
     if (window.electronAPI?.on) {
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
@@ -624,6 +633,7 @@ export async function startExport() {
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
+                exportState.cancelled = false; // Reset cancellation flag
                 
                 // Re-enable close button after export completes
                 const closeBtn = $('closeExportModal');
@@ -655,6 +665,23 @@ export async function startExport() {
         });
     }
     
+    // Check for cancellation after SEI extraction but before starting export
+    if (exportState.cancelled) {
+        console.log('Export cancelled before starting FFmpeg');
+        exportState.isExporting = false;
+        exportState.currentExportId = null;
+        if (startBtn) startBtn.disabled = false;
+        
+        // Re-enable close button
+        const closeBtn = $('closeExportModal');
+        if (closeBtn) {
+            closeBtn.disabled = false;
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.opacity = '1';
+        }
+        return;
+    }
+    
     try {
         const exportData = {
             segments,
@@ -676,6 +703,7 @@ export async function startExport() {
         notify(`Export failed: ${err.message}`, { type: 'error' });
         exportState.isExporting = false;
         exportState.currentExportId = null;
+        exportState.cancelled = false; // Reset cancellation flag
         if (startBtn) startBtn.disabled = false;
         
         // Re-enable close button after export fails
@@ -692,6 +720,9 @@ export async function startExport() {
  * Cancel an ongoing export
  */
 export async function cancelExport() {
+    // Set cancellation flag immediately so SEI extraction loop can check it
+    exportState.cancelled = true;
+    
     if (exportState.currentExportId && window.electronAPI?.cancelExport) {
         await window.electronAPI.cancelExport(exportState.currentExportId);
         notify('Export cancelled', { type: 'info' });
@@ -699,6 +730,7 @@ export async function cancelExport() {
     
     exportState.isExporting = false;
     exportState.currentExportId = null;
+    exportState.cancelled = false; // Reset cancellation flag
     
     const progressEl = $('exportProgress');
     const startBtn = $('startExportBtn');
