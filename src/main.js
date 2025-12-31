@@ -733,7 +733,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
     // Spawn FFmpeg to encode dashboard frames to temp video
     // Use qtrle (QuickTime Animation) codec which properly supports RGBA with alpha
     // H.264/libx264 does NOT support alpha channels - transparent areas become black
-    const dashProc = spawn(ffmpegPath, [
+    const dashArgs = [
       '-f', 'rawvideo',
       '-pixel_format', 'rgba',
       '-video_size', `${dashboardWidth}x${dashboardHeight}`,
@@ -743,7 +743,22 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
       '-pix_fmt', 'argb',     // ARGB format for proper alpha
       '-y',
       tempDashPath
-    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    ];
+    console.log(`[DASHBOARD] FFmpeg command: ${ffmpegPath} ${dashArgs.join(' ')}`);
+    console.log(`[DASHBOARD] Temp directory: ${os.tmpdir()}`);
+    
+    const dashProc = spawn(ffmpegPath, dashArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+    
+    // Consume stdout/stderr to prevent buffer deadlock
+    let ffmpegStderr = '';
+    dashProc.stdout.on('data', () => {}); // Drain stdout
+    dashProc.stderr.on('data', (data) => {
+      ffmpegStderr += data.toString();
+      // Keep only last 2KB to avoid memory issues
+      if (ffmpegStderr.length > 2048) {
+        ffmpegStderr = ffmpegStderr.slice(-2048);
+      }
+    });
     
     const dashPipe = dashProc.stdin;
     
@@ -804,14 +819,33 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
     }
     
     // Close pipe and wait for FFmpeg to finish
+    console.log(`[DASHBOARD] All ${totalFrames} frames written, closing pipe...`);
     dashPipe.end();
     
+    console.log('[DASHBOARD] Waiting for FFmpeg to finish encoding...');
     await new Promise((resolve, reject) => {
+      // Add timeout to detect hangs
+      const ffmpegTimeout = setTimeout(() => {
+        console.error('[DASHBOARD] FFmpeg timeout after 60s waiting for close');
+        console.error('[DASHBOARD] FFmpeg stderr:', ffmpegStderr);
+        dashProc.kill('SIGKILL');
+        reject(new Error('Dashboard FFmpeg timed out after 60 seconds. Check temp directory permissions.'));
+      }, 60000);
+      
       dashProc.on('close', (code) => {
+        clearTimeout(ffmpegTimeout);
+        console.log(`[DASHBOARD] FFmpeg closed with code ${code}`);
+        if (code !== 0) {
+          console.error('[DASHBOARD] FFmpeg stderr:', ffmpegStderr);
+        }
         if (code === 0) resolve();
-        else reject(new Error(`Dashboard encoding failed with code ${code}`));
+        else reject(new Error(`Dashboard encoding failed with code ${code}: ${ffmpegStderr.slice(-500)}`));
       });
-      dashProc.on('error', reject);
+      dashProc.on('error', (err) => {
+        clearTimeout(ffmpegTimeout);
+        console.error('[DASHBOARD] FFmpeg error:', err);
+        reject(err);
+      });
     });
     
     sendDashboardProgress(100, 'Dashboard pre-render complete');
