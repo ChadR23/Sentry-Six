@@ -414,7 +414,7 @@ canvas, .video-player, .tile-video {
     gap: 10px;
 }
 
-/* Clip Browser - Liquid Glass */
+/* Clip Browser - Solid */
 .clip-browser {
     position: absolute;
     top: 50px;
@@ -422,16 +422,14 @@ canvas, .video-player, .tile-video {
     width: min(var(--clips-float-width), calc(100% - 40px));
     max-height: calc(100% - 100px);
     background: linear-gradient(180deg, 
-        rgba(45, 45, 50, 0.25) 0%, 
-        rgba(35, 35, 40, 0.20) 50%,
-        rgba(28, 28, 32, 0.25) 100%);
-    backdrop-filter: blur(8px) saturate(100%);
-    -webkit-backdrop-filter: blur(8px) saturate(100%);
+        rgb(45, 45, 50) 0%, 
+        rgb(35, 35, 40) 50%,
+        rgb(28, 28, 32) 100%);
     border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 2px 8px rgba(0, 0, 0, 0.3),
         inset 0 1px 1px rgba(255, 255, 255, 0.08);
     z-index: 90;
     overflow: hidden;
@@ -439,10 +437,73 @@ canvas, .video-player, .tile-video {
     flex-direction: column;
 }
 
+/* Floating mode - panel overlays the video */
 .clips-mode-floating { --left-panel-offset: 360px; }
+
+/* Collapsed mode - floating panel minimized to toggle button */
+.clips-mode-collapsed { --left-panel-offset: 70px; }
+.clips-mode-collapsed .clip-browser {
+    position: fixed;
+    top: 50px;
+    left: 20px;
+    width: 44px;
+    height: 44px;
+    max-height: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+}
+.clips-mode-collapsed .clip-browser-title,
+.clips-mode-collapsed #clipList,
+.clips-mode-collapsed #chooseFolderBtn,
+.clips-mode-collapsed .info-link,
+.clips-mode-collapsed .clip-browser-dayfilter {
+    display: none;
+}
+.clips-mode-collapsed #clipsCollapseBtn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+.clips-mode-collapsed #clipsCollapseBtn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+.clips-mode-collapsed #clipsCollapseBtn svg {
+    transform: rotate(180deg);
+    width: 20px;
+    height: 20px;
+}
+.clips-mode-collapsed .clip-browser-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.clips-mode-collapsed .clip-browser-title {
+    display: none !important;
+}
+.clips-mode-collapsed .clip-browser-actions {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+}
+
 /* In docked mode the video container is shifted right, so the map offset can be 0. */
 .clips-mode-docked { --left-panel-offset: 0px; }
-.clips-mode-collapsed { --left-panel-offset: 70px; }
+.clips-mode-hidden { --left-panel-offset: 0px; }
 
 .clips-mode-docked .clip-browser {
     position: fixed;
@@ -465,7 +526,44 @@ canvas, .video-player, .tile-video {
     padding-left: calc(20px + var(--clips-dock-width));
 }
 
-.clips-mode-collapsed .clip-browser {
+/* Sidebar resize handle - only visible in docked mode */
+.sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+    background: transparent;
+    z-index: 100;
+    display: none;
+}
+.clips-mode-docked .sidebar-resize-handle {
+    display: block;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+    background: linear-gradient(90deg, transparent 0%, rgba(0, 212, 255, 0.3) 50%, transparent 100%);
+}
+.sidebar-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 40px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.sidebar-resize-handle:hover::after {
+    opacity: 1;
+}
+
+/* Hidden mode - sidebar collapsed to just a toggle button */
+.clips-mode-hidden .clip-browser {
     position: fixed;
     top: 50px;
     left: 20px;
@@ -478,30 +576,60 @@ canvas, .video-player, .tile-video {
     align-items: center;
     justify-content: center;
     border-radius: 12px;
+    bottom: auto;
 }
-.clips-mode-collapsed .clip-browser-title,
-.clips-mode-collapsed #clipList,
-.clips-mode-collapsed #chooseFolderBtn,
-.clips-mode-collapsed .info-link {
-    display: none;
+.clips-mode-hidden .clip-browser-title,
+.clips-mode-hidden #clipList,
+.clips-mode-hidden #chooseFolderBtn,
+.clips-mode-hidden .info-link,
+.clips-mode-hidden .clip-browser-dayfilter,
+.clips-mode-hidden .sidebar-resize-handle {
+    display: none !important;
 }
-.clips-mode-collapsed #clipsCollapseBtn {
+.clips-mode-hidden #clipsCollapseBtn {
     width: 44px;
     height: 44px;
     padding: 0;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
 }
-.clips-mode-collapsed #clipsCollapseBtn svg {
-    transform: rotate(180deg);
+.clips-mode-hidden #clipsCollapseBtn:hover {
+    background: rgba(255, 255, 255, 0.08);
 }
-.clips-mode-collapsed .clip-browser-header {
+.clips-mode-hidden #clipsCollapseBtn svg {
+    transform: rotate(180deg);
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+.clips-mode-hidden .clip-browser-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     padding: 0;
     border: none;
+    background: transparent;
     display: flex;
     justify-content: center;
     align-items: center;
+}
+.clips-mode-hidden .clip-browser-title {
+    display: none !important;
+}
+.clips-mode-hidden .clip-browser-actions {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+}
+.clips-mode-hidden .video-container {
+    margin-left: 0;
+}
+.clips-mode-hidden .controls {
+    padding-left: 20px;
 }
 
 .clip-browser-header {

@@ -431,10 +431,13 @@ function hasValidGps(sei) {
         };
     }
 
-    // Panel layout mode (floating/collapsed only)
+    // Panel layout mode (floating/collapsed or docked/hidden based on layout style)
     const panelMode = createClipsPanelMode({ map, clipsCollapseBtn });
     panelMode.initClipsPanelMode();
     clipsCollapseBtn.onclick = (e) => { e.preventDefault(); panelMode.toggleCollapsedMode(); };
+    
+    // Store panelMode functions globally for settings modal access
+    window._panelMode = panelMode;
 
     cameraSelect.onchange = () => {
         const g = selection.selectedGroupId ? library.clipGroupById.get(selection.selectedGroupId) : null;
@@ -767,7 +770,9 @@ initSettingsModalDeps({
     getUseMetric: () => useMetric,
     updateEventCameraHighlight,
     resetCameraOrder,
-    openDevSettingsModal: openDevSettings
+    openDevSettingsModal: openDevSettings,
+    setLayoutStyle: (style) => window._panelMode?.setLayoutStyle?.(style),
+    getLayoutStyle: () => window._panelMode?.getLayoutStyle?.() || 'modern'
 });
 initSettingsModal();
 initDevSettingsModal();

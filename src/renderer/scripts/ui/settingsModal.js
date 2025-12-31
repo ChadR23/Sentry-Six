@@ -54,6 +54,8 @@ let getUseMetric = null;
 let updateEventCameraHighlight = null;
 let resetCameraOrder = null;
 let openDevSettingsModal = null;
+let setLayoutStyle = null;
+let getLayoutStyle = null;
 
 /**
  * Initialize settings modal with dependencies
@@ -65,6 +67,8 @@ export function initSettingsModalDeps(deps) {
     updateEventCameraHighlight = deps.updateEventCameraHighlight;
     resetCameraOrder = deps.resetCameraOrder;
     openDevSettingsModal = deps.openDevSettingsModal;
+    setLayoutStyle = deps.setLayoutStyle;
+    getLayoutStyle = deps.getLayoutStyle;
 }
 
 /**
@@ -122,6 +126,13 @@ export function initSettingsModal() {
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
                 
+                // Sync layout style toggle
+                const settingsLayoutStyle = $('settingsLayoutStyle');
+                if (settingsLayoutStyle) {
+                    const currentStyle = getLayoutStyle?.() || 'modern';
+                    settingsLayoutStyle.checked = currentStyle === 'classic';
+                }
+                
                 const disableAutoUpdate = $('settingsDisableAutoUpdate');
                 if (disableAutoUpdate && window.electronAPI?.getSetting) {
                     window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
@@ -173,6 +184,19 @@ export function initSettingsModal() {
                 metricToggle.checked = settingsMetricToggle.checked;
                 metricToggle.dispatchEvent(new Event('change'));
             }
+        };
+    }
+    
+    // Layout style toggle (Modern floating vs Classic sidebar)
+    const settingsLayoutStyle = $('settingsLayoutStyle');
+    if (settingsLayoutStyle) {
+        // Initialize checkbox state from current layout
+        const currentStyle = getLayoutStyle?.() || 'modern';
+        settingsLayoutStyle.checked = currentStyle === 'classic';
+        
+        settingsLayoutStyle.onchange = () => {
+            const newStyle = settingsLayoutStyle.checked ? 'classic' : 'modern';
+            setLayoutStyle?.(newStyle);
         };
     }
     
