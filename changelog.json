@@ -8,25 +8,11 @@
         {
           "type": "fix",
           "description": "Prevents the update modal from closing during an update if the user attempts to close it."
-        }
-      ]
-    },
-    {
-      "version": "1.0.3",
-      "date": "2025-12-30",
-      "title": "Fix blank changelogs",
-      "changes": [
+        },
         {
           "type": "fix",
           "description": "Fixed changelogs not loading properly. Updated to grab changelog from github repo instead of locally due to inital testing.."
-        }
-      ]
-    },
-    {
-      "version": "1.0.2",
-      "date": "2025-12-30",
-      "title": "Minor UI Improvements",
-      "changes": [
+        },
         {
           "type": "improvement",
           "description": "Improved video export marker UX and layout"
