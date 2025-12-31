@@ -270,32 +270,12 @@
 
         <!-- Controls -->
         <div class="controls">
-            <!-- Skip Back 15s -->
-            <button id="skipBackBtn" class="control-btn" title="Skip back 15 seconds (Shift+Left)">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
-                </svg>
-                <span class="skip-label">15</span>
-            </button>
-            <button id="playBtn" class="control-btn" disabled>
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M8 5v14l11-7z"/>
-                </svg>
-            </button>
-            <!-- Skip Forward 15s -->
-            <button id="skipForwardBtn" class="control-btn" title="Skip forward 15 seconds (Shift+Right)">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
-                </svg>
-                <span class="skip-label">15</span>
-            </button>
-            <!-- Time Display -->
+            <!-- Left side: Time, Speed, Settings -->
             <div id="timeDisplay" class="time-display">
                 <span id="currentTime">00:00:00</span>
                 <span class="time-sep">/</span>
                 <span id="totalTime">00:00:00</span>
             </div>
-            <!-- Playback Speed -->
             <select id="speedSelect" class="speed-select" title="Playback speed">
                 <option value="0.5">0.5x</option>
                 <option value="1" selected>1x</option>
@@ -303,49 +283,66 @@
                 <option value="3">3x</option>
                 <option value="4">4x</option>
             </select>
-            <!-- Autoplay and Multi toggles hidden -->
+            <!-- Hidden toggles -->
             <input type="checkbox" id="autoplayToggle" style="display:none" checked>
             <input type="checkbox" id="multiCamToggle" style="display:none" checked>
-            <!-- Hidden toggles - controlled via settings modal -->
             <input type="checkbox" id="dashboardToggle" style="display:none" checked>
             <input type="checkbox" id="mapToggle" style="display:none" checked>
             <input type="checkbox" id="metricToggle" style="display:none">
-            <!-- Settings Button -->
-            <button id="settingsBtn" class="control-btn settings-btn" title="Settings">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                </svg>
-            </button>
-            <!-- Export controls -->
-            <button id="setStartMarkerBtn" class="control-btn export-marker-btn" title="Set export start point" disabled>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
-                </svg>
-                <span class="marker-label">In</span>
-            </button>
-            <button id="setEndMarkerBtn" class="control-btn export-marker-btn" title="Set export end point" disabled>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M15 5h-2V3h-2v2H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm0 5H9V7h6v3zM9 19h2v2h2v-2h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H9c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-5h6v3H9v-3z"/>
-                </svg>
-                <span class="marker-label">Out</span>
-            </button>
-            <button id="exportBtn" class="control-btn export-btn" title="Export video" disabled>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-                </svg>
-            </button>
-            <!-- Layout options hidden - using default 6-cam layout -->
+            
+            <!-- Playback controls - close to timeline -->
+            <div class="playback-group">
+                <button id="skipBackBtn" class="control-btn" title="Skip back 15 seconds (Shift+Left)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+                    </svg>
+                    <span class="skip-label">15</span>
+                </button>
+                <button id="playBtn" class="control-btn play-btn" disabled>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                </button>
+                <button id="skipForwardBtn" class="control-btn" title="Skip forward 15 seconds (Shift+Right)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+                    </svg>
+                    <span class="skip-label">15</span>
+                </button>
+            </div>
+            
+            <!-- Timeline with markers -->
+            <div class="timeline-container">
+                <div id="timelineMarkers" class="timeline-markers"></div>
+                <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" disabled>
+            </div>
+            
+            <!-- Export controls - right of timeline -->
+            <div class="export-group">
+                <button id="setStartMarkerBtn" class="control-btn export-marker-btn start" title="Set export start point" disabled>
+                    <span class="marker-label">In</span>
+                </button>
+                <button id="setEndMarkerBtn" class="control-btn export-marker-btn end" title="Set export end point" disabled>
+                    <span class="marker-label">Out</span>
+                </button>
+                <button id="exportBtn" class="control-btn export-btn" title="Export video" disabled>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                </button>
+                <button id="settingsBtn" class="control-btn settings-btn" title="Settings">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Layout options hidden -->
             <select id="multiLayoutSelect" style="display:none">
                 <option value="six_default" selected>Pillars Top</option>
             </select>
             <select id="cameraSelect" style="display:none">
                 <option value="front">Front</option>
             </select>
-            <!-- Timeline with markers -->
-            <div class="timeline-container">
-                <div id="timelineMarkers" class="timeline-markers"></div>
-                <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" disabled>
-            </div>
         </div>
     </div>
 

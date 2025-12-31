@@ -1700,6 +1700,43 @@ canvas, .video-player, .tile-video {
     opacity: 0.8;
 }
 
+/* Marker remove button (X) - appears on hover */
+.export-marker .marker-remove {
+    position: absolute;
+    top: -27px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none;
+}
+
+.export-marker:hover .marker-remove {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.export-marker .marker-remove:hover {
+    background: #f44336;
+    border-color: #f44336;
+    transform: translateX(-50%) scale(1.15);
+}
+
+.export-marker .marker-remove svg {
+    width: 14px;
+    height: 14px;
+    fill: #fff;
+}
+
 /* Export Range Highlight */
 .export-range-highlight {
     position: absolute;
@@ -1812,22 +1849,50 @@ canvas, .video-player, .tile-video {
     }
 }
 
+/* Playback Controls Group */
+.playback-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.playback-group .control-btn {
+    padding: 6px;
+}
+
+.play-btn {
+    padding: 8px 10px !important;
+}
+
+/* Export Controls Group */
+.export-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* Export Marker Buttons */
 .export-marker-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
     padding: 6px 10px;
-    font-size: 11px;
 }
 
 .export-marker-btn .marker-label {
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.3px;
 }
 
-.export-marker-btn:not(:disabled):hover {
-    background: rgba(62, 156, 191, 0.2);
-    border-color: rgba(62, 156, 191, 0.4);
+.export-marker-btn.start:not(:disabled):hover {
+    background: rgba(76, 175, 80, 0.2);
+    border-color: rgba(76, 175, 80, 0.5);
+}
+
+.export-marker-btn.end:not(:disabled):hover {
+    background: rgba(244, 67, 54, 0.2);
+    border-color: rgba(244, 67, 54, 0.5);
 }
 
 /* Export Button */

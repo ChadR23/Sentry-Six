@@ -88,10 +88,7 @@ export function updateExportMarkers() {
     let startMarker = markersContainer.querySelector('.export-marker.start');
     if (exportState.startMarkerPct !== null) {
         if (!startMarker) {
-            startMarker = document.createElement('div');
-            startMarker.className = 'export-marker start';
-            startMarker.title = 'Export start point (drag to adjust)';
-            makeMarkerDraggable(startMarker, 'start');
+            startMarker = createMarkerElement('start');
             markersContainer.appendChild(startMarker);
         }
         startMarker.style.left = `${exportState.startMarkerPct}%`;
@@ -103,10 +100,7 @@ export function updateExportMarkers() {
     let endMarker = markersContainer.querySelector('.export-marker.end');
     if (exportState.endMarkerPct !== null) {
         if (!endMarker) {
-            endMarker = document.createElement('div');
-            endMarker.className = 'export-marker end';
-            endMarker.title = 'Export end point (drag to adjust)';
-            makeMarkerDraggable(endMarker, 'end');
+            endMarker = createMarkerElement('end');
             markersContainer.appendChild(endMarker);
         }
         endMarker.style.left = `${exportState.endMarkerPct}%`;
@@ -131,10 +125,52 @@ export function updateExportMarkers() {
     }
 }
 
+/**
+ * Create a marker element with remove button
+ * @param {string} type - 'start' or 'end'
+ * @returns {HTMLElement}
+ */
+function createMarkerElement(type) {
+    const marker = document.createElement('div');
+    marker.className = `export-marker ${type}`;
+    marker.title = `Export ${type} point (drag to adjust)`;
+    
+    // Add remove button (X)
+    const removeBtn = document.createElement('div');
+    removeBtn.className = 'marker-remove';
+    removeBtn.title = `Remove ${type} marker`;
+    removeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        removeMarker(type);
+    });
+    marker.appendChild(removeBtn);
+    
+    makeMarkerDraggable(marker, type);
+    return marker;
+}
+
+/**
+ * Remove a specific marker
+ * @param {string} type - 'start' or 'end'
+ */
+function removeMarker(type) {
+    if (type === 'start') {
+        exportState.startMarkerPct = null;
+    } else {
+        exportState.endMarkerPct = null;
+    }
+    updateExportMarkers();
+    updateExportButtonState();
+}
+
 function makeMarkerDraggable(marker, type) {
     let isDragging = false;
     
     marker.addEventListener('mousedown', (e) => {
+        // Ignore clicks on the remove button
+        if (e.target.closest('.marker-remove')) return;
         isDragging = true;
         marker.style.cursor = 'grabbing';
         e.preventDefault();
