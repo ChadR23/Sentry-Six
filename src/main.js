@@ -1728,7 +1728,9 @@ function compareVersions(v1, v2) {
  * @returns {Object|null} Latest version info or null if not found
  */
 async function getLatestVersion() {
-  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/version.json`;
+  // Add cache-busting parameter to bypass GitHub's CDN cache (which can be 5+ minutes stale)
+  const cacheBuster = Date.now();
+  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/version.json?cb=${cacheBuster}`;
   const response = await httpsGet(url);
   
   if (response.statusCode === 404) {
@@ -1915,7 +1917,9 @@ ipcMain.handle('update:skip', async () => {
 ipcMain.handle('update:getChangelog', async () => {
   // Load changelog from remote GitHub repo to get new version entries
   try {
-    const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/changelog.json`;
+    // Add cache-busting parameter to bypass GitHub's CDN cache
+    const cacheBuster = Date.now();
+    const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/changelog.json?cb=${cacheBuster}`;
     const response = await httpsGet(url);
     
     if (response.statusCode === 200) {
