@@ -275,10 +275,11 @@ export function initAutoUpdate() {
         installUpdateBtn.addEventListener('click', handleInstallUpdate);
     }
     
-    // Close modal when clicking outside (but not after update is complete)
+    // Close modal when clicking outside (but not during or after update)
     if (updateModal) {
         updateModal.addEventListener('click', (e) => {
-            if (e.target === updateModal && !updateComplete) {
+            const isUpdating = updateModal.querySelector('.update-modal')?.classList.contains('updating');
+            if (e.target === updateModal && !updateComplete && !isUpdating) {
                 hideUpdateModal();
             }
         });

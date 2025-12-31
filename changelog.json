@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "1.0.4",
+      "date": "2025-12-30",
+      "title": "Prevents modal from closing during update",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Prevents the update modal from closing during an update if the user attempts to close it."
+        }
+      ]
+    },
+    {
       "version": "1.0.3",
       "date": "2025-12-30",
       "title": "Fix blank changelogs",

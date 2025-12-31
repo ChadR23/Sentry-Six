@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "releaseDate": "2025-12-30",
-  "releaseName": "Fix blank changelogs"
+  "releaseName": "Prevents modal from closing during update"
 }
