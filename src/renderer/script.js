@@ -20,6 +20,7 @@ import { initLayoutLab } from './scripts/ui/layoutLab.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal } from './scripts/ui/settingsModal.js';
+import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
     resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder
@@ -771,6 +772,10 @@ initSettingsModalDeps({
 initSettingsModal();
 initDevSettingsModal();
 initChangelogModal();
+
+// Initialize diagnostics system (captures console logs for Support ID)
+initDiagnostics();
+logDiagnosticEvent('app_initialized');
 
 // Keybind System - moved to scripts/lib/keybinds.js
 // Initialize keybind actions (handlers stay here since they use local functions)

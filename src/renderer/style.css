@@ -2642,6 +2642,308 @@ canvas, .video-player, .tile-video {
     display: none;
 }
 
+/* Dev Card Primary (for important actions like Support ID) */
+.dev-card-primary {
+    background: rgba(33, 150, 243, 0.15);
+    border-color: rgba(33, 150, 243, 0.3);
+}
+
+.dev-card-primary:hover {
+    background: rgba(33, 150, 243, 0.25);
+    border-color: rgba(33, 150, 243, 0.5);
+}
+
+/* Support Section Description */
+.support-section-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+}
+
+/* Support ID Modal */
+.support-id-modal {
+    max-width: 520px;
+}
+
+.support-id-info {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+}
+
+.support-id-container {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(33, 150, 243, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.support-id-text {
+    width: 100%;
+    height: 100px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 10px;
+    padding: 10px;
+    resize: none;
+    margin-bottom: 12px;
+}
+
+.support-id-text:focus {
+    outline: none;
+    border-color: rgba(33, 150, 243, 0.4);
+}
+
+/* Short Support ID display */
+.support-id-display {
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(33, 150, 243, 0.4);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.support-id-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #64b5f6;
+    text-shadow: 0 0 20px rgba(33, 150, 243, 0.3);
+    user-select: all;
+}
+
+.support-id-error {
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: #ef9a9a;
+}
+
+.support-id-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Decode loading state */
+.decode-loading {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+}
+
+.support-id-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.support-id-actions .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.support-id-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-item {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.stat-item strong {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Decode Support ID Modal */
+.decode-support-id-modal {
+    max-width: 700px;
+    max-height: 80vh;
+}
+
+.decode-input-section {
+    margin-bottom: 16px;
+}
+
+.decode-input-section label {
+    display: block;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 8px;
+}
+
+.decode-input-section .support-id-text {
+    height: 60px;
+    margin-bottom: 8px;
+}
+
+.decode-output {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(156, 39, 176, 0.2);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.decode-tabs {
+    display: flex;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.decode-tab {
+    flex: 1;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.decode-tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.decode-tab.active {
+    background: rgba(156, 39, 176, 0.15);
+    color: #ce93d8;
+    border-bottom: 2px solid #ce93d8;
+}
+
+.decode-content {
+    padding: 12px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.decode-summary h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 12px 0 8px 0;
+}
+
+.decode-summary h4:first-child {
+    margin-top: 0;
+}
+
+.decode-table {
+    width: 100%;
+    font-size: 11px;
+    border-collapse: collapse;
+}
+
+.decode-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.decode-table td:first-child {
+    color: rgba(255, 255, 255, 0.5);
+    width: 120px;
+}
+
+.decode-table td:last-child {
+    color: rgba(255, 255, 255, 0.85);
+    word-break: break-all;
+}
+
+.decode-logs, .decode-errors {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 10px;
+}
+
+.log-entry {
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    gap: 8px;
+}
+
+.log-entry.log-error {
+    background: rgba(244, 67, 54, 0.1);
+}
+
+.log-entry.log-warn {
+    background: rgba(255, 152, 0, 0.1);
+}
+
+.log-time {
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+.log-level {
+    color: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+    width: 50px;
+}
+
+.log-msg {
+    color: rgba(255, 255, 255, 0.8);
+    word-break: break-all;
+}
+
+.error-entry {
+    padding: 8px;
+    background: rgba(244, 67, 54, 0.1);
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.error-time {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.error-msg {
+    font-size: 10px;
+    color: #f48fb1;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.decode-raw {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+}
+
+.decode-error {
+    color: #f44336;
+    font-size: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
 /* Modal Size Variants */
 .settings-modal {
     max-width: 480px;

@@ -2029,3 +2029,279 @@ ipcMain.handle('dev:reloadApp', async () => {
   return { success: false, error: 'No main window' };
 });
 
+// ============================================================
+// Diagnostics & Support ID IPC Handlers
+// ============================================================
+
+// Main process log buffer for diagnostics
+const mainLogBuffer = [];
+const MAX_MAIN_LOG_ENTRIES = 200;
+
+// Intercept console in main process to capture logs
+const originalMainConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console)
+};
+
+function captureMainLog(level, args) {
+  const entry = {
+    t: Date.now(),
+    l: level,
+    m: args.map(arg => {
+      try {
+        if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 0).substring(0, 500);
+        }
+        return String(arg).substring(0, 500);
+      } catch {
+        return '[Unserializable]';
+      }
+    }).join(' ')
+  };
+  mainLogBuffer.push(entry);
+  if (mainLogBuffer.length > MAX_MAIN_LOG_ENTRIES) {
+    mainLogBuffer.shift();
+  }
+}
+
+// Override console methods in main process
+console.log = (...args) => {
+  captureMainLog('log', args);
+  originalMainConsole.log(...args);
+};
+console.warn = (...args) => {
+  captureMainLog('warn', args);
+  originalMainConsole.warn(...args);
+};
+console.error = (...args) => {
+  captureMainLog('error', args);
+  originalMainConsole.error(...args);
+};
+
+ipcMain.handle('diagnostics:get', async () => {
+  try {
+    const currentVersion = getCurrentVersion();
+    
+    return {
+      app: {
+        version: currentVersion?.version || 'unknown',
+        releaseName: currentVersion?.releaseName || '',
+        releaseDate: currentVersion?.releaseDate || '',
+        electronVersion: process.versions.electron,
+        chromeVersion: process.versions.chrome,
+        nodeVersion: process.versions.node,
+        v8Version: process.versions.v8
+      },
+      system: {
+        platform: os.platform(),
+        release: os.release(),
+        arch: os.arch(),
+        cpus: os.cpus().length,
+        cpuModel: os.cpus()[0]?.model || 'unknown',
+        totalMemory: os.totalmem(),
+        freeMemory: os.freemem(),
+        uptime: os.uptime(),
+        hostname: os.hostname()
+      },
+      paths: {
+        userData: app.getPath('userData'),
+        temp: app.getPath('temp'),
+        appPath: app.getAppPath()
+      },
+      ffmpeg: {
+        path: findFFmpegPath(),
+        gpuEncoder: gpuEncoder,
+        gpuEncoderHEVC: gpuEncoderHEVC
+      },
+      logs: mainLogBuffer.slice(-100) // Last 100 main process logs
+    };
+  } catch (err) {
+    console.error('Failed to collect diagnostics:', err);
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('diagnostics:writeFile', async (_event, filePath, content) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to write diagnostic file:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Diagnostics storage directory
+const diagnosticsDir = path.join(app.getPath('userData'), 'diagnostics');
+
+// Ensure diagnostics directory exists
+function ensureDiagnosticsDir() {
+  if (!fs.existsSync(diagnosticsDir)) {
+    fs.mkdirSync(diagnosticsDir, { recursive: true });
+  }
+}
+
+// Upload diagnostics to paste.rs (no auth required)
+// The paste.rs URL ID becomes the Support ID for easy retrieval
+ipcMain.handle('diagnostics:upload', async (_event, _unusedId, diagnostics) => {
+  try {
+    ensureDiagnosticsDir();
+    
+    const content = JSON.stringify(diagnostics, null, 2);
+    
+    // Upload to paste.rs (no auth required)
+    const pasteUrl = await uploadToPasteRs(content);
+    
+    if (pasteUrl) {
+      // Extract the paste ID from URL (e.g., "https://paste.rs/abc" -> "abc")
+      const supportId = pasteUrl.replace('https://paste.rs/', '').trim();
+      
+      // Add support ID to diagnostics and save locally
+      diagnostics.supportId = supportId;
+      const localPath = path.join(diagnosticsDir, `${supportId}.json`);
+      fs.writeFileSync(localPath, JSON.stringify({ ...diagnostics, pasteUrl }, null, 2));
+      
+      // Update index
+      updateDiagnosticsIndex(supportId, diagnostics, pasteUrl);
+      
+      console.log(`[DIAGNOSTICS] Uploaded with Support ID: ${supportId}`);
+      return { success: true, supportId, url: pasteUrl };
+    }
+    
+    throw new Error('Upload returned no URL');
+  } catch (err) {
+    console.error('[DIAGNOSTICS] Upload failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Upload to paste.rs (simple, no auth)
+function uploadToPasteRs(content) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'paste.rs',
+      path: '/',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        'Content-Length': Buffer.byteLength(content)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 201 || res.statusCode === 200) {
+          resolve(body.trim()); // Returns the URL directly
+        } else {
+          reject(new Error(`paste.rs error: ${res.statusCode}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(10000, () => {
+      req.destroy();
+      reject(new Error('Upload timeout'));
+    });
+    req.write(content);
+    req.end();
+  });
+}
+
+// Update the diagnostics index file
+function updateDiagnosticsIndex(supportId, diagnostics, pasteUrl) {
+  const indexPath = path.join(diagnosticsDir, 'index.json');
+  let index = {};
+  if (fs.existsSync(indexPath)) {
+    try { index = JSON.parse(fs.readFileSync(indexPath, 'utf-8')); } catch {}
+  }
+  index[supportId] = {
+    createdAt: new Date().toISOString(),
+    appVersion: diagnostics.app?.version,
+    platform: diagnostics.system?.platform,
+    pasteUrl: pasteUrl || null
+  };
+  fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
+}
+
+// Retrieve diagnostics by Support ID (directly from paste.rs)
+ipcMain.handle('diagnostics:retrieve', async (_event, supportId) => {
+  try {
+    // Clean up the support ID (preserve case - paste.rs is case-sensitive)
+    const cleanId = supportId.trim();
+    
+    // Check local storage first
+    ensureDiagnosticsDir();
+    const localPath = path.join(diagnosticsDir, `${cleanId}.json`);
+    if (fs.existsSync(localPath)) {
+      const data = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+      console.log(`[DIAGNOSTICS] Retrieved from local: ${localPath}`);
+      return { success: true, data };
+    }
+    
+    // Fetch directly from paste.rs using Support ID
+    // The Support ID IS the paste.rs URL ID
+    const pasteUrl = `https://paste.rs/${cleanId}`;
+    console.log(`[DIAGNOSTICS] Fetching from: ${pasteUrl}`);
+    
+    const data = await fetchFromPasteRs(pasteUrl);
+    return { success: true, data };
+  } catch (err) {
+    console.error('[DIAGNOSTICS] Retrieval failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Fetch content from paste.rs URL
+function fetchFromPasteRs(url) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname,
+      method: 'GET'
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            resolve(JSON.parse(body));
+          } catch {
+            reject(new Error('Invalid JSON in paste'));
+          }
+        } else {
+          reject(new Error(`Fetch error: ${res.statusCode}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(10000, () => {
+      req.destroy();
+      reject(new Error('Fetch timeout'));
+    });
+    req.end();
+  });
+}
+
+// Save diagnostics locally (fallback)
+ipcMain.handle('diagnostics:saveLocal', async (_event, supportId, diagnostics) => {
+  try {
+    ensureDiagnosticsDir();
+    const localPath = path.join(diagnosticsDir, `${supportId}.json`);
+    fs.writeFileSync(localPath, JSON.stringify(diagnostics, null, 2));
+    updateDiagnosticsIndex(supportId, diagnostics, null);
+    console.log(`[DIAGNOSTICS] Saved locally: ${localPath}`);
+    return { success: true, path: localPath };
+  } catch (err) {
+    console.error('[DIAGNOSTICS] Local save failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+

@@ -232,6 +232,19 @@ export function initSettingsModal() {
     // Initialize keybind settings
     initKeybindSettings();
     
+    // Generate Support ID button (in regular settings)
+    const generateSupportIdBtn = $('generateSupportIdBtn');
+    if (generateSupportIdBtn) {
+        generateSupportIdBtn.onclick = async () => {
+            try {
+                const { showSupportIdDialog } = await import('./diagnostics.js');
+                await showSupportIdDialog();
+            } catch (err) {
+                console.error('Failed to generate Support ID:', err);
+            }
+        };
+    }
+    
     // Advanced settings toggle
     const advancedSettingsToggle = $('advancedSettingsToggle');
     const advancedSettingsSection = $('advancedSettingsSection');
@@ -523,6 +536,20 @@ export function initDevSettingsModal() {
             showDevOutput(value 
                 ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
                 : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
+        };
+    }
+    
+    // Decode Support ID (dev only)
+    const devDecodeSupportId = $('devDecodeSupportId');
+    if (devDecodeSupportId) {
+        devDecodeSupportId.onclick = async () => {
+            try {
+                const { showDecodeSupportIdDialog } = await import('./diagnostics.js');
+                showDecodeSupportIdDialog();
+            } catch (err) {
+                console.error('Failed to open decode dialog:', err);
+                showDevOutput('Error opening decode dialog:\n' + err.message);
+            }
         };
     }
 }

@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "1.1.0",
+      "date": "2025-12-31",
+      "title": "Added diagnostics tool to Settings",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new diagnostics button to the settings modal that will generate a shareable id to share with the Sentry Six team for debugging purposes."
+        }
+      ]
+    },
+    {
       "version": "1.0.4",
       "date": "2025-12-30",
       "title": "Prevents modal from closing during update",

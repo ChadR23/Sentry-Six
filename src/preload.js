@@ -39,6 +39,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   
+  // Diagnostics & Support ID
+  getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
+  writeDiagnosticFile: (filePath, content) => ipcRenderer.invoke('diagnostics:writeFile', filePath, content),
+  uploadDiagnostics: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:upload', supportId, diagnostics),
+  retrieveDiagnostics: (supportId) => ipcRenderer.invoke('diagnostics:retrieve', supportId),
+  saveDiagnosticsLocally: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:saveLocal', supportId, diagnostics),
+  
   // Event listeners
   on: (channel, callback) => {
     const allowedChannels = ['export:progress', 'update:available', 'update:progress'];
