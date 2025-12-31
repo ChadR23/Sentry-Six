@@ -1,6 +1,25 @@
 {
   "versions": [
     {
+      "version": "2026.1",
+      "date": "2026-01-01",
+      "title": "Sentry Six Revamped Public Release",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Changed version naming to match year and week similar to Tesla's version naming."
+        },
+        {
+          "type": "improvement",
+          "description": "Changed the camera export layout to match HW3/HW4 camera count."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed playback bar jumping around to a different spot than selected."
+        }
+      ]
+    },
+    {
       "version": "1.2.1",
       "date": "2025-12-31",
       "title": "Add new user welcome guide",

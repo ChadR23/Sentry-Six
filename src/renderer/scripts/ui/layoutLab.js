@@ -17,8 +17,18 @@ export const layoutState = {
     cameras: new Map(), // camera -> { x, y, width, height }
     canvasWidth: 0,     // Canvas width (set on init, 16:9 aspect ratio)
     canvasHeight: 0,    // Canvas height
-    snapThreshold: 10   // Pixels threshold for snapping
+    snapThreshold: 10,  // Pixels threshold for snapping
+    availableCameras: null // Set of available cameras (null = all cameras available)
 };
+
+/**
+ * Set available cameras for the layout lab
+ * Used to filter cameras for HW3 vehicles (4-cam systems without pillars)
+ * @param {Set<string>} cameras - Set of available camera names
+ */
+export function setAvailableCameras(cameras) {
+    layoutState.availableCameras = cameras;
+}
 
 /**
  * Initialize the layout lab canvas

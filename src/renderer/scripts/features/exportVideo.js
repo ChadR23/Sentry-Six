@@ -48,6 +48,71 @@ export function initExportModule(deps) {
 }
 
 /**
+ * Detect available cameras from the current collection
+ * HW3 vehicles only have 4 cameras (no pillars), HW3+/HW4 have 6 cameras
+ * @param {Object} state - App state
+ * @returns {Set<string>} Set of available camera names
+ */
+function detectAvailableCameras(state) {
+    const availableCameras = new Set();
+    const collection = state?.collection?.active;
+    
+    if (!collection?.groups) return availableCameras;
+    
+    // Scan all groups in the collection for available cameras
+    for (const group of collection.groups) {
+        if (group.filesByCamera) {
+            for (const camera of group.filesByCamera.keys()) {
+                availableCameras.add(camera);
+            }
+        }
+    }
+    
+    return availableCameras;
+}
+
+/**
+ * Update camera checkbox visibility based on available cameras
+ * Hides pillar camera options for HW3 vehicles (4-cam systems)
+ * @param {Set<string>} availableCameras - Set of available camera names
+ */
+function updateCameraCheckboxVisibility(availableCameras) {
+    const allCameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]');
+    const hasPillarCameras = availableCameras.has('left_pillar') || availableCameras.has('right_pillar');
+    
+    allCameraCheckboxes.forEach(checkbox => {
+        const camera = checkbox.dataset.camera;
+        const card = checkbox.closest('.option-card');
+        
+        if (!card) return;
+        
+        // Check if this camera is a pillar camera
+        const isPillarCamera = camera === 'left_pillar' || camera === 'right_pillar';
+        
+        if (isPillarCamera && !hasPillarCameras) {
+            // Hide pillar cameras for HW3 vehicles
+            card.style.display = 'none';
+            checkbox.checked = false;
+        } else {
+            // Show and check available cameras
+            card.style.display = '';
+            checkbox.checked = availableCameras.has(camera);
+        }
+    });
+    
+    // Update the grid layout - switch to 2x2 for 4 cameras (option-grid defaults to 2 cols)
+    const layoutSection = document.querySelector('.collapsible-section[data-section="layout"]');
+    const optionGrid = layoutSection?.querySelector('.option-grid');
+    if (optionGrid) {
+        if (hasPillarCameras) {
+            optionGrid.classList.add('option-grid-3');
+        } else {
+            optionGrid.classList.remove('option-grid-3');
+        }
+    }
+}
+
+/**
  * Set an export marker at current position
  * @param {string} type - 'start' or 'end'
  */
@@ -238,6 +303,10 @@ export function openExportModal() {
     const modal = $('exportModal');
     if (!modal) return;
     
+    // Detect available cameras from the collection
+    const availableCameras = detectAvailableCameras(state);
+    updateCameraCheckboxVisibility(availableCameras);
+    
     // Show modal first so dimensions are accurate
     modal.classList.remove('hidden');
     
@@ -245,7 +314,9 @@ export function openExportModal() {
     checkFFmpegAvailability();
     
     // Initialize Layout Lab and collapsible sections after modal is visible
-    import('../ui/layoutLab.js').then(({ initLayoutLab }) => {
+    import('../ui/layoutLab.js').then(({ initLayoutLab, setAvailableCameras }) => {
+        // Pass available cameras to Layout Lab
+        if (setAvailableCameras) setAvailableCameras(availableCameras);
         // Wait for next frame to ensure modal is fully rendered
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {

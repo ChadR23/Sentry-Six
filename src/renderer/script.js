@@ -2015,6 +2015,7 @@ function selectClipGroup(groupId) {
 }
 
 function selectSentryCollection(collectionId) {
+    console.log('%c[SELECT] selectSentryCollection called with:', 'color: orange; font-weight: bold', collectionId);
     const items = buildDisplayItems();
     const it = items.find(x => x.type === 'collection' && x.id === collectionId);
     if (!it) return;
@@ -2056,7 +2057,7 @@ function selectSentryCollection(collectionId) {
 
 function selectDayCollection(dayKey) {
     try {
-        console.log('Selecting day collection:', dayKey);
+        console.log('%c[SELECT] selectDayCollection called with:', 'color: lime; font-weight: bold', dayKey);
         console.log('Available day collections:', library.dayCollections ? Array.from(library.dayCollections.keys()) : 'none');
         
         const coll = library.dayCollections?.get(dayKey);
@@ -2114,9 +2115,12 @@ function selectDayCollection(dayKey) {
         }
     }
 
-    // Initialize segment duration tracking (estimate 60s per segment, update as we load)
+    // Initialize segment duration tracking with estimates, then probe actual durations
     const numSegs = coll.groups?.length || 0;
-    nativeVideo.segmentDurations = new Array(numSegs).fill(60); // Estimated
+    const groups = coll.groups || [];
+    
+    // Start with 60s estimates for immediate UI responsiveness
+    nativeVideo.segmentDurations = new Array(numSegs).fill(60);
     nativeVideo.cumulativeStarts = [];
     let cum = 0;
     for (let i = 0; i <= numSegs; i++) {
@@ -2136,7 +2140,6 @@ function selectDayCollection(dayKey) {
 
     // Calculate anchorMs from event metadata for Sentry/Saved clips
     let anchorMs = 0;
-    const groups = coll.groups || [];
     let eventMeta = null;
     for (const g of groups) {
         if (g.eventMeta) {
@@ -2161,9 +2164,41 @@ function selectDayCollection(dayKey) {
     const startOffsetMs = Math.max(0, anchorMs - 15000); // 15 seconds before event
     const startOffsetSec = startOffsetMs / 1000;
 
+    // Probe actual segment durations in the background for accurate seek positioning
+    // This runs concurrently with loading the first segment
+    console.log('Starting duration probe for', groups.length, 'segments');
+    probeSegmentDurations(groups).then(probedDurations => {
+        console.log('Duration probe completed:', probedDurations);
+        if (!state.collection.active || state.collection.active.id !== coll.id) return; // Stale
+        
+        // Update durations with actual values
+        nativeVideo.segmentDurations = probedDurations;
+        nativeVideo.cumulativeStarts = [];
+        let cumulative = 0;
+        for (let i = 0; i <= probedDurations.length; i++) {
+            nativeVideo.cumulativeStarts.push(cumulative);
+            if (i < probedDurations.length) cumulative += probedDurations[i];
+        }
+        
+        // Update time display with accurate total duration
+        const totalSec = nativeVideo.cumulativeStarts[probedDurations.length] || 60;
+        const vid = nativeVideo.master;
+        const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
+        const cumStart = nativeVideo.cumulativeStarts[segIdx] || 0;
+        const currentSec = cumStart + (vid?.currentTime || 0);
+        updateTimeDisplayNew(Math.floor(currentSec), Math.floor(totalSec));
+        
+        // Refresh event timeline marker with accurate durations
+        updateEventTimelineMarker();
+        
+        console.log('Timeline updated with actual durations, total:', totalSec.toFixed(1) + 's');
+    }).catch(err => {
+        console.warn('Duration probing failed, using estimates:', err);
+    });
+
     // Load first segment with native video, then seek to event offset
     loadNativeSegment(0).then(() => {
-        // Update time display with total duration
+        // Update time display with total duration (may be updated again when probing completes)
         const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
         updateTimeDisplayNew(0, totalSec);
         
@@ -2315,8 +2350,8 @@ function previewAtSliderValue() {
 
 function maybeAutoplayAfterSeek() {
     if (!autoplayToggle?.checked) return;
-    // If the user is still dragging, don't restart yet.
-    if (state.ui.isScrubbing) return;
+    // If the user is still dragging or an async seek is in progress, don't restart yet.
+    if (state.ui.isScrubbing || nativeVideo.isSeeking) return;
     setTimeout(() => play(), 0);
 }
 
@@ -2810,9 +2845,99 @@ const nativeVideo = {
     segmentDurations: [],   // Actual duration of each segment in seconds
     cumulativeStarts: [],   // Cumulative start time of each segment in seconds
     isTransitioning: false, // Guard to prevent double-triggering segment transitions
+    isSeeking: false,       // Guard to prevent progress bar updates during user-initiated seeks
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
     dashboardReset: false   // Track if dashboard has been reset for no-SEI section
 };
+
+/**
+ * Probe video durations for all segments upfront to enable accurate seek positioning.
+ * Uses temporary video elements to get actual durations without full loading.
+ * @param {Array} groups - Array of clip groups with filesByCamera maps
+ * @returns {Promise<number[]>} - Array of segment durations in seconds
+ */
+async function probeSegmentDurations(groups) {
+    if (!groups || groups.length === 0) return [];
+    
+    console.log('Probing durations for', groups.length, 'segments...');
+    const durations = [];
+    
+    // Helper to get video URL from entry (same as in loadNativeSegment)
+    const getVideoUrl = (entry) => {
+        if (!entry) return null;
+        if (entry.file?.isElectronFile && entry.file?.path) {
+            const filePath = entry.file.path;
+            const fileUrl = filePath.startsWith('/') 
+                ? `file://${filePath}` 
+                : `file:///${filePath.replace(/\\/g, '/')}`;
+            return { url: fileUrl, isBlob: false };
+        }
+        if (entry.file && entry.file instanceof File) {
+            const url = URL.createObjectURL(entry.file);
+            return { url, isBlob: true };
+        }
+        return null;
+    };
+    
+    // Probe each segment's duration using a temporary video element
+    for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        // Prefer front camera for duration, fall back to any available camera
+        const entry = group.filesByCamera.get('front') || 
+                      group.filesByCamera.values().next().value;
+        const urlData = getVideoUrl(entry);
+        
+        if (!urlData) {
+            console.warn('No video file for segment', i, '- using 60s estimate');
+            durations.push(60);
+            continue;
+        }
+        
+        try {
+            const duration = await new Promise((resolve, reject) => {
+                const tempVid = document.createElement('video');
+                tempVid.preload = 'metadata';
+                tempVid.muted = true;
+                
+                const cleanup = () => {
+                    tempVid.src = '';
+                    tempVid.load();
+                    if (urlData.isBlob) {
+                        URL.revokeObjectURL(urlData.url);
+                    }
+                };
+                
+                const timeout = setTimeout(() => {
+                    cleanup();
+                    reject(new Error('Timeout'));
+                }, 5000); // 5s timeout per segment
+                
+                tempVid.onloadedmetadata = () => {
+                    clearTimeout(timeout);
+                    const dur = tempVid.duration;
+                    cleanup();
+                    resolve(Number.isFinite(dur) ? dur : 60);
+                };
+                
+                tempVid.onerror = () => {
+                    clearTimeout(timeout);
+                    cleanup();
+                    reject(new Error('Load error'));
+                };
+                
+                tempVid.src = urlData.url;
+            });
+            
+            durations.push(duration);
+        } catch (err) {
+            console.warn('Failed to probe segment', i, ':', err.message, '- using 60s estimate');
+            durations.push(60);
+        }
+    }
+    
+    console.log('Probed durations:', durations.map(d => d.toFixed(1) + 's').join(', '));
+    return durations;
+}
 
 function initNativeVideoPlayback() {
     console.log('Initializing native video playback');
@@ -2860,6 +2985,9 @@ function onMasterTimeUpdate() {
     // Skip time updates during segment transitions to prevent time display glitches
     if (nativeVideo.isTransitioning) return;
     
+    // Skip progress bar updates while user is scrubbing or seeking to prevent fighting with user input
+    const skipProgressUpdate = state.ui.isScrubbing || nativeVideo.isSeeking;
+    
     const currentVidSec = vid.currentTime || 0;
     const currentVidMs = currentVidSec * 1000;
     
@@ -2892,16 +3020,18 @@ function onMasterTimeUpdate() {
         updateTimeDisplayNew(Math.floor(currentSec), Math.floor(totalSec));
         updateRecordingTime({ collection: state.collection.active, segIdx, videoCurrentTime: nativeVideo.master?.currentTime || 0 });
         
-        // Progress bar as smooth percentage
-        const pct = (currentSec / totalSec) * 100;
-        progressBar.value = Math.min(100, pct);
+        // Progress bar as smooth percentage (skip if user is scrubbing)
+        if (!skipProgressUpdate) {
+            const pct = (currentSec / totalSec) * 100;
+            progressBar.value = Math.min(100, pct);
+        }
         return;
     }
     
     // Single clip mode
     const totalSec = vid.duration || 0;
     updateTimeDisplayNew(currentVidSec, totalSec);
-    if (totalSec > 0) {
+    if (totalSec > 0 && !skipProgressUpdate) {
         progressBar.value = (currentVidSec / totalSec) * 100;
     }
     
@@ -3407,6 +3537,15 @@ async function seekNativeDayCollectionBySec(targetSec) {
     const cumStarts = nativeVideo.cumulativeStarts;
     if (!cumStarts.length) return;
     
+    // If a seek is already in progress, ignore this one to prevent race conditions
+    if (nativeVideo.isSeeking) {
+        console.log('Seek already in progress, ignoring new seek to', targetSec.toFixed(1) + 's');
+        return;
+    }
+    
+    // Set seeking flag to prevent progress bar updates and overlapping seeks
+    nativeVideo.isSeeking = true;
+    
     const totalSec = cumStarts[cumStarts.length - 1];
     const clampedSec = Math.max(0, Math.min(totalSec, targetSec));
     
@@ -3439,6 +3578,13 @@ async function seekNativeDayCollectionBySec(targetSec) {
             playNative();
         }
     }
+    
+    // Clear seeking flag after a short delay to let the video element settle
+    // Then check if autoplay should start (since maybeAutoplayAfterSeek was blocked during seek)
+    setTimeout(() => {
+        nativeVideo.isSeeking = false;
+        maybeAutoplayAfterSeek();
+    }, 100);
 }
 
 // ============================================================
