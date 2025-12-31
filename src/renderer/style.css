@@ -522,10 +522,6 @@ canvas, .video-player, .tile-video {
     margin-left: var(--clips-dock-width);
 }
 
-.clips-mode-docked .controls {
-    padding-left: calc(20px + var(--clips-dock-width));
-}
-
 /* Sidebar resize handle - only visible in docked mode */
 .sidebar-resize-handle {
     position: absolute;
@@ -1078,11 +1074,13 @@ canvas, .video-player, .tile-video {
 .dashboard-vis.user-hidden, .map-vis.user-hidden { display: none !important; }
 
 .dashboard-vis {
+    position: fixed;
     top: 20px;
     right: 20px;
     width: 480px;
     height: 200px;
     transition: height 0.3s ease;
+    z-index: 101;
 }
 
 .dashboard-vis:has(.extra-data-container.expanded) {
@@ -1090,6 +1088,7 @@ canvas, .video-player, .tile-video {
 }
 
 .map-vis {
+    position: fixed;
     top: 20px;
     left: 380px;
     width: 260px;
