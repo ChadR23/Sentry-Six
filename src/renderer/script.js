@@ -12,7 +12,7 @@ import { initSteeringWheel, smoothSteeringTo, stopSteeringAnimation, resetSteeri
 import { formatTimeHMS, updateTimeDisplayNew, updateRecordingTime } from './scripts/ui/timeDisplay.js';
 import { 
     exportState, initExportModule, setExportMarker, updateExportMarkers, 
-    updateExportButtonState, openExportModal, closeExportModal, 
+    updateExportButtonState, openExportModal, closeExportModal, reopenExportModal,
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
     startExport, cancelExport, clearExportMarkers 
 } from './scripts/features/exportVideo.js';
@@ -579,10 +579,8 @@ function hasValidGps(sei) {
     if (closeExportModal) {
         closeExportModal.onclick = (e) => { 
             e.preventDefault(); 
-            // Prevent closing during active export
-            if (!exportState.isExporting) {
-                closeExportModalFn(); 
-            }
+            // During export, this will minimize the modal and show floating progress
+            closeExportModalFn(); 
         };
     }
     if (cancelExportBtn) {
@@ -591,15 +589,21 @@ function hasValidGps(sei) {
     if (startExportBtn) {
         startExportBtn.onclick = (e) => { e.preventDefault(); startExport(); };
     }
-    // Close modal on backdrop click
+    // Close modal on backdrop click (minimize during export, close otherwise)
     if (exportModal) {
         exportModal.onclick = (e) => {
-            // Prevent closing during active export
-            if (e.target === exportModal && !exportState.isExporting) {
+            if (e.target === exportModal) {
                 closeExportModalFn();
             }
         };
     }
+    
+    // Floating export progress - reopen modal button
+    const exportFloatingOpenBtn = $('exportFloatingOpenBtn');
+    if (exportFloatingOpenBtn) {
+        exportFloatingOpenBtn.onclick = (e) => { e.preventDefault(); reopenExportModal(); };
+    }
+    
 
 
     // Initialize native video playback system

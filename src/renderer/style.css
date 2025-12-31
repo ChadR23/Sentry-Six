@@ -1685,6 +1685,125 @@ canvas, .video-player, .tile-video {
 .toast.toast--info  .dot { background: rgba(62, 156, 191, 0.95); }
 .toast.toast--success .dot { background: rgba(76, 175, 80, 0.95); }
 
+/* Floating Export Progress Notification */
+.export-floating-progress {
+    position: fixed;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+.export-floating-progress.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+.export-floating-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, rgba(25, 25, 35, 0.92) 0%, rgba(18, 18, 28, 0.95) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.export-floating-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(62, 156, 191, 0.2);
+    border-radius: 6px;
+    color: rgba(62, 156, 191, 1);
+    flex-shrink: 0;
+}
+.export-floating-icon svg {
+    animation: export-pulse 1.5s ease-in-out infinite;
+}
+@keyframes export-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+.export-floating-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+}
+.export-floating-step {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+}
+.export-floating-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.export-floating-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, rgba(62, 156, 191, 0.8), rgba(100, 180, 220, 0.95));
+    border-radius: 2px;
+    transition: width 0.2s ease-out;
+}
+.export-floating-open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+.export-floating-open-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Export Minimize Hint */
+.export-minimize-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    background: linear-gradient(135deg, rgba(62, 156, 191, 0.12) 0%, rgba(62, 156, 191, 0.08) 100%);
+    border: 1px solid rgba(62, 156, 191, 0.25);
+    border-radius: 8px;
+    animation: hint-pulse 2s ease-in-out infinite;
+}
+@keyframes hint-pulse {
+    0%, 100% { border-color: rgba(62, 156, 191, 0.25); }
+    50% { border-color: rgba(62, 156, 191, 0.5); }
+}
+.export-minimize-hint svg {
+    flex-shrink: 0;
+    color: rgba(62, 156, 191, 0.9);
+    margin-top: 1px;
+}
+.export-minimize-hint span {
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.85);
+}
+
 /* Map arrow marker - smooth position transitions via Leaflet icon container */
 .arrow-marker-icon {
     transition: none !important; /* Leaflet handles position, we handle rotation in the img */

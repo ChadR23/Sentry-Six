@@ -17,7 +17,10 @@ export const exportState = {
     gpuName: null,
     hevcAvailable: false,
     hevcName: null,
-    cancelled: false
+    cancelled: false,
+    modalMinimized: false,
+    currentStep: '',
+    currentProgress: 0
 };
 
 // DOM helper
@@ -299,15 +302,70 @@ export function openExportModal() {
 }
 
 /**
- * Close the export modal
+ * Close the export modal (minimizes during active export instead of canceling)
  */
 export function closeExportModal() {
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
     
+    // If exporting, show floating progress instead of canceling
     if (exportState.isExporting && exportState.currentExportId) {
-        cancelExport();
+        exportState.modalMinimized = true;
+        showFloatingProgress();
     }
+}
+
+/**
+ * Reopen the export modal from the floating progress notification
+ */
+export function reopenExportModal() {
+    const modal = $('exportModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        exportState.modalMinimized = false;
+        hideFloatingProgress();
+    }
+}
+
+/**
+ * Show the floating export progress notification
+ */
+function showFloatingProgress() {
+    const floatingEl = $('exportFloatingProgress');
+    if (floatingEl) {
+        floatingEl.classList.remove('hidden');
+        // Trigger animation after removing hidden
+        requestAnimationFrame(() => {
+            floatingEl.classList.add('show');
+        });
+        updateFloatingProgress(exportState.currentStep, exportState.currentProgress);
+    }
+}
+
+/**
+ * Hide the floating export progress notification
+ */
+function hideFloatingProgress() {
+    const floatingEl = $('exportFloatingProgress');
+    if (floatingEl) {
+        floatingEl.classList.remove('show');
+        setTimeout(() => {
+            floatingEl.classList.add('hidden');
+        }, 200);
+    }
+}
+
+/**
+ * Update the floating progress notification
+ * @param {string} step - Current step text
+ * @param {number} percentage - Progress percentage (0-100)
+ */
+function updateFloatingProgress(step, percentage) {
+    const stepEl = $('exportFloatingStep');
+    const barFill = $('exportFloatingBarFill');
+    
+    if (stepEl) stepEl.textContent = step || 'Exporting...';
+    if (barFill) barFill.style.width = `${percentage || 0}%`;
 }
 
 /**
@@ -717,13 +775,9 @@ export async function startExport() {
     
     if (startBtn) startBtn.disabled = true;
     
-    // Disable close button during export to prevent accidental closing
-    const closeBtn = $('closeExportModal');
-    if (closeBtn) {
-        closeBtn.disabled = true;
-        closeBtn.style.cursor = 'not-allowed';
-        closeBtn.style.opacity = '0.5';
-    }
+    // Show hint during export
+    const minimizeHint = $('exportMinimizeHint');
+    if (minimizeHint) minimizeHint.classList.remove('hidden');
     
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
@@ -737,21 +791,41 @@ export async function startExport() {
             if (progress.type === 'progress') {
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
                 if (progressText) progressText.textContent = progress.message;
+                
+                // Track progress for floating notification
+                exportState.currentStep = progress.message;
+                exportState.currentProgress = progress.percentage;
+                
+                // Update floating notification if modal is minimized
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(progress.message, progress.percentage);
+                }
             } else if (progress.type === 'dashboard-progress') {
                 if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
                 if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
+                
+                // Track dashboard progress for floating notification
+                exportState.currentStep = `Dashboard: ${progress.message}`;
+                exportState.currentProgress = progress.percentage * 0.5; // Dashboard is first half of progress
+                
+                // Update floating notification if modal is minimized
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(exportState.currentStep, exportState.currentProgress);
+                }
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
-                exportState.cancelled = false; // Reset cancellation flag
+                exportState.cancelled = false;
+                exportState.modalMinimized = false;
+                exportState.currentStep = '';
+                exportState.currentProgress = 0;
                 
-                // Re-enable close button after export completes
-                const closeBtn = $('closeExportModal');
-                if (closeBtn) {
-                    closeBtn.disabled = false;
-                    closeBtn.style.cursor = 'pointer';
-                    closeBtn.style.opacity = '1';
-                }
+                // Hide floating notification on complete
+                hideFloatingProgress();
+                
+                // Hide hint
+                const minHint = $('exportMinimizeHint');
+                if (minHint) minHint.classList.add('hidden');
                 
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
@@ -759,6 +833,12 @@ export async function startExport() {
                     if (dashboardProgressBar) dashboardProgressBar.style.width = '100%';
                     if (dashboardProgressText) dashboardProgressText.textContent = 'Complete';
                     notify(progress.message, { type: 'success' });
+                    
+                    // Show modal if it was minimized so user sees completion
+                    const modal = $('exportModal');
+                    if (modal?.classList.contains('hidden')) {
+                        modal.classList.remove('hidden');
+                    }
                     
                     setTimeout(() => {
                         if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
@@ -770,6 +850,12 @@ export async function startExport() {
                     if (progressText) progressText.textContent = progress.message;
                     notify(progress.message, { type: 'error' });
                     if (startBtn) startBtn.disabled = false;
+                    
+                    // Show modal on error so user sees what happened
+                    const modal = $('exportModal');
+                    if (modal?.classList.contains('hidden')) {
+                        modal.classList.remove('hidden');
+                    }
                 }
             }
         });
@@ -781,14 +867,6 @@ export async function startExport() {
         exportState.isExporting = false;
         exportState.currentExportId = null;
         if (startBtn) startBtn.disabled = false;
-        
-        // Re-enable close button
-        const closeBtn = $('closeExportModal');
-        if (closeBtn) {
-            closeBtn.disabled = false;
-            closeBtn.style.cursor = 'pointer';
-            closeBtn.style.opacity = '1';
-        }
         return;
     }
     
@@ -818,14 +896,6 @@ export async function startExport() {
         exportState.currentExportId = null;
         exportState.cancelled = false; // Reset cancellation flag
         if (startBtn) startBtn.disabled = false;
-        
-        // Re-enable close button after export fails
-        const closeBtn = $('closeExportModal');
-        if (closeBtn) {
-            closeBtn.disabled = false;
-            closeBtn.style.cursor = 'pointer';
-            closeBtn.style.opacity = '1';
-        }
     }
 }
 
@@ -843,23 +913,27 @@ export async function cancelExport() {
     
     exportState.isExporting = false;
     exportState.currentExportId = null;
-    exportState.cancelled = false; // Reset cancellation flag
+    exportState.cancelled = false;
+    exportState.modalMinimized = false;
+    exportState.currentStep = '';
+    exportState.currentProgress = 0;
+    
+    // Hide floating progress if visible
+    hideFloatingProgress();
+    
+    // Hide hint
+    const minimizeHint = $('exportMinimizeHint');
+    if (minimizeHint) minimizeHint.classList.add('hidden');
     
     const progressEl = $('exportProgress');
     const startBtn = $('startExportBtn');
     
-    // Re-enable close button after export is cancelled
-    const closeBtn = $('closeExportModal');
-    if (closeBtn) {
-        closeBtn.disabled = false;
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.style.opacity = '1';
-    }
-    
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;
     
-    closeExportModal();
+    // Close modal completely when cancelled
+    const modal = $('exportModal');
+    if (modal) modal.classList.add('hidden');
 }
 
 /**
