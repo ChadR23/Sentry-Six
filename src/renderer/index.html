@@ -907,6 +907,26 @@
                 </div>
                 
                 <div class="modal-section">
+                    <div class="modal-section-title">Welcome Guide</div>
+                    <div class="dev-grid">
+                        <button id="devResetWelcomeGuide" class="dev-card">
+                            <span class="dev-card-icon">🔄</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reset Welcome Guide</span>
+                                <span class="dev-card-desc">Show on next launch</span>
+                            </div>
+                        </button>
+                        <button id="devShowWelcomeGuide" class="dev-card">
+                            <span class="dev-card-icon">👋</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Show Welcome Guide</span>
+                                <span class="dev-card-desc">Open guide now</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
                     <div class="modal-section-title">Diagnostics</div>
                     <div class="dev-grid">
                         <button id="devShowPaths" class="dev-card">
@@ -1040,6 +1060,346 @@
                     </svg>
                     Update Now
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welcome Guide Modal -->
+    <div id="welcomeGuideModal" class="modal hidden">
+        <div class="modal-content welcome-guide-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #00d4ff;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                    </svg>
+                    Welcome to Sentry Six
+                </h2>
+                <button id="closeWelcomeGuide" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body welcome-guide-body">
+                <!-- Tour Steps Container -->
+                <div class="welcome-steps-container">
+                    <!-- Step 1: Introduction -->
+                    <div class="welcome-step active" data-step="1">
+                        <div class="welcome-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                                <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">Welcome!</h3>
+                        <p class="welcome-step-desc">Sentry Six is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
+                    </div>
+                    
+                    <!-- Step 2: Load Folder -->
+                    <div class="welcome-step" data-step="2">
+                        <h3 class="welcome-step-title">Load Your TeslaCam Folder</h3>
+                        <p class="welcome-step-desc">Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
+                        <!-- Actual drop overlay clone -->
+                        <div class="welcome-preview-container">
+                            <div class="drop-overlay welcome-preview-drop" style="position: relative; display: flex;">
+                                <div class="drop-message">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    <p>Select your TeslaCam folder to browse clips</p>
+                                    <div class="drop-actions">
+                                        <button class="mini-btn">Choose Folder</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="welcome-step-note">You can select your folder after completing the tour.</p>
+                    </div>
+                    
+                    <!-- Step 3: Clip Browser -->
+                    <div class="welcome-step" data-step="3">
+                        <h3 class="welcome-step-title">Browse Your Clips</h3>
+                        <p class="welcome-step-desc">The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
+                        <!-- Actual clip browser clone -->
+                        <div class="welcome-preview-container">
+                            <div class="clip-browser welcome-preview-clips" style="position: relative; width: 100%;">
+                                <div class="clip-browser-header">
+                                    <div class="clip-browser-title">
+                                        <div class="clip-browser-title-main">Clips</div>
+                                        <div class="clip-browser-subtitle">3 events found</div>
+                                        <div class="clip-browser-dayfilter">
+                                            <label>Date</label>
+                                            <select style="pointer-events: none;"><option>Dec 31, 2025</option></select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="clip-list" style="display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                                    <div class="clip-item event-item sentry-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Sentry Event</div>
+                                            <div class="clip-badges">
+                                                <span class="badge sentry">Sentry</span>
+                                            </div>
+                                            <div class="clip-sub"><div>3 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                    <div class="clip-item event-item saved-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Saved Clip</div>
+                                            <div class="clip-badges">
+                                                <span class="badge saved">Saved</span>
+                                                <span class="badge reason-icon warning">User Input</span>
+                                            </div>
+                                            <div class="clip-sub"><div>2 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                    <div class="clip-item event-item recent-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Recent Clip</div>
+                                            <div class="clip-badges">
+                                                <span class="badge recent">Recent</span>
+                                            </div>
+                                            <div class="clip-sub"><div>5 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 4: Multi-Camera View -->
+                    <div class="welcome-step" data-step="4">
+                        <h3 class="welcome-step-title">Multi-Camera Playback</h3>
+                        <p class="welcome-step-desc">View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
+                        <!-- Actual multi-cam grid clone -->
+                        <div class="welcome-preview-container">
+                            <div class="multi-cam-grid welcome-preview-grid" style="position: relative; display: grid; padding: 6px; aspect-ratio: 3/2;">
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Left Pillar</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Front</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Right Pillar</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Left Repeater</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Back</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Right Repeater</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 5: Telemetry Dashboard -->
+                    <div class="welcome-step" data-step="5">
+                        <h3 class="welcome-step-title">Live Telemetry Dashboard</h3>
+                        <p class="welcome-step-desc">Real-time speed, gear, steering, turn signals, G-force, and compass data. Drag to reposition.</p>
+                        <!-- Actual dashboard clone with sample data -->
+                        <div class="welcome-preview-container">
+                            <div class="dashboard-vis welcome-preview-dash" style="position: relative; display: block;">
+                                <div class="vis-content">
+                                    <div class="autosteer-section">
+                                        <div class="autosteer-wrapper welcome-steering-animate">
+                                            <img src="../../assets/autosteer-icon.png" class="autosteer-icon active" alt="Autosteer">
+                                        </div>
+                                    </div>
+                                    <div class="center-cluster">
+                                        <div class="turn-signal left active">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <path d="M19 12H5M12 5l-7 7 7 7"/>
+                                            </svg>
+                                        </div>
+                                        <div class="speed-display">
+                                            <div class="gear-state active">DRIVE</div>
+                                            <div class="speed-value">45</div>
+                                            <div class="speed-unit">MPH</div>
+                                            <div class="autopilot-label-container">
+                                                <span class="autopilot-label active">Self Driving</span>
+                                            </div>
+                                        </div>
+                                        <div class="turn-signal right">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="right-cluster">
+                                        <div class="recording-time">
+                                            <span id="welcomeTimeDisplay">2:45:30 PM</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="instruments-row">
+                                    <div class="gforce-section">
+                                        <div class="gforce-meter">
+                                            <svg viewBox="0 0 60 60">
+                                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                                <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                                <circle cx="30" cy="30" r="9" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                                <line x1="30" y1="2" x2="30" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                                <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                                <circle cx="35" cy="25" r="4" fill="#3e9cbf"/>
+                                            </svg>
+                                            <div class="gforce-label">G</div>
+                                        </div>
+                                        <div class="gforce-values">
+                                            <div class="gforce-val">0.2</div>
+                                            <div class="gforce-val">-0.1</div>
+                                        </div>
+                                    </div>
+                                    <div class="compass-section">
+                                        <div class="compass-meter">
+                                            <svg viewBox="0 0 60 60">
+                                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                                <text x="30" y="10" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="8" font-weight="700">N</text>
+                                                <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">S</text>
+                                                <text x="7" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">W</text>
+                                                <text x="53" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">E</text>
+                                                <g transform="rotate(45 30 30)">
+                                                    <polygon points="30,14 26,30 30,28 34,30" fill="#e74c3c"/>
+                                                    <polygon points="30,46 26,30 30,32 34,30" fill="rgba(255,255,255,0.4)"/>
+                                                    <circle cx="30" cy="30" r="3" fill="#222" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                                                </g>
+                                            </svg>
+                                        </div>
+                                        <div class="compass-value">45°</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 6: Map View -->
+                    <div class="welcome-step" data-step="6">
+                        <div class="welcome-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                                <line x1="8" y1="2" x2="8" y2="18"/>
+                                <line x1="16" y1="6" x2="16" y2="22"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">GPS Map Tracking</h3>
+                        <p class="welcome-step-desc">The floating map displays your vehicle's real-time location and travel path during playback. Event locations are automatically marked on the map. You can drag it anywhere on screen and toggle its visibility in Settings.</p>
+                    </div>
+                    
+                    <!-- Step 7: Export -->
+                    <div class="welcome-step" data-step="7">
+                        <h3 class="welcome-step-title">Export Your Clips</h3>
+                        <p class="welcome-step-desc">Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
+                        <!-- Actual export controls clone -->
+                        <div class="welcome-preview-container">
+                            <div class="controls welcome-preview-controls" style="position: relative; display: flex; padding: 10px; border-radius: 12px;">
+                                <div class="export-group" style="display: flex; gap: 6px; margin: 0 auto;">
+                                    <button class="control-btn export-marker-btn start" style="pointer-events: none;">
+                                        <span class="marker-label">In</span>
+                                    </button>
+                                    <button class="control-btn export-marker-btn end" style="pointer-events: none;">
+                                        <span class="marker-label">Out</span>
+                                    </button>
+                                    <button class="control-btn export-btn" style="pointer-events: none;">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 8: Settings -->
+                    <div class="welcome-step" data-step="8">
+                        <h3 class="welcome-step-title">Customize Settings</h3>
+                        <p class="welcome-step-desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, and display preferences.</p>
+                        <!-- Actual settings modal clone -->
+                        <div class="welcome-preview-container">
+                            <div class="modal-content welcome-preview-settings" style="position: relative; max-width: 100%; margin: 0;">
+                                <div class="modal-header" style="padding: 10px 14px;">
+                                    <h2 style="font-size: 13px;">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 6px; opacity: 0.8;">
+                                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58z"/>
+                                        </svg>
+                                        Settings
+                                    </h2>
+                                </div>
+                                <div style="padding: 10px 14px;">
+                                    <div class="toggle-row" style="pointer-events: none;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Show Dashboard</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" checked disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Show Map</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" checked disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Use Metric Units</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 9: Finish -->
+                    <div class="welcome-step" data-step="9">
+                        <div class="welcome-step-icon welcome-step-icon-success">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">You're All Set!</h3>
+                        <p class="welcome-step-desc">That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.</p>
+                        <p class="welcome-step-tip">💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
+                    </div>
+                </div>
+                
+                <!-- Step Indicators -->
+                <div class="welcome-step-indicators">
+                    <span class="welcome-indicator active" data-step="1"></span>
+                    <span class="welcome-indicator" data-step="2"></span>
+                    <span class="welcome-indicator" data-step="3"></span>
+                    <span class="welcome-indicator" data-step="4"></span>
+                    <span class="welcome-indicator" data-step="5"></span>
+                    <span class="welcome-indicator" data-step="6"></span>
+                    <span class="welcome-indicator" data-step="7"></span>
+                    <span class="welcome-indicator" data-step="8"></span>
+                    <span class="welcome-indicator" data-step="9"></span>
+                </div>
+            </div>
+            <div class="modal-footer welcome-guide-footer">
+                <button id="welcomeSkipBtn" class="btn btn-secondary">Skip Tour</button>
+                <div class="welcome-nav-buttons">
+                    <button id="welcomePrevBtn" class="btn btn-secondary" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button id="welcomeNextBtn" class="btn btn-primary">
+                        Next
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

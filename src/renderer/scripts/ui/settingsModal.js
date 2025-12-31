@@ -576,6 +576,32 @@ export function initDevSettingsModal() {
             }
         };
     }
+    
+    // Reset Welcome Guide
+    const devResetWelcomeGuide = $('devResetWelcomeGuide');
+    if (devResetWelcomeGuide) {
+        devResetWelcomeGuide.onclick = async () => {
+            if (window._resetWelcomeGuide) {
+                await window._resetWelcomeGuide();
+                showDevOutput('Welcome Guide Reset\n\nThe welcome guide will appear on next app launch.\nOr click "Show Welcome Guide" to see it now.');
+            } else {
+                showDevOutput('Error: Welcome guide module not loaded');
+            }
+        };
+    }
+    
+    // Show Welcome Guide Now
+    const devShowWelcomeGuide = $('devShowWelcomeGuide');
+    if (devShowWelcomeGuide) {
+        devShowWelcomeGuide.onclick = () => {
+            if (window._openWelcomeGuide) {
+                closeDevSettings();
+                window._openWelcomeGuide();
+            } else {
+                showDevOutput('Error: Welcome guide module not loaded');
+            }
+        };
+    }
 }
 
 /**

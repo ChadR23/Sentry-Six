@@ -20,6 +20,7 @@ import { initLayoutLab } from './scripts/ui/layoutLab.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal } from './scripts/ui/settingsModal.js';
+import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
 import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
@@ -786,6 +787,13 @@ initChangelogModal();
 initDiagnostics();
 logDiagnosticEvent('app_initialized');
 
+// Initialize Welcome Guide for first-time users
+initWelcomeGuide();
+
+// Expose welcome guide functions for developer settings
+window._resetWelcomeGuide = resetWelcomeGuide;
+window._openWelcomeGuide = openWelcomeGuide;
+
 // Keybind System - moved to scripts/lib/keybinds.js
 // Initialize keybind actions (handlers stay here since they use local functions)
 initKeybindActions({
@@ -875,6 +883,9 @@ async function checkForUpdatesOnStartup() {
 
 // Delay update check to allow app to fully initialize
 setTimeout(checkForUpdatesOnStartup, 2000);
+
+// Show welcome guide for first-time users (after app fully initializes)
+setTimeout(checkAndShowWelcomeGuide, 1000);
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once
