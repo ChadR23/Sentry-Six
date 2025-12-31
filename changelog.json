@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "1.0.3",
+      "date": "2025-12-30",
+      "title": "Fix blank changelogs",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed changelogs not loading properly. Updated to grab changelog from github repo instead of locally due to inital testing.."
+        }
+      ]
+    },
+    {
       "version": "1.0.2",
       "date": "2025-12-30",
       "title": "Minor UI Improvements",
@@ -52,7 +63,7 @@
     },
     {
       "version": "1.0.0",
-      "date": "2025-12-28",
+      "date": "2025-12-16",
       "title": "Initial Release",
       "changes": [
         {

@@ -1913,8 +1913,17 @@ ipcMain.handle('update:skip', async () => {
 });
 
 ipcMain.handle('update:getChangelog', async () => {
-  // Load changelog from project root
+  // Load changelog from remote GitHub repo to get new version entries
   try {
+    const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/changelog.json`;
+    const response = await httpsGet(url);
+    
+    if (response.statusCode === 200) {
+      return JSON.parse(response.data);
+    }
+    
+    // Fallback to local changelog if remote fetch fails
+    console.log('[UPDATE] Remote changelog not available, falling back to local');
     const changelogPath = path.join(__dirname, '..', 'changelog.json');
     if (fs.existsSync(changelogPath)) {
       const data = fs.readFileSync(changelogPath, 'utf8');
