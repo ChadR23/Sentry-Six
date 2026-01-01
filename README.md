@@ -88,7 +88,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [Scottmg1](https://github.com/Scottmg1) and use of the **Claude Opus 4.5 AI Model** during development.
 
-Special thanks to [**Parallax**](https://github.com/DennisGarvey), [**JeffFromTheIRS](https://github.com/JeffFromTheIRS) and **38tu** for hands-on beta testing and invaluable feedback.
+Special thanks to [**Parallax**](https://github.com/DennisGarvey), [**JeffFromTheIRS**](https://github.com/JeffFromTheIRS) and **38tu** for hands-on beta testing and invaluable feedback.
 
 ## License
 
