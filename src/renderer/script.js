@@ -2436,14 +2436,6 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault();
             clearMultiFocus();
         }
-    } else if (e.code === 'ArrowLeft' && e.shiftKey) {
-        // Shift+Left: Skip back 15 seconds
-        e.preventDefault();
-        skipSeconds(-15);
-    } else if (e.code === 'ArrowRight' && e.shiftKey) {
-        // Shift+Right: Skip forward 15 seconds
-        e.preventDefault();
-        skipSeconds(15);
     } else if (e.code === 'ArrowLeft') {
         // Left: Small step back (1 second in native mode, frame in WebCodecs mode)
         e.preventDefault();
