@@ -6,8 +6,8 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
 ## Features
 - **Simple UI**
-  - Drag and drop your TeslaCam folder or select one using the folder explorer
-    - Select a default folder in the settings
+  - Select your TeslaCam folder using the folder explorer
+  - Select a default folder in the settings
   - Easily browse files by date
   - Supports Recent, Sentry, and Saved Clips
   - Event Triggers (e.g. "User Triggered" or "Collision")
@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
 - **Multi-Camera Playback**
   - Simultaneously play all six cameras at once
-    - Front, Back, B-Pillars, Repeaters
+  - Front, Back, B-Pillars, Repeaters
   - Synced playback across all cameras
   - Speed control: 0.5x to 4x
  
@@ -74,7 +74,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 ## Usage
 
 1. Launch the app
-2. Drop your **TeslaCam folder** onto the window (or click Choose Folder)
+2. Select your **TeslaCam folder**
 3. Pick a clip from the sidebar
 4. Use the playback controls and in/out markers to select the part of the clip you'd like to export.
 
