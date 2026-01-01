@@ -1,6 +1,6 @@
 # Sentry Six Revamped
 
-A modern viewer for **Tesla Dashcam & Sentry** footage featuring **multi-camera playback**, **SEI telemetry overlays** (speed, GPS, steering, G-force, and more), and a route map.
+A modern viewer for **Tesla Dashcam & Sentry** footage featuring **multi-camera playback**, **SEI telemetry overlays** (speed, GPS, steering, G-force, etc.), with many more features listed below!
 
 ## Community & Support
 
@@ -24,6 +24,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 - **Sentry & Saved Events**
   - Shows event reason badges (e.g., "Collision Detected", "Manual Save")
   - Displays event location on the map
+   <img width="176.5" height="275.5" alt="image" src="https://github.com/user-attachments/assets/1b2f3970-965b-431a-b1c9-073a7fd30800" />
 
 - **SEI Telemetry Dashboard**
   - Live data overlay showing speed, gear, steering angle, turn signals, brake/accelerator pedals, heading, and G-force
@@ -31,7 +32,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Toggle between MPH and KM/H
   - Works with partial SEI data (shows "No Data" when unavailable)
   - *Requires Tesla software 2025.44.25.1 or newer on HW3+ vehicles*
-   <img width="404" height="221.6" alt="SEIDashboard" src="https://github.com/user-attachments/assets/0f367d16-2f98-4d0b-b6a9-4b40e994a7fe" />
+   ![Dashboard](https://github.com/user-attachments/assets/6bc6ff11-0066-427f-b2ab-c95530eaa2e3)
 
 - **Clip Export**
   - Export clips with hardware-accelerated GPU encoding (NVENC/HEVC)
@@ -49,12 +50,13 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Customizable keyboard shortcuts
   - Default TeslaCam folder auto-load
   - View changelog from settings
-   <img width="205.5" height="303" alt="Settings" src="https://github.com/user-attachments/assets/bc90c81a-1bf5-4807-844d-2a4c6bed5070" />
+   <img width="248" height="444.5" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
 
 - **Auto-Update**
   - Checks for updates on startup and installs with one click
   - Shows changelog with release notes for each version
-   <img width="214" height="248" alt="AutoUpdate" src="https://github.com/user-attachments/assets/1c96f5d6-367b-493d-9fa3-d92a72f2080d" />
+   <img width="218" height="246" alt="image" src="https://github.com/user-attachments/assets/52892a7e-faf9-4e3e-b30e-6815b9f93646" />
+
 
 ## Requirements
 
@@ -71,14 +73,9 @@ npm start
 ## Usage
 
 1. Launch the app
-2. Drop your **TeslaCam folder** onto the window (or click Choose Folder)
-3. Pick a clip from the sidebar
+2. Select your **TeslaCam folder**
+3. Pick a date and event from the sidebar
 4. Use playback controls and toggle overlays via the settings menu
-
-## Notes on SEI Data
-
-- SEI telemetry is typically not recorded while parked
-- Brake/accelerator pedal data is not logged during Self Driving. If you see pedal activity while Autopilot/Self Driving is engaged, that's driver input.
 
 ## Project Origin & Credits
 
