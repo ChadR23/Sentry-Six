@@ -12,9 +12,15 @@ const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 const UPDATE_CONFIG = {
   owner: 'ChadR23',
   repo: 'Sentry-Six',
-  branch: 'Dev-SEI',
+  defaultBranch: 'main',
   versionFile: path.join(app.getPath('userData'), 'current-version.json')
 };
+
+// Get the configured update branch from settings (defaults to main)
+function getUpdateBranch() {
+  const settings = loadSettings();
+  return settings.updateBranch || UPDATE_CONFIG.defaultBranch;
+}
 
 // Active exports tracking
 const activeExports = {};
@@ -1764,7 +1770,7 @@ function compareVersions(v1, v2) {
 async function getLatestVersion() {
   // Add cache-busting parameter to bypass GitHub's CDN cache (which can be 5+ minutes stale)
   const cacheBuster = Date.now();
-  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/version.json?cb=${cacheBuster}`;
+  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${getUpdateBranch()}/version.json?cb=${cacheBuster}`;
   const response = await httpsGet(url);
   
   if (response.statusCode === 404) {
@@ -1829,7 +1835,7 @@ async function performUpdate(event) {
     sendProgress(5, 'Fetching latest version info...');
     const latestVersion = await getLatestVersion();
     
-    const zipUrl = `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/archive/refs/heads/${UPDATE_CONFIG.branch}.zip`;
+    const zipUrl = `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/archive/refs/heads/${getUpdateBranch()}.zip`;
     const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
     const zipPath = path.join(tempDir, 'update.zip');
     
@@ -1953,7 +1959,7 @@ ipcMain.handle('update:getChangelog', async () => {
   try {
     // Add cache-busting parameter to bypass GitHub's CDN cache
     const cacheBuster = Date.now();
-    const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${UPDATE_CONFIG.branch}/changelog.json?cb=${cacheBuster}`;
+    const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${getUpdateBranch()}/changelog.json?cb=${cacheBuster}`;
     const response = await httpsGet(url);
     
     if (response.statusCode === 200) {

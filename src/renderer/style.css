@@ -2576,6 +2576,9 @@ canvas, .video-player, .tile-video {
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
 }
+.action-row + .action-row {
+    margin-top: 8px;
+}
 
 .action-row-info {
     display: flex;
@@ -2593,6 +2596,31 @@ canvas, .video-player, .tile-video {
 .action-row-desc {
     font-size: 10px;
     color: rgba(255, 255, 255, 0.45);
+}
+
+/* Settings Select Dropdown */
+.settings-select {
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.settings-select:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+.settings-select:focus {
+    outline: none;
+    border-color: rgba(62, 156, 191, 0.5);
+    box-shadow: 0 0 0 2px rgba(62, 156, 191, 0.2);
+}
+.settings-select option {
+    background: rgba(20, 20, 30, 0.95);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Input Row */

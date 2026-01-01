@@ -297,6 +297,39 @@ export function initSettingsModal() {
         });
     }
     
+    // Update branch selector
+    const settingsUpdateBranch = $('settingsUpdateBranch');
+    if (settingsUpdateBranch) {
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('updateBranch').then(savedValue => {
+                settingsUpdateBranch.value = savedValue || 'main';
+            });
+        }
+        
+        settingsUpdateBranch.addEventListener('change', async function() {
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('updateBranch', this.value);
+            }
+        });
+    }
+    
+    // Check for updates button
+    const checkForUpdatesBtn = $('checkForUpdatesBtn');
+    if (checkForUpdatesBtn) {
+        checkForUpdatesBtn.onclick = async () => {
+            if (window.electronAPI?.checkForUpdates) {
+                checkForUpdatesBtn.disabled = true;
+                checkForUpdatesBtn.textContent = 'Checking...';
+                try {
+                    await window.electronAPI.checkForUpdates();
+                } finally {
+                    checkForUpdatesBtn.disabled = false;
+                    checkForUpdatesBtn.textContent = 'Check Now';
+                }
+            }
+        };
+    }
+    
     // Sentry camera highlight toggle
     const settingsSentryCameraHighlight = $('settingsSentryCameraHighlight');
     if (settingsSentryCameraHighlight) {
