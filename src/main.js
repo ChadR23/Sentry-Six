@@ -5,7 +5,6 @@ const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
-const { autoUpdater } = require('electron-updater');
 
 // Auto-Update Configuration
 const UPDATE_CONFIG = {
@@ -14,9 +13,16 @@ const UPDATE_CONFIG = {
   defaultBranch: 'main'
 };
 
-// Configure electron-updater
-autoUpdater.autoDownload = false;  // Don't auto-download, let user choose
-autoUpdater.autoInstallOnAppQuit = true;
+// electron-updater is optional - only needed for NSIS packaged installs
+// Manual npm installs use the GitHub download method instead
+let autoUpdater = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+} catch (err) {
+  console.log('[UPDATE] electron-updater not available - using manual update method');
+}
 
 // Get the configured update branch from settings (defaults to main)
 function getUpdateBranch() {
@@ -1448,49 +1454,51 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 app.whenReady().then(async () => {
   createWindow();
   
-  // Set up electron-updater event handlers
-  autoUpdater.on('checking-for-update', () => {
-    console.log('[UPDATE] Checking for updates...');
-  });
-  
-  autoUpdater.on('update-available', (info) => {
-    console.log('[UPDATE] Update available:', info.version);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update:available', {
-        currentVersion: app.getVersion(),
-        latestVersion: info.version,
-        releaseName: info.releaseName || 'New Update',
-        releaseDate: info.releaseDate
-      });
-    }
-  });
-  
-  autoUpdater.on('update-not-available', () => {
-    console.log('[UPDATE] App is up to date');
-  });
-  
-  autoUpdater.on('download-progress', (progress) => {
-    console.log(`[UPDATE] Download progress: ${Math.round(progress.percent)}%`);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update:progress', {
-        percentage: Math.round(progress.percent),
-        message: `Downloading... ${Math.round(progress.percent)}%`
-      });
-    }
-  });
-  
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('[UPDATE] Update downloaded:', info.version);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update:downloaded', {
-        version: info.version
-      });
-    }
-  });
-  
-  autoUpdater.on('error', (err) => {
-    console.error('[UPDATE] Error:', err.message);
-  });
+  // Set up electron-updater event handlers (only if available)
+  if (autoUpdater) {
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[UPDATE] Checking for updates...');
+    });
+    
+    autoUpdater.on('update-available', (info) => {
+      console.log('[UPDATE] Update available:', info.version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:available', {
+          currentVersion: app.getVersion(),
+          latestVersion: info.version,
+          releaseName: info.releaseName || 'New Update',
+          releaseDate: info.releaseDate
+        });
+      }
+    });
+    
+    autoUpdater.on('update-not-available', () => {
+      console.log('[UPDATE] App is up to date');
+    });
+    
+    autoUpdater.on('download-progress', (progress) => {
+      console.log(`[UPDATE] Download progress: ${Math.round(progress.percent)}%`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:progress', {
+          percentage: Math.round(progress.percent),
+          message: `Downloading... ${Math.round(progress.percent)}%`
+        });
+      }
+    });
+    
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[UPDATE] Update downloaded:', info.version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:downloaded', {
+          version: info.version
+        });
+      }
+    });
+    
+    autoUpdater.on('error', (err) => {
+      console.error('[UPDATE] Error:', err.message);
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1824,7 +1832,7 @@ async function checkForUpdatesManual() {
 // Update IPC handlers
 ipcMain.handle('update:check', async () => {
   try {
-    if (app.isPackaged) {
+    if (app.isPackaged && autoUpdater) {
       // NSIS install - use electron-updater
       await autoUpdater.checkForUpdates();
     } else {
@@ -1840,7 +1848,7 @@ ipcMain.handle('update:check', async () => {
 
 ipcMain.handle('update:install', async (event) => {
   try {
-    if (app.isPackaged) {
+    if (app.isPackaged && autoUpdater) {
       // NSIS install - use electron-updater to download
       await autoUpdater.downloadUpdate();
       return { success: true, downloading: true };
@@ -1966,12 +1974,16 @@ function copyDirectoryRecursive(src, dest) {
 
 ipcMain.handle('update:installAndRestart', async () => {
   // Install the downloaded update and restart the app
-  autoUpdater.quitAndInstall(false, true);
+  if (autoUpdater) {
+    autoUpdater.quitAndInstall(false, true);
+  } else {
+    app.quit();
+  }
 });
 
 ipcMain.handle('update:exit', async () => {
   // User clicked Exit button after update
-  if (app.isPackaged) {
+  if (app.isPackaged && autoUpdater) {
     // NSIS install - quit and install the update
     autoUpdater.quitAndInstall(false, true);
   } else {
