@@ -1,25 +1,57 @@
 {
   "versions": [
     {
-      "version": "2026.1.4",
+      "version": "2026.1.5",
       "date": "2026-01-01",
       "title": "Sentry Six Revamped Public Release",
       "changes": [
         {
-          "type": "improvement",
-          "description": "Reduced support diagnostic data collected"
+          "type": "fix",
+          "description": "Fixed map event pins not clearing properly."
         },
         {
           "type": "fix",
-          "description": "Removed paste.rs due to issues and moved diagnostic data storage to a secure VPS with authentication required for retrival to protect user data."
+          "description": "Fixed video auto playing when paused and using seeking functions."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed playback bar not updating after seeking while paused."
         },
         {
           "type": "improvement",
-          "description": "Updated default branch to main, also added a beta branch selecter and check for update button inside of advanced settings."
+          "description": "Revamped Diagnostic Support System to not rely on Third Party Services and added additional measures to protect user diagnostic data."
         },
         {
           "type": "improvement",
-          "description": "Added warning if no GPU is detected for export telemetry overlay toggle. "
+          "description": "Reduced PII & not helpful support diagnostic data."
+        },
+        {
+          "type": "improvement",
+          "description": "Updated default branch to main."
+        },
+        {
+          "type": "improvement",
+          "description": "Added warning if no GPU is detected for export telemetry overlay toggle."
+        },
+        {
+          "type": "improvement",
+          "description": "Cleaned up dead code & comments."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed legacy drag & drop code."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed some keybinds in favor of customizable keyboard shortcuts."
+        },
+        {
+          "type": "feature",
+          "description": "Added ability to check for updates without having to relaunch app."
+        },
+        {
+          "type": "feature",
+          "description": "Added ability to swap between Main and Dev-SEI Branch. Dev-SEI is now used for Beta."
         }
       ]
     },
