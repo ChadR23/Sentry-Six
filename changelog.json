@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.1",
+      "date": "2026-01-01",
+      "title": "Sentry Six Revamped Public Release",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Reduced support diagnostic data collected"
+        }
+      ]
+    },
+    {
       "version": "2026.1",
       "date": "2026-01-01",
       "title": "Sentry Six Revamped Public Release",
