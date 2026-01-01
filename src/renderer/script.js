@@ -186,6 +186,12 @@ function resetDashboardAndMap() {
     }
     mapPath = [];
     
+    // Clear event location marker (Sentry/Saved clip static pin)
+    if (eventLocationMarker) {
+        eventLocationMarker.remove();
+        eventLocationMarker = null;
+    }
+    
     // Clear SEI data cache and tracking flags
     if (nativeVideo) {
         nativeVideo.seiData = [];
@@ -284,10 +290,16 @@ function showEventJsonLocation(coll) {
         popupAnchor: [0, -32]
     });
     
+    // Clear any existing event location marker before adding new one
+    if (eventLocationMarker) {
+        eventLocationMarker.remove();
+        eventLocationMarker = null;
+    }
+    
     // Create marker and add popup with location info
     const latlng = L.latLng(lat, lon);
     // Note: This is a static event location marker, separate from the moving GPS marker
-    const eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
+    eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
     
     // Center map on location
     map.setView(latlng, 16);
@@ -328,6 +340,7 @@ const mapVis = $('mapVis');
 let map = null;
 // mapMarker moved to scripts/ui/mapVisualization.js
 let mapPolyline = null;
+let eventLocationMarker = null; // Static marker for Sentry/Saved clip event locations
 let mapPath = [];
 
 // Extra Data Elements
