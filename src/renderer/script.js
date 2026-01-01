@@ -3585,10 +3585,8 @@ async function seekNativeDayCollectionBySec(targetSec) {
     }
     
     // Clear seeking flag after a short delay to let the video element settle
-    // Then check if autoplay should start (since maybeAutoplayAfterSeek was blocked during seek)
     setTimeout(() => {
         nativeVideo.isSeeking = false;
-        maybeAutoplayAfterSeek();
     }, 100);
 }
 
