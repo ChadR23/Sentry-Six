@@ -338,10 +338,32 @@ export function initSettingsModal() {
                 checkForUpdatesBtn.disabled = true;
                 checkForUpdatesBtn.textContent = 'Checking...';
                 try {
-                    await window.electronAPI.checkForUpdates();
-                } finally {
-                    checkForUpdatesBtn.disabled = false;
-                    checkForUpdatesBtn.textContent = 'Check Now';
+                    const result = await window.electronAPI.checkForUpdates();
+                    if (result?.updateAvailable) {
+                        // Update modal will be shown by the update:available event
+                        checkForUpdatesBtn.textContent = 'Update Found!';
+                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+                    } else if (result?.error) {
+                        checkForUpdatesBtn.textContent = 'Check Failed';
+                        checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
+                    } else {
+                        checkForUpdatesBtn.textContent = 'Up to Date ✓';
+                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+                    }
+                    // Reset button after 3 seconds
+                    setTimeout(() => {
+                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.style.background = '';
+                        checkForUpdatesBtn.disabled = false;
+                    }, 3000);
+                } catch (err) {
+                    checkForUpdatesBtn.textContent = 'Check Failed';
+                    checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
+                    setTimeout(() => {
+                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.style.background = '';
+                        checkForUpdatesBtn.disabled = false;
+                    }, 3000);
                 }
             }
         };

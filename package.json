@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.sentrysix.revamped",
-    "productName": "Sentry Six Revamped",
+    "productName": "Sentry-Six-Revamped",
     "win": {
       "target": [
         {
@@ -67,7 +67,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "SentrySixRevampedSetup${version}.${ext}"
     },
     "publish": {
       "provider": "github",

@@ -1724,7 +1724,7 @@ async function checkForUpdatesManual() {
     
     if (!latestVersion) {
       console.log('[UPDATE] No remote version available');
-      return;
+      return { updateAvailable: false, error: 'Could not fetch version info' };
     }
     
     const currentVer = app.getVersion();
@@ -1743,11 +1743,14 @@ async function checkForUpdatesManual() {
           isDevMode: true  // Flag to indicate this is dev mode
         });
       }
+      return { updateAvailable: true, currentVersion: currentVer, latestVersion: latestVer };
     } else {
       console.log('[UPDATE] App is up to date');
+      return { updateAvailable: false, currentVersion: currentVer, latestVersion: latestVer };
     }
   } catch (err) {
     console.error('[UPDATE] Manual check failed:', err.message);
+    return { updateAvailable: false, error: err.message };
   }
 }
 
@@ -1756,15 +1759,24 @@ ipcMain.handle('update:check', async () => {
   try {
     if (app.isPackaged && autoUpdater) {
       // NSIS install - use electron-updater
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+      // electron-updater returns update info if available
+      const updateAvailable = result?.updateInfo?.version && 
+        compareVersions(app.getVersion(), result.updateInfo.version) < 0;
+      return { 
+        checked: true, 
+        updateAvailable,
+        currentVersion: app.getVersion(),
+        latestVersion: result?.updateInfo?.version || app.getVersion()
+      };
     } else {
       // Development/manual install - use GitHub version.json check
-      await checkForUpdatesManual();
+      const result = await checkForUpdatesManual();
+      return { checked: true, ...result };
     }
-    return { checked: true };
   } catch (err) {
     console.error('[UPDATE] Check failed:', err.message);
-    return { checked: false, error: err.message };
+    return { checked: false, updateAvailable: false, error: err.message };
   }
 });
 
