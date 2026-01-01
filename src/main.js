@@ -5,14 +5,18 @@ const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 // Auto-Update Configuration
 const UPDATE_CONFIG = {
   owner: 'ChadR23',
   repo: 'Sentry-Six',
-  defaultBranch: 'main',
-  versionFile: path.join(app.getPath('userData'), 'current-version.json')
+  defaultBranch: 'main'
 };
+
+// Configure electron-updater
+autoUpdater.autoDownload = false;  // Don't auto-download, let user choose
+autoUpdater.autoInstallOnAppQuit = true;
 
 // Get the configured update branch from settings (defaults to main)
 function getUpdateBranch() {
@@ -1444,8 +1448,49 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 app.whenReady().then(async () => {
   createWindow();
   
-  // Update check is now triggered by renderer after checking user settings
-  // This allows user to disable auto-update check in settings
+  // Set up electron-updater event handlers
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[UPDATE] Checking for updates...');
+  });
+  
+  autoUpdater.on('update-available', (info) => {
+    console.log('[UPDATE] Update available:', info.version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:available', {
+        currentVersion: app.getVersion(),
+        latestVersion: info.version,
+        releaseName: info.releaseName || 'New Update',
+        releaseDate: info.releaseDate
+      });
+    }
+  });
+  
+  autoUpdater.on('update-not-available', () => {
+    console.log('[UPDATE] App is up to date');
+  });
+  
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[UPDATE] Download progress: ${Math.round(progress.percent)}%`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:progress', {
+        percentage: Math.round(progress.percent),
+        message: `Downloading... ${Math.round(progress.percent)}%`
+      });
+    }
+  });
+  
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[UPDATE] Update downloaded:', info.version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:downloaded', {
+        version: info.version
+      });
+    }
+  });
+  
+  autoUpdater.on('error', (err) => {
+    console.error('[UPDATE] Error:', err.message);
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1710,50 +1755,21 @@ function downloadFile(url, destPath, onProgress) {
 }
 
 /**
- * Get the current installed version from local version.json
- * @returns {Object|null} Version info or null if not found
+ * Fetch the latest version.json from GitHub (for manual/dev installs)
  */
-function getCurrentVersion() {
-  // Try multiple paths to handle both development and packaged (asar) environments
-  const possiblePaths = [
-    path.join(__dirname, '..', 'version.json'),                    // Development: src/../version.json
-    path.join(app.getAppPath(), 'version.json'),                   // Packaged: inside asar root
-    path.join(app.getAppPath(), '..', 'version.json'),             // Packaged: next to asar
-    path.join(process.resourcesPath || __dirname, 'version.json'), // Packaged: resources folder
-  ];
+async function getLatestVersionFromGitHub() {
+  const cacheBuster = Date.now();
+  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${getUpdateBranch()}/version.json?cb=${cacheBuster}`;
+  const response = await httpsGet(url);
   
-  for (const versionPath of possiblePaths) {
-    try {
-      if (fs.existsSync(versionPath)) {
-        const data = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
-        console.log(`[VERSION] Found version.json at: ${versionPath}`);
-        return data;
-      }
-    } catch (err) {
-      // Continue to next path
-    }
+  if (response.statusCode === 200) {
+    return JSON.parse(response.data);
   }
-  
-  // Fallback: try to get version from package.json
-  try {
-    const packageVersion = app.getVersion();
-    if (packageVersion && packageVersion !== '0.0.0') {
-      console.log(`[VERSION] Using app.getVersion(): ${packageVersion}`);
-      return { version: packageVersion, releaseDate: '', releaseName: '' };
-    }
-  } catch (err) {
-    // Ignore
-  }
-  
-  console.error('[VERSION] Could not find version.json in any expected location:', possiblePaths);
   return null;
 }
 
 /**
  * Compare two semantic version strings
- * @param {string} v1 - First version
- * @param {string} v2 - Second version
- * @returns {number} -1 if v1 < v2, 0 if equal, 1 if v1 > v2
  */
 function compareVersions(v1, v2) {
   const parts1 = v1.replace(/^v/i, '').split('.').map(Number);
@@ -1769,76 +1785,90 @@ function compareVersions(v1, v2) {
 }
 
 /**
- * Fetch the latest version.json from GitHub
- * @returns {Object|null} Latest version info or null if not found
+ * Check for updates - handles both packaged (NSIS) and development (npm start) modes
  */
-async function getLatestVersion() {
-  // Add cache-busting parameter to bypass GitHub's CDN cache (which can be 5+ minutes stale)
-  const cacheBuster = Date.now();
-  const url = `https://raw.githubusercontent.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/${getUpdateBranch()}/version.json?cb=${cacheBuster}`;
-  const response = await httpsGet(url);
-  
-  if (response.statusCode === 404) {
-    // version.json not yet pushed to repo - this is expected for initial setup
-    console.log('[UPDATE] Remote version.json not found (not yet pushed to repo)');
-    return null;
-  }
-  
-  if (response.statusCode !== 200) {
-    throw new Error(`Failed to fetch version.json: ${response.statusCode}`);
-  }
-  
-  return JSON.parse(response.data);
-}
-
-/**
- * Check for updates on startup
- */
-async function checkForUpdatesOnStartup() {
+async function checkForUpdatesManual() {
   try {
-    console.log('[UPDATE] Checking for updates...');
-    const latestVersion = await getLatestVersion();
-    const currentVersion = getCurrentVersion();
+    console.log('[UPDATE] Manual update check (dev mode)...');
+    const latestVersion = await getLatestVersionFromGitHub();
     
-    // If remote version.json doesn't exist yet, skip update check
     if (!latestVersion) {
-      console.log('[UPDATE] No remote version available - skipping update check');
+      console.log('[UPDATE] No remote version available');
       return;
     }
     
-    const currentVer = currentVersion?.version || '0.0.0';
-    const latestVer = latestVersion?.version || '0.0.0';
+    const currentVer = app.getVersion();
+    const latestVer = latestVersion.version;
     
-    console.log(`[UPDATE] Current: v${currentVer}`);
-    console.log(`[UPDATE] Latest: v${latestVer}`);
+    console.log(`[UPDATE] Current: v${currentVer}, Latest: v${latestVer}`);
     
     if (compareVersions(currentVer, latestVer) < 0) {
-      // New version available - notify renderer
       console.log('[UPDATE] New version available!');
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update:available', {
           currentVersion: currentVer,
           latestVersion: latestVer,
           releaseName: latestVersion.releaseName || 'New Update',
-          releaseDate: latestVersion.releaseDate
+          releaseDate: latestVersion.releaseDate,
+          isDevMode: true  // Flag to indicate this is dev mode
         });
       }
     } else {
       console.log('[UPDATE] App is up to date');
     }
   } catch (err) {
-    console.error('[UPDATE] Check failed:', err.message);
+    console.error('[UPDATE] Manual check failed:', err.message);
   }
 }
 
-async function performUpdate(event) {
+// Update IPC handlers
+ipcMain.handle('update:check', async () => {
+  try {
+    if (app.isPackaged) {
+      // NSIS install - use electron-updater
+      await autoUpdater.checkForUpdates();
+    } else {
+      // Development/manual install - use GitHub version.json check
+      await checkForUpdatesManual();
+    }
+    return { checked: true };
+  } catch (err) {
+    console.error('[UPDATE] Check failed:', err.message);
+    return { checked: false, error: err.message };
+  }
+});
+
+ipcMain.handle('update:install', async (event) => {
+  try {
+    if (app.isPackaged) {
+      // NSIS install - use electron-updater to download
+      await autoUpdater.downloadUpdate();
+      return { success: true, downloading: true };
+    } else {
+      // Development/manual install - use the manual update process
+      const result = await performManualUpdate(event);
+      return result;
+    }
+  } catch (err) {
+    console.error('[UPDATE] Download failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+/**
+ * Perform update for manual/development installs
+ * Downloads files from GitHub and copies them to the app directory
+ */
+async function performManualUpdate(event) {
   const sendProgress = (percentage, message) => {
-    event.sender.send('update:progress', { percentage, message });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:progress', { percentage, message });
+    }
   };
   
   try {
     sendProgress(5, 'Fetching latest version info...');
-    const latestVersion = await getLatestVersion();
+    const latestVersion = await getLatestVersionFromGitHub();
     
     const zipUrl = `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/archive/refs/heads/${getUpdateBranch()}.zip`;
     const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
@@ -1862,10 +1892,8 @@ async function performUpdate(event) {
     mkdirSync(extractDir, { recursive: true });
     
     if (process.platform === 'win32') {
-      // Windows: Use PowerShell
       execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { windowsHide: true });
     } else {
-      // macOS/Linux: Use unzip
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'ignore' });
     }
     
@@ -1875,13 +1903,10 @@ async function performUpdate(event) {
     const extractedContents = fs.readdirSync(extractDir);
     const sourceDir = path.join(extractDir, extractedContents[0]);
     
-    // Get app directory (where the app is installed)
-    const appDir = app.isPackaged 
-      ? path.dirname(app.getPath('exe'))
-      : path.join(__dirname, '..');
+    // Get app directory
+    const appDir = path.join(__dirname, '..');
     
-    // Copy ALL files from the downloaded repo to app directory
-    // This includes src/, README.md, package.json, and any other files
+    // Copy files from the downloaded repo to app directory
     const filesToCopy = fs.readdirSync(sourceDir, { withFileTypes: true });
     for (const entry of filesToCopy) {
       const srcPath = path.join(sourceDir, entry.name);
@@ -1891,7 +1916,7 @@ async function performUpdate(event) {
       if (entry.name === 'node_modules' || entry.name === '.git') continue;
       
       if (entry.isDirectory()) {
-        copyDirectory(srcPath, destPath);
+        copyDirectoryRecursive(srcPath, destPath);
       } else {
         copyFileSync(srcPath, destPath);
       }
@@ -1902,19 +1927,23 @@ async function performUpdate(event) {
     // Cleanup temp files
     rmSync(tempDir, { recursive: true, force: true });
     
-    // version.json is already copied from the downloaded repo
-    console.log(`[UPDATE] Updated to v${latestVersion.version}`);
+    console.log(`[UPDATE] Updated to v${latestVersion?.version || 'latest'}`);
     
     sendProgress(100, 'Update complete!');
     
-    return { success: true, needsRestart: true };
+    // Signal that update is complete (for dev mode)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:downloaded', { version: latestVersion?.version, isDevMode: true });
+    }
+    
+    return { success: true, needsRestart: true, isDevMode: true };
   } catch (err) {
-    console.error('Update failed:', err);
+    console.error('Manual update failed:', err);
     return { success: false, error: err.message };
   }
 }
 
-function copyDirectory(src, dest) {
+function copyDirectoryRecursive(src, dest) {
   if (!fs.existsSync(src)) return;
   
   if (!fs.existsSync(dest)) {
@@ -1928,30 +1957,27 @@ function copyDirectory(src, dest) {
     const destPath = path.join(dest, entry.name);
     
     if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
+      copyDirectoryRecursive(srcPath, destPath);
     } else {
       copyFileSync(srcPath, destPath);
     }
   }
 }
 
-// Update IPC handlers
-ipcMain.handle('update:check', async () => {
-  // Call the existing checkForUpdatesOnStartup which handles everything
-  // including sending the update:available event to the renderer
-  await checkForUpdatesOnStartup();
-  return { checked: true };
-});
-
-ipcMain.handle('update:install', async (event) => {
-  const result = await performUpdate(event);
-  // Don't auto-restart - let the UI show an Exit button
-  return result;
+ipcMain.handle('update:installAndRestart', async () => {
+  // Install the downloaded update and restart the app
+  autoUpdater.quitAndInstall(false, true);
 });
 
 ipcMain.handle('update:exit', async () => {
-  // User clicked Exit button after update - quit the app
-  app.quit();
+  // User clicked Exit button after update
+  if (app.isPackaged) {
+    // NSIS install - quit and install the update
+    autoUpdater.quitAndInstall(false, true);
+  } else {
+    // Dev mode - just quit, user will restart manually
+    app.quit();
+  }
 });
 
 ipcMain.handle('update:skip', async () => {
@@ -1985,19 +2011,6 @@ ipcMain.handle('update:getChangelog', async () => {
   }
 });
 
-ipcMain.handle('update:bypass', async () => {
-  // Hidden dev feature - update local version.json to match remote
-  try {
-    const latestVersion = await getLatestVersion();
-    const localVersionPath = path.join(__dirname, '..', 'version.json');
-    fs.writeFileSync(localVersionPath, JSON.stringify(latestVersion, null, 2));
-    console.log('[DEV] Update bypassed - version set to:', latestVersion.version);
-    return { success: true, version: latestVersion.version };
-  } catch (err) {
-    console.error('Bypass update error:', err);
-    return { success: false, error: err.message };
-  }
-});
 
 // Developer Settings IPC Handlers
 ipcMain.handle('dev:openDevTools', async () => {
@@ -2022,48 +2035,34 @@ ipcMain.handle('dev:resetSettings', async () => {
 });
 
 ipcMain.handle('dev:forceLatestVersion', async () => {
-  try {
-    const latestVersion = await getLatestVersion();
-    const localVersionPath = path.join(__dirname, '..', 'version.json');
-    fs.writeFileSync(localVersionPath, JSON.stringify(latestVersion, null, 2));
-    console.log('[DEV] Version forced to latest:', latestVersion.version);
-    return { success: true, version: latestVersion.version };
-  } catch (err) {
-    console.error('Force latest version error:', err);
-    return { success: false, error: err.message };
-  }
+  // Note: With electron-updater, version is managed by package.json
+  // This just returns the current version for display purposes
+  return { success: true, version: app.getVersion(), note: 'Version is managed by electron-updater' };
 });
 
 ipcMain.handle('dev:setOldVersion', async () => {
-  // Set version to 0.0.1 to trigger update prompt
+  // Note: With electron-updater, version is managed by package.json
+  // This can't actually change the version - just triggers a manual update check
+  console.log('[DEV] Triggering manual update check...');
   try {
-    const localVersionPath = path.join(__dirname, '..', 'version.json');
-    const oldVersion = {
-      version: '0.0.1',
-      releaseDate: '2020-01-01',
-      releaseName: 'Test Old Version'
-    };
-    fs.writeFileSync(localVersionPath, JSON.stringify(oldVersion, null, 2));
-    console.log('[DEV] Version set to 0.0.1 (will trigger update)');
-    return { success: true, version: '0.0.1' };
+    await autoUpdater.checkForUpdates();
+    return { success: true, note: 'Manual update check triggered' };
   } catch (err) {
-    console.error('Set old version error:', err);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('dev:getCurrentVersion', async () => {
-  const version = getCurrentVersion();
-  return version || { version: 'unknown' };
+  return { version: app.getVersion() };
 });
 
 ipcMain.handle('dev:getAppPaths', async () => {
   return {
     userData: app.getPath('userData'),
     settings: settingsPath,
-    version: UPDATE_CONFIG.versionFile,
     app: app.getAppPath(),
-    temp: app.getPath('temp')
+    temp: app.getPath('temp'),
+    isPackaged: app.isPackaged
   };
 });
 
@@ -2073,6 +2072,10 @@ ipcMain.handle('dev:reloadApp', async () => {
     return { success: true };
   }
   return { success: false, error: 'No main window' };
+});
+
+ipcMain.handle('app:isPackaged', async () => {
+  return app.isPackaged;
 });
 
 // Diagnostics & Support ID IPC Handlers
