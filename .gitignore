@@ -6,6 +6,6 @@ yarn-error.log*
 release/
 
 node_modules/
-
+release/
 OLD/Sentry-Six-DEV-SEI/
 .DS_Store

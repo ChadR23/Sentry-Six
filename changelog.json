@@ -1,13 +1,17 @@
 {
   "versions": [
     {
-      "version": "2026.1.10",
+      "version": "2026.1.11",
       "date": "2026-01-01",
       "title": "Bug Fix Release",
       "changes": [
         {
           "type": "fix",
-          "description": "Fixed AMD GPU not being detected properly. which was causing issues with GPU encoding."
+          "description": "Fixed AMD GPU not being detected properly. Which was causing issues with GPU encoding."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed UI issues and auto updater issues."
         }
       ]
     },
@@ -18,7 +22,7 @@
       "changes": [
         {
           "type": "fix",
-          "description": "Fixed auto update system in preperation for .exe releases"
+          "description": "Fixed auto update system in preparation for .exe releases"
         }
       ]
     },

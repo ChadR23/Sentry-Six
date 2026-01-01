@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.1.10",
+  "version": "2026.1.11",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.sentrysix.revamped",
-    "productName": "Sentry Six Revamped",
+    "productName": "Sentry-Six-Revamped",
     "win": {
       "target": [
         {
@@ -67,7 +67,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "SentrySixRevampedSetup${version}.${ext}"
     },
     "publish": {
       "provider": "github",
