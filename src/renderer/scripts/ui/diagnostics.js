@@ -139,102 +139,88 @@ export function logDiagnosticEvent(eventName, data = {}) {
 }
 
 /**
- * Get browser/renderer info
+ * Redact username from file paths for privacy
+ * @param {string} filePath - Original file path
+ * @returns {string} Path with username redacted
  */
-function getRendererInfo() {
-    return {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        cookiesEnabled: navigator.cookieEnabled,
-        screenWidth: window.screen.width,
-        screenHeight: window.screen.height,
-        windowWidth: window.innerWidth,
-        windowHeight: window.innerHeight,
-        devicePixelRatio: window.devicePixelRatio,
-        colorDepth: window.screen.colorDepth
-    };
+function redactUsername(filePath) {
+    if (!filePath) return null;
+    // Windows: C:\Users\USERNAME\... -> C:\Users\[REDACTED]\...
+    // macOS: /Users/USERNAME/... -> /Users/[REDACTED]/...
+    // Linux: /home/USERNAME/... -> /home/[REDACTED]/...
+    return filePath
+        .replace(/^([A-Za-z]:\\Users\\)[^\\]+/, '$1[REDACTED]')
+        .replace(/^(\/Users\/)[^\/]+/, '$1[REDACTED]')
+        .replace(/^(\/home\/)[^\/]+/, '$1[REDACTED]');
 }
 
 /**
- * Get current UI state snapshot
- */
-function getUIState() {
-    try {
-        const state = {
-            modalsOpen: [],
-            videoLoaded: false,
-            clipsLoaded: 0
-        };
-
-        // Check which modals are open
-        document.querySelectorAll('.modal').forEach(modal => {
-            if (!modal.classList.contains('hidden')) {
-                state.modalsOpen.push(modal.id);
-            }
-        });
-
-        // Check video state
-        const video = document.getElementById('videoMain');
-        if (video) {
-            state.videoLoaded = video.src !== '' && !video.error;
-            state.videoError = video.error ? video.error.message : null;
-        }
-
-        // Count clips
-        const clipList = document.getElementById('clipList');
-        if (clipList) {
-            state.clipsLoaded = clipList.children.length;
-        }
-
-        return state;
-    } catch (e) {
-        return { error: e.message };
-    }
-}
-
-/**
- * Collect all diagnostic data
+ * Collect all diagnostic data (minimal, privacy-focused)
  */
 export async function collectDiagnostics() {
     const diagnostics = {
-        v: 1, // Schema version
+        v: 2, // Schema version - updated for minimal data
         ts: Date.now(),
-        app: {},
-        system: {},
-        renderer: getRendererInfo(),
-        ui: getUIState(),
+        os: null,
+        appVersion: null,
+        pendingUpdate: false,
         settings: {},
+        hardware: {},
         logs: {
-            console: logBuffer.console.slice(-1000), // Last 1000 logs
-            errors: logBuffer.errors.slice(-200),    // Last 200 errors  
-            events: logBuffer.events.slice(-100)     // Last 100 events
-        }
+            console: logBuffer.console.slice(-500), // DevTools console logs
+            errors: logBuffer.errors.slice(-100)    // Errors only
+        },
+        terminalLogs: [] // Main process logs
     };
 
     // Get app info from main process
     try {
         if (window.electronAPI?.getDiagnostics) {
-            const mainDiagnostics = await window.electronAPI.getDiagnostics();
-            diagnostics.app = mainDiagnostics.app || {};
-            diagnostics.system = mainDiagnostics.system || {};
-            diagnostics.mainLogs = mainDiagnostics.logs || [];
+            const mainData = await window.electronAPI.getDiagnostics();
+            diagnostics.os = mainData.os || null;
+            diagnostics.appVersion = mainData.appVersion || null;
+            diagnostics.pendingUpdate = mainData.pendingUpdate || false;
+            diagnostics.hardware = mainData.hardware || {};
+            diagnostics.terminalLogs = mainData.logs || [];
         }
     } catch (e) {
-        diagnostics.app.error = e.message;
+        diagnostics.error = e.message;
     }
 
-    // Get saved settings
+    // Get saved settings (only the specified ones)
     try {
         if (window.electronAPI?.getSetting) {
-            const settingKeys = ['defaultFolder', 'useMetric', 'disableAutoUpdate'];
-            for (const key of settingKeys) {
-                diagnostics.settings[key] = await window.electronAPI.getSetting(key);
+            // Core settings
+            diagnostics.settings.useMetric = await window.electronAPI.getSetting('useMetric') || false;
+            diagnostics.settings.glassBlur = await window.electronAPI.getSetting('glassBlur') ?? 7;
+            diagnostics.settings.disableAutoUpdate = await window.electronAPI.getSetting('disableAutoUpdate') || false;
+            
+            // UI toggles - get from state or settings
+            diagnostics.settings.classicSidebar = await window.electronAPI.getSetting('layoutStyle') === 'classic';
+            
+            // Default folder (redacted for privacy)
+            const defaultFolder = await window.electronAPI.getSetting('defaultFolder');
+            diagnostics.settings.defaultFolder = redactUsername(defaultFolder);
+            
+            // Keybinds - only show which actions have shortcuts set (not the actual keys for privacy)
+            const keybinds = await window.electronAPI.getSetting('keybinds');
+            if (keybinds && typeof keybinds === 'object') {
+                diagnostics.settings.shortcutsConfigured = Object.keys(keybinds);
+            } else {
+                diagnostics.settings.shortcutsConfigured = [];
             }
         }
     } catch (e) {
         diagnostics.settings.error = e.message;
     }
+    
+    // Get GPS/Dashboard toggle status from current UI state
+    try {
+        const dashboardToggle = document.getElementById('dashboardToggle');
+        const mapToggle = document.getElementById('mapToggle');
+        diagnostics.settings.dashboardEnabled = dashboardToggle?.checked ?? null;
+        diagnostics.settings.gpsEnabled = mapToggle?.checked ?? null;
+    } catch { /* ignore */ }
 
     return diagnostics;
 }
@@ -510,41 +496,82 @@ export function showDecodeSupportIdDialog() {
 }
 
 /**
- * Show decode tab content
+ * Format bytes to human readable
+ */
+function formatBytes(bytes) {
+    if (!bytes) return 'N/A';
+    const gb = bytes / (1024 ** 3);
+    return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(bytes / (1024 ** 2))} MB`;
+}
+
+/**
+ * Show decode tab content (supports both v1 and v2 schemas)
  */
 function showDecodeTab(tab, diagnostics, container) {
+    // Detect schema version
+    const isV2 = diagnostics.v >= 2;
+    
     switch (tab) {
         case 'summary':
-            container.innerHTML = `
-                <div class="decode-summary">
-                    <h4>System Info</h4>
-                    <table class="decode-table">
-                        <tr><td>App Version</td><td>${diagnostics.app?.version || 'N/A'}</td></tr>
-                        <tr><td>OS</td><td>${diagnostics.system?.platform || 'N/A'} ${diagnostics.system?.release || ''}</td></tr>
-                        <tr><td>Arch</td><td>${diagnostics.system?.arch || 'N/A'}</td></tr>
-                        <tr><td>Memory</td><td>${diagnostics.system?.totalMemory ? Math.round(diagnostics.system.totalMemory / 1024 / 1024 / 1024) + ' GB' : 'N/A'}</td></tr>
-                        <tr><td>Timestamp</td><td>${new Date(diagnostics.ts).toLocaleString()}</td></tr>
-                    </table>
-                    <h4>Renderer Info</h4>
-                    <table class="decode-table">
-                        <tr><td>User Agent</td><td>${diagnostics.renderer?.userAgent || 'N/A'}</td></tr>
-                        <tr><td>Screen</td><td>${diagnostics.renderer?.screenWidth}x${diagnostics.renderer?.screenHeight}</td></tr>
-                        <tr><td>Window</td><td>${diagnostics.renderer?.windowWidth}x${diagnostics.renderer?.windowHeight}</td></tr>
-                    </table>
-                    <h4>UI State</h4>
-                    <table class="decode-table">
-                        <tr><td>Modals Open</td><td>${diagnostics.ui?.modalsOpen?.join(', ') || 'None'}</td></tr>
-                        <tr><td>Video Loaded</td><td>${diagnostics.ui?.videoLoaded ? 'Yes' : 'No'}</td></tr>
-                        <tr><td>Clips Loaded</td><td>${diagnostics.ui?.clipsLoaded || 0}</td></tr>
-                    </table>
-                    <h4>Statistics</h4>
-                    <table class="decode-table">
-                        <tr><td>Console Logs</td><td>${diagnostics.logs?.console?.length || 0}</td></tr>
-                        <tr><td>Errors</td><td>${diagnostics.logs?.errors?.length || 0}</td></tr>
-                        <tr><td>Events</td><td>${diagnostics.logs?.events?.length || 0}</td></tr>
-                    </table>
-                </div>
-            `;
+            if (isV2) {
+                // New minimal schema v2
+                container.innerHTML = `
+                    <div class="decode-summary">
+                        <h4>System Info</h4>
+                        <table class="decode-table">
+                            <tr><td>App Version</td><td>${diagnostics.appVersion || 'N/A'}</td></tr>
+                            <tr><td>OS</td><td>${diagnostics.os || 'N/A'}</td></tr>
+                            <tr><td>Pending Update</td><td>${diagnostics.pendingUpdate ? 'Yes' : 'No'}</td></tr>
+                            <tr><td>Timestamp</td><td>${new Date(diagnostics.ts).toLocaleString()}</td></tr>
+                        </table>
+                        <h4>Hardware</h4>
+                        <table class="decode-table">
+                            <tr><td>CPU</td><td>${diagnostics.hardware?.cpuModel || 'N/A'}</td></tr>
+                            <tr><td>RAM Total</td><td>${formatBytes(diagnostics.hardware?.ramTotal)}</td></tr>
+                            <tr><td>RAM Free</td><td>${formatBytes(diagnostics.hardware?.ramFree)}</td></tr>
+                            <tr><td>GPU Detected</td><td>${diagnostics.hardware?.gpuDetected ? 'Yes' : 'No'}</td></tr>
+                            <tr><td>GPU Model</td><td>${diagnostics.hardware?.gpuModel || 'N/A'}</td></tr>
+                            <tr><td>FFmpeg</td><td>${diagnostics.hardware?.ffmpegDetected ? 'Detected' : 'Not Found'}</td></tr>
+                        </table>
+                        <h4>Settings</h4>
+                        <table class="decode-table">
+                            <tr><td>Metric Units</td><td>${diagnostics.settings?.useMetric ? 'Yes' : 'No'}</td></tr>
+                            <tr><td>Glass Blur</td><td>${diagnostics.settings?.glassBlur ?? 'N/A'}px</td></tr>
+                            <tr><td>Dashboard</td><td>${diagnostics.settings?.dashboardEnabled === null ? 'N/A' : (diagnostics.settings?.dashboardEnabled ? 'On' : 'Off')}</td></tr>
+                            <tr><td>GPS/Map</td><td>${diagnostics.settings?.gpsEnabled === null ? 'N/A' : (diagnostics.settings?.gpsEnabled ? 'On' : 'Off')}</td></tr>
+                            <tr><td>Classic Sidebar</td><td>${diagnostics.settings?.classicSidebar ? 'Yes' : 'No'}</td></tr>
+                            <tr><td>Auto Update</td><td>${diagnostics.settings?.disableAutoUpdate ? 'Disabled' : 'Enabled'}</td></tr>
+                            <tr><td>Default Folder</td><td>${diagnostics.settings?.defaultFolder || '(not set)'}</td></tr>
+                            <tr><td>Shortcuts</td><td>${diagnostics.settings?.shortcutsConfigured?.length || 0} configured</td></tr>
+                        </table>
+                        <h4>Logs</h4>
+                        <table class="decode-table">
+                            <tr><td>Console Logs</td><td>${diagnostics.logs?.console?.length || 0}</td></tr>
+                            <tr><td>Errors</td><td>${diagnostics.logs?.errors?.length || 0}</td></tr>
+                            <tr><td>Terminal Logs</td><td>${diagnostics.terminalLogs?.length || 0}</td></tr>
+                        </table>
+                    </div>
+                `;
+            } else {
+                // Legacy schema v1
+                container.innerHTML = `
+                    <div class="decode-summary">
+                        <h4>System Info</h4>
+                        <table class="decode-table">
+                            <tr><td>App Version</td><td>${diagnostics.app?.version || 'N/A'}</td></tr>
+                            <tr><td>OS</td><td>${diagnostics.system?.platform || 'N/A'} ${diagnostics.system?.release || ''}</td></tr>
+                            <tr><td>Arch</td><td>${diagnostics.system?.arch || 'N/A'}</td></tr>
+                            <tr><td>Memory</td><td>${diagnostics.system?.totalMemory ? Math.round(diagnostics.system.totalMemory / 1024 / 1024 / 1024) + ' GB' : 'N/A'}</td></tr>
+                            <tr><td>Timestamp</td><td>${new Date(diagnostics.ts).toLocaleString()}</td></tr>
+                        </table>
+                        <h4>Statistics</h4>
+                        <table class="decode-table">
+                            <tr><td>Console Logs</td><td>${diagnostics.logs?.console?.length || 0}</td></tr>
+                            <tr><td>Errors</td><td>${diagnostics.logs?.errors?.length || 0}</td></tr>
+                        </table>
+                    </div>
+                `;
+            }
             break;
             
         case 'logs':

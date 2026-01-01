@@ -2121,38 +2121,54 @@ ipcMain.handle('diagnostics:get', async () => {
   try {
     const currentVersion = getCurrentVersion();
     
+    // Check for pending update
+    let pendingUpdate = false;
+    try {
+      const latestVersion = await getLatestVersion();
+      if (latestVersion && currentVersion) {
+        pendingUpdate = latestVersion.version !== currentVersion.version;
+      }
+    } catch { /* ignore update check errors */ }
+    
+    // Get OS name (friendly format)
+    const getOSName = () => {
+      const platform = os.platform();
+      if (platform === 'win32') return 'Windows';
+      if (platform === 'darwin') return 'macOS';
+      if (platform === 'linux') {
+        // Try to get distro name from /etc/os-release
+        try {
+          const osRelease = fs.readFileSync('/etc/os-release', 'utf-8');
+          const nameMatch = osRelease.match(/^PRETTY_NAME="?([^"\n]+)"?/m);
+          if (nameMatch) return nameMatch[1];
+        } catch { /* ignore */ }
+        return 'Linux';
+      }
+      return platform;
+    };
+    
+    // Check FFmpeg and GPU
+    const ffmpegPath = findFFmpegPath();
+    const ffmpegDetected = ffmpegPath !== null;
+    
+    // Detect GPU if not already done
+    if (ffmpegDetected && gpuEncoder === null) {
+      detectGpuEncoder(ffmpegPath);
+    }
+    
     return {
-      app: {
-        version: currentVersion?.version || 'unknown',
-        releaseName: currentVersion?.releaseName || '',
-        releaseDate: currentVersion?.releaseDate || '',
-        electronVersion: process.versions.electron,
-        chromeVersion: process.versions.chrome,
-        nodeVersion: process.versions.node,
-        v8Version: process.versions.v8
-      },
-      system: {
-        platform: os.platform(),
-        release: os.release(),
-        arch: os.arch(),
-        cpus: os.cpus().length,
+      os: getOSName(),
+      appVersion: currentVersion?.version || 'unknown',
+      pendingUpdate,
+      hardware: {
         cpuModel: os.cpus()[0]?.model || 'unknown',
-        totalMemory: os.totalmem(),
-        freeMemory: os.freemem(),
-        uptime: os.uptime(),
-        hostname: os.hostname()
+        ramTotal: os.totalmem(),
+        ramFree: os.freemem(),
+        gpuDetected: gpuEncoder !== null,
+        gpuModel: gpuEncoder?.name || null,
+        ffmpegDetected
       },
-      paths: {
-        userData: app.getPath('userData'),
-        temp: app.getPath('temp'),
-        appPath: app.getAppPath()
-      },
-      ffmpeg: {
-        path: findFFmpegPath(),
-        gpuEncoder: gpuEncoder,
-        gpuEncoderHEVC: gpuEncoderHEVC
-      },
-      logs: mainLogBuffer.slice(-100) // Last 100 main process logs
+      logs: mainLogBuffer.slice() // All main process logs (up to 200)
     };
   } catch (err) {
     console.error('Failed to collect diagnostics:', err);
