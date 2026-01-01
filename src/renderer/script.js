@@ -3578,6 +3578,11 @@ async function seekNativeDayCollectionBySec(targetSec) {
         vid.currentTime = Math.min(localSec, vid.duration || 60);
         syncMultiVideos(vid.currentTime);
         
+        // Update progress bar and time display immediately
+        const pct = (clampedSec / totalSec) * 100;
+        progressBar.value = Math.min(100, pct);
+        updateTimeDisplayNew(Math.floor(clampedSec), Math.floor(totalSec));
+        
         // Resume playback if it was playing before seek
         if (wasPlaying) {
             playNative();
