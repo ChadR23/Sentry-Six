@@ -101,21 +101,11 @@ const videoTR = $('videoTR');
 const videoBL = $('videoBL');
 const videoBC = $('videoBC');
 const videoBR = $('videoBR');
-// Video elements for immersive layout
-const videoImmersiveMain = $('videoImmersiveMain');
-const videoOverlayTL = $('videoOverlayTL');
-const videoOverlayTR = $('videoOverlayTR');
-const videoOverlayBL = $('videoOverlayBL');
-const videoOverlayBC = $('videoOverlayBC');
-const videoOverlayBR = $('videoOverlayBR');
 
 // Video element map by slot
 const videoBySlot = {
     tl: videoTL, tc: videoTC, tr: videoTR,
-    bl: videoBL, bc: videoBC, br: videoBR,
-    main: videoImmersiveMain,
-    overlay_tl: videoOverlayTL, overlay_tr: videoOverlayTR,
-    overlay_bl: videoOverlayBL, overlay_bc: videoOverlayBC, overlay_br: videoOverlayBR
+    bl: videoBL, bc: videoBC, br: videoBR
 };
 
 // URL object references for cleanup
@@ -620,7 +610,7 @@ function hasValidGps(sei) {
     // Initialize native video playback system
     initNativeVideoPlayback();
 
-    // Multi focus mode (click a tile - works for both standard and immersive layouts)
+    // Multi focus mode (click a tile to expand)
     // Debounced to prevent rapid clicking issues
     let lastFocusToggle = 0;
     if (multiCamGrid) {
@@ -633,10 +623,7 @@ function hasValidGps(sei) {
             if (now - lastFocusToggle < 200) return;
             lastFocusToggle = now;
             
-            // Handle both standard tiles and immersive overlays/main
-            const tile = e.target.closest?.('.multi-tile') 
-                      || e.target.closest?.('.immersive-overlay')
-                      || e.target.closest?.('.immersive-main');
+            const tile = e.target.closest?.('.multi-tile');
             if (!tile) return;
             const slot = tile.getAttribute('data-slot');
             if (!slot) return;
@@ -685,19 +672,10 @@ function setMultiLayout(layoutId) {
     localStorage.setItem(MULTI_LAYOUT_KEY, next);
     if (multiLayoutSelect) multiLayoutSelect.value = next;
 
-    // Set grid column mode and layout type for the new layout
+    // Set grid column mode for the layout
     const layout = MULTI_LAYOUTS[next];
     if (multiCamGrid && layout) {
         multiCamGrid.setAttribute('data-columns', layout.columns || 3);
-        // Set layout type for immersive mode CSS
-        if (layout.type === 'immersive') {
-            multiCamGrid.setAttribute('data-layout-type', 'immersive');
-            // Set overlay opacity as CSS variable
-            multiCamGrid.style.setProperty('--immersive-opacity', layout.overlayOpacity || 0.9);
-        } else {
-            multiCamGrid.removeAttribute('data-layout-type');
-            multiCamGrid.style.removeProperty('--immersive-opacity');
-        }
     }
 
     if (multi.enabled && state.ui.nativeVideoMode && state.collection.active) {
@@ -2088,18 +2066,11 @@ function selectDayCollection(dayKey) {
         localStorage.setItem(MULTI_ENABLED_KEY, '1');
     }
     
-    // Ensure layout is applied to grid (sets data-columns, data-layout-type)
+    // Ensure layout is applied to grid
     const layoutId = multi.layoutId || DEFAULT_MULTI_LAYOUT;
     const layout = MULTI_LAYOUTS[layoutId];
     if (multiCamGrid && layout) {
         multiCamGrid.setAttribute('data-columns', layout.columns || 3);
-        if (layout.type === 'immersive') {
-            multiCamGrid.setAttribute('data-layout-type', 'immersive');
-            multiCamGrid.style.setProperty('--immersive-opacity', layout.overlayOpacity || 0.9);
-        } else {
-            multiCamGrid.removeAttribute('data-layout-type');
-            multiCamGrid.style.removeProperty('--immersive-opacity');
-        }
     }
 
     // Initialize segment duration tracking with estimates, then probe actual durations

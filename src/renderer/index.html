@@ -37,7 +37,7 @@
             <!-- Single video for non-multi mode -->
             <video id="videoMain" class="video-player" muted playsinline></video>
 
-            <!-- Multi-camera grid (supports 2×2, 3×2, and immersive layouts) -->
+            <!-- Multi-camera grid (6-camera 3×2 layout) -->
             <div id="multiCamGrid" class="multi-cam-grid hidden" aria-label="Multi-camera view">
                 <!-- Grid tiles (for standard layouts) - using video elements for GPU decode -->
                 <div class="multi-tile" data-slot="tl">
@@ -63,31 +63,6 @@
                 <div class="multi-tile" data-slot="br">
                     <div class="multi-label">Right Repeater</div>
                     <video id="videoBR" class="tile-video" muted playsinline></video>
-                </div>
-
-                <!-- Immersive mode tiles (hidden in standard layouts) -->
-                <div class="immersive-main" data-slot="main">
-                    <video id="videoImmersiveMain" class="tile-video" muted playsinline></video>
-                </div>
-                <div class="immersive-overlay" data-slot="overlay_tl">
-                    <div class="multi-label">L Pillar</div>
-                    <video id="videoOverlayTL" class="tile-video" muted playsinline></video>
-                </div>
-                <div class="immersive-overlay" data-slot="overlay_tr">
-                    <div class="multi-label">R Pillar</div>
-                    <video id="videoOverlayTR" class="tile-video" muted playsinline></video>
-                </div>
-                <div class="immersive-overlay" data-slot="overlay_bl">
-                    <div class="multi-label">L Rep</div>
-                    <video id="videoOverlayBL" class="tile-video" muted playsinline></video>
-                </div>
-                <div class="immersive-overlay" data-slot="overlay_bc">
-                    <div class="multi-label">Back</div>
-                    <video id="videoOverlayBC" class="tile-video" muted playsinline></video>
-                </div>
-                <div class="immersive-overlay" data-slot="overlay_br">
-                    <div class="multi-label">R Rep</div>
-                    <video id="videoOverlayBR" class="tile-video" muted playsinline></video>
                 </div>
             </div>
 

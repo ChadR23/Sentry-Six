@@ -126,7 +126,7 @@ export function initCameraDragAndDrop() {
     const multiCamGrid = getMultiCamGrid?.();
     if (!multiCamGrid) return;
     
-    const tiles = multiCamGrid.querySelectorAll('.multi-tile, .immersive-overlay');
+    const tiles = multiCamGrid.querySelectorAll('.multi-tile');
     let draggedSlot = null;
     let draggedTile = null;
     let dragIndicator = null;
@@ -277,10 +277,5 @@ export function updateTileLabels() {
             if (labelEl) labelEl.textContent = label;
         }
         
-        const overlay = multiCamGrid?.querySelector(`.immersive-overlay[data-slot="${slot}"]`);
-        if (overlay) {
-            const labelEl = overlay.querySelector('.multi-label');
-            if (labelEl) labelEl.textContent = label;
-        }
     });
 }

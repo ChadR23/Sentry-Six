@@ -76,37 +76,6 @@ export function applyMirrorTransforms() {
             }
         }
     });
-    
-    // Apply to immersive overlays (overlay slots map to base slots: overlay_tl -> tl, overlay_bl -> bl, etc.)
-    const overlaySlotMap = {
-        'overlay_tl': 'tl',
-        'overlay_tr': 'tr',
-        'overlay_bl': 'bl',
-        'overlay_bc': 'bc',
-        'overlay_br': 'br'
-    };
-    
-    multiCamGrid.querySelectorAll('.immersive-overlay').forEach(overlay => {
-        const overlaySlot = overlay.getAttribute('data-slot');
-        const baseSlot = overlaySlotMap[overlaySlot];
-        const camera = baseSlot ? slotToCamera[baseSlot] : null;
-        const media = overlay.querySelector('video, canvas');
-        
-        if (media && camera) {
-            const needsMirror = shouldMirrorCamera(camera);
-            if (needsMirror && !media.classList.contains('mirrored')) {
-                media.classList.add('mirrored');
-                if (!overlay.classList.contains('zoomed')) {
-                    media.style.transform = 'scaleX(-1)';
-                }
-            } else if (!needsMirror && media.classList.contains('mirrored')) {
-                media.classList.remove('mirrored');
-                if (!overlay.classList.contains('zoomed')) {
-                    media.style.transform = '';
-                }
-            }
-        }
-    });
 }
 
 /**
@@ -129,7 +98,7 @@ export function resetZoomPan() {
     zoomPanState.panY = 0;
     zoomPanState.isPanning = false;
     
-    const allTiles = multiCamGrid?.querySelectorAll('.multi-tile, .immersive-main, .immersive-overlay');
+    const allTiles = multiCamGrid?.querySelectorAll('.multi-tile');
     allTiles?.forEach(tile => {
         tile.classList.remove('zoomed');
         const media = tile.querySelector('video, canvas');
@@ -162,9 +131,7 @@ export function applyZoomPan() {
     if (!state?.ui?.multiFocusSlot || !multiCamGrid) return;
     
     const focusedTile = multiCamGrid.querySelector(
-        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-main[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-overlay[data-slot="${state.ui.multiFocusSlot}"]`
+        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"]`
     );
     if (!focusedTile) return;
     
@@ -173,16 +140,7 @@ export function applyZoomPan() {
     
     // Check if this camera should be mirrored
     const slot = focusedTile.getAttribute('data-slot');
-    // Handle immersive overlay slots (map to base slots)
-    const overlaySlotMap = {
-        'overlay_tl': 'tl',
-        'overlay_tr': 'tr',
-        'overlay_bl': 'bl',
-        'overlay_bc': 'bc',
-        'overlay_br': 'br'
-    };
-    const baseSlot = overlaySlotMap[slot] || slot;
-    const camera = getCameraForSlot(baseSlot);
+    const camera = getCameraForSlot(slot);
     const needsMirror = camera && shouldMirrorCamera(camera);
     
     // Build transform string
@@ -265,7 +223,7 @@ function handleZoomWheel(e) {
     const state = getState?.();
     if (!state?.ui?.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
     
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    const focusedTile = e.target.closest('.multi-tile');
     if (!focusedTile) return;
     
     e.preventDefault();
@@ -300,9 +258,7 @@ function constrainPan() {
     }
     
     const focusedTile = multiCamGrid.querySelector(
-        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-main[data-slot="${state.ui.multiFocusSlot}"], ` +
-        `.immersive-overlay[data-slot="${state.ui.multiFocusSlot}"]`
+        `.multi-tile[data-slot="${state.ui.multiFocusSlot}"]`
     );
     
     if (!focusedTile) {
@@ -348,7 +304,7 @@ function handlePanStart(e) {
     if (!state?.ui?.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
     if (zoomPanState.zoom <= 1) return;
     
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    const focusedTile = e.target.closest('.multi-tile');
     if (!focusedTile) return;
     
     if (e.target.closest('.multi-label, button, .zoom-indicator')) return;
@@ -393,7 +349,7 @@ function handleZoomReset(e) {
     const state = getState?.();
     if (!state?.ui?.multiFocusSlot || !multiCamGrid?.classList.contains('focused')) return;
     
-    const focusedTile = e.target.closest('.multi-tile, .immersive-main, .immersive-overlay');
+    const focusedTile = e.target.closest('.multi-tile');
     if (!focusedTile) return;
     
     if (e.target.closest('.multi-label, button')) return;
