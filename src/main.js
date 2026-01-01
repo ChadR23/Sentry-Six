@@ -2196,77 +2196,84 @@ function ensureDiagnosticsDir() {
   }
 }
 
-// Upload diagnostics to paste.rs (no auth required)
-// The paste.rs URL ID becomes the Support ID for easy retrieval
-ipcMain.handle('diagnostics:upload', async (_event, _unusedId, diagnostics) => {
+// Support server configuration
+const SUPPORT_SERVER_URL = 'http://51.79.71.202:3847';
+
+// Upload diagnostics to support server (no auth required for upload)
+ipcMain.handle('diagnostics:upload', async (_event, _unused, diagnostics) => {
   try {
     ensureDiagnosticsDir();
     
-    const content = JSON.stringify(diagnostics, null, 2);
+    // Upload to support server
+    const supportId = await uploadToSupportServer(diagnostics);
     
-    // Upload to paste.rs (no auth required)
-    const pasteUrl = await uploadToPasteRs(content);
-    
-    if (pasteUrl) {
-      // Extract the paste ID from URL (e.g., "https://paste.rs/abc" -> "abc")
-      const supportId = pasteUrl.replace('https://paste.rs/', '').trim();
-      
-      // Add support ID to diagnostics and save locally
+    if (supportId) {
+      // Save locally with support ID
       diagnostics.supportId = supportId;
       const localPath = path.join(diagnosticsDir, `${supportId}.json`);
-      fs.writeFileSync(localPath, JSON.stringify({ ...diagnostics, pasteUrl }, null, 2));
+      fs.writeFileSync(localPath, JSON.stringify(diagnostics, null, 2));
       
       // Update index
-      updateDiagnosticsIndex(supportId, diagnostics, pasteUrl);
+      updateDiagnosticsIndex(supportId, diagnostics);
       
       console.log(`[DIAGNOSTICS] Uploaded with Support ID: ${supportId}`);
-      return { success: true, supportId, url: pasteUrl };
+      return { success: true, supportId };
     }
     
-    throw new Error('Upload returned no URL');
+    throw new Error('Upload returned no support ID');
   } catch (err) {
     console.error('[DIAGNOSTICS] Upload failed:', err.message);
     return { success: false, error: err.message };
   }
 });
 
-// Upload to paste.rs (simple, no auth)
-function uploadToPasteRs(content) {
+// Upload to support server (no auth required)
+function uploadToSupportServer(diagnostics) {
   return new Promise((resolve, reject) => {
+    const urlObj = new URL(SUPPORT_SERVER_URL);
+    const payload = JSON.stringify({ data: diagnostics });
+    
     const options = {
-      hostname: 'paste.rs',
-      path: '/',
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: '/upload',
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain',
-        'Content-Length': Buffer.byteLength(content)
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
       }
     };
 
-    const req = https.request(options, (res) => {
+    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
+    const req = httpModule.request(options, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => {
-        if (res.statusCode === 201 || res.statusCode === 200) {
-          resolve(body.trim()); // Returns the URL directly
-        } else {
-          reject(new Error(`paste.rs error: ${res.statusCode}`));
+        try {
+          const result = JSON.parse(body);
+          if (res.statusCode === 200 && result.supportId) {
+            resolve(result.supportId);
+          } else {
+            reject(new Error(result.error || `Server error: ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error('Invalid server response'));
         }
       });
     });
 
     req.on('error', reject);
-    req.setTimeout(10000, () => {
+    req.setTimeout(15000, () => {
       req.destroy();
       reject(new Error('Upload timeout'));
     });
-    req.write(content);
+    req.write(payload);
     req.end();
   });
 }
 
 // Update the diagnostics index file
-function updateDiagnosticsIndex(supportId, diagnostics, pasteUrl) {
+function updateDiagnosticsIndex(supportId, diagnostics) {
   const indexPath = path.join(diagnosticsDir, 'index.json');
   let index = {};
   if (fs.existsSync(indexPath)) {
@@ -2274,18 +2281,20 @@ function updateDiagnosticsIndex(supportId, diagnostics, pasteUrl) {
   }
   index[supportId] = {
     createdAt: new Date().toISOString(),
-    appVersion: diagnostics.app?.version,
-    platform: diagnostics.system?.platform,
-    pasteUrl: pasteUrl || null
+    appVersion: diagnostics.appVersion || diagnostics.app?.version,
+    os: diagnostics.os || diagnostics.system?.platform
   };
   fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
 }
 
-// Retrieve diagnostics by Support ID (directly from paste.rs)
-ipcMain.handle('diagnostics:retrieve', async (_event, supportId) => {
+// Retrieve diagnostics by Support ID (requires passcode to fetch from server)
+ipcMain.handle('diagnostics:retrieve', async (_event, supportId, passcode) => {
   try {
-    // Clean up the support ID (preserve case - paste.rs is case-sensitive)
     const cleanId = supportId.trim();
+    
+    if (!passcode || passcode.length !== 4) {
+      return { success: false, error: 'Invalid passcode' };
+    }
     
     // Check local storage first
     ensureDiagnosticsDir();
@@ -2296,12 +2305,9 @@ ipcMain.handle('diagnostics:retrieve', async (_event, supportId) => {
       return { success: true, data };
     }
     
-    // Fetch directly from paste.rs using Support ID
-    // The Support ID IS the paste.rs URL ID
-    const pasteUrl = `https://paste.rs/${cleanId}`;
-    console.log(`[DIAGNOSTICS] Fetching from: ${pasteUrl}`);
-    
-    const data = await fetchFromPasteRs(pasteUrl);
+    // Fetch from server with passcode
+    console.log(`[DIAGNOSTICS] Fetching from server: ${cleanId}`);
+    const data = await retrieveFromSupportServer(cleanId, passcode);
     return { success: true, data };
   } catch (err) {
     console.error('[DIAGNOSTICS] Retrieval failed:', err);
@@ -2309,17 +2315,65 @@ ipcMain.handle('diagnostics:retrieve', async (_event, supportId) => {
   }
 });
 
-// Fetch content from paste.rs URL
-function fetchFromPasteRs(url) {
+// Retrieve from support server (requires passcode)
+function retrieveFromSupportServer(supportId, passcode) {
   return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
+    const urlObj = new URL(SUPPORT_SERVER_URL);
+    
     const options = {
       hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: `/retrieve/${supportId}`,
+      method: 'GET',
+      headers: {
+        'X-Passcode': passcode
+      }
+    };
+
+    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
+    const req = httpModule.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body);
+          if (res.statusCode === 200) {
+            resolve(result);
+          } else if (res.statusCode === 401) {
+            reject(new Error('Invalid passcode'));
+          } else if (res.statusCode === 404) {
+            reject(new Error('Support ID not found'));
+          } else {
+            reject(new Error(result.error || `Server error: ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error('Invalid server response'));
+        }
+      });
+    });
+
+    req.on('error', (e) => reject(new Error(`Connection failed: ${e.message}`)));
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    req.end();
+  });
+}
+
+// Fetch content from URL (kept for backwards compatibility)
+function fetchFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
       path: urlObj.pathname,
       method: 'GET'
     };
 
-    const req = https.request(options, (res) => {
+    const req = httpModule.request(options, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => {

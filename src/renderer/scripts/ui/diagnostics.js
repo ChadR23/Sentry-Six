@@ -226,7 +226,7 @@ export async function collectDiagnostics() {
 }
 
 /**
- * Upload diagnostics and get the Support ID from paste.rs
+ * Upload diagnostics to support server
  */
 export async function uploadDiagnostics(diagnostics) {
     diagnostics.uploadedAt = new Date().toISOString();
@@ -235,7 +235,7 @@ export async function uploadDiagnostics(diagnostics) {
         if (window.electronAPI?.uploadDiagnostics) {
             const result = await window.electronAPI.uploadDiagnostics(null, diagnostics);
             if (result.success && result.supportId) {
-                return result.supportId; // This is the paste.rs URL ID
+                return result.supportId;
             }
             throw new Error(result.error || 'Upload failed');
         }
@@ -247,12 +247,12 @@ export async function uploadDiagnostics(diagnostics) {
 }
 
 /**
- * Retrieve diagnostics by Support ID
+ * Retrieve diagnostics by Support ID (requires passcode)
  */
-export async function retrieveDiagnostics(supportId) {
+export async function retrieveDiagnostics(supportId, passcode) {
     try {
         if (window.electronAPI?.retrieveDiagnostics) {
-            const result = await window.electronAPI.retrieveDiagnostics(supportId);
+            const result = await window.electronAPI.retrieveDiagnostics(supportId, passcode);
             if (result.success) {
                 return result.data;
             }
@@ -263,6 +263,85 @@ export async function retrieveDiagnostics(supportId) {
         originalConsole.error('[Diagnostics] Retrieval failed:', e.message);
         throw e;
     }
+}
+
+/**
+ * Show passcode input prompt
+ */
+function showPasscodePrompt() {
+    return new Promise((resolve) => {
+        let modal = document.getElementById('passcodeModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'passcodeModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 350px;">
+                    <div class="modal-header">
+                        <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #9c27b0;">
+                            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
+                        <h2>Developer Access</h2>
+                        <button id="closePasscodeModal" class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body" style="text-align: center; padding: 20px;">
+                        <p style="margin-bottom: 15px; color: var(--text-secondary);">Enter the 4-digit passcode to view support data.</p>
+                        <input type="password" id="passcodeInput" maxlength="4" pattern="[0-9]{4}" 
+                               style="font-size: 24px; text-align: center; width: 120px; padding: 10px; letter-spacing: 8px;"
+                               placeholder="••••" autocomplete="off">
+                        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                            <button id="passcodeCancel" class="btn btn-secondary">Cancel</button>
+                            <button id="passcodeSubmit" class="btn btn-primary">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        const input = modal.querySelector('#passcodeInput');
+        const submitBtn = modal.querySelector('#passcodeSubmit');
+        const cancelBtn = modal.querySelector('#passcodeCancel');
+        const closeBtn = modal.querySelector('#closePasscodeModal');
+        
+        input.value = '';
+        modal.style.display = 'flex';
+        setTimeout(() => input.focus(), 100);
+        
+        const cleanup = () => {
+            modal.style.display = 'none';
+            input.removeEventListener('keydown', onKeydown);
+            submitBtn.removeEventListener('click', onSubmit);
+            cancelBtn.removeEventListener('click', onCancel);
+            closeBtn.removeEventListener('click', onCancel);
+        };
+        
+        const onSubmit = () => {
+            const value = input.value.trim();
+            if (value.length === 4 && /^\d{4}$/.test(value)) {
+                cleanup();
+                resolve(value);
+            } else {
+                input.style.borderColor = 'red';
+                setTimeout(() => input.style.borderColor = '', 1000);
+            }
+        };
+        
+        const onCancel = () => {
+            cleanup();
+            resolve(null);
+        };
+        
+        const onKeydown = (e) => {
+            if (e.key === 'Enter') onSubmit();
+            if (e.key === 'Escape') onCancel();
+        };
+        
+        input.addEventListener('keydown', onKeydown);
+        submitBtn.addEventListener('click', onSubmit);
+        cancelBtn.addEventListener('click', onCancel);
+        closeBtn.addEventListener('click', onCancel);
+    });
 }
 
 /**
@@ -464,11 +543,17 @@ export function showDecodeSupportIdDialog() {
                 return;
             }
             
+            // Prompt for passcode
+            const passcode = await showPasscodePrompt();
+            if (!passcode) {
+                return; // User cancelled
+            }
+            
             content.innerHTML = `<div class="decode-loading">Looking up Support ID...</div>`;
             output.classList.remove('hidden');
             
             try {
-                const diagnostics = await retrieveDiagnostics(input);
+                const diagnostics = await retrieveDiagnostics(input, passcode);
                 output.dataset.diagnostics = JSON.stringify(diagnostics);
                 
                 // Show summary by default

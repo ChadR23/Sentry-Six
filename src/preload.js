@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
   writeDiagnosticFile: (filePath, content) => ipcRenderer.invoke('diagnostics:writeFile', filePath, content),
   uploadDiagnostics: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:upload', supportId, diagnostics),
-  retrieveDiagnostics: (supportId) => ipcRenderer.invoke('diagnostics:retrieve', supportId),
+  retrieveDiagnostics: (supportId, passcode) => ipcRenderer.invoke('diagnostics:retrieve', supportId, passcode),
   saveDiagnosticsLocally: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:saveLocal', supportId, diagnostics),
   
   // Event listeners
