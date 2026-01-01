@@ -6,9 +6,7 @@ const { spawn, spawnSync, execSync } = require('child_process');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
-// ============================================================
 // Auto-Update Configuration
-// ============================================================
 const UPDATE_CONFIG = {
   owner: 'ChadR23',
   repo: 'Sentry-Six',
@@ -46,9 +44,7 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
-// ============================================================
 // FFmpeg Utilities
-// ============================================================
 function findFFmpegPath() {
   const isMac = process.platform === 'darwin';
   const isWin = process.platform === 'win32';
@@ -474,11 +470,8 @@ function makeEven(n) {
   return Math.floor(n / 2) * 2;
 }
 
-// ============================================================
 // Dashboard Rendering Utilities
-// ============================================================
-
-// Find SEI data for a given timestamp (similar to renderer's findSeiAtTime)
+// Find SEI data for a given timestamp
 function findSeiAtTime(seiData, timestampMs) {
   if (!seiData || !seiData.length) return null;
   
@@ -716,9 +709,7 @@ function imageToRGBA(image, width, height, outputBuffer) {
   }
 }
 
-// ============================================================
-// Pre-render Dashboard to Temp Video (prevents memory leak)
-// ============================================================
+// Pre-render dashboard to temp video (prevents memory leak)
 async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress) {
   const FPS = 36;
   const totalFrames = Math.ceil(durationSec * FPS);
@@ -865,9 +856,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
   }
 }
 
-// ============================================================
 // Video Export Implementation
-// ============================================================
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium' } = exportData;
   const tempFiles = [];
@@ -1516,9 +1505,7 @@ ipcMain.handle('shell:openExternal', async (_event, url) => {
   await shell.openExternal(url);
 });
 
-// ============================================================
 // Export IPC Handlers
-// ============================================================
 ipcMain.handle('dialog:saveFile', async (_event, options) => {
   const result = await dialog.showSaveDialog({
     title: options?.title || 'Save Export',
@@ -1667,10 +1654,7 @@ ipcMain.handle('fs:readFile', async (_event, filePath) => {
   }
 });
 
-// ============================================================
 // Auto-Update System
-// ============================================================
-
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -1994,10 +1978,7 @@ ipcMain.handle('update:bypass', async () => {
   }
 });
 
-// ============================================================
 // Developer Settings IPC Handlers
-// ============================================================
-
 ipcMain.handle('dev:openDevTools', async () => {
   if (mainWindow) {
     mainWindow.webContents.openDevTools();
@@ -2073,11 +2054,8 @@ ipcMain.handle('dev:reloadApp', async () => {
   return { success: false, error: 'No main window' };
 });
 
-// ============================================================
 // Diagnostics & Support ID IPC Handlers
-// ============================================================
-
-// Main process log buffer for diagnostics
+// Main process log buffer
 const mainLogBuffer = [];
 const MAX_MAIN_LOG_ENTRIES = 200;
 

@@ -660,10 +660,7 @@ function hasValidGps(sei) {
     initCameraDragAndDrop();
 })();
 
-// -------------------------------------------------------------
-// Explicit mode transitions
-// -------------------------------------------------------------
-
+// Mode Transitions
 function setMode(nextMode) {
     const normalized = (nextMode === 'collection') ? 'collection' : 'clip';
     if (state.mode === normalized) return;
@@ -1589,10 +1586,7 @@ async function reloadSelectedGroup() {
 
 // Legacy WebCodecs multi-cam loading removed - native video playback is now used exclusively
 
-// -------------------------------------------------------------
-// Folder ingest + Clip Groups (Phase 1)
-// -------------------------------------------------------------
-
+// Folder Ingest + Clip Groups
 function getRootFolderNameFromWebkitRelativePath(relPath) {
     if (!relPath || typeof relPath !== 'string') return null;
     const parts = relPath.split('/').filter(Boolean);
@@ -2823,9 +2817,7 @@ function updateTimeDisplay(frameIndex) {
     updateTimeDisplayNew(currentSec, totalSec);
 }
 
-// ============================================================
-// Skip Seconds - moved to scripts/features/skipSeconds.js
-// ============================================================
+// Skip Seconds
 initSkipSeconds({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
@@ -2836,9 +2828,7 @@ initSkipSeconds({
     showFrame
 });
 
-// ============================================================
-// Native Video Playback System (GPU-accelerated, smooth)
-// ============================================================
+// Native Video Playback System
 const nativeVideo = {
     master: null,           // Master video element (drives timeline)
     streams: new Map(),     // slot -> { video, file, url }
@@ -3595,9 +3585,7 @@ async function seekNativeDayCollectionBySec(targetSec) {
     }, 100);
 }
 
-// ============================================================
-// Event Timeline Markers - moved to scripts/ui/eventMarkers.js
-// ============================================================
+// Event Timeline Markers
 initEventMarkers({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
@@ -3606,10 +3594,7 @@ initEventMarkers({
     seekNativeDayCollectionBySec
 });
 
-// ============================================================
-// Export Functions - moved to scripts/features/exportVideo.js
-// ============================================================
-
+// Export Functions
 // Initialize export module with dependencies
 initExportModule({
     getState: () => state,
@@ -3632,14 +3617,10 @@ window.selectDayCollectionWrapper = function(dayKey) {
 // Call updateExportButtonState initially
 setTimeout(updateExportButtonState, 500);
 
-// ============================================================
-// Auto-Update System - moved to scripts/features/autoUpdate.js
-// ============================================================
+// Auto-Update System
 initAutoUpdate();
 
-// -------------------------------------------------------------
-// Camera Rearrangement - moved to scripts/features/cameraRearrange.js
-// -------------------------------------------------------------
+// Camera Rearrangement
 initCameraRearrange({
     getMultiCamGrid: () => multiCamGrid,
     getState: () => state,

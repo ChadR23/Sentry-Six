@@ -9,10 +9,7 @@ class DashcamMP4 {
         this._config = null;
     }
 
-    // -------------------------------------------------------------
     // MP4 Box Navigation
-    // -------------------------------------------------------------
-
     /** Find a box by name within a range */
     findBox(start, end, name) {
         for (let pos = start; pos + 8 <= end;) {
@@ -42,10 +39,7 @@ class DashcamMP4 {
         return { offset: mdat.start, size: mdat.size };
     }
 
-    // -------------------------------------------------------------
     // Video Configuration
-    // -------------------------------------------------------------
-
     /** Get video configuration (lazy-loaded) */
     getConfig() {
         if (this._config) return this._config;
@@ -98,10 +92,7 @@ class DashcamMP4 {
         return this._config;
     }
 
-    // -------------------------------------------------------------
-    // Frame Parsing (for Video Playback)
-    // -------------------------------------------------------------
-
+    // Frame Parsing
     /** Parse video frames with SEI metadata */
     parseFrames(SeiMetadata) {
         const config = this.getConfig();
@@ -144,10 +135,7 @@ class DashcamMP4 {
         return frames;
     }
 
-    // -------------------------------------------------------------
     // SEI Extraction
-    // -------------------------------------------------------------
-
     /** Extract all SEI messages for CSV export */
     extractSeiMessages(SeiMetadata) {
         const mdat = this.findMdat();
@@ -202,10 +190,7 @@ class DashcamMP4 {
         return Uint8Array.from(out);
     }
 
-    // -------------------------------------------------------------
     // Utilities
-    // -------------------------------------------------------------
-
     readAscii(start, len) {
         let s = '';
         for (let i = 0; i < len; i++) s += String.fromCharCode(this.view.getUint8(start + i));
@@ -225,11 +210,7 @@ class DashcamMP4 {
 
 window.DashcamMP4 = DashcamMP4;
 
-// -------------------------------------------------------------
 // Tesla Dashcam Helpers
-// Protobuf initialization, field formatting, and CSV export utilities.
-// -------------------------------------------------------------
-
 (function () {
     let SeiMetadata = null;
     let enumFields = null;
@@ -424,4 +405,3 @@ window.DashcamMP4 = DashcamMP4;
         getFilesFromDataTransfer
     };
 })();
-
