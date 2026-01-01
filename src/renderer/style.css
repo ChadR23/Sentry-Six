@@ -2436,6 +2436,19 @@ canvas, .video-player, .tile-video {
     background: rgba(0, 0, 0, 0.3);
 }
 
+.toggle-row.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.toggle-row.disabled .toggle-switch-track {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.toggle-row.disabled .toggle-switch-thumb {
+    background: rgba(255, 255, 255, 0.3) !important;
+}
+
 .toggle-row-info {
     display: flex;
     flex-direction: column;

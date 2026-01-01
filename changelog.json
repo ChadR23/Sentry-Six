@@ -1,7 +1,7 @@
 {
   "versions": [
     {
-      "version": "2026.1.3",
+      "version": "2026.1.4",
       "date": "2026-01-01",
       "title": "Sentry Six Revamped Public Release",
       "changes": [
@@ -16,6 +16,10 @@
         {
           "type": "improvement",
           "description": "Updated default branch to main, also added a beta branch selecter and check for update button inside of advanced settings."
+        },
+        {
+          "type": "improvement",
+          "description": "Added warning if no GPU is detected for export telemetry overlay toggle. "
         }
       ]
     },

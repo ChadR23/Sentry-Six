@@ -528,7 +528,8 @@ export async function checkFFmpegAvailability() {
     const startBtn = $('startExportBtn');
     const dashboardCheckbox = $('includeDashboard');
     const dashboardOptions = $('dashboardOptions');
-    const dashboardWarning = document.querySelector('.export-option-warning-text');
+    const dashboardGpuWarning = $('dashboardGpuWarning');
+    const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
     
     // Set up dashboard checkbox toggle for options visibility
     if (dashboardCheckbox && dashboardOptions) {
@@ -577,16 +578,12 @@ export async function checkFFmpegAvailability() {
                     if (!result.gpu) {
                         dashboardCheckbox.disabled = true;
                         dashboardCheckbox.checked = false;
-                        dashboardCheckbox.parentElement?.classList.add('disabled');
-                        if (dashboardWarning) {
-                            dashboardWarning.innerHTML = '<span class="warning-icon">⚠️</span><span>Dashboard overlay requires GPU encoding. No GPU encoder detected on this system.</span>';
-                        }
+                        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+                        if (dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
                     } else {
                         dashboardCheckbox.disabled = false;
-                        dashboardCheckbox.parentElement?.classList.remove('disabled');
-                        if (dashboardWarning) {
-                            dashboardWarning.innerHTML = '<span class="warning-icon">ℹ️</span><span>This feature is in beta. Dashboard frames are rendered in real-time during export, which may increase export time.</span>';
-                        }
+                        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+                        if (dashboardGpuWarning) dashboardGpuWarning.classList.add('hidden');
                     }
                 }
             } else {
