@@ -1714,16 +1714,38 @@ function downloadFile(url, destPath, onProgress) {
  * @returns {Object|null} Version info or null if not found
  */
 function getCurrentVersion() {
+  // Try multiple paths to handle both development and packaged (asar) environments
+  const possiblePaths = [
+    path.join(__dirname, '..', 'version.json'),                    // Development: src/../version.json
+    path.join(app.getAppPath(), 'version.json'),                   // Packaged: inside asar root
+    path.join(app.getAppPath(), '..', 'version.json'),             // Packaged: next to asar
+    path.join(process.resourcesPath || __dirname, 'version.json'), // Packaged: resources folder
+  ];
+  
+  for (const versionPath of possiblePaths) {
+    try {
+      if (fs.existsSync(versionPath)) {
+        const data = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+        console.log(`[VERSION] Found version.json at: ${versionPath}`);
+        return data;
+      }
+    } catch (err) {
+      // Continue to next path
+    }
+  }
+  
+  // Fallback: try to get version from package.json
   try {
-    // First check the app's version.json (source of truth)
-    const localVersionPath = path.join(__dirname, '..', 'version.json');
-    if (fs.existsSync(localVersionPath)) {
-      const data = JSON.parse(fs.readFileSync(localVersionPath, 'utf8'));
-      return data;
+    const packageVersion = app.getVersion();
+    if (packageVersion && packageVersion !== '0.0.0') {
+      console.log(`[VERSION] Using app.getVersion(): ${packageVersion}`);
+      return { version: packageVersion, releaseDate: '', releaseName: '' };
     }
   } catch (err) {
-    console.error('Error reading local version file:', err);
+    // Ignore
   }
+  
+  console.error('[VERSION] Could not find version.json in any expected location:', possiblePaths);
   return null;
 }
 
