@@ -1,13 +1,17 @@
 {
   "versions": [
     {
-      "version": "2026.1.1",
+      "version": "2026.1.2",
       "date": "2026-01-01",
       "title": "Sentry Six Revamped Public Release",
       "changes": [
         {
           "type": "improvement",
           "description": "Reduced support diagnostic data collected"
+        },
+        {
+          "type": "fix",
+          "description": "Removed paste.rs due to issues and moved diagnostic data storage to a secure VPS with authentication required for retrival to protect user data."
         }
       ]
     },
