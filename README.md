@@ -50,7 +50,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
   - Customizable keyboard shortcuts
   - Default TeslaCam folder auto-load
   - View changelog from settings
-   <img width="248" height="444.5" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
+   <img width="220.4" height="395.1" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
 
 - **Auto-Update**
   - Checks for updates on startup and installs with one click
