@@ -177,6 +177,7 @@ export function hideUpdateModal() {
 
 /**
  * Handle the install update button click
+ * With electron-updater, this starts the download
  */
 export async function handleInstallUpdate() {
     getElements();
@@ -188,18 +189,21 @@ export async function handleInstallUpdate() {
     updateModal?.querySelector('.update-modal')?.classList.add('updating');
     
     if (updateProgressBar) updateProgressBar.style.width = '0%';
-    if (updateProgressText) updateProgressText.textContent = 'Starting update...';
+    if (updateProgressText) updateProgressText.textContent = 'Starting download...';
     
     try {
         const result = await window.electronAPI.installUpdate();
         
         if (!result.success) {
-            if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
-            if (updateModalFooter) updateModalFooter.style.display = '';
-            updateModal?.querySelector('.update-modal')?.classList.remove('updating');
-        } else {
-            showUpdateCompleteState();
+            // Check for errors
+            if (result.error) {
+                if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
+                if (updateModalFooter) updateModalFooter.style.display = '';
+                updateModal?.querySelector('.update-modal')?.classList.remove('updating');
+            }
         }
+        // If successful, the download starts and progress events will update the UI
+        // When download completes, update:downloaded event will trigger showUpdateDownloadedState
     } catch (err) {
         console.error('Update install error:', err);
         if (updateProgressText) updateProgressText.textContent = `Error: ${err.message}`;
@@ -209,12 +213,13 @@ export async function handleInstallUpdate() {
 }
 
 /**
- * Show the update complete state with exit button
+ * Show update complete message for dev/manual install mode (npm start users)
  */
-function showUpdateCompleteState() {
+function showDevModeUpdateComplete() {
     getElements();
     updateComplete = true;
     
+    if (updateProgressBar) updateProgressBar.style.width = '100%';
     if (updateProgressText) {
         updateProgressText.textContent = 'Update installed successfully!';
     }
@@ -222,7 +227,7 @@ function showUpdateCompleteState() {
     if (updateModalFooter) {
         updateModalFooter.innerHTML = `
             <p class="restart-message">Please restart the app with <code>npm start</code></p>
-            <button id="exitAppBtn" class="btn btn-danger">Exit App</button>
+            <button id="exitAppBtn" class="btn btn-primary">Exit App</button>
         `;
         updateModalFooter.style.display = '';
         
@@ -230,6 +235,40 @@ function showUpdateCompleteState() {
         if (exitBtn) {
             exitBtn.addEventListener('click', () => {
                 if (window.electronAPI?.exitApp) {
+                    window.electronAPI.exitApp();
+                }
+            });
+        }
+    }
+    
+    updateModal?.querySelector('.update-modal')?.classList.remove('updating');
+}
+
+/**
+ * Show state when update has been downloaded and is ready to install
+ */
+function showUpdateDownloadedState() {
+    getElements();
+    updateComplete = true;
+    
+    if (updateProgressBar) updateProgressBar.style.width = '100%';
+    if (updateProgressText) {
+        updateProgressText.textContent = 'Update downloaded! Ready to install.';
+    }
+    
+    if (updateModalFooter) {
+        updateModalFooter.innerHTML = `
+            <p class="restart-message">Click the button below to install the update and restart the app.</p>
+            <button id="restartAppBtn" class="btn btn-primary">Install & Restart</button>
+        `;
+        updateModalFooter.style.display = '';
+        
+        const restartBtn = document.getElementById('restartAppBtn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => {
+                if (window.electronAPI?.installAndRestart) {
+                    window.electronAPI.installAndRestart();
+                } else if (window.electronAPI?.exitApp) {
                     window.electronAPI.exitApp();
                 }
             });
@@ -258,6 +297,18 @@ export function initAutoUpdate() {
             getElements();
             if (updateProgressBar) updateProgressBar.style.width = `${progress.percentage}%`;
             if (updateProgressText) updateProgressText.textContent = progress.message;
+        });
+        
+        // Listen for update downloaded (ready to install)
+        window.electronAPI.on('update:downloaded', (info) => {
+            console.log('Update downloaded, ready to install', info);
+            if (info?.isDevMode) {
+                // Dev mode - show npm start restart message
+                showDevModeUpdateComplete();
+            } else {
+                // NSIS install - show Install & Restart button
+                showUpdateDownloadedState();
+            }
         });
     }
     

@@ -299,7 +299,24 @@ export function initSettingsModal() {
     
     // Update branch selector
     const settingsUpdateBranch = $('settingsUpdateBranch');
+    const branchNote = $('branchInstallerNote');
     if (settingsUpdateBranch) {
+        // Check if app is packaged (NSIS install) - disable branch switching
+        if (window.electronAPI?.devGetAppPaths) {
+            window.electronAPI.devGetAppPaths().then(paths => {
+                if (paths.isPackaged) {
+                    // Disable branch switcher for NSIS installs
+                    settingsUpdateBranch.disabled = true;
+                    settingsUpdateBranch.value = 'main';
+                    settingsUpdateBranch.style.opacity = '0.5';
+                    settingsUpdateBranch.style.cursor = 'not-allowed';
+                    if (branchNote) {
+                        branchNote.style.display = 'block';
+                    }
+                }
+            });
+        }
+        
         if (window.electronAPI?.getSetting) {
             window.electronAPI.getSetting('updateBranch').then(savedValue => {
                 settingsUpdateBranch.value = savedValue || 'main';
