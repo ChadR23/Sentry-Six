@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.9",
+      "date": "2026-01-02",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed auto update system in preperation for .exe releases"
+        }
+      ]
+    },
+    {
       "version": "2026.1.6",
       "date": "2026-01-02",
       "title": "Bug Fix Release",
