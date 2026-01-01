@@ -151,16 +151,14 @@ function detectGpuEncoder(ffmpegPath) {
   if (gpuEncoder !== null) return gpuEncoder;
   
   try {
-    // Query FFmpeg for available hardware accelerators and encoders
-    const hwaccelResult = spawnSync(ffmpegPath, ['-hwaccels'], { timeout: 3000, windowsHide: true });
-    const hwaccelsOutput = (hwaccelResult.stdout?.toString() || '') + (hwaccelResult.stderr?.toString() || '');
-    
+    // Query FFmpeg for available encoders
     const encoderResult = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
     const encoderOutput = encoderResult.stdout?.toString() || '';
     
     /**
      * Tests if a GPU encoder can actually access hardware.
      * FFmpeg may list encoders that aren't usable (e.g., NVENC listed but no NVIDIA GPU).
+     * Uses a strict test: only returns true if the encoder actually works (status === 0).
      */
     const testEncoder = (codec) => {
       try {
@@ -179,34 +177,29 @@ function detectGpuEncoder(ffmpegPath) {
           return false;
         }
         
-        // Test encoder with minimal encode to verify hardware access
-        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'color=c=black:s=2x2:d=0.01:r=1'];
+        // Test encoder with realistic test input (like old code used testsrc2)
+        // This is more reliable than minimal color test
+        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'testsrc2=duration=1:size=320x240:rate=1'];
         
-        // Add hardware acceleration hints for Windows (improves detection accuracy)
-        if (process.platform === 'win32') {
-          if (codec === 'h264_amf' && hwaccelsOutput.includes('d3d11va')) {
-            testArgs.push('-hwaccel', 'd3d11va');
-          } else if (codec === 'h264_nvenc' && hwaccelsOutput.includes('cuda')) {
-            testArgs.push('-hwaccel', 'cuda');
-          } else if (codec === 'h264_qsv' && hwaccelsOutput.includes('qsv')) {
-            testArgs.push('-hwaccel', 'qsv');
-          }
+        // Add encoder-specific settings
+        if (codec.includes('videotoolbox')) {
+          testArgs.push('-b:v', '2M');
         }
         
         testArgs.push('-c:v', codec, '-frames:v', '1', '-f', 'null', '-');
         
         const testResult = spawnSync(ffmpegPath, testArgs, { 
-          timeout: 3000,
+          timeout: 5000,
           windowsHide: true,
           stdio: 'pipe'
         });
         
         const testOutput = (testResult.stdout?.toString() || '') + (testResult.stderr?.toString() || '');
         
-        // Log first few lines of test output for debugging
+        // Log test output for debugging
         if (testOutput.length > 0) {
-          const shortOutput = testOutput.split('\n').slice(0, 5).join(' ').substring(0, 200);
-          console.log(`  Test output: ${shortOutput}...`);
+          const shortOutput = testOutput.split('\n').slice(0, 3).join(' ').substring(0, 150);
+          console.log(`  ${codec} test: status=${testResult.status}, output: ${shortOutput}...`);
         }
         
         // Check for definitive hardware errors
@@ -218,7 +211,9 @@ function detectGpuEncoder(ffmpegPath) {
           'Device creation failed',
           'No capable devices found',
           'No device available',
-          'No hardware device found'
+          'No hardware device found',
+          'Task finished with error',
+          'Invalid argument'
         ];
         
         for (const error of fatalErrors) {
@@ -227,92 +222,34 @@ function detectGpuEncoder(ffmpegPath) {
           }
         }
         
-        // Invalid argument errors related to encoder indicate hardware unavailable
-        if (testOutput.includes('Invalid argument') && 
-            (testOutput.includes('encoder') || testOutput.includes(codec))) {
-          return false;
-        }
-        
-        // Success: encoder initialized and encoded at least one frame
-        if (testResult.status === 0) {
-          return true;
-        }
-        
-        // Partial success: saw encoding output but non-zero status (may be test-specific)
-        // Note: Do NOT check for 'encoder' - it matches error messages like "Could not open encoder"
-        if (testOutput.includes('frame=') || 
-            testOutput.includes('Stream #') ||
-            testOutput.includes('Video:')) {
-          return true;
-        }
-        
-        // Hardware-specific error in task failure (includes "Invalid argument" which indicates hardware unavailable)
-        if (testOutput.includes('Task finished with error') && 
-            (testOutput.includes(codec) || testOutput.includes('Invalid argument'))) {
-          return false;
-        }
-        
-        // Default: encoder exists and no hardware errors detected
-        // Actual export will handle any remaining issues
-        return true;
+        // STRICT: Only return true if the test actually succeeded (status === 0)
+        // This matches the old working code behavior
+        return testResult.status === 0;
       } catch (err) {
         return false;
       }
     };
     
     // Define encoder priority by platform
-    // Windows: Detect actual GPU vendor and prioritize matching encoder
+    // Test all encoders in order and use the first one that actually works
+    // This matches the old working code behavior - no vendor detection, just test everything
     const encodersToCheck = [];
     
     if (process.platform === 'darwin') {
-      encodersToCheck.push({ codec: 'h264_videotoolbox', name: 'Apple VideoToolbox' });
+      encodersToCheck.push({ codec: 'h264_videotoolbox', name: 'Apple VideoToolbox', priority: 1 });
     } else if (process.platform === 'win32') {
-      // Detect actual GPU vendor by checking vendor-specific hardware acceleration
-      // CUDA is NVIDIA-specific, QSV is Intel-specific, AMF is AMD-specific
-      const hasCUDA = hwaccelsOutput.includes('cuda');
-      const hasQSV = hwaccelsOutput.includes('qsv');
-      const hasD3D11 = hwaccelsOutput.includes('d3d11va');
-      
-      // Prioritize based on actual GPU vendor detection
-      // NVIDIA: CUDA available -> prioritize NVENC
-      // Intel: QSV available -> prioritize QuickSync
-      // AMD: D3D11 available but no CUDA/QSV -> prioritize AMF
-      // Otherwise: test all in order
-      if (hasCUDA) {
-        // NVIDIA GPU detected
-        encodersToCheck.push(
-          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
-          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 2 },
-          { codec: 'h264_amf', name: 'AMD AMF', priority: 3 }
-        );
-      } else if (hasQSV) {
-        // Intel GPU detected
-        encodersToCheck.push(
-          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 1 },
-          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
-          { codec: 'h264_amf', name: 'AMD AMF', priority: 3 }
-        );
-      } else if (hasD3D11) {
-        // D3D11 available but no vendor-specific detection - likely AMD or unknown
-        // Test AMF first, then others
-        encodersToCheck.push(
-          { codec: 'h264_amf', name: 'AMD AMF', priority: 1 },
-          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 2 },
-          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
-        );
-      } else {
-        // No specific detection - test all in default order
-        encodersToCheck.push(
-          { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
-          { codec: 'h264_amf', name: 'AMD AMF', priority: 2 },
-          { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
-        );
-      }
-    } else {
+      // Windows: Test all encoders in priority order (NVIDIA, AMD, Intel)
+      // The testEncoder function will verify each one actually works
       encodersToCheck.push(
-        { codec: 'h264_nvenc', name: 'NVIDIA NVENC' },
-        { codec: 'h264_amf', name: 'AMD AMF' },
-        { codec: 'h264_qsv', name: 'Intel QuickSync' }
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
+        { codec: 'h264_amf', name: 'AMD AMF', priority: 2 },
+        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 3 }
+      );
+    } else {
+      // Linux: Test NVIDIA and Intel
+      encodersToCheck.push(
+        { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
+        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 2 }
       );
     }
     
@@ -350,10 +287,7 @@ function detectHEVCEncoder(ffmpegPath) {
   if (gpuEncoderHEVC !== null) return gpuEncoderHEVC;
   
   try {
-    // Query FFmpeg for available hardware accelerators and encoders
-    const hwaccelResult = spawnSync(ffmpegPath, ['-hwaccels'], { timeout: 3000, windowsHide: true });
-    const hwaccelsOutput = (hwaccelResult.stdout?.toString() || '') + (hwaccelResult.stderr?.toString() || '');
-    
+    // Query FFmpeg for available encoders
     const encoderResult = spawnSync(ffmpegPath, ['-encoders'], { timeout: 5000, windowsHide: true });
     const encoderOutput = encoderResult.stdout?.toString() || '';
     
@@ -368,18 +302,12 @@ function detectHEVCEncoder(ffmpegPath) {
           return false;
         }
         
-        // Build test args with hardware acceleration hints (like H.264 detection)
-        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'color=c=black:s=2x2:d=0.01:r=1'];
+        // Test encoder with realistic test input (like old code used testsrc2)
+        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'testsrc2=duration=1:size=320x240:rate=1'];
         
-        // Add hardware acceleration hints for Windows
-        if (process.platform === 'win32') {
-          if (codec === 'hevc_nvenc' && hwaccelsOutput.includes('cuda')) {
-            testArgs.push('-hwaccel', 'cuda');
-          } else if (codec === 'hevc_amf' && hwaccelsOutput.includes('d3d11va')) {
-            testArgs.push('-hwaccel', 'd3d11va');
-          } else if (codec === 'hevc_qsv' && hwaccelsOutput.includes('qsv')) {
-            testArgs.push('-hwaccel', 'qsv');
-          }
+        // Add encoder-specific settings
+        if (codec.includes('videotoolbox')) {
+          testArgs.push('-b:v', '2M');
         }
         
         testArgs.push('-c:v', codec, '-frames:v', '1', '-f', 'null', '-');
@@ -394,8 +322,18 @@ function detectHEVCEncoder(ffmpegPath) {
         }
         
         // Check for fatal errors
-        const fatalErrors = ['No such device', 'Could not open encoder', 'Failed to create', 'Cannot load', 
-                            'Device creation failed', 'No capable devices', 'No device available', 'No hardware device'];
+        const fatalErrors = [
+          'No such device',
+          'Could not open encoder',
+          'Failed to create encoder',
+          'Cannot load',
+          'Device creation failed',
+          'No capable devices found',
+          'No device available',
+          'No hardware device found',
+          'Task finished with error',
+          'Invalid argument'
+        ];
         for (const error of fatalErrors) {
           if (testOutput.toLowerCase().includes(error.toLowerCase())) {
             console.log(`  ${codec}: Fatal error - ${error}`);
@@ -403,50 +341,34 @@ function detectHEVCEncoder(ffmpegPath) {
           }
         }
         
-        // Success if status is 0 or we see encoding output
-        if (testResult.status === 0) return true;
-        if (testOutput.includes('frame=') || testOutput.includes('Stream #') || testOutput.includes('Video:')) return true;
-        
-        return false;
+        // STRICT: Only return true if the test actually succeeded (status === 0)
+        // This matches the old working code behavior
+        return testResult.status === 0;
       } catch (err) { 
         console.log(`  ${codec}: Exception - ${err.message}`);
         return false; 
       }
     };
     
-    // HEVC encoders by platform - prioritize based on detected hardware
+    // HEVC encoders by platform - test all encoders in order and use first one that works
+    // This matches the old working code behavior - no vendor detection, just test everything
     const hevcEncoders = [];
     if (process.platform === 'darwin') {
-      hevcEncoders.push({ codec: 'hevc_videotoolbox', name: 'Apple VideoToolbox HEVC', maxRes: 8192 });
+      hevcEncoders.push({ codec: 'hevc_videotoolbox', name: 'Apple VideoToolbox HEVC', maxRes: 8192, priority: 1 });
     } else if (process.platform === 'win32') {
-      // Prioritize based on detected hardware acceleration
-      const hasCUDA = hwaccelsOutput.includes('cuda');
-      const hasQSV = hwaccelsOutput.includes('qsv');
-      const hasD3D11 = hwaccelsOutput.includes('d3d11va');
-      
-      if (hasCUDA) {
-        hevcEncoders.push({ codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 1 });
-        hevcEncoders.push({ codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 2 });
-        hevcEncoders.push({ codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 3 });
-      } else if (hasQSV) {
-        hevcEncoders.push({ codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 1 });
-        hevcEncoders.push({ codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 2 });
-        hevcEncoders.push({ codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 3 });
-      } else if (hasD3D11) {
-        hevcEncoders.push({ codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 1 });
-        hevcEncoders.push({ codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 2 });
-        hevcEncoders.push({ codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 3 });
-      } else {
-        hevcEncoders.push({ codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 1 });
-        hevcEncoders.push({ codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 2 });
-        hevcEncoders.push({ codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 3 });
-      }
+      // Windows: Test all encoders in priority order (NVIDIA, AMD, Intel)
+      // The testEncoder function will verify each one actually works
+      hevcEncoders.push(
+        { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 1 },
+        { codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 2 },
+        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 3 }
+      );
       hevcEncoders.sort((a, b) => (a.priority || 999) - (b.priority || 999));
     } else {
+      // Linux: Test NVIDIA and Intel
       hevcEncoders.push(
-        { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192 },
-        { codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192 },
-        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192 }
+        { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 1 },
+        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 2 }
       );
     }
     
