@@ -229,17 +229,16 @@ function detectGpuEncoder(ffmpegPath) {
         }
         
         // Partial success: saw encoding output but non-zero status (may be test-specific)
+        // Note: Do NOT check for 'encoder' - it matches error messages like "Could not open encoder"
         if (testOutput.includes('frame=') || 
             testOutput.includes('Stream #') ||
-            testOutput.includes('Video:') ||
-            testOutput.includes('encoder')) {
+            testOutput.includes('Video:')) {
           return true;
         }
         
-        // Hardware-specific error in task failure
+        // Hardware-specific error in task failure (includes "Invalid argument" which indicates hardware unavailable)
         if (testOutput.includes('Task finished with error') && 
-            testOutput.includes(codec) &&
-            (testOutput.includes('device') || testOutput.includes('hardware'))) {
+            (testOutput.includes(codec) || testOutput.includes('Invalid argument'))) {
           return false;
         }
         
