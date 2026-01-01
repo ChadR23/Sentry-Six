@@ -21,15 +21,11 @@ export function createInitialState() {
     mode: 'clip', // 'clip' | 'collection'
 
     player: {
-      // Primary decoded content (single clip or the current segment of a collection).
-      mp4: null,
+      // Decoded frames for the current clip/segment
       frames: null,
-      firstKeyframe: 0,
 
-      // WebCodecs single-canvas decoder state (not used for multi-cam tiles).
+      // WebCodecs decoder for clip mode
       decoder: null,
-      decoding: false,
-      pendingFrame: null,
 
       // Playback loop state (shared by single/multi/collection timelines).
       playing: false,

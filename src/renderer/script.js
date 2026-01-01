@@ -460,18 +460,17 @@ function hasValidGps(sei) {
         if (multi.enabled) {
             // In multi-cam, the dropdown selects the master camera (telemetry + timeline).
             multi.masterCamera = cameraSelect.value;
-            reloadSelectedGroup();
         } else {
             selection.selectedCamera = cameraSelect.value;
-            loadClipGroupCamera(g, selection.selectedCamera);
         }
+        // Note: Camera changes are handled by selectDayCollection() in native video mode
     };
 
     multiCamToggle.onchange = () => {
         multi.enabled = !!multiCamToggle.checked;
         localStorage.setItem(MULTI_ENABLED_KEY, multi.enabled ? '1' : '0');
         if (multiLayoutSelect) multiLayoutSelect.disabled = !multi.enabled;
-        reloadSelectedGroup();
+        // Note: Multi-cam toggle changes are applied on next segment load in native video mode
     };
 
     // Dashboard (SEI overlay) toggle
@@ -565,8 +564,6 @@ function hasValidGps(sei) {
         };
     }
 
-    // Layout quick switch buttons (removed - buttons don't exist in HTML)
-    updateMultiLayoutButtons();
 
     // Skip buttons (±15 seconds)
     if (skipBackBtn) skipBackBtn.onclick = (e) => { e.preventDefault(); skipSeconds(-15); };
@@ -687,7 +684,6 @@ function setMultiLayout(layoutId) {
     multi.layoutId = next;
     localStorage.setItem(MULTI_LAYOUT_KEY, next);
     if (multiLayoutSelect) multiLayoutSelect.value = next;
-    updateMultiLayoutButtons();
 
     // Set grid column mode and layout type for the new layout
     const layout = MULTI_LAYOUTS[next];
@@ -704,32 +700,24 @@ function setMultiLayout(layoutId) {
         }
     }
 
-    if (multi.enabled) {
+    if (multi.enabled && state.ui.nativeVideoMode && state.collection.active) {
         // In native video mode, reload the current segment with new layout
-        if (state.ui.nativeVideoMode && state.collection.active) {
-            // Use >= 0 check to properly handle segment 0 (0 is falsy in JS)
-            const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
-            const wasPlaying = nativeVideo.playing;
-            const currentTime = nativeVideo.master?.currentTime || 0;
-            
-            loadNativeSegment(segIdx).then(() => {
-                // Restore playback position and state
-                if (nativeVideo.master) {
-                    nativeVideo.master.currentTime = currentTime;
-                    syncMultiVideos(currentTime);
-                }
-                if (wasPlaying) {
-                    playNative();
-                }
-            });
-        } else {
-            reloadSelectedGroup();
-        }
+        // Use >= 0 check to properly handle segment 0 (0 is falsy in JS)
+        const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
+        const wasPlaying = nativeVideo.playing;
+        const currentTime = nativeVideo.master?.currentTime || 0;
+        
+        loadNativeSegment(segIdx).then(() => {
+            // Restore playback position and state
+            if (nativeVideo.master) {
+                nativeVideo.master.currentTime = currentTime;
+                syncMultiVideos(currentTime);
+            }
+            if (wasPlaying) {
+                playNative();
+            }
+        });
     }
-}
-
-function updateMultiLayoutButtons() {
-    // Layout buttons removed - function kept for compatibility but does nothing
 }
 
 // Zoom/Pan moved to scripts/ui/zoomPan.js
@@ -1579,13 +1567,6 @@ function resetMultiStreams() {
     multi.streams.clear();
 }
 
-async function reloadSelectedGroup() {
-    // Legacy WebCodecs reloading removed - native video playback handles this now
-    // This function is kept for API compatibility but does nothing
-}
-
-// Legacy WebCodecs multi-cam loading removed - native video playback is now used exclusively
-
 // Folder Ingest + Clip Groups
 function getRootFolderNameFromWebkitRelativePath(relPath) {
     if (!relPath || typeof relPath !== 'string') return null;
@@ -2017,8 +1998,7 @@ function selectClipGroup(groupId) {
     if (!g.filesByCamera.has(multi.masterCamera)) multi.masterCamera = defaultCam;
     updateCameraSelect(g);
     cameraSelect.value = multi.enabled ? multi.masterCamera : selection.selectedCamera;
-    reloadSelectedGroup();
-
+    // Note: Clip group loading is handled by selectDayCollection() in native video mode
 }
 
 function selectSentryCollection(collectionId) {
@@ -2306,14 +2286,7 @@ async function ingestSentryEventJson(eventAssetsByKey) {
     }
 }
 
-function loadClipGroupCamera(group, camera) {
-    // Legacy WebCodecs loader - native video uses selectDayCollection() instead
-    notify('Please select a day collection from the clip browser.', { type: 'info' });
-}
-
-// Legacy preview/thumbnail code removed - not used in current UI
-
-// escapeHtml/cssEscape moved to src/utils.js
+// escapeHtml/cssEscape moved to scripts/lib/utils.js
 
 // Playback Logic
 playBtn.onclick = () => {
@@ -2651,7 +2624,8 @@ async function showCollectionAtMs(ms) {
     const localMs = Math.max(0, clamped - segStart);
 
     if (segIdx !== state.collection.active.currentSegmentIdx) {
-        await loadCollectionSegment(segIdx, token);
+        // Update segment index (legacy WebCodecs loading removed - native video uses loadNativeSegment)
+        state.collection.active.currentSegmentIdx = segIdx;
         if (!state.collection.active || state.collection.active.loadToken !== token) return;
     }
 
@@ -2661,16 +2635,6 @@ async function showCollectionAtMs(ms) {
     progressBar.value = Math.floor(clamped);
     showFrame(idx);
 }
-
-async function loadCollectionSegment(segIdx, token) {
-    // Legacy WebCodecs segment loading - native video uses loadNativeSegment() instead
-    // This is kept for Sentry collection mode compatibility but is not used in day collections
-    if (!state.collection.active) return;
-    state.collection.active.currentSegmentIdx = segIdx;
-    state.collection.active.loading = false;
-}
-
-// Legacy WebCodecs rendering functions removed - native video playback is now used exclusively
 
 // G-Force Meter moved to scripts/ui/gforceMeter.js
 // Compass moved to scripts/ui/compass.js

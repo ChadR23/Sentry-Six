@@ -235,89 +235,6 @@ window.DashcamMP4 = DashcamMP4;
         return { SeiMetadata, enumFields };
     }
 
-    /**
-     * Internal: Get the loaded protobuf instance.
-     * Reserved for future use (e.g., CSV export UI).
-     */
-    function getProtobuf() {
-        return SeiMetadata ? { SeiMetadata, enumFields } : null;
-    }
-
-    /**
-     * Internal: Derive field metadata from SeiMetadata type.
-     * Reserved for future CSV export feature.
-     */
-    function deriveFieldInfo(SeiMetadataCtor, enumMap, options = {}) {
-        return SeiMetadataCtor.fieldsArray.map(field => {
-            const propName = field.name;
-            const snakeName = propName.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
-            const label = propName
-                .replace(/_/g, ' ')
-                .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-                .replace(/\b\w/g, l => l.toUpperCase())
-                .replace(/ Mps$/, ' (m/s)')
-                .replace(/ Deg$/, ' (°)');
-
-            return {
-                propName,
-                protoName: options.useSnakeCase ? snakeName : propName,
-                label: options.useLabels ? label : undefined,
-                enumMap: enumMap[propName] || enumMap[snakeName] || null
-            };
-        });
-    }
-
-    /**
-     * Internal: Format a value for display.
-     * Reserved for future CSV export feature.
-     */
-    function formatValue(value, enumType) {
-        if (enumType) {
-            const name = enumType.valuesById?.[value];
-            if (name) return name;
-            const entry = Object.entries(enumType).find(([, v]) => v === value);
-            if (entry) return entry[0];
-        }
-        if (typeof value === 'boolean') return value ? 'true' : 'false';
-        if (typeof value === 'number') return Number.isInteger(value) ? value : value.toFixed(2);
-        if (typeof value === 'object' && value?.toString) return value.toString();
-        return value;
-    }
-
-    /**
-     * Internal: Build CSV from SEI messages.
-     * Reserved for future CSV export feature.
-     */
-    function buildCsv(messages, fieldInfo) {
-        const headers = fieldInfo.map(f => f.protoName || f.propName);
-        const lines = [headers.join(',')];
-
-        for (const msg of messages) {
-            const values = fieldInfo.map(({ propName, enumMap }) => {
-                let val = msg[propName];
-                if (val === undefined || val === null) return '';
-                if (enumMap?.valuesById) val = enumMap.valuesById[val] ?? val;
-                const text = String(val);
-                return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
-            });
-            lines.push(values.join(','));
-        }
-        return lines.join('\n');
-    }
-
-    /**
-     * Internal: Download a blob as a file.
-     * Reserved for future CSV export feature.
-     */
-    function downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-
     /** Get MP4 files from drag/drop DataTransfer with streaming support for large folders */
     async function getFilesFromDataTransfer(items, onProgress = null) {
         const files = [], entries = [];
@@ -397,11 +314,6 @@ window.DashcamMP4 = DashcamMP4;
 
     window.DashcamHelpers = {
         initProtobuf,
-        getProtobuf,
-        deriveFieldInfo,
-        formatValue,
-        buildCsv,
-        downloadBlob,
         getFilesFromDataTransfer
     };
 })();
