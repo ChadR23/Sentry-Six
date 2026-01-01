@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Renderer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html {
+            /* Base size - actual scaling handled by transform */
+            font-size: 16px;
+        }
+        body {
+            background: transparent;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            /* Base dashboard size - scaled via transform */
+            width: 600px;
+            height: 250px;
+            transform-origin: top left;
+            /* Scale factors injected by main process */
+            transform: scale(var(--scale-x, 1), var(--scale-y, 1));
+        }
+        #dashboardVis {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, 
+                rgba(45, 45, 50, 0.25) 0%, 
+                rgba(35, 35, 40, 0.20) 50%,
+                rgba(28, 28, 32, 0.25) 100%);
+            backdrop-filter: blur(7px) saturate(100%);
+            -webkit-backdrop-filter: blur(7px) saturate(100%);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.08);
+            display: block;
+            overflow: visible;
+        }
+        .vis-content {
+            padding: 0px 0px 2px 0px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 24px;
+            overflow: visible;
+            height: 100%;
+        }
+        .autosteer-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 150px;
+            flex-shrink: 0;
+            overflow: visible;
+            margin-left: 0;
+            margin-top: 0;
+            transform: none;
+        }
+        .autosteer-wrapper {
+            width: 145px;
+            height: 145px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            will-change: transform;
+        }
+        .autosteer-icon {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+        }
+        .autosteer-icon.active {
+            filter: none;
+            opacity: 1;
+            filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
+        }
+        .center-cluster {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            flex: 1;
+            min-width: 0;
+            margin-left: -45px;
+        }
+        .center-cluster .turn-signal {
+            width: 32px;
+            height: 32px;
+            color: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: -60px;
+        }
+        .center-cluster .turn-signal svg {
+            width: 28px;
+            height: 28px;
+        }
+        .center-cluster .turn-signal.active {
+            color: #22c55e;
+            filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
+        }
+        .speed-display {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            margin-top: -60px;
+        }
+        .gear-state {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: color 0.3s ease;
+            white-space: nowrap;
+        }
+        .gear-state.active {
+            color: #0048ff;
+        }
+        .speed-value {
+            font-size: 36px;
+            font-weight: 300;
+            line-height: 1;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+        }
+        .speed-unit {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .autopilot-label-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .brake-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+        }
+        .brake-icon.active {
+            filter: brightness(0) saturate(100%) invert(10%) sepia(100%) saturate(7471%) hue-rotate(349deg) brightness(98%) contrast(98%);
+            opacity: 1;
+        }
+        .accel-pedal-container {
+            width: 18px;
+            height: 18px;
+        }
+        .accel-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+        }
+        .accel-pedal-container.active .accel-icon {
+            filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+            opacity: 1;
+        }
+        .autopilot-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        .autopilot-label.active {
+            color: #0048ff;
+            text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
+        }
+        .accel-fill {
+            display: none;
+        }
+        .right-cluster {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 90px;
+            flex-shrink: 0;
+            margin-left: auto;
+            transform: translateX(-20px);
+            padding-right: 5px;
+            margin-top: -60px;
+        }
+        .recording-time {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+        .instruments-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 2px 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: -65px;
+            margin-left: 25px;
+        }
+        .gforce-section {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .gforce-meter {
+            position: relative;
+            width: 50px;
+            height: 50px;
+        }
+        .gforce-label {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 7px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+        }
+        .gforce-values {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .gforce-val {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            color: #666;
+            min-width: 36px;
+            text-align: right;
+            transition: color 0.15s;
+        }
+        .gforce-val.positive {
+            color: #4caf50;
+        }
+        .gforce-val.negative {
+            color: #ff9800;
+        }
+        .gforce-val.high {
+            color: #f44336;
+        }
+        #gforceDot.braking {
+            fill: #f44336;
+        }
+        #gforceDot.accelerating {
+            fill: #4caf50;
+        }
+        #gforceDot.cornering-hard {
+            fill: #ff9800;
+        }
+        .compass-section {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+        }
+        .compass-meter {
+            position: relative;
+            width: 45px;
+            height: 45px;
+        }
+        .compass-value {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            color: #888;
+            text-align: left;
+            min-width: 36px;
+        }
+        .compass {
+            width: 45px;
+            height: 45px;
+        }
+        .gforce-meter svg, .compass svg {
+            width: 100%;
+            height: 100%;
+        }
+        #gforceDot {
+            transition: cx 0.1s linear, cy 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboardVis" class="dashboard-vis">
+        <div class="vis-content">
+            <!-- Left: Autosteer Icon -->
+            <div class="autosteer-section">
+                <div class="autosteer-wrapper" id="steeringIcon">
+                    <img src="../../assets/autosteer-icon.png" class="autosteer-icon" id="autosteerIcon" alt="Autosteer">
+                </div>
+            </div>
+
+            <!-- Center: Speed -->
+            <div class="center-cluster">
+                <div class="turn-signal left" id="blinkLeft">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 5l-7 7 7 7"/>
+                    </svg>
+                </div>
+                <div class="speed-display">
+                    <div class="gear-state" id="gearState">--</div>
+                    <div class="speed-value" id="speedValue">0</div>
+                    <div class="speed-unit" id="speedUnit">MPH</div>
+                    <div class="autopilot-label-container">
+                        <img src="../../assets/pedal_brake.png" class="brake-icon" id="brakeIcon" alt="Brake">
+                        <span class="autopilot-label" id="apText">Manual</span>
+                        <div class="accel-pedal-container" id="accelPedal">
+                            <img src="../../assets/pedal_acc.png" class="accel-icon" alt="Accelerator">
+                            <div class="accel-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="turn-signal right" id="blinkRight">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Right: Time display -->
+            <div class="right-cluster">
+                <div class="recording-time" id="recordingTime">
+                    <span id="recordingTimeText">--:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instruments Row: G-Force & Compass -->
+        <div class="instruments-row">
+            <!-- G-Force Meter -->
+            <div class="gforce-section">
+                <div class="gforce-meter" id="gforceMeter">
+                    <svg viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="9" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <line x1="30" y1="2" x2="30" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <circle id="gforceDot" cx="30" cy="30" r="4" fill="#3e9cbf"/>
+                    </svg>
+                    <div class="gforce-label">G</div>
+                </div>
+                <div class="gforce-values">
+                    <div class="gforce-val" id="gforceX" title="Lateral G">0.0</div>
+                    <div class="gforce-val" id="gforceY" title="Longitudinal G">0.0</div>
+                </div>
+            </div>
+
+            <!-- Heading Compass -->
+            <div class="compass-section">
+                <div class="compass-meter" id="compassMeter">
+                    <svg viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                        <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                        <text x="30" y="10" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="8" font-weight="700">N</text>
+                        <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">S</text>
+                        <text x="7" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">W</text>
+                        <text x="53" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">E</text>
+                        <line x1="30" y1="12" x2="30" y2="16" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="30" y1="44" x2="30" y2="48" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="12" y1="30" x2="16" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="44" y1="30" x2="48" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <g id="compassNeedle" transform="rotate(0 30 30)">
+                            <polygon points="30,14 26,30 30,28 34,30" fill="#e74c3c"/>
+                            <polygon points="30,46 26,30 30,32 34,30" fill="rgba(255,255,255,0.4)"/>
+                            <circle cx="30" cy="30" r="3" fill="#222" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                        </g>
+                    </svg>
+                </div>
+                <div class="compass-value" id="compassValue" title="Heading">0°</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Base dashboard dimensions (must match main.js constants)
+        const BASE_WIDTH = 600;
+        const BASE_HEIGHT = 250;
+        
+        // Calculate and apply scale based on window size
+        function applyScale() {
+            const scaleX = window.innerWidth / BASE_WIDTH;
+            const scaleY = window.innerHeight / BASE_HEIGHT;
+            document.body.style.setProperty('--scale-x', scaleX);
+            document.body.style.setProperty('--scale-y', scaleY);
+        }
+        
+        // Apply scale on load and resize
+        applyScale();
+        window.addEventListener('resize', applyScale);
+        
+        let ipcRenderer;
+        try {
+            if (typeof require !== 'undefined') {
+                ipcRenderer = require('electron').ipcRenderer;
+            } else if (window.electronAPI) {
+                ipcRenderer = {
+                    send: () => {},
+                    on: () => {}
+                };
+            }
+        } catch (err) {
+            ipcRenderer = {
+                send: () => {},
+                on: () => {}
+            };
+        }
+        
+        const MPS_TO_MPH = 2.23694;
+        const MPS_TO_KMH = 3.6;
+        let currentUseMetric = false; // Will be set per frame from main process
+        
+        function updateVisualization(sei, frameNumber = 0, useMetric = false) {
+            currentUseMetric = useMetric;
+            if (!sei) return;
+            
+            const get = (camel, snake) => sei[camel] ?? sei[snake];
+            
+            // Speed
+            const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+            const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
+            document.getElementById('speedValue').textContent = speed;
+            document.getElementById('speedUnit').textContent = useMetric ? 'KM/H' : 'MPH';
+            
+            // Gear
+            const gear = get('gearState', 'gear_state');
+            let gearText = '--';
+            if (gear === 0) gearText = 'Park';
+            else if (gear === 1) gearText = 'Drive';
+            else if (gear === 2) gearText = 'Reverse';
+            else if (gear === 3) gearText = 'Neutral';
+            document.getElementById('gearState').textContent = gearText;
+            
+            const blinkLeft = document.getElementById('blinkLeft');
+            const blinkRight = document.getElementById('blinkRight');
+            const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+            const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+            
+            // Frame-based blinker animation: 0.8s cycle at 36fps = 29 frames
+            // First half (0-14 frames) = on, second half (15-28 frames) = off
+            const frameNum = frameNumber ?? 0;
+            const framesPerCycle = 29;
+            const frameInCycle = frameNum % framesPerCycle;
+            const isBlinkOn = frameInCycle < Math.floor(framesPerCycle / 2);
+            
+            if (blinkLeft) {
+                const shouldShow = leftBlinkerOn && isBlinkOn;
+                blinkLeft.classList.toggle('active', shouldShow);
+                blinkLeft.style.color = shouldShow ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
+                blinkLeft.style.opacity = shouldShow ? '1' : '0.15';
+                blinkLeft.style.filter = shouldShow ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))' : 'none';
+            }
+            if (blinkRight) {
+                const shouldShow = rightBlinkerOn && isBlinkOn;
+                blinkRight.classList.toggle('active', shouldShow);
+                blinkRight.style.color = shouldShow ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
+                blinkRight.style.opacity = shouldShow ? '1' : '0.15';
+                blinkRight.style.filter = shouldShow ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.7))' : 'none';
+            }
+            
+            // Steering
+            const targetAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
+            const steeringIcon = document.getElementById('steeringIcon');
+            if (steeringIcon) {
+                steeringIcon.style.transform = `rotate(${targetAngle}deg)`;
+            }
+            
+            // Autopilot
+            const apState = get('autopilotState', 'autopilot_state');
+            const autosteerIcon = document.getElementById('autosteerIcon');
+            const isActive = apState === 1 || apState === 2;
+            if (autosteerIcon) {
+                autosteerIcon.classList.toggle('active', isActive);
+            }
+            document.getElementById('apText').classList.toggle('active', isActive);
+            document.getElementById('gearState').classList.toggle('active', isActive);
+            
+            if (apState === 1) {
+                document.getElementById('apText').textContent = 'Self Driving';
+            } else if (apState === 2) {
+                document.getElementById('apText').textContent = 'Autosteer';
+            } else if (apState === 3) {
+                document.getElementById('apText').textContent = 'TACC';
+            } else {
+                document.getElementById('apText').textContent = 'Manual';
+            }
+            
+            // Brake
+            const brakeState = get('brakeApplied', 'brake_applied');
+            const isAutoHold = gear === 1 && mps < 0.01;
+            document.getElementById('brakeIcon').classList.toggle('active', !!brakeState || isAutoHold);
+            
+            // Accelerator
+            const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+            const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
+            document.getElementById('accelPedal').classList.toggle('active', isPressed);
+            
+            const accX = get('linearAccelerationMps2X', 'linear_acceleration_mps2_x') || 0;
+            const accY = get('linearAccelerationMps2Y', 'linear_acceleration_mps2_y') || 0;
+            const latG = accX / 9.81;
+            const longG = accY / 9.81;
+            updateGForceMeter(latG, longG);
+            
+            const heading = get('headingDeg', 'heading_deg') || 0;
+            updateCompass(heading);
+        }
+        
+        function updateGForceMeter(latG, longG) {
+            const gforceDot = document.getElementById('gforceDot');
+            if (gforceDot) {
+                // SVG viewBox is 60x60, center at (30, 30)
+                // Scale: 1g = 18px, clamp to viewBox bounds (2-58)
+                const centerX = 30;
+                const centerY = 30;
+                const scale = 18;
+                const x = centerX + (latG * scale);
+                const y = centerY - (longG * scale);
+                gforceDot.setAttribute('cx', Math.max(2, Math.min(58, x)));
+                gforceDot.setAttribute('cy', Math.max(2, Math.min(58, y)));
+                
+                gforceDot.classList.remove('braking', 'accelerating', 'cornering-hard');
+                if (longG < -0.3) {
+                    gforceDot.classList.add('braking');
+                } else if (longG > 0.3) {
+                    gforceDot.classList.add('accelerating');
+                } else if (Math.abs(latG) > 0.5) {
+                    gforceDot.classList.add('cornering-hard');
+                }
+            }
+            
+            const gforceX = document.getElementById('gforceX');
+            const gforceY = document.getElementById('gforceY');
+            if (gforceX) {
+                gforceX.textContent = latG.toFixed(1);
+                gforceX.classList.remove('positive', 'negative', 'high');
+                if (latG > 0.1) gforceX.classList.add('positive');
+                else if (latG < -0.1) gforceX.classList.add('negative');
+                if (Math.abs(latG) > 0.5) gforceX.classList.add('high');
+            }
+            if (gforceY) {
+                gforceY.textContent = longG.toFixed(1);
+                gforceY.classList.remove('positive', 'negative', 'high');
+                if (longG > 0.1) gforceY.classList.add('positive');
+                else if (longG < -0.1) gforceY.classList.add('negative');
+                if (Math.abs(longG) > 0.5) gforceY.classList.add('high');
+            }
+        }
+        
+        function updateCompass(heading) {
+            if (!Number.isFinite(heading)) heading = 0;
+            // Normalize to 0-360 range
+            heading = ((heading % 360) + 360) % 360;
+            
+            const compassNeedle = document.getElementById('compassNeedle');
+            if (compassNeedle) {
+                compassNeedle.setAttribute('transform', `rotate(${heading} 30 30)`);
+            }
+            
+            const compassValue = document.getElementById('compassValue');
+            if (compassValue) {
+                compassValue.textContent = `${Math.round(heading)}°`;
+            }
+        }
+        
+        let isReady = false;
+        
+        // Signal ready when loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            applyScale(); // Ensure scale is applied after DOM ready
+            isReady = true;
+            if (ipcRenderer?.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        });
+        
+        setTimeout(() => {
+            if (isReady && ipcRenderer?.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        }, 100);
+        
+        // Listen for SEI data updates
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('dashboard:update', (event, sei, frameNumber, useMetric) => {
+                if (sei) {
+                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber, 'metric:', useMetric);
+                }
+                updateVisualization(sei, frameNumber, useMetric);
+                
+                // Force a reflow to ensure DOM updates are rendered
+                void document.body.offsetHeight;
+                
+                // Use requestAnimationFrame to ensure browser has painted the changes
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        // Double RAF ensures the frame is actually painted
+                        if (isReady && ipcRenderer && ipcRenderer.send) {
+                            ipcRenderer.send('dashboard:ready');
+                        }
+                    });
+                });
+            });
+        }
+    </script>
+</body>
+</html>
+

@@ -1,65 +1,75 @@
 {
-  "name": "sentry-six-electron",
-  "version": "2.1.0",
-  "description": "Tesla Dashcam Viewer - Electron Edition with synchronized video playback",
-  "main": "working-main.js",
-  "homepage": "./",
+  "name": "sentry-six-revamped",
+  "version": "2026.1.5",
+  "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "pack": "electron-builder",
-    "dist": "electron-builder --publish=never"
+    "build": "electron-builder"
   },
   "keywords": [
     "tesla",
     "dashcam",
-    "video",
-    "electron",
-    "typescript",
-    "synchronization"
+    "sentry",
+    "electron"
   ],
-  "author": "Sentry-Six Team",
+  "author": "Sentry Six Revamped",
   "license": "MIT",
+  "type": "commonjs",
   "devDependencies": {
-    "electron": "^38.1.2",
-    "electron-builder": "^24.0.0"
+    "electron": "^39.2.7",
+    "electron-builder": "^24.13.3"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
-    "electron-store": "^8.0.0",
-    "ffmpeg-static": "^5.0.0",
-    "fluent-ffmpeg": "^2.1.0",
-    "tree-kill": "^1.2.2"
+    "protobufjs": "^7.5.4"
   },
   "build": {
-    "appId": "com.sentrysix.electron",
-    "productName": "Sentry-Six",
+    "appId": "com.sentrysix.revamped",
+    "productName": "Sentry Six Revamped",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "sign": null,
+      "signDlls": false,
+      "verifyUpdateCodeSignature": false,
+      "certificateFile": null,
+      "certificatePassword": null
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "ffmpeg_bin/**/*",
+      "LICENSE.txt",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
     "directories": {
       "output": "release"
     },
-    "files": [
-      "working-main.js",
-      "working-preload.js",
-      "ffmpeg_bin/**/*",
-      "src/renderer/**/*",
-      "assets/**/*",
-      "node_modules/**/*"
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "assets/Sentry_six.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.icns"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "assets/icon.png"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ChadR23/Sentry-Six.git"
   }
 }

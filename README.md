@@ -1,157 +1,95 @@
-# Sentry‑Six
+# Sentry Six Revamped
 
-Sentry‑Six is a modern, feature‑rich viewer and exporter for your Tesla Sentry and Dashcam footage now rewritten in Electron for smoother UI, better multi‑camera sync, and faster exports. It is a ground‑up rewrite in Electron that preserves the core experience while significantly improving performance, reliability, and packaging. rewritten with the help of AI gemini, gpt, and Claud code.
+Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI and even save the important parts needed! Use it on your preferred OS - Windows, MacOS, or Linux. Included in this program is the ability to visualize Tesla’s new SEI data introduced in the 2025 Holiday Update (2025.44.25).
 
+https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
+
+## Features
+- **Simple UI**
+  - Select your TeslaCam folder using the folder explorer
+  - Select a default folder in the settings
+  - Easily browse files by date
+  - Supports Recent, Sentry, and Saved Clips
+  - Event Triggers (e.g. "User Triggered" or "Collision")
+
+    <img width="176.5" height="275.5" alt="image" src="https://github.com/user-attachments/assets/1b2f3970-965b-431a-b1c9-073a7fd30800" />
+
+- **Multi-Camera Playback**
+  - Simultaneously play all six cameras at once
+  - Front, Back, B-Pillars, Repeaters
+  - Synced playback across all cameras
+  - Speed control: 0.5x to 4x
+ 
+- **SEI Telemetry**
+  - Togglable overlay displaying data such as speed, steering angle, autopilot status, turn signals, etc.
+  - Route tracking
+  - *Requirements for SEI Telemetry*
+    - *2025.44.25 or newer*
+    - *Hardware 3 (HW3/AI3) or newer*
+
+  ![Dashboard](https://github.com/user-attachments/assets/6bc6ff11-0066-427f-b2ab-c95530eaa2e3)
+
+- **Clip Exporting**
+  - Trim clips with ease using in/out points
+  - Hardware-accelerated encoding
+  - Pick different export qualities
+    - Mobile, Medium, High, Maximum
+  - Add the SEI overlay to your export
+    - Overlay is pre-rendered for optimal performance
+
+  <img width="208.5" height="299" alt="ClipExport" src="https://github.com/user-attachments/assets/525a20d2-447b-44c6-8396-55159c29a555" />
+
+- **Customizable Settings**
+  - Adjustable glass blur intensity
+  - Toggle between metric or imperial
+  - Keyboard shortcuts
+  - Switch between stable and dev branches
+  - Toggle event highlights on triggered cameras
+
+  <img width="220.4" height="395.1" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
+
+- **Auto Update**
+  - Checks for new updates on start up with a one-click install.
+    - You can also check for updates via the settings
 
 ## Community & Support
 
-Have questions, suggestions, or want to connect with other users? Join our official Discord server!
+Have questions, feedback, or want to connect with other users?
 
-**[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9QZEzVwdnt)**
+Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
-![SentrySix UI Overview](Screenshots/allcams.png)
+## Requirements
 
-## 🚀 What’s New in the Electron Rewrite
+- **[Node.js](https://nodejs.org/en/download)**
+- Windows / MacOS / Linux
 
-- **Smooth, stutter‑free UI** during playback and timeline scrubbing
-- **Accurate 6‑camera synchronization** (front, back, left/right repeaters, pillars)
-- **Bundled FFmpeg** with automatic detection (no manual install)
-- **Hardware acceleration support** when available (NVENC, AMF, QSV, VideoToolbox)
-- **Visual export workflow** with custom camera layouts and live estimates
-- **Timelapse exports** with speed controls (e.g., 4x → 1200x)
-- **Timestamp overlays** with configurable position
-- **Robust timeline engine** with event markers and debugging tools
-- **Cross‑platform packaging** (Windows/macOS/Linux installers)
+## Installation
 
-## ✨ Features
+1. Install node.js
+2. Extract Sentry Six to your desired location.
+3. In your Sentry Six folder, right click and click on "Open in Terminal"
+4. Use the following command: `npm install`
+5. To run Sentry Six, use `npm start`
 
-- **Synchronized 6‑Camera Playback**: Front, Back, Left/Right Repeaters, Left/Right Pillars all kept in sync by a refined timing model.
-- **Interactive Event Markers**: Icons for **Sentry**, **Honk**, and **User‑saved** events on the timeline.
-  - 🖱️ **Click to Seek**: Instantly jump to any event; Sentry/User events jump ~10 seconds prior for context.
-  - 🖼️ **Hover to Preview**: Preview via `thumb.png` and event reason.
-- **Visual Clip Exporting**:
-  - 🚩 **Start/End Markers** directly on the timeline for frame‑tight trimming.
-  - 🧩 **Custom Camera Layouts**: Arrange cameras freely before export.
-  - ⚡ **Hardware Acceleration**: Enables GPU encoding when supported.
-  - ⏱️ **Live Estimates**: See export progress, duration, and size predictions.
-- **Advanced Playback Controls**:
-  - **Variable Speed**: 0.1x–4x
-  - **Frame‑by‑Frame**, **15‑Second Skip**, **Volume Control**
-  - **Camera Visibility Panel**: Toggle any camera on/off instantly
-- **Timelapse & Timestamp Overlay**:
-  - Timelapse speeds from 4x up to 1200x
-  - Overlay timestamp at bottom/top left/center/right
-- **Debug & Diagnostics**:
-  - Built‑in **Timeline Debug Panel** (gap detection, missing camera data, file size anomalies)
-  - **Export terminal logs** for support
-- **Background Duration Processing**:
-  - **Automatic ffprobe analysis** of all video clips at startup
-  - **Visual status indicators** showing processing progress (red = pending, amber = processing, green = complete)
-  - **Faster timeline loading** with pre-calculated durations
+## Usage
 
-## 📸 Layouts & UI
+1. Launch the app
+2. Select your **TeslaCam folder**
+3. Pick a clip from the sidebar
+4. Use the playback controls and in/out markers to select the part of the clip you'd like to export.
 
-| Feature | Screenshot |
-| :--- | :--- |
-| **All Camera View** | ![All Camera View](Screenshots/allcams.png) |
-| **Folder Selection** | ![Folder/Date Slection](Screenshots/folderselection.png) |
-| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/eventmarkers.png) |
-| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/startend.png) |
-| **Export settings** | ![Export customization](Screenshots/exportsettings.png) |
+## Notes
+- For MacOS:
+  - Install ffmpeg via `brew install ffmpeg`
+- SEI telemetry is typically not recorded while parked
+- Brake/accelerator pedal data is not logged during Self Driving. Pedal activity while Autopilot/Self Driving is engaged indicates driver input.
 
+## Project Origin & Credits
 
+This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [Scottmg1](https://github.com/Scottmg1) and use of the **OpenAI Opus 4.5 AI Model** during development.
 
-## 📦 Requirements
+Special thanks to [**Parallax**](https://github.com/DennisGarvey) and **38tu** for hands-on beta testing and invaluable feedback.
 
-- Node.js 18+
-- Windows/macOS/Linux
-- FFmpeg is bundled with the app; no system install required
+## License
 
-## 🧰 Installation (from source)
-
-```bash
-npm install
-npm start
-```
-
-- Development: `npm run dev`
-- Build installers: `npm run dist` (outputs to `release/`)
-
-## Installation (prebuilt) COMING SOON
-
-1. Download the latest installer from the Releases page.
-2. Run the installer. No Python or system FFmpeg required.
-3. (Optional) Pin the app to your taskbar.
-4. Use the in‑app update button to check for updates.
-
-## FFmpeg
-
-FFmpeg is bundled under the app’s `ffmpeg_bin/` directory and used automatically. The app falls back to system FFmpeg if needed. No PATH setup required.
-
-## 🛠️ Usage
-
-1. Launch the application.
-2. Click **“Open Folder”** and select your `TeslaCam` folder containing `SavedClips/`, `SentryClips/`, or `RecentClips/`.
-3. Select a date/event; clips are grouped automatically.
-4. Use playback controls and the timeline to browse footage; all visible cameras remain in sync.
-5. To export:
-   - Set the **Start** and **End** markers on the timeline.
-   - Optionally arrange a **Custom Camera Layout**.
-   - Choose **Quality** (Full/Mobile), **Hardware Acceleration**, **Timelapse**, and **Timestamp Overlay**.
-   - Click **Export** and monitor progress.
-
-## 🔁 Why Electron vs. Python (PyQt6)
-
-| Area | Python (Old) | Electron (New) |
-| --- | --- | --- |
-| UI Responsiveness | Occasional 1–3s UI freezes during heavy operations | Smooth scrubbing and playback, non‑blocking UI |
-| Multi‑Camera Sync | Good, but inconsistent under load | Refined timing model with HTML5 video for consistent alignment |
-| Exports | CPU‑heavy, limited GPU use | GPU encoding when available (NVENC/AMF/QSV/VideoToolbox) |
-| FFmpeg Handling | External/system dependency | Bundled FFmpeg with automatic detection |
-| Packaging | Platform‑specific hurdles | One‑command builds for Win/macOS/Linux |
-| Debugging | Limited built‑in diagnostics | Timeline Debug Panel, terminal log export |
-
-For the original Python version and history, see the repository on GitHub: [Sentry‑Six (Python)](https://github.com/ChadR23/Sentry-Six/tree/oldmain).
-
-## ❓ Troubleshooting
-
-- If FFmpeg isn’t detected, ensure platform‑appropriate binaries are present in `ffmpeg_bin/` (Windows: `ffmpeg.exe`, `ffprobe.exe`; macOS: `ffmpeg_bin/mac/`).
-- If videos don’t load, verify your Tesla folder structure and that files are `.mp4`.
-- On Windows, the app icon is `assets/Sentry_six.ico`.
-
-## Known Issues
-
-- Short exports and camera sync: Very short clips can show minor desync between cameras because Tesla records each camera as a separate file that may start a fraction of a second apart. Workarounds: export a slightly longer range and trim afterward, or include an extra second at the start.
-- Network shares (NAS): Loading and exporting from network-attached storage can be unreliable due to latency and file locking on SMB/NFS. For best results, copy clips to a local SSD/HDD or plug the drive in via USB before loading.
-- Slow date load on large folders: When you click a date, the app parses all clips to build an accurate timeline. Very large folders will take longer. Tips: archive or move old dates you do not review often, keep clips on a fast SSD, and limit the folder to specific days.
-
-## 🗺️ Roadmap
-
-This project is actively developed. Here are some ideas for the future:
-
-- [ ] Display GPS data from `event.json` on a map widget.
-- [ ] Option to burn‑in camera name labels (e.g., "Front", "Left Repeater") on exported videos.
-- [ ] Support for exporting clips as GIFs or image sequences.
-- [ ] Drag‑and‑drop support for clip folders.
-- [ ] Add Model Y (Juniper) front bumper camera support if/when it’s used for Sentry/Dashcam.
-
-## 🙌 Contributing
-
-Contributions are welcome! Whether it's reporting a bug, suggesting a feature, or writing code, your help is appreciated. Please feel free to open an issue or submit a pull request on the project's GitHub repository.
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## ❤️ Credits
-
-- **Original Concept & Code:** ChadR23
-- **Electron Rewrite & Enhancements:** Sentry‑Six Team (with AI assistance)
-- **Remaster & Feature Development:** A collaborative effort between Scott and Google's Gemini 2.5 Pro AI.
-
-
-
-## 🙏 Special Thanks
-
-- [Scott](https://github.com/Scottmg1), [Parallax](https://github.com/DennisGarvey), and 38tu for hands‑on beta testing and invaluable feedback.
-- ^^^ our incredible beta testers for real‑world feedback, edge‑case reports, and patience while we iterated on the Electron rewrite.
+MIT License - see LICENSE file for details.

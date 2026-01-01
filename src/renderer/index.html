@@ -3,510 +3,498 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:;">
-    <title>Sentry-Six - Tesla Dashcam Viewer</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Sentry Six Revamped</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header class="app-header">
-            <div class="header-left">
-                <h1 class="app-title">
-                    <img src="../../assets/icon.png" alt="Sentry-Six" class="app-icon">
-                    Sentry-Six
-                </h1>
-                <span class="app-subtitle">Tesla Dashcam Viewer</span>
-            </div>
-            <div class="header-center">
-                <!-- Playback controls moved to timeline -->
-            </div>
-            <!-- Centered overlay area aligned with main content (right of sidebar) -->
-            <div class="header-overlay-center">
-                <div class="timestamp-display" id="timestamp-display">--/--/---- --:--:-- --</div>
-            </div>
-            <div class="header-right">
-                <button id="debug-btn" class="control-btn debug-btn" title="Debug Timeline">
-                    <span class="icon">🐛</span>
-                </button>
-                <button id="camera-toggle-btn" class="control-btn" title="Camera Visibility">
-                    <span class="icon">👁️</span>
-                </button>
-                <button id="reset-camera-layout" class="control-btn" title="Reset Camera Layout">
-                    <span class="icon">🔄</span>
-                </button>
-                <button id="settings-btn" class="control-btn" title="Settings">
-                    <span class="icon">⚙️</span>
-                </button>
-                <button id="update-btn" class="control-btn" title="Update Sentry-Six">
-                    <span class="icon">⬇️</span>
-                </button>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="app-main">
-            <!-- Sidebar -->
-            <aside class="sidebar" id="sidebar">
-                <div class="sidebar-header">
-                    <h3>Tesla Clips</h3>
-                    <div class="view-toggle" id="view-toggle" style="display:flex; gap:6px; align-items:center; margin-top:8px;">
-                        <button id="view-day-btn" class="btn btn-tertiary" title="View by Date">📅 By Date</button>
-                        <button id="view-folder-btn" class="btn btn-tertiary" title="View by Event">🔔 By Event</button>
+    <div class="app-container">
+        <!-- File Drop / Video Area -->
+        <div class="video-container" id="videoContainer">
+            <div class="drop-overlay" id="dropOverlay">
+                <div class="drop-message">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <p>Select your TeslaCam folder to browse clips</p>
+                    <div class="drop-actions">
+                        <button id="overlayChooseFolderBtn" class="mini-btn">Choose Folder</button>
                     </div>
-                    <button id="open-folder-btn" class="btn btn-primary">
-                        📁 Open Folder
+                </div>
+                <input type="file" id="folderInput" webkitdirectory multiple>
+            </div>
+            
+            <!-- Loading overlay for large folder imports -->
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loading-spinner"></div>
+                <div id="loadingText" class="loading-text">Scanning folder...</div>
+                <div id="loadingProgress" class="loading-progress">0 files found</div>
+                <div class="loading-bar-container">
+                    <div id="loadingBar" class="loading-bar"></div>
+                </div>
+            </div>
+            
+            <!-- Single video for non-multi mode -->
+            <video id="videoMain" class="video-player" muted playsinline></video>
+
+            <!-- Multi-camera grid (6-camera 3×2 layout) -->
+            <div id="multiCamGrid" class="multi-cam-grid hidden" aria-label="Multi-camera view">
+                <!-- Grid tiles (for standard layouts) - using video elements for GPU decode -->
+                <div class="multi-tile" data-slot="tl">
+                    <div class="multi-label">Left Pillar</div>
+                    <video id="videoTL" class="tile-video" muted playsinline></video>
+                </div>
+                <div class="multi-tile" data-slot="tc">
+                    <div class="multi-label">Front</div>
+                    <video id="videoTC" class="tile-video" muted playsinline></video>
+                </div>
+                <div class="multi-tile" data-slot="tr">
+                    <div class="multi-label">Right Pillar</div>
+                    <video id="videoTR" class="tile-video" muted playsinline></video>
+                </div>
+                <div class="multi-tile" data-slot="bl">
+                    <div class="multi-label">Left Repeater</div>
+                    <video id="videoBL" class="tile-video" muted playsinline></video>
+                </div>
+                <div class="multi-tile" data-slot="bc">
+                    <div class="multi-label">Back</div>
+                    <video id="videoBC" class="tile-video" muted playsinline></video>
+                </div>
+                <div class="multi-tile" data-slot="br">
+                    <div class="multi-label">Right Repeater</div>
+                    <video id="videoBR" class="tile-video" muted playsinline></video>
+                </div>
+            </div>
+
+            <!-- Clip Browser (Folder Mode) -->
+            <div id="clipBrowser" class="clip-browser">
+                <div class="clip-browser-header">
+                    <div class="clip-browser-title">
+                        <div class="clip-browser-title-main">Clips</div>
+                        <div id="clipBrowserSubtitle" class="clip-browser-subtitle">Select a TeslaCam folder to browse</div>
+                        <div class="clip-browser-dayfilter">
+                            <label for="dayFilter">Date</label>
+                            <select id="dayFilter">
+                                <option value="">Select Date</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="clip-browser-actions">
+                        <button id="clipsCollapseBtn" class="icon-btn" type="button" aria-label="Collapse panel" title="Collapse panel">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M15.5 5.5 9 12l6.5 6.5-1.4 1.4L6.2 12l7.9-7.9 1.4 1.4z"></path>
+                            </svg>
+                        </button>
+                        <button id="chooseFolderBtn" class="icon-btn" type="button" aria-label="Choose TeslaCam folder" title="Choose Folder">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10 4 12 6h8a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5zm-5 4h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="clipList" class="clip-list"></div>
+            </div>
+            
+            <!-- Floating Map -->
+            <div id="mapVis" class="map-vis">
+                <div class="vis-header">
+                    <div class="drag-handle"></div>
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Floating Visualization -->
+            <div id="dashboardVis" class="dashboard-vis">
+                <div class="vis-header">
+                    <div class="drag-handle"></div>
+                </div>
+                <div class="vis-content">
+                    <!-- Left: Autosteer Icon -->
+                    <div class="autosteer-section">
+                        <div class="autosteer-wrapper" id="steeringIcon">
+                            <img src="../../assets/autosteer-icon.png" class="autosteer-icon" id="autosteerIcon" alt="Autosteer">
+                        </div>
+                    </div>
+
+                    <!-- Center: Speed -->
+                    <div class="center-cluster">
+                        <div class="turn-signal left" id="blinkLeft">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 12H5M12 5l-7 7 7 7"/>
+                            </svg>
+                        </div>
+                        <div class="speed-display">
+                            <div class="gear-state" id="gearState">--</div>
+                            <div class="speed-value" id="speedValue">0</div>
+                            <div class="speed-unit" id="speedUnit">MPH</div>
+                            <div class="autopilot-label-container">
+                                <img src="../../assets/pedal_brake.png" class="brake-icon" id="brakeIcon" alt="Brake">
+                                <span class="autopilot-label" id="apText">Manual</span>
+                                <div class="accel-pedal-container" id="accelPedal">
+                                    <img src="../../assets/pedal_acc.png" class="accel-icon" alt="Accelerator">
+                                    <div class="accel-fill"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="turn-signal right" id="blinkRight">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Right: Time display -->
+                    <div class="right-cluster">
+                        <div class="recording-time" id="recordingTime">
+                            <span id="recordingTimeText">--:--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instruments Row: G-Force & Compass -->
+                <div class="instruments-row">
+                    <!-- G-Force Meter -->
+                    <div class="gforce-section">
+                        <div class="gforce-meter" id="gforceMeter">
+                            <svg viewBox="0 0 60 60">
+                                <!-- Background circles -->
+                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                <circle cx="30" cy="30" r="9" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                <!-- Crosshairs -->
+                                <line x1="30" y1="2" x2="30" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                <!-- G-force dot with glow -->
+                                <circle id="gforceDot" cx="30" cy="30" r="4" fill="#3e9cbf">
+                                    <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+                                </circle>
+                                <!-- Trail dots (will be updated via JS) -->
+                                <circle id="gforceTrail1" cx="30" cy="30" r="2.5" fill="rgba(62,156,191,0.4)"/>
+                                <circle id="gforceTrail2" cx="30" cy="30" r="2" fill="rgba(62,156,191,0.2)"/>
+                                <circle id="gforceTrail3" cx="30" cy="30" r="1.5" fill="rgba(62,156,191,0.1)"/>
+                            </svg>
+                            <div class="gforce-label">G</div>
+                        </div>
+                        <div class="gforce-values">
+                            <div class="gforce-val" id="gforceX" title="Lateral G">0.0</div>
+                            <div class="gforce-val" id="gforceY" title="Longitudinal G">0.0</div>
+                        </div>
+                    </div>
+
+                    <!-- Heading Compass -->
+                    <div class="compass-section">
+                        <div class="compass-meter" id="compassMeter">
+                            <svg viewBox="0 0 60 60">
+                                <!-- Outer ring -->
+                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                <!-- Cardinal direction marks -->
+                                <text x="30" y="10" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="8" font-weight="700">N</text>
+                                <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">S</text>
+                                <text x="7" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">W</text>
+                                <text x="53" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">E</text>
+                                <!-- Tick marks -->
+                                <line x1="30" y1="12" x2="30" y2="16" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                                <line x1="30" y1="44" x2="30" y2="48" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                                <line x1="12" y1="30" x2="16" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                                <line x1="44" y1="30" x2="48" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                                <!-- Compass needle group (rotates) -->
+                                <g id="compassNeedle" transform="rotate(0 30 30)">
+                                    <!-- North pointer (red) -->
+                                    <polygon points="30,14 26,30 30,28 34,30" fill="#e74c3c"/>
+                                    <!-- South pointer (white) -->
+                                    <polygon points="30,46 26,30 30,32 34,30" fill="rgba(255,255,255,0.4)"/>
+                                    <!-- Center dot -->
+                                    <circle cx="30" cy="30" r="3" fill="#222" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                                </g>
+                            </svg>
+                        </div>
+                        <div class="compass-value" id="compassValue" title="Heading">0°</div>
+                    </div>
+                </div>
+
+                <!-- Telemetry Details -->
+                <div class="extra-data-container">
+                    <button id="toggleExtra" class="toggle-btn" title="Toggle Details">
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
                     </button>
-                </div>
-                
-                <div class="sidebar-content">
-                    <div id="loading-indicator" class="loading hidden">
-                        <div class="spinner"></div>
-                        <span>Loading Tesla files...</span>
-                    </div>
-                    
-                    <div id="clip-list" class="clip-list">
-                        <div class="no-clips-message">
-                            <p>No Tesla clips loaded</p>
-                            <p>Click "Open Folder" to select your Tesla dashcam folder</p>
+                    <div id="extraData" class="extra-data">
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="label">Lat</span>
+                                <span id="valLat" class="val">--</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="label">Lon</span>
+                                <span id="valLon" class="val">--</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="label">Head</span>
+                                <span id="valHeading" class="val">--</span>
+                            </div>
                         </div>
-
-                        <!-- Collapsible sections will be dynamically added here -->
-                    </div>
-
-                    <!-- Debug Panel -->
-                    <div id="debug-panel" class="debug-panel" style="display: none;">
-                        <div class="debug-header">
-                            <span>Timeline Debug Info</span>
-                            <button id="debug-toggle" class="debug-toggle">Hide</button>
-                        </div>
-                        <div class="debug-content">
-                            <div id="debug-timeline-info"></div>
-                            <div id="debug-clip-gaps"></div>
-                            <div id="debug-current-state"></div>
-                    <div class="debug-actions">
-                        <button id="export-debug-btn" class="debug-action-btn">Export Debug Data</button>
-                        <button id="export-terminal-log-btn" class="debug-action-btn">Export Terminal Log</button>
-                        <button id="clear-debug-btn" class="debug-action-btn">Clear Console</button>
-                        <button id="test-timeline-btn" class="debug-action-btn">Test Timeline</button>
-                    </div>
+                        <div class="seq-display">
+                            <span class="label">Seq</span>
+                            <span id="valSeq" class="val">--</span>
                         </div>
                     </div>
                 </div>
-            </aside>
-
-            <!-- Main Content: video grid + timeline stacked vertically -->
-            <div class="main-content" style="display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0;">
-                <!-- Camera Visibility Panel -->
-                <div id="camera-visibility-panel" class="camera-panel hidden">
-                    <div class="panel-header">
-                        <h3>Camera Visibility</h3>
-                        <button id="close-camera-panel" class="close-btn">×</button>
-                    </div>
-                    <div class="panel-content">
-                        <div class="camera-toggles">
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-left_pillar" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Left Pillar</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-front" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Front</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-right_pillar" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Right Pillar</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-left_repeater" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Left Repeater</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-back" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Back</span>
-                            </label>
-                            <label class="camera-toggle">
-                                <input type="checkbox" id="toggle-right_repeater" checked>
-                                <span class="checkmark"></span>
-                                <span class="camera-name">Right Repeater</span>
-                            </label>
-                        </div>
-                        <div class="panel-actions">
-                            <button id="show-all-cameras" class="panel-btn">Show All</button>
-                            <button id="hide-all-cameras" class="panel-btn">Hide All</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Video Grid -->
-                <section class="video-section">
-                    <div class="video-grid" id="video-grid">
-                        <!-- Top Row: Left Pillar, Front, Right Pillar -->
-
-                        <!-- Left Pillar Camera -->
-                        <div class="video-container" data-camera="left_pillar">
-                            <div class="video-header">
-                                <span class="camera-label">Left Pillar</span>
-                            </div>
-                            <video
-                                id="video-left_pillar"
-                                class="video-player"
-                                data-camera="left_pillar"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-
-                        <!-- Front Camera -->
-                        <div class="video-container" data-camera="front">
-                            <div class="video-header">
-                                <span class="camera-label">Front</span>
-                            </div>
-                            <video
-                                id="video-front"
-                                class="video-player"
-                                data-camera="front"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-
-                        <!-- Right Pillar Camera -->
-                        <div class="video-container" data-camera="right_pillar">
-                            <div class="video-header">
-                                <span class="camera-label">Right Pillar</span>
-                            </div>
-                            <video
-                                id="video-right_pillar"
-                                class="video-player"
-                                data-camera="right_pillar"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-
-                        <!-- Bottom Row: Left Repeater, Back, Right Repeater -->
-
-                        <!-- Left Repeater Camera -->
-                        <div class="video-container" data-camera="left_repeater">
-                            <div class="video-header">
-                                <span class="camera-label">Left Repeater</span>
-                            </div>
-                            <video
-                                id="video-left_repeater"
-                                class="video-player"
-                                data-camera="left_repeater"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-
-                        <!-- Back Camera -->
-                        <div class="video-container" data-camera="back">
-                            <div class="video-header">
-                                <span class="camera-label">Back</span>
-                            </div>
-                            <video
-                                id="video-back"
-                                class="video-player"
-                                data-camera="back"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-
-                        <!-- Right Repeater Camera -->
-                        <div class="video-container" data-camera="right_repeater">
-                            <div class="video-header">
-                                <span class="camera-label">Right Repeater</span>
-                            </div>
-                            <video
-                                id="video-right_repeater"
-                                class="video-player"
-                                data-camera="right_repeater"
-                                preload="metadata"
-                                muted
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                            <div class="video-overlay">
-                                <div class="video-status">No video loaded</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Timeline -->
-                <footer class="timeline-section">
-                    <div class="timeline-container">
-                        <div class="timeline-header">
-                            <span class="timeline-label">Timeline</span>
-                            <div class="timeline-info">
-                                <span id="current-time">00:00</span>
-                                <span>/</span>
-                                <span id="total-time">00:00</span>
-                            </div>
-                        </div>
-                        <div class="timeline-track">
-                            <input 
-                                type="range" 
-                                id="timeline-scrubber" 
-                                class="timeline-scrubber"
-                                min="0" 
-                                max="100" 
-                                value="0"
-                                step="0.1"
-                            >
-                            <div class="timeline-markers" id="timeline-markers"></div>
-                        </div>
-                        <div class="timeline-controls">
-                            <div class="speed-control">
-                                <label for="speed-select">Speed:</label>
-                                <select id="speed-select" class="speed-select">
-                                    <option value="0.1">0.1x</option>
-                                    <option value="0.25">0.25x</option>
-                                    <option value="0.5">0.5x</option>
-                                    <option value="0.75">0.75x</option>
-                                    <option value="1" selected>1x</option>
-                                    <option value="1.25">1.25x</option>
-                                    <option value="1.5">1.5x</option>
-                                    <option value="2">2x</option>
-                                    <option value="3">3x</option>
-                                    <option value="4">4x</option>
-                                </select>
-                            </div>
-                            <div class="playback-controls-timeline">
-                                <button id="skip-back-15-btn-timeline" class="control-btn" title="Skip Back 15s">
-                                    <span class="icon">⏪</span>
-                                </button>
-                                <button id="frame-back-btn-timeline" class="control-btn" title="Frame Back">
-                                    <span class="icon">⬅️</span>
-                                </button>
-                                <button id="play-pause-btn-timeline" class="control-btn" title="Play/Pause">
-                                    <span class="icon">⏯️</span>
-                                </button>
-                                <button id="frame-forward-btn-timeline" class="control-btn" title="Frame Forward">
-                                    <span class="icon">➡️</span>
-                                </button>
-                                <button id="skip-forward-15-btn-timeline" class="control-btn" title="Skip Forward 15s">
-                                    <span class="icon">⏩</span>
-                                </button>
-                            </div>
-                            <div class="export-controls">
-                                <button id="set-start-marker" class="export-btn" title="Set Start Marker">
-                                    📍 Start
-                                </button>
-                                <button id="set-end-marker" class="export-btn" title="Set End Marker">
-                                    🏁 End
-                                </button>
-                                <button id="clear-markers" class="export-btn secondary" title="Clear Markers">
-                                    🗑️ Clear
-                                </button>
-                                <button id="export-video" class="export-btn primary" title="Export Video">
-                                    🎬 Export
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </footer>
             </div>
-        </main>
+        </div>
 
-        <!-- Export Dialog Modal -->
-        <div id="export-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Export Video</h2>
-                    <button id="close-export-modal" class="close-btn">×</button>
+        <!-- Controls -->
+        <div class="controls">
+            <!-- Left side: Time, Speed, Settings -->
+            <div id="timeDisplay" class="time-display">
+                <span id="currentTime">00:00:00</span>
+                <span class="time-sep">/</span>
+                <span id="totalTime">00:00:00</span>
+            </div>
+            <select id="speedSelect" class="speed-select" title="Playback speed">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="4">4x</option>
+            </select>
+            <!-- Hidden toggles -->
+            <input type="checkbox" id="autoplayToggle" style="display:none" checked>
+            <input type="checkbox" id="multiCamToggle" style="display:none" checked>
+            <input type="checkbox" id="dashboardToggle" style="display:none" checked>
+            <input type="checkbox" id="mapToggle" style="display:none" checked>
+            <input type="checkbox" id="metricToggle" style="display:none">
+            
+            <!-- Playback controls - close to timeline -->
+            <div class="playback-group">
+                <button id="skipBackBtn" class="control-btn" title="Skip back 15 seconds">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+                    </svg>
+                    <span class="skip-label">15</span>
+                </button>
+                <button id="playBtn" class="control-btn play-btn" disabled>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                </button>
+                <button id="skipForwardBtn" class="control-btn" title="Skip forward 15 seconds">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+                    </svg>
+                    <span class="skip-label">15</span>
+                </button>
+            </div>
+            
+            <!-- Timeline with markers -->
+            <div class="timeline-container">
+                <div id="timelineMarkers" class="timeline-markers"></div>
+                <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" disabled>
+            </div>
+            
+            <!-- Export controls - right of timeline -->
+            <div class="export-group">
+                <button id="setStartMarkerBtn" class="control-btn export-marker-btn start" title="Set export start point" disabled>
+                    <span class="marker-label">In</span>
+                </button>
+                <button id="setEndMarkerBtn" class="control-btn export-marker-btn end" title="Set export end point" disabled>
+                    <span class="marker-label">Out</span>
+                </button>
+                <button id="exportBtn" class="control-btn export-btn" title="Export video" disabled>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                </button>
+                <button id="settingsBtn" class="control-btn settings-btn" title="Settings">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Layout options hidden -->
+            <select id="multiLayoutSelect" style="display:none">
+                <option value="six_default" selected>Pillars Top</option>
+            </select>
+            <select id="cameraSelect" style="display:none">
+                <option value="front">Front</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Floating Export Progress (shown when modal is minimized during export) -->
+    <div id="exportFloatingProgress" class="export-floating-progress hidden">
+        <div class="export-floating-content">
+            <div class="export-floating-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+            </div>
+            <div class="export-floating-info">
+                <div id="exportFloatingStep" class="export-floating-step">Exporting...</div>
+                <div class="export-floating-bar">
+                    <div id="exportFloatingBarFill" class="export-floating-bar-fill"></div>
                 </div>
-                <div class="modal-body">
-                    <!-- 1. Export Data (full width) - Combine Export Range and Export Information -->
-                    <div class="export-section">
-                        <div class="settings-row">
-                            <div class="settings-column">
-                                <h3>Export Range</h3>
-                                <div class="export-range-info">
-                                    <span id="export-range-display">Full Timeline</span>
-                                    <span id="export-duration-display"></span>
-                                </div>
+            </div>
+            <button id="exportFloatingOpenBtn" class="export-floating-open-btn" title="Open export details">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content export-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Export Video
+                </h2>
+                <button id="closeExportModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <!-- Export Range - Always visible -->
+                <div class="modal-section">
+                    <div class="stat-row">
+                        <div class="stat-item">
+                            <div class="stat-label">Start</div>
+                            <div id="exportStartTime" class="stat-value">--:--</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">End</div>
+                            <div id="exportEndTime" class="stat-value">--:--</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Duration</div>
+                            <div id="exportDuration" class="stat-value">--:--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layout Lab - Collapsible -->
+                <div class="collapsible-section open" data-section="layout">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Layout</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <div class="option-grid option-grid-3" style="margin-bottom: 10px;">
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="left_pillar" checked>
+                                    <span class="option-card-label">L Pillar</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="front" checked>
+                                    <span class="option-card-label">Front</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="right_pillar" checked>
+                                    <span class="option-card-label">R Pillar</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="left_repeater" checked>
+                                    <span class="option-card-label">L Repeater</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="back" checked>
+                                    <span class="option-card-label">Back</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="checkbox" data-camera="right_repeater" checked>
+                                    <span class="option-card-label">R Repeater</span>
+                                </label>
                             </div>
-                            <div class="settings-column">
-                                <h3>Export Information</h3>
-                                <div class="export-info">
-                                    <div class="info-row">
-                                        <span>Estimated file size:</span>
-                                        <span id="estimated-file-size">Calculating...</span>
+                            <div class="layout-canvas-container">
+                                <div id="layoutCanvas" class="layout-canvas"></div>
+                            </div>
+                            <div class="layout-hint">Drag to reposition • Cards snap to edges</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality - Collapsible -->
+                <div class="collapsible-section open" data-section="quality">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Quality</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <div class="option-grid">
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="mobile">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Mobile</span>
+                                        <span class="option-card-desc">484×314</span>
                                     </div>
-                                    <div class="info-row">
-                                        <span>Export duration:</span>
-                                        <span id="export-duration-estimate">Calculating...</span>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="medium">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Medium</span>
+                                        <span class="option-card-desc">724×469</span>
                                     </div>
-                                    <div style="font-size:12px; color:#666; margin-top:2px;">Actual export time may vary depending on your machine's performance.</div>
-                                </div>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="high" checked>
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">High</span>
+                                        <span class="option-card-desc">1086×704</span>
+                                    </div>
+                                </label>
+                                <label class="option-card">
+                                    <input type="radio" name="exportQuality" value="max">
+                                    <div class="option-card-info">
+                                        <span class="option-card-label">Maximum</span>
+                                        <span class="option-card-desc">1448×938</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div id="exportSizeEstimate" class="info-box info-blue" style="margin-top: 10px;"></div>
+                            <div id="maxQualityWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">ℹ️</span>
+                                <span>Maximum quality uses HEVC encoding if GPU available.</span>
+                            </div>
+                            <div id="frontCamWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">⚠️</span>
+                                <span>Front camera will be scaled down to match other cameras.</span>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- 2. Camera Layout (full width) - Flexible positioning system -->
-                    <div class="export-section">
-                        <h3>Camera Layout</h3>
-                        <div class="camera-layout-container">
-                            <!-- Free-form camera positioning area -->
-                            <div class="camera-layout-canvas" id="camera-layout-canvas">
-                                <div class="canvas-instructions">
-                                    <span>Drag cameras from the sidebar to arrange your custom layout</span>
-                                </div>
-                            </div>
-
-                            <!-- Camera sidebar for selection and unused cameras -->
-                            <div class="camera-sidebar">
-                                <h4>Available Cameras</h4>
-                                <div class="camera-list">
-                                    <div class="camera-item disabled" data-camera="left_pillar" draggable="true">
-                                        <span class="camera-label">Left Pillar</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                    <div class="camera-item disabled" data-camera="front" draggable="true">
-                                        <span class="camera-label">Front</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                    <div class="camera-item disabled" data-camera="right_pillar" draggable="true">
-                                        <span class="camera-label">Right Pillar</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                    <div class="camera-item disabled" data-camera="left_repeater" draggable="true">
-                                        <span class="camera-label">Left Repeater</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                    <div class="camera-item disabled" data-camera="back" draggable="true">
-                                        <span class="camera-label">Back</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                    <div class="camera-item disabled" data-camera="right_repeater" draggable="true">
-                                        <span class="camera-label">Right Repeater</span>
-                                        <input type="checkbox" class="camera-export-toggle">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <!-- Dashboard - Collapsible -->
+                <div class="collapsible-section" data-section="dashboard">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">Telemetry Overlay</span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
-
-                    <!-- 3. Quality Settings | Hardware Acceleration (side by side) - Already correctly positioned -->
-                    <div class="export-section">
-                        <div class="settings-row">
-                            <div class="settings-column">
-                                <h3>Quality Settings</h3>
-                                <div class="quality-options">
-                                    <label class="quality-option">
-                                        <input type="radio" name="export-quality" value="full" checked>
-                                        <div class="quality-info">
-                                            <strong>Full Resolution Export</strong>
-                                            <span>Original Tesla quality (larger file size)</span>
-                                        </div>
-                                    </label>
-                                    <label class="quality-option">
-                                        <input type="radio" name="export-quality" value="mobile">
-                                        <div class="quality-info">
-                                            <strong>Mobile Friendly Export</strong>
-                                            <span>Compressed for sharing (smaller file size)</span>
-                                        </div>
-                                    </label>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Include Dashboard</span>
+                                    <span class="toggle-row-desc">Burn-in speed, gear, and telemetry</span>
                                 </div>
-                            </div>
-
-                            <div class="settings-column">
-                                <h3>Hardware Acceleration</h3>
-                                <div class="hwaccel-options">
-                                    <label class="hwaccel-option">
-                                        <input type="checkbox" id="hwaccel-enabled">
-                                        <div class="hwaccel-info">
-                                            <div class="hwaccel-status-container">
-                                                <div class="hwaccel-spinner" id="hwaccel-spinner"></div>
-                                                <strong id="hwaccel-status">Detecting GPU...</strong>
-                                            </div>
-                                            <span id="hwaccel-description">Enable hardware acceleration (NVIDIA, AMD, Intel, or Mac, if available)</span>
-                                        </div>
-                                    </label>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="includeDashboard">
+                                    <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                                 </div>
+                            </label>
+                            <div id="dashboardGpuWarning" class="info-box info-red hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">⚠️</span>
+                                <span>Dashboard overlay requires GPU encoding. No compatible GPU encoder was detected on this system.</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- 4. Timelapse Options | Timestamp Overlay (side by side) - Moved to be adjacent -->
-                    <div class="export-section">
-                        <div class="settings-row">
-                            <div class="settings-column">
-                                <h3>Timelapse Options</h3>
-                                <div class="timelapse-options">
-                                    <label class="timelapse-toggle">
-                                        <input type="checkbox" id="timelapse-enabled">
-                                        <span>Export as Timelapse</span>
-                                    </label>
-                                    <div id="timelapse-settings" class="timelapse-settings hidden">
-                                        <div class="timelapse-speed-selection">
-                                            <label for="timelapse-speed">Timelapse Speed:</label>
-                                            <div class="timelapse-speed-dropdown">
-                                                <select id="timelapse-speed">
-                                                    <option value="4">4x Speed (Quarter time)</option>
-                                                    <option value="8">8x Speed (Eighth time)</option>
-                                                    <option value="16">16x Speed</option>
-                                                    <option value="30">30x Speed</option>
-                                                    <option value="60" selected>60x Speed (1 minute → 1 second)</option>
-                                                    <option value="120">120x Speed (2 minutes → 1 second)</option>
-                                                    <option value="300">300x Speed (5 minutes → 1 second)</option>
-                                                    <option value="600">600x Speed (10 minutes → 1 second)</option>
-                                                    <option value="1200">1200x Speed (20 minutes → 1 second)</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="timelapse-preview">
-                                            <small id="timelapse-preview-text">Preview: 20 minute export → 20 second timelapse</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="settings-column">
-                                <h3>Timestamp Overlay</h3>
-                                <div class="timestamp-options">
-                                    <label class="timestamp-toggle">
-                                        <input type="checkbox" id="timestamp-overlay-enabled" checked>
-                                        <span>Show timestamp overlay</span>
-                                    </label>
-                                    <div class="timestamp-position">
-                                        <label for="timestamp-position">Position:</label>
-                                        <select id="timestamp-position">
-                                            <option value="bottom-center" selected>Bottom Center</option>
+                            <div id="dashboardOptions" class="hidden" style="margin-top: 10px;">
+                                <div class="option-grid">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Position</label>
+                                        <select id="dashboardPosition" class="text-input" style="padding: 6px 10px;">
+                                            <option value="bottom-center">Bottom Center</option>
                                             <option value="bottom-left">Bottom Left</option>
                                             <option value="bottom-right">Bottom Right</option>
                                             <option value="top-center">Top Center</option>
@@ -514,115 +502,909 @@
                                             <option value="top-right">Top Right</option>
                                         </select>
                                     </div>
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Size</label>
+                                        <select id="dashboardSize" class="text-input" style="padding: 6px 10px;">
+                                            <option value="small">Small (20%)</option>
+                                            <option value="medium" selected>Medium (30%)</option>
+                                            <option value="large">Large (40%)</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div id="export-progress" class="export-progress hidden">
-                        <div class="progress-header">
-                            <h3>Exporting Video...</h3>
-                            <span id="progress-percentage">0%</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div id="progress-fill" class="progress-fill"></div>
-                        </div>
-                        <div class="progress-info">
-                            <span id="progress-status">Preparing export...</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <div id="export-error-message" style="color:#c00; font-weight:bold; margin-bottom:8px; display:none;"></div>
-                    <button id="cancel-export" class="btn secondary">Cancel</button>
-                    <button id="start-export" class="btn primary">Start Export</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading Screen -->
-        <div id="loading-screen" class="loading-screen hidden">
-            <div class="loading-content">
-                <div class="spinner large"></div>
-                <h2>Loading Sentry-Six</h2>
-                <p id="loading-message">Initializing application...</p>
-            </div>
-        </div>
-
-        <!-- Settings Modal -->
-        <div id="settings-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Settings</h2>
-                    <button id="close-settings-modal" class="close-btn">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="settings-row">
-                        <div class="settings-column">
-                            <h3>Performance & Caching</h3>
-                            <label class="timestamp-toggle" style="display:flex; align-items:center; gap:10px;">
-                                <input type="checkbox" id="zero-probe-toggle">
-                                <span>Zero‑probeing mode</span>
-                            </label>
-                            <div style="font-size:12px; color:#888; margin-top:6px; line-height:1.4;">
-                                When enabled, the app will not run ffprobe after folder load. Dates that are fully cached turn green immediately; red dates stay pending until you manually trigger analysis. Default: off.
-                            </div>
-                            
-                            <h4 style="margin-top: 20px; margin-bottom: 10px;">Cache Management</h4>
-                            <div style="display: flex; flex-direction: column; gap: 15px;">
-                                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                                    <button id="clear-gui-cache-btn" class="btn secondary">
-                                        🗑️ Clear GUI Cache
-                                    </button>
-                                    <button id="clear-clips-cache-btn" class="btn danger">
-                                        🗑️ Clear All Video Clips Cache
-                                    </button>
-                                </div>
-                                <div style="display: flex; flex-direction: column; gap: 8px; font-size:12px; color:#888;">
-                                    <div>• <strong>GUI Cache:</strong> Deletes Sen6GUIinfo.json file containing folder structure cache</div>
-                                    <div>• <strong>Video Clips Cache:</strong> Deletes all Sen6ClipsInfo.json files from SentryClips, SavedClips, and RecentClips folders</div>
-                                </div>
+                            <div class="info-box info-blue" style="margin-top: 10px;">
+                                <span class="info-box-icon">ℹ️</span>
+                                <span>Dashboard is pre-rendered for optimal performance.</span>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button id="settings-close-btn" class="btn primary">Close</button>
+
+                <!-- FFmpeg Status -->
+                <div class="modal-section" style="margin-top: 6px;">
+                    <div id="ffmpegStatus" class="info-box info-green">
+                        <span class="info-box-icon">⏳</span>
+                        <span class="status-text">Checking FFmpeg...</span>
+                    </div>
+                </div>
+
+                <!-- Progress -->
+                <div id="exportProgress" class="export-progress hidden">
+                    <div class="progress-bar-container">
+                        <div id="exportProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="exportProgressText" class="progress-text">Preparing...</div>
+                </div>
+                
+                <div id="dashboardProgress" class="export-progress hidden">
+                    <div class="progress-bar-container">
+                        <div id="dashboardProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="dashboardProgressText" class="progress-text">Rendering dashboard...</div>
+                </div>
+                
+                <!-- Minimize hint shown during export -->
+                <div id="exportMinimizeHint" class="export-minimize-hint hidden">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    <span>You can minimize this window to continue watching footage. Export will continue in the background.</span>
                 </div>
             </div>
+            <div class="modal-footer">
+                <button id="cancelExportBtn" class="btn btn-secondary">Cancel</button>
+                <button id="startExportBtn" class="btn btn-primary" disabled>Export</button>
+            </div>
         </div>
+    </div>
 
-        <!-- Onboarding/Welcome Modal -->
-        <div id="onboarding-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Welcome to Sentry-Six</h2>
-                    <button id="close-onboarding-modal" class="close-btn">&times;</button>
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content settings-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                    </svg>
+                    Settings
+                </h2>
+                <button id="closeSettingsModal" class="modal-close">&times;</button>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="general">General</button>
+                <button class="modal-tab" data-tab="shortcuts">Shortcuts</button>
+                <button class="modal-tab" data-tab="advanced">Advanced</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- General Tab -->
+                <div class="modal-tab-content active" data-tab="general">
+                    <!-- Layout Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Layout</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Classic Sidebar</span>
+                                <span class="toggle-row-desc">Docked sidebar that doesn't overlap video</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsLayoutStyle">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Display Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Display</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Dashboard Overlay</span>
+                                <span class="toggle-row-desc">Speed, gear, steering and telemetry</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsDashboardToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">GPS Map</span>
+                                <span class="toggle-row-desc">Show route map overlay</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMapToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="slider-row">
+                            <div class="slider-row-info">
+                                <span class="slider-row-label">Glass Blur</span>
+                                <span class="slider-row-desc">Panel blur intensity</span>
+                            </div>
+                            <div class="slider-row-control">
+                                <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
+                                <span id="glassBlurValue" class="slider-row-value">7px</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Units Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Units</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Metric Units (KM/H)</span>
+                                <span class="toggle-row-desc">Use kilometers per hour</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMetricToggle">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Default Folder Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Default TeslaCam Folder</div>
+                        <div class="modal-section-desc">Auto-load this folder on startup</div>
+                        <div class="input-row">
+                            <input type="text" id="defaultFolderPath" class="text-input" placeholder="No folder set" readonly>
+                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small">Browse</button>
+                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
+                        </div>
+                        <div id="defaultFolderStatus" class="folder-status"></div>
+                    </div>
+                    
+                    <!-- About Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">About</div>
+                        <div class="about-version-row">
+                            <span class="about-version-label">Version</span>
+                            <span id="settingsCurrentVersion" class="about-version-value">---</span>
+                        </div>
+                        <button id="viewChangelogBtn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                            View Changelog
+                        </button>
+                    </div>
+                    
+                    <!-- Support Section -->
+                    <div class="modal-section">
+                        <div class="modal-section-title">Support</div>
+                        <div class="modal-section-desc">Having issues? Generate a Support ID to share with developers for troubleshooting.</div>
+                        <button id="generateSupportIdBtn" class="btn btn-primary support-id-btn" style="width: 100%; margin-top: 10px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            Generate Support ID
+                        </button>
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <p>Thank you for installing Sentry-Six, the Tesla Dashcam Viewer.</p>
-                    <p>To get started, please select your TeslaCam folder (SavedClips, SentryClips, or RecentClips).</p>
-                    <ul>
-                        <li>Click the button below to choose your Tesla dashcam folder.</li>
-                        <li>You can change this folder later from the sidebar.</li>
-                    </ul>
+                
+                <!-- Shortcuts Tab -->
+                <div class="modal-tab-content" data-tab="shortcuts">
+                    <div class="modal-section">
+                        <div class="modal-section-title">Keyboard Shortcuts</div>
+                        <div class="modal-section-desc">Click a field and press any key</div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Play / Pause</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="playPause" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Skip Forward 15s</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Skip Backward 15s</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Toggle Dashboard</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="toggleDash" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Toggle Map</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="toggleMap" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Toggle MPH / KMH</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="toggleMetric" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Toggle Clips Panel</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="modal-footer">
-                    <label style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px;">
-                        <input type="checkbox" id="onboarding-dont-show" />
-                        Don't show this again
+                
+                <!-- Advanced Tab -->
+                <div class="modal-tab-content" data-tab="advanced">
+                    <div class="modal-section">
+                        <div class="modal-section-title">Updates</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Disable Auto-Update</span>
+                                <span class="toggle-row-desc">Don't check for updates on launch</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsDisableAutoUpdate">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="action-row">
+                            <div class="action-row-info">
+                                <span class="action-row-label">Update Branch</span>
+                                <span class="action-row-desc">Main for stable, Dev-SEI for beta</span>
+                            </div>
+                            <select id="settingsUpdateBranch" class="settings-select">
+                                <option value="main">Main (Stable)</option>
+                                <option value="Dev-SEI">Dev-SEI (Beta)</option>
+                            </select>
+                        </div>
+                        <div class="action-row">
+                            <div class="action-row-info">
+                                <span class="action-row-label">Check for Updates</span>
+                                <span class="action-row-desc">Manually check for new versions</span>
+                            </div>
+                            <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small">Check Now</button>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <div class="modal-section-title">Event Highlights</div>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Sentry Camera Glow</span>
+                                <span class="toggle-row-desc">Red glow on triggered camera</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSentryCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Saved Camera Glow</span>
+                                <span class="toggle-row-desc">Yellow glow on triggered camera</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSavedCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <div class="modal-section-title">Camera Layout</div>
+                        <div class="action-row">
+                            <div class="action-row-info">
+                                <span class="action-row-label">Reset Camera Order</span>
+                                <span class="action-row-desc">Restore default grid positions</span>
+                            </div>
+                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Developer Settings Modal -->
+    <div id="devSettingsModal" class="modal hidden">
+        <div class="modal-content dev-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #ff9800;">
+                        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                    </svg>
+                    Developer
+                </h2>
+                <button id="closeDevSettingsModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <div class="modal-section">
+                    <div class="modal-section-title">Debug Tools</div>
+                    <div class="dev-grid">
+                        <button id="devOpenConsole" class="dev-card">
+                            <span class="dev-card-icon">🔧</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Open DevTools</span>
+                                <span class="dev-card-desc">Chrome Developer Tools</span>
+                            </div>
+                        </button>
+                        <button id="devResetSettings" class="dev-card">
+                            <span class="dev-card-icon">🗑️</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reset Settings</span>
+                                <span class="dev-card-desc">Restore defaults</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Version Control</div>
+                    <div class="dev-version-display">
+                        <span class="dev-version-label">Current Version:</span>
+                        <span id="devCurrentVersion" class="dev-version-value">Loading...</span>
+                    </div>
+                    <div class="dev-grid">
+                        <button id="devForceLatest" class="dev-card">
+                            <span class="dev-card-icon">⏩</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Force Latest</span>
+                                <span class="dev-card-desc">Set to remote version</span>
+                            </div>
+                        </button>
+                        <button id="devSetOldVersion" class="dev-card">
+                            <span class="dev-card-icon">⏪</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Set Old Version</span>
+                                <span class="dev-card-desc">Set to v0.0.1 for testing</span>
+                            </div>
+                        </button>
+                        <button id="devCheckUpdate" class="dev-card">
+                            <span class="dev-card-icon">🔍</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Check Updates</span>
+                                <span class="dev-card-desc">Trigger update check now</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Export Testing</div>
+                    <label class="toggle-row">
+                        <div class="toggle-row-info">
+                            <span class="toggle-row-label">Fake No GPU</span>
+                            <span class="toggle-row-desc">Simulate CPU-only encoding mode</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="devFakeNoGpu">
+                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                        </div>
                     </label>
-                    <button id="onboarding-select-folder" class="btn primary">
-                        <span id="onboarding-folder-spinner" class="spinner small" style="display:none; margin-right:8px;"></span>
-                        Select TeslaCam Folder
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Welcome Guide</div>
+                    <div class="dev-grid">
+                        <button id="devResetWelcomeGuide" class="dev-card">
+                            <span class="dev-card-icon">🔄</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reset Welcome Guide</span>
+                                <span class="dev-card-desc">Show on next launch</span>
+                            </div>
+                        </button>
+                        <button id="devShowWelcomeGuide" class="dev-card">
+                            <span class="dev-card-icon">👋</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Show Welcome Guide</span>
+                                <span class="dev-card-desc">Open guide now</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Diagnostics</div>
+                    <div class="dev-grid">
+                        <button id="devShowPaths" class="dev-card">
+                            <span class="dev-card-icon">📁</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">App Paths</span>
+                                <span class="dev-card-desc">Show file locations</span>
+                            </div>
+                        </button>
+                        <button id="devReloadApp" class="dev-card">
+                            <span class="dev-card-icon">🔄</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reload App</span>
+                                <span class="dev-card-desc">Force renderer reload</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Support ID Lookup</div>
+                    <div class="dev-grid">
+                        <button id="devDecodeSupportId" class="dev-card">
+                            <span class="dev-card-icon">🔓</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Lookup Support ID</span>
+                                <span class="dev-card-desc">View user diagnostic data</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="devOutput" class="dev-output-box hidden">
+                    <pre id="devOutputText"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeDevSettingsBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Changelog Modal -->
+    <div id="changelogModal" class="modal hidden">
+        <div class="modal-content changelog-modal">
+            <div class="modal-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <h2>Changelog</h2>
+                <button id="closeChangelogModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="changelog-section" style="background: transparent;">
+                    <div id="fullChangelogContent" class="changelog-content">
+                        <div class="changelog-loading">Loading changelog...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeChangelogBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Modal -->
+    <div id="updateModal" class="modal hidden">
+        <div class="modal-content update-modal">
+            <div class="modal-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #4caf50;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <h2>Update Available</h2>
+            </div>
+            <div class="modal-body">
+                <!-- Version Badge -->
+                <div class="update-version-badge">
+                    <div class="version-current">
+                        <span class="version-label">Current</span>
+                        <span id="currentVersionDisplay" class="version-number">---</span>
+                    </div>
+                    <div class="version-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                    <div class="version-new">
+                        <span class="version-label">New</span>
+                        <span id="latestVersionDisplay" class="version-number">---</span>
+                    </div>
+                </div>
+
+                <!-- Changelog Section -->
+                <div class="changelog-section">
+                    <div class="changelog-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        <span>What's New</span>
+                    </div>
+                    <div id="changelogContent" class="changelog-content">
+                        <!-- Changelog entries will be inserted here -->
+                        <div class="changelog-loading">Loading changelog...</div>
+                    </div>
+                </div>
+
+                <!-- Progress Section -->
+                <div id="updateProgress" class="update-progress hidden">
+                    <div class="progress-bar-container">
+                        <div id="updateProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="updateProgressText" class="progress-text">Preparing update...</div>
+                </div>
+            </div>
+            <div class="modal-footer" id="updateModalFooter">
+                <button id="skipUpdateBtn" class="btn btn-secondary">Later</button>
+                <button id="installUpdateBtn" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Update Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welcome Guide Modal -->
+    <div id="welcomeGuideModal" class="modal hidden">
+        <div class="modal-content welcome-guide-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #00d4ff;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                    </svg>
+                    Welcome to Sentry Six
+                </h2>
+                <button id="closeWelcomeGuide" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body welcome-guide-body">
+                <!-- Tour Steps Container -->
+                <div class="welcome-steps-container">
+                    <!-- Step 1: Introduction -->
+                    <div class="welcome-step active" data-step="1">
+                        <div class="welcome-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                                <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">Welcome!</h3>
+                        <p class="welcome-step-desc">Sentry Six is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
+                    </div>
+                    
+                    <!-- Step 2: Load Folder -->
+                    <div class="welcome-step" data-step="2">
+                        <h3 class="welcome-step-title">Load Your TeslaCam Folder</h3>
+                        <p class="welcome-step-desc">Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
+                        <!-- Actual drop overlay clone -->
+                        <div class="welcome-preview-container">
+                            <div class="drop-overlay welcome-preview-drop" style="position: relative; display: flex;">
+                                <div class="drop-message">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    <p>Select your TeslaCam folder to browse clips</p>
+                                    <div class="drop-actions">
+                                        <button class="mini-btn">Choose Folder</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="welcome-step-note">You can select your folder after completing the tour.</p>
+                    </div>
+                    
+                    <!-- Step 3: Clip Browser -->
+                    <div class="welcome-step" data-step="3">
+                        <h3 class="welcome-step-title">Browse Your Clips</h3>
+                        <p class="welcome-step-desc">The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
+                        <!-- Actual clip browser clone -->
+                        <div class="welcome-preview-container">
+                            <div class="clip-browser welcome-preview-clips" style="position: relative; width: 100%;">
+                                <div class="clip-browser-header">
+                                    <div class="clip-browser-title">
+                                        <div class="clip-browser-title-main">Clips</div>
+                                        <div class="clip-browser-subtitle">3 events found</div>
+                                        <div class="clip-browser-dayfilter">
+                                            <label>Date</label>
+                                            <select style="pointer-events: none;"><option>Dec 31, 2025</option></select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="clip-list" style="display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                                    <div class="clip-item event-item sentry-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Sentry Event</div>
+                                            <div class="clip-badges">
+                                                <span class="badge sentry">Sentry</span>
+                                            </div>
+                                            <div class="clip-sub"><div>3 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                    <div class="clip-item event-item saved-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Saved Clip</div>
+                                            <div class="clip-badges">
+                                                <span class="badge saved">Saved</span>
+                                                <span class="badge reason-icon warning">User Input</span>
+                                            </div>
+                                            <div class="clip-sub"><div>2 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                    <div class="clip-item event-item recent-item" style="pointer-events: none;">
+                                        <div class="clip-meta clip-meta-full">
+                                            <div class="clip-title">Recent Clip</div>
+                                            <div class="clip-badges">
+                                                <span class="badge recent">Recent</span>
+                                            </div>
+                                            <div class="clip-sub"><div>5 segments · 6 cam</div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 4: Multi-Camera View -->
+                    <div class="welcome-step" data-step="4">
+                        <h3 class="welcome-step-title">Multi-Camera Playback</h3>
+                        <p class="welcome-step-desc">View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
+                        <!-- Actual multi-cam grid clone -->
+                        <div class="welcome-preview-container">
+                            <div class="multi-cam-grid welcome-preview-grid" style="position: relative; display: grid; padding: 6px; aspect-ratio: 3/2;">
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Left Pillar</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Front</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Right Pillar</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Left Repeater</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Back</div>
+                                </div>
+                                <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+                                    <div class="multi-label">Right Repeater</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 5: Telemetry Dashboard -->
+                    <div class="welcome-step" data-step="5">
+                        <h3 class="welcome-step-title">Live Telemetry Dashboard</h3>
+                        <p class="welcome-step-desc">Real-time speed, gear, steering, turn signals, G-force, and compass data. Drag to reposition.</p>
+                        <!-- Actual dashboard clone with sample data -->
+                        <div class="welcome-preview-container">
+                            <div class="dashboard-vis welcome-preview-dash" style="position: relative; display: block;">
+                                <div class="vis-content">
+                                    <div class="autosteer-section">
+                                        <div class="autosteer-wrapper welcome-steering-animate">
+                                            <img src="../../assets/autosteer-icon.png" class="autosteer-icon active" alt="Autosteer">
+                                        </div>
+                                    </div>
+                                    <div class="center-cluster">
+                                        <div class="turn-signal left active">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <path d="M19 12H5M12 5l-7 7 7 7"/>
+                                            </svg>
+                                        </div>
+                                        <div class="speed-display">
+                                            <div class="gear-state active">DRIVE</div>
+                                            <div class="speed-value">45</div>
+                                            <div class="speed-unit">MPH</div>
+                                            <div class="autopilot-label-container">
+                                                <span class="autopilot-label active">Self Driving</span>
+                                            </div>
+                                        </div>
+                                        <div class="turn-signal right">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="right-cluster">
+                                        <div class="recording-time">
+                                            <span id="welcomeTimeDisplay">2:45:30 PM</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="instruments-row">
+                                    <div class="gforce-section">
+                                        <div class="gforce-meter">
+                                            <svg viewBox="0 0 60 60">
+                                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                                <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                                <circle cx="30" cy="30" r="9" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                                                <line x1="30" y1="2" x2="30" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                                <line x1="2" y1="30" x2="58" y2="30" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                                                <circle cx="35" cy="25" r="4" fill="#3e9cbf"/>
+                                            </svg>
+                                            <div class="gforce-label">G</div>
+                                        </div>
+                                        <div class="gforce-values">
+                                            <div class="gforce-val">0.2</div>
+                                            <div class="gforce-val">-0.1</div>
+                                        </div>
+                                    </div>
+                                    <div class="compass-section">
+                                        <div class="compass-meter">
+                                            <svg viewBox="0 0 60 60">
+                                                <circle cx="30" cy="30" r="28" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                                                <text x="30" y="10" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="8" font-weight="700">N</text>
+                                                <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">S</text>
+                                                <text x="7" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">W</text>
+                                                <text x="53" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="7">E</text>
+                                                <g transform="rotate(45 30 30)">
+                                                    <polygon points="30,14 26,30 30,28 34,30" fill="#e74c3c"/>
+                                                    <polygon points="30,46 26,30 30,32 34,30" fill="rgba(255,255,255,0.4)"/>
+                                                    <circle cx="30" cy="30" r="3" fill="#222" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                                                </g>
+                                            </svg>
+                                        </div>
+                                        <div class="compass-value">45°</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 6: Map View -->
+                    <div class="welcome-step" data-step="6">
+                        <div class="welcome-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                                <line x1="8" y1="2" x2="8" y2="18"/>
+                                <line x1="16" y1="6" x2="16" y2="22"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">GPS Map Tracking</h3>
+                        <p class="welcome-step-desc">The floating map displays your vehicle's real-time location and travel path during playback. Event locations are automatically marked on the map. You can drag it anywhere on screen and toggle its visibility in Settings.</p>
+                    </div>
+                    
+                    <!-- Step 7: Export -->
+                    <div class="welcome-step" data-step="7">
+                        <h3 class="welcome-step-title">Export Your Clips</h3>
+                        <p class="welcome-step-desc">Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
+                        <!-- Actual export controls clone -->
+                        <div class="welcome-preview-container">
+                            <div class="controls welcome-preview-controls" style="position: relative; display: flex; padding: 10px; border-radius: 12px;">
+                                <div class="export-group" style="display: flex; gap: 6px; margin: 0 auto;">
+                                    <button class="control-btn export-marker-btn start" style="pointer-events: none;">
+                                        <span class="marker-label">In</span>
+                                    </button>
+                                    <button class="control-btn export-marker-btn end" style="pointer-events: none;">
+                                        <span class="marker-label">Out</span>
+                                    </button>
+                                    <button class="control-btn export-btn" style="pointer-events: none;">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 8: Settings -->
+                    <div class="welcome-step" data-step="8">
+                        <h3 class="welcome-step-title">Customize Settings</h3>
+                        <p class="welcome-step-desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, and display preferences.</p>
+                        <!-- Actual settings modal clone -->
+                        <div class="welcome-preview-container">
+                            <div class="modal-content welcome-preview-settings" style="position: relative; max-width: 100%; margin: 0;">
+                                <div class="modal-header" style="padding: 10px 14px;">
+                                    <h2 style="font-size: 13px;">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 6px; opacity: 0.8;">
+                                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58z"/>
+                                        </svg>
+                                        Settings
+                                    </h2>
+                                </div>
+                                <div style="padding: 10px 14px;">
+                                    <div class="toggle-row" style="pointer-events: none;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Show Dashboard</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" checked disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Show Map</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" checked disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Use Metric Units</span>
+                                        </div>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" disabled>
+                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 9: Finish -->
+                    <div class="welcome-step" data-step="9">
+                        <div class="welcome-step-icon welcome-step-icon-success">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+                        <h3 class="welcome-step-title">You're All Set!</h3>
+                        <p class="welcome-step-desc">That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.</p>
+                        <p class="welcome-step-tip">💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
+                    </div>
+                </div>
+                
+                <!-- Step Indicators -->
+                <div class="welcome-step-indicators">
+                    <span class="welcome-indicator active" data-step="1"></span>
+                    <span class="welcome-indicator" data-step="2"></span>
+                    <span class="welcome-indicator" data-step="3"></span>
+                    <span class="welcome-indicator" data-step="4"></span>
+                    <span class="welcome-indicator" data-step="5"></span>
+                    <span class="welcome-indicator" data-step="6"></span>
+                    <span class="welcome-indicator" data-step="7"></span>
+                    <span class="welcome-indicator" data-step="8"></span>
+                    <span class="welcome-indicator" data-step="9"></span>
+                </div>
+            </div>
+            <div class="modal-footer welcome-guide-footer">
+                <button id="welcomeSkipBtn" class="btn btn-secondary">Skip Tour</button>
+                <div class="welcome-nav-buttons">
+                    <button id="welcomePrevBtn" class="btn btn-secondary" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button id="welcomeNextBtn" class="btn btn-primary">
+                        Next
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
                     </button>
                 </div>
             </div>
         </div>
-
-        <!-- Scripts -->
-        <script src="debug-manager.js"></script>
-        <script src="app.js"></script>
     </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="vendor/protobuf.min.js"></script>
+    <script src="scripts/data/dashcam-mp4.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
+
