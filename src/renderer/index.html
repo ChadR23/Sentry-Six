@@ -534,32 +534,77 @@
                                 <span>Dashboard overlay requires GPU encoding. No compatible GPU encoder was detected on this system.</span>
                             </div>
                             <div id="dashboardOptions" class="hidden" style="margin-top: 10px;">
-                                <div class="option-grid">
-                                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Position</label>
-                                        <select id="dashboardPosition" class="text-input" style="padding: 6px 10px;">
-                                            <option value="bottom-center">Bottom Center</option>
-                                            <option value="bottom-left">Bottom Left</option>
-                                            <option value="bottom-right">Bottom Right</option>
-                                            <option value="top-center">Top Center</option>
-                                            <option value="top-left">Top Left</option>
-                                            <option value="top-right">Top Right</option>
-                                        </select>
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Position</span>
+                                        <span class="select-row-desc">Dashboard placement on video</span>
                                     </div>
-                                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                                        <label style="font-size: 11px; color: rgba(255,255,255,0.5);">Size</label>
-                                        <select id="dashboardSize" class="text-input" style="padding: 6px 10px;">
-                                            <option value="small">Small (20%)</option>
-                                            <option value="medium" selected>Medium (30%)</option>
-                                            <option value="large">Large (40%)</option>
-                                        </select>
+                                    <select id="dashboardPosition" class="settings-select">
+                                        <option value="bottom-center">Bottom Center</option>
+                                        <option value="bottom-left">Bottom Left</option>
+                                        <option value="bottom-right">Bottom Right</option>
+                                        <option value="top-center">Top Center</option>
+                                        <option value="top-left">Top Left</option>
+                                        <option value="top-right">Top Right</option>
+                                    </select>
+                                </div>
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Size</span>
+                                        <span class="select-row-desc">Dashboard overlay size</span>
                                     </div>
+                                    <select id="dashboardSize" class="settings-select">
+                                        <option value="small">Small (20%)</option>
+                                        <option value="medium" selected>Medium (30%)</option>
+                                        <option value="large">Large (40%)</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="info-box info-blue" style="margin-top: 10px;">
                                 <span class="info-box-icon">ℹ️</span>
                                 <span>Dashboard is pre-rendered for optimal performance.</span>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timestamp Overlay -->
+                <div class="modal-section" style="margin-top: 6px;">
+                    <label class="toggle-row" id="timestampToggleRow">
+                        <div class="toggle-row-info">
+                            <span class="toggle-row-label">Add Timestamp Overlay</span>
+                            <span class="toggle-row-desc">Burn-in recording time on exported video</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="includeTimestamp">
+                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                        </div>
+                    </label>
+                    <div id="timestampOptions" class="hidden" style="margin-top: 10px;">
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label">Position</span>
+                                <span class="select-row-desc">Timestamp placement on video</span>
+                            </div>
+                            <select id="timestampPosition" class="settings-select">
+                                <option value="bottom-center" selected>Bottom Center</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                                <option value="top-center">Top Center</option>
+                                <option value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                            </select>
+                        </div>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label">Date Format</span>
+                                <span class="select-row-desc">Choose date display format</span>
+                            </div>
+                            <select id="timestampDateFormat" class="settings-select">
+                                <option value="mdy" selected>MM/DD/YYYY (US)</option>
+                                <option value="dmy">DD/MM/YYYY (International)</option>
+                                <option value="ymd">YYYY-MM-DD (ISO)</option>
+                            </select>
                         </div>
                     </div>
                 </div>
