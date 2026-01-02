@@ -518,6 +518,70 @@ function findSeiAtTime(seiData, timestampMs) {
   return closest?.sei || null;
 }
 
+// Parse timestamp key from filename (format: YYYY-MM-DD_HH-MM-SS-camera.mp4)
+function parseTimestampKeyFromFilename(filename) {
+  if (!filename) return null;
+  const match = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}_${match[4]}-${match[5]}-${match[6]}`;
+}
+
+// Convert timestamp key to epoch milliseconds
+function parseTimestampKeyToEpochMs(timestampKey) {
+  if (!timestampKey) return null;
+  const match = String(timestampKey).match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, Y, Mo, D, h, mi, s] = match;
+  return new Date(+Y, +Mo - 1, +D, +h, +mi, +s, 0).getTime();
+}
+
+// Convert video time offset (ms from collection start) to actual timestamp (epoch ms)
+// This accounts for start/end markers by finding the correct segment
+function convertVideoTimeToTimestamp(videoTimeMs, segments, cumStarts) {
+  if (!segments || !segments.length || !cumStarts || !cumStarts.length) return null;
+  
+  // Find which segment contains this video time
+  for (let i = 0; i < segments.length; i++) {
+    const segStartMs = (cumStarts[i] || 0) * 1000;
+    const segDurMs = (segments[i]?.durationSec || 60) * 1000;
+    const segEndMs = segStartMs + segDurMs;
+    
+    if (videoTimeMs >= segStartMs && videoTimeMs < segEndMs) {
+      // Found the segment - extract timestamp from filename
+      const seg = segments[i];
+      const files = seg.files || {};
+      
+      // Try to get filename from any camera file (prefer front, then any)
+      let filename = null;
+      if (files.front) {
+        filename = path.basename(files.front);
+      } else {
+        // Get first available file
+        const firstCamera = Object.keys(files)[0];
+        if (firstCamera) filename = path.basename(files[firstCamera]);
+      }
+      
+      if (!filename) continue;
+      
+      // Parse timestamp key from filename
+      const timestampKey = parseTimestampKeyFromFilename(filename);
+      if (!timestampKey) continue;
+      
+      // Convert to epoch milliseconds
+      const segmentStartEpochMs = parseTimestampKeyToEpochMs(timestampKey);
+      if (!segmentStartEpochMs) continue;
+      
+      // Calculate offset within this segment
+      const offsetWithinSegmentMs = videoTimeMs - segStartMs;
+      
+      // Return actual timestamp
+      return segmentStartEpochMs + offsetWithinSegmentMs;
+    }
+  }
+  
+  return null;
+}
+
 // Create a hidden BrowserWindow for dashboard rendering
 async function createDashboardRenderer(dashboardWidth, dashboardHeight) {
   return new Promise((resolve, reject) => {
@@ -737,7 +801,7 @@ function imageToRGBA(image, width, height, outputBuffer) {
 }
 
 // Pre-render dashboard to temp video (prevents memory leak)
-async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress) {
+async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress, segments, cumStarts) {
   const FPS = 36;
   const totalFrames = Math.ceil(durationSec * FPS);
   const frameTimeMs = 1000 / FPS;
@@ -818,7 +882,12 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
       
       const currentTimeMs = startTimeMs + (frame * frameTimeMs);
       const sei = findSeiAtTime(seiData, currentTimeMs);
-      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric, currentTimeMs);
+      
+      // Convert video time offset to actual timestamp (epoch ms) for display
+      // This accounts for start/end markers by finding the correct segment
+      const actualTimestampMs = convertVideoTimeToTimestamp(currentTimeMs, segments, cumStarts) || currentTimeMs;
+      
+      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric, actualTimestampMs);
       
       let frameData = blackFrame;
       if (image) {
@@ -1133,9 +1202,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             // PRE-RENDER DASHBOARD TO TEMP FILE
             // This prevents the massive memory leak caused by FFmpeg buffering
             // frames while waiting for pipe input to sync with video inputs
+            // Build cumStarts array from segments (each segment has startSec)
+            const cumStarts = segments.map(seg => seg.startSec || 0);
             dashboardTempPath = await preRenderDashboard(
               event, exportId, ffmpegPath, seiData, startTimeMs, durationSec,
-              dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress
+              dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress,
+              segments, cumStarts
             );
             tempFiles.push(dashboardTempPath);
             useDashboard = true;

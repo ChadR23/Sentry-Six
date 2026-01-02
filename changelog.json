@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.17",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed current time on export dashboard overlay being delayed. now will be accurate down to the Sec."
+        }
+      ]
+    },
+    {
       "version": "2026.1.16",
       "date": "2026-01-01",
       "title": "Bug Fix Release",

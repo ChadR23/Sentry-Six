@@ -4,8 +4,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 release/
-
+dev-tool/
 node_modules/
 release/
 OLD/Sentry-Six-DEV-SEI/
 .DS_Store
+.env
+dev-tool/.env
+dev-tool/config.json
+
