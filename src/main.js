@@ -1950,10 +1950,20 @@ ipcMain.handle('update:check', async () => {
 
 ipcMain.handle('update:install', async (event) => {
   try {
-    if (app.isPackaged && autoUpdater) {
-      // NSIS install - use electron-updater to download
-      await autoUpdater.downloadUpdate();
-      return { success: true, downloading: true };
+    if (app.isPackaged) {
+      // Packaged app - use platform-specific installers
+      if (process.platform === 'darwin') {
+        // macOS: Always use DMG download - can't copy files into app.asar
+        // and Squirrel.Mac requires code-signed apps which we don't have
+        const result = await performMacOSUpdate();
+        return result;
+      } else if (autoUpdater) {
+        // Windows NSIS install - use electron-updater to download
+        await autoUpdater.downloadUpdate();
+        return { success: true, downloading: true };
+      } else {
+        return { success: false, error: 'Auto-updater not available' };
+      }
     } else {
       // Development/manual install - use the manual update process
       const result = await performManualUpdate(event);
@@ -1964,6 +1974,85 @@ ipcMain.handle('update:install', async (event) => {
     return { success: false, error: err.message };
   }
 });
+
+/**
+ * Perform update for macOS packaged builds
+ * Downloads DMG from GitHub releases and opens it for manual installation
+ * This bypasses Squirrel.Mac which requires code-signed apps
+ */
+async function performMacOSUpdate() {
+  const sendProgress = (percentage, message) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:progress', { percentage, message });
+    }
+  };
+  
+  try {
+    sendProgress(5, 'Fetching latest release info...');
+    
+    // Get latest release from GitHub API
+    const releaseUrl = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases/latest`;
+    const releaseResponse = await httpsGet(releaseUrl);
+    
+    if (releaseResponse.statusCode !== 200) {
+      throw new Error('Failed to fetch release info from GitHub');
+    }
+    
+    const releaseData = JSON.parse(releaseResponse.data);
+    const version = releaseData.tag_name?.replace(/^v/i, '') || releaseData.name;
+    
+    // Find the DMG asset
+    const dmgAsset = releaseData.assets?.find(asset => 
+      asset.name.endsWith('.dmg') && asset.name.includes('macOS')
+    );
+    
+    if (!dmgAsset) {
+      throw new Error('No macOS DMG found in the latest release');
+    }
+    
+    sendProgress(10, 'Downloading update...');
+    
+    // Download DMG to temp directory
+    const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
+    const dmgPath = path.join(tempDir, dmgAsset.name);
+    
+    // Clean and create temp directory
+    if (fs.existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+    mkdirSync(tempDir, { recursive: true });
+    
+    // Download the DMG file
+    await downloadFile(dmgAsset.browser_download_url, dmgPath, (pct) => {
+      sendProgress(10 + Math.round(pct * 0.8), `Downloading... ${pct}%`);
+    });
+    
+    sendProgress(95, 'Opening installer...');
+    
+    // Open the DMG file for user to install
+    const { shell } = require('electron');
+    await shell.openPath(dmgPath);
+    
+    console.log(`[UPDATE] Downloaded macOS update v${version}, opened DMG for installation`);
+    
+    sendProgress(100, 'Update downloaded!');
+    
+    // Signal completion with macOS-specific info
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:downloaded', { 
+        version, 
+        isMacOS: true,
+        dmgPath 
+      });
+    }
+    
+    return { success: true, isMacOS: true, dmgPath };
+  } catch (err) {
+    console.error('[UPDATE] macOS update failed:', err.message);
+    sendProgress(0, `Update failed: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+}
 
 /**
  * Perform update for manual/development installs
@@ -2086,8 +2175,13 @@ ipcMain.handle('update:installAndRestart', async () => {
 ipcMain.handle('update:exit', async () => {
   // User clicked Exit button after update
   if (app.isPackaged && autoUpdater) {
-    // NSIS install - quit and install the update
-    autoUpdater.quitAndInstall(false, true);
+    if (process.platform === 'darwin') {
+      // macOS - just quit, user will drag DMG to Applications manually
+      app.quit();
+    } else {
+      // Windows NSIS install - quit and install the update
+      autoUpdater.quitAndInstall(false, true);
+    }
   } else {
     // Dev mode - just quit, user will restart manually
     app.quit();
