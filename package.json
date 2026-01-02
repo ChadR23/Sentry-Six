@@ -57,7 +57,6 @@
           "arch": ["universal"]
         }
       ],
-      "icon": "assets/icon.ico",
       "category": "public.app-category.utilities",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
