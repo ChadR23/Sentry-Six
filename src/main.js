@@ -639,7 +639,7 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
 }
 
-async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight, useMetric = false) {
+async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight, useMetric = false, timestampMs = null) {
   return new Promise((resolve) => {
     const webContents = dashboardWindow.webContents;
     const webContentsId = webContents.id;
@@ -665,7 +665,7 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboard
     };
     
     dashboardReadyCallbacks.set(webContentsId, onReady);
-    webContents.send('dashboard:update', sei, frameNumber, useMetric);
+    webContents.send('dashboard:update', sei, frameNumber, useMetric, timestampMs);
     
     // Fallback timeout if IPC doesn't work (reduced from 1000ms to 200ms)
     setTimeout(() => {
@@ -818,7 +818,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
       
       const currentTimeMs = startTimeMs + (frame * frameTimeMs);
       const sei = findSeiAtTime(seiData, currentTimeMs);
-      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric);
+      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric, currentTimeMs);
       
       let frameData = blackFrame;
       if (image) {

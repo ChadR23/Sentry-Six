@@ -1,6 +1,21 @@
 {
   "versions": [
     {
+      "version": "2026.1.16",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed current time on export dashboard overlay not appearing."
+        },
+        {
+          "type": "improvement",
+          "description": "Improved diagnostic system."
+        }
+      ]
+    },
+    {
       "version": "2026.1.11",
       "date": "2026-01-01",
       "title": "Bug Fix Release",
