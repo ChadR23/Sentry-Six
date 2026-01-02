@@ -59,13 +59,17 @@ Have questions, feedback, or want to connect with other users?
 Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Requirements
-
-- **[Node.js](https://nodejs.org/en/download)**
 - Windows / MacOS / Linux
 
-## Installation
+## Automatic Installation for Windows (Recommended, easiest)
+1. Go to the Sentry Six [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
+2. Download the SentrySixRevampedSetup.exe
+3. Run the Installer 
+4. Run Sentry Six Revamped
 
-1. Install node.js
+## Manual Installation (Required to recieve Beta Branch Updates)
+
+1. Install [node.js](https://nodejs.org/en/download)
 2. Extract Sentry Six to your desired location.
 3. In your Sentry Six folder, right click and click on "Open in Terminal"
 4. Use the following command: `npm install`
@@ -80,7 +84,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Notes
 - For MacOS:
-  - Install ffmpeg via `brew install ffmpeg`
+  - Install ffmpeg via `brew install ffmpeg` using HomeBrew
 - SEI telemetry is typically not recorded while parked
 - Brake/accelerator pedal data is not logged during Self Driving. Pedal activity while Autopilot/Self Driving is engaged indicates driver input.
 
