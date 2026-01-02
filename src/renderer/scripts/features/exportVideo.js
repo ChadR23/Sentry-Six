@@ -530,14 +530,40 @@ export async function checkFFmpegAvailability() {
     const dashboardOptions = $('dashboardOptions');
     const dashboardGpuWarning = $('dashboardGpuWarning');
     const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
+    const timestampCheckbox = $('includeTimestamp');
+    const timestampOptions = $('timestampOptions');
+    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
     
     // Set up dashboard checkbox toggle for options visibility
     if (dashboardCheckbox && dashboardOptions) {
         dashboardCheckbox.addEventListener('change', () => {
             if (dashboardCheckbox.checked) {
                 dashboardOptions.classList.remove('hidden');
+                // Dashboard includes timestamp, so disable timestamp-only option
+                if (timestampCheckbox) {
+                    timestampCheckbox.checked = false;
+                    timestampCheckbox.disabled = true;
+                    if (timestampToggleRow) timestampToggleRow.classList.add('disabled');
+                    if (timestampOptions) timestampOptions.classList.add('hidden');
+                }
             } else {
                 dashboardOptions.classList.add('hidden');
+                // Re-enable timestamp option when dashboard is disabled
+                if (timestampCheckbox) {
+                    timestampCheckbox.disabled = false;
+                    if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+                }
+            }
+        });
+    }
+    
+    // Set up timestamp checkbox toggle for options visibility
+    if (timestampCheckbox && timestampOptions) {
+        timestampCheckbox.addEventListener('change', () => {
+            if (timestampCheckbox.checked) {
+                timestampOptions.classList.remove('hidden');
+            } else {
+                timestampOptions.classList.add('hidden');
             }
         });
     }
@@ -658,6 +684,11 @@ export async function startExport() {
     const includeDashboard = includeDashboardCheckbox?.checked ?? false;
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
+    
+    const includeTimestampCheckbox = $('includeTimestamp');
+    const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
+    const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
+    const timestampDateFormat = $('timestampDateFormat')?.value || 'mdy';
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -953,7 +984,11 @@ export async function startExport() {
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
             dashboardPosition, // Position: bottom-center, bottom-left, bottom-right, top-center, etc.
-            dashboardSize // Size: small (20%), medium (30%), large (40%)
+            dashboardSize, // Size: small (20%), medium (30%), large (40%)
+            // Timestamp-only option (independent of dashboard, uses simple drawtext filter)
+            includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
+            timestampPosition, // Position: bottom-center, bottom-left, etc.
+            timestampDateFormat // Date format: mdy (US), dmy (International), ymd (ISO)
         };
         
         await window.electronAPI.startExport(exportId, exportData);

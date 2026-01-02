@@ -954,7 +954,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium' } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy' } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -1227,7 +1227,45 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           }
         }
         
-        // Check for cancellation after dashboard setup, before building filters
+        // Flag to track if timestamp should be included in final export (using drawtext filter)
+        let useTimestamp = includeTimestamp && !useDashboard;
+        
+        // Calculate timestamp basetime from first relevant segment
+        let timestampBasetimeUs = null;
+        if (useTimestamp) {
+          // Find the first segment's timestamp from filename
+          const firstSeg = relevantSegments[0];
+          if (firstSeg) {
+            const files = firstSeg.files || {};
+            let filename = files.front ? path.basename(files.front) : null;
+            if (!filename) {
+              const firstCamera = Object.keys(files)[0];
+              if (firstCamera) filename = path.basename(files[firstCamera]);
+            }
+            
+            if (filename) {
+              const timestampKey = parseTimestampKeyFromFilename(filename);
+              if (timestampKey) {
+                const segmentStartEpochMs = parseTimestampKeyToEpochMs(timestampKey);
+                if (segmentStartEpochMs) {
+                  // Add the offset within the first segment (if export starts mid-segment)
+                  const firstSegStartMs = firstSeg.segStartMs || 0;
+                  const offsetWithinFirstSegMs = Math.max(0, startTimeMs - firstSegStartMs);
+                  const exportStartEpochMs = segmentStartEpochMs + offsetWithinFirstSegMs;
+                  timestampBasetimeUs = Math.floor(exportStartEpochMs * 1000); // Convert ms to microseconds
+                  console.log(`[TIMESTAMP] Basetime calculated: ${new Date(exportStartEpochMs).toISOString()}`);
+                }
+              }
+            }
+          }
+          
+          if (!timestampBasetimeUs) {
+            console.warn('[TIMESTAMP] Could not calculate timestamp basetime, disabling timestamp overlay');
+            useTimestamp = false;
+          }
+        }
+        
+        // Check for cancellation after dashboard/timestamp setup, before building filters
         if (cancelledExports.has(exportId)) {
           console.log('Export cancelled before building filters');
           throw new Error('Export cancelled');
@@ -1368,24 +1406,60 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
     }
 
-    // Add dashboard overlay if enabled, otherwise ensure proper pixel format
+    // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
+    const padding = 20; // Padding from edges
+    const positionExprs = {
+      'bottom-center': `(W-w)/2:H-h-${padding}`,
+      'bottom-left': `${padding}:H-h-${padding}`,
+      'bottom-right': `W-w-${padding}:H-h-${padding}`,
+      'top-center': `(W-w)/2:${padding}`,
+      'top-left': `${padding}:${padding}`,
+      'top-right': `W-w-${padding}:${padding}`
+    };
+    
     if (useDashboard) {
-      // Calculate overlay position based on user preference
-      // W = main video width, H = main video height, w = overlay width, h = overlay height
-      const padding = 20; // Padding from edges
-      const positionExprs = {
-        'bottom-center': `(W-w)/2:H-h-${padding}`,
-        'bottom-left': `${padding}:H-h-${padding}`,
-        'bottom-right': `W-w-${padding}:H-h-${padding}`,
-        'top-center': `(W-w)/2:${padding}`,
-        'top-left': `${padding}:${padding}`,
-        'top-right': `W-w-${padding}:${padding}`
-      };
+      // Dashboard overlay (includes timestamp in the dashboard)
       const overlayPos = positionExprs[dashboardPosition] || positionExprs['bottom-center'];
-      
-      // Dashboard is now a pre-rendered video file with alpha, no sync issues
       filters.push(`[grid][${dashboardInputIdx}:v]overlay=${overlayPos}:format=auto[out]`);
       console.log(`[DASHBOARD] Overlay position: ${dashboardPosition} -> ${overlayPos}`);
+    } else if (useTimestamp && timestampBasetimeUs) {
+      // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
+      // Position expressions for drawtext (x/y coordinates)
+      const drawtextPositions = {
+        'bottom-center': `x=(w-text_w)/2:y=h-th-${padding}`,
+        'bottom-left': `x=${padding}:y=h-th-${padding}`,
+        'bottom-right': `x=w-text_w-${padding}:y=h-th-${padding}`,
+        'top-center': `x=(w-text_w)/2:y=${padding}`,
+        'top-left': `x=${padding}:y=${padding}`,
+        'top-right': `x=w-text_w-${padding}:y=${padding}`
+      };
+      const drawtextPos = drawtextPositions[timestampPosition] || drawtextPositions['bottom-center'];
+      
+      // Date format strings for strftime
+      const dateFormats = {
+        'mdy': '%m/%d/%Y',  // US: MM/DD/YYYY
+        'dmy': '%d/%m/%Y',  // International: DD/MM/YYYY
+        'ymd': '%Y-%m-%d'   // ISO: YYYY-MM-DD
+      };
+      const dateFormat = dateFormats[timestampDateFormat] || dateFormats['mdy'];
+      const timestampText = `${dateFormat} %I\\:%M\\:%S %p`;
+      
+      // Build drawtext filter with timestamp (similar to old version)
+      const drawtextFilter = [
+        "drawtext=font='Arial'",
+        'expansion=strftime',
+        `basetime=${timestampBasetimeUs}`,
+        `text='${timestampText}'`,
+        'fontcolor=white',
+        'fontsize=36',
+        'box=1',
+        'boxcolor=black@0.4',
+        'boxborderw=5',
+        drawtextPos
+      ].join(':');
+      
+      filters.push(`[grid]${drawtextFilter}[out]`);
+      console.log(`[TIMESTAMP] Using drawtext filter at position: ${timestampPosition}, format: ${timestampDateFormat}`);
     } else {
       filters.push(`[grid]format=yuv420p[out]`);
     }

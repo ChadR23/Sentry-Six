@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.24",
+      "date": "2026-01-02",
+      "title": "Added timestamp option for video exports",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Add an option to add a timestamp to exported footage without dashboard overlay burn in. There is additional date formats for international users."
+        }
+      ]
+    },
+    {
       "version": "2026.1.23",
       "date": "2026-01-02",
       "title": "Urgent Bug Fix",

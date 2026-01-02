@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.1.23",
+  "version": "2026.1.24",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
