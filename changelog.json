@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.1.22",
+      "date": "2026-01-02",
+      "title": "New Feedback System",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new Send Feedback button that can be found in the Settings Menu. You can attach media to assist with feedback/bug reports."
+        },
+        {
+          "type": "feature",
+          "description": "Added a new compact dashboard layout which can be changed in the Settings menu."
+        },
+        {
+          "type": "feature",
+          "description": "Added MacOS Automatic Install .dmg file to current and all future releases."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the dashboard & map might disappear if you resized the application window after adjusting their position."
+        }
+      ]
+    },
+    {
       "version": "2026.1.17",
       "date": "2026-01-01",
       "title": "Bug Fix Release",

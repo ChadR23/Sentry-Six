@@ -1,12 +1,17 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.1.17",
+  "version": "2026.1.22",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:mac-intel": "electron-builder --mac --x64",
+    "build:mac-apple-silicon": "electron-builder --mac --arm64",
+    "build:all": "electron-builder --win --mac"
   },
   "keywords": [
     "tesla",
@@ -40,6 +45,41 @@
       "verifyUpdateCodeSignature": false,
       "certificateFile": null,
       "certificatePassword": null
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null,
+      "artifactName": "SentrySixRevamped-${version}-macOS.${ext}"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     },
     "files": [
       "src/**/*",
