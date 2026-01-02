@@ -7,7 +7,7 @@
       "changes": [
         {
           "type": "feature",
-          "description": "Add an option to add a timestamp to exported footage without dashboard overlay burn in. There is additional date formats for international users."
+          "description": "Added an option to add a timestamp to exported footage without dashboard overlay burn in. There are additional date formats for international users."
         }
       ]
     },
