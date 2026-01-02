@@ -24,9 +24,9 @@ import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelc
 import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
-    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder
+    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder, updateCompactDashboardPosition
 } from './scripts/features/cameraRearrange.js';
-import { initDraggablePanels } from './scripts/ui/draggablePanels.js';
+import { initDraggablePanels, resetPanelPosition } from './scripts/ui/draggablePanels.js';
 import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight } from './scripts/ui/eventMarkers.js';
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
@@ -156,6 +156,34 @@ function resetDashboardAndMap() {
     const accelPedal = $('accelPedal');
     if (accelPedal) accelPedal.classList.remove('active');
     
+    // Reset compact dashboard elements
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) brakeIconCompact.classList.remove('active');
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) accelPedalCompact.classList.remove('active');
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = '--';
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = '--';
+        gearStateCompact.classList.remove('active');
+    }
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.remove('active', 'paused');
+    blinkRightCompact?.classList.remove('active', 'paused');
+    const steeringIconCompact = $('steeringIconCompact');
+    if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = 'Manual';
+        apTextCompact.classList.remove('active');
+    }
+    
     // Reset extra data
     if (valSeq) valSeq.textContent = '--';
     if (valLat) valLat.textContent = '--';
@@ -223,6 +251,34 @@ function resetDashboardOnly() {
     brakeIcon?.classList.remove('active');
     const accelPedal = $('accelPedal');
     if (accelPedal) accelPedal.classList.remove('active');
+    
+    // Reset compact dashboard elements
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) brakeIconCompact.classList.remove('active');
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) accelPedalCompact.classList.remove('active');
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = '--';
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = '--';
+        gearStateCompact.classList.remove('active');
+    }
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.remove('active', 'paused');
+    blinkRightCompact?.classList.remove('active', 'paused');
+    const steeringIconCompact = $('steeringIconCompact');
+    if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = 'Manual';
+        apTextCompact.classList.remove('active');
+    }
     
     // Reset extra data
     if (valSeq) valSeq.textContent = '--';
@@ -490,9 +546,11 @@ function hasValidGps(sei) {
             if (window.electronAPI?.setSetting) {
                 window.electronAPI.setSetting('useMetric', useMetric);
             }
-            // Update speed unit display
+            // Update speed unit display for both dashboards
             const unitEl = $('speedUnit');
             if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+            const unitElCompact = $('speedUnitCompact');
+            if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
         };
     }
 
@@ -541,6 +599,173 @@ function hasValidGps(sei) {
         if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
     }
 
+    // Load dashboard layout setting and apply
+    let dashboardLayout = 'default';
+    window.dashboardLayout = dashboardLayout; // Initialize global
+    if (window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('dashboardLayout').then(savedLayout => {
+            dashboardLayout = savedLayout || 'default';
+            window.dashboardLayout = dashboardLayout;
+            updateDashboardLayout(dashboardLayout);
+        });
+    }
+    
+    // Global function to update dashboard layout (used by settings modal)
+    window.updateDashboardLayout = async (layout) => {
+        dashboardLayout = layout || 'default';
+        window.dashboardLayout = dashboardLayout; // Store globally for dashboardVisibility
+        const defaultDash = $('dashboardVis');
+        const compactDash = $('dashboardVisCompact');
+        
+        if (defaultDash && compactDash) {
+            if (dashboardLayout === 'compact') {
+                defaultDash.classList.add('hidden');
+                compactDash.classList.remove('hidden');
+                // Ensure compact dashboard is visible if enabled
+                if (state?.ui?.dashboardEnabled) {
+                    compactDash.classList.add('visible');
+                    compactDash.classList.remove('user-hidden');
+                }
+                // Update positioning based on setting
+                const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
+                if (window.updateCompactDashboardPositioning) {
+                    window.updateCompactDashboardPositioning(isFixed);
+                }
+            } else {
+                defaultDash.classList.remove('hidden');
+                compactDash.classList.add('hidden');
+                compactDash.classList.remove('visible');
+            }
+            // Update visibility based on enabled state
+            updateDashboardVisibility();
+        }
+    };
+    
+    // Global function to update compact dashboard positioning (fixed vs movable)
+    window.updateCompactDashboardPositioning = (isFixed) => {
+        const compactDash = $('dashboardVisCompact');
+        if (!compactDash) return;
+        
+        if (isFixed) {
+            // Fixed mode: remove draggable, attach to front camera
+            compactDash.classList.add('fixed-to-camera');
+            compactDash.classList.remove('draggable');
+            // Reset drag offset and clear transform
+            resetPanelPosition(compactDash);
+            compactDash.style.cursor = '';
+            
+            // Re-attach to front camera first - move it to the tile
+            if (updateCompactDashboardPosition) {
+                updateCompactDashboardPosition();
+            }
+            
+            // Use double requestAnimationFrame to ensure DOM update and CSS recalculation happens
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    // Clear all inline positioning styles to let CSS handle it
+                    // The CSS rule .multi-tile .dashboard-vis-compact will take over
+                    compactDash.style.position = '';
+                    compactDash.style.top = '';
+                    compactDash.style.right = '';
+                    compactDash.style.bottom = '';
+                    compactDash.style.left = '';
+                    compactDash.style.width = '';
+                    compactDash.style.height = '';
+                    compactDash.style.padding = '';
+                    compactDash.style.zIndex = '';
+                    // Clear transform - CSS will set translateX(-50%)
+                    compactDash.style.transform = '';
+                    compactDash.style.pointerEvents = '';
+                });
+            });
+        } else {
+            // Movable mode: make it draggable like default dashboard
+            compactDash.classList.remove('fixed-to-camera');
+            compactDash.classList.add('draggable');
+            // Move to body if it's inside a tile
+            const parent = compactDash.parentElement;
+            if (parent && parent.classList.contains('multi-tile')) {
+                document.body.appendChild(compactDash);
+            }
+            // Use requestAnimationFrame to ensure DOM/CSS updates are applied
+            requestAnimationFrame(() => {
+                // Find the front camera tile to position dashboard at its bottom
+                const multiCamGrid = document.getElementById('multiCamGrid');
+                let initialTop = '20px';
+                let initialLeft = '20px';
+                
+                if (multiCamGrid && getEffectiveSlots) {
+                    try {
+                        // Find which slot currently has the front camera
+                        const effectiveSlots = getEffectiveSlots();
+                        const frontSlot = effectiveSlots.find(s => s.camera === 'front');
+                        
+                        if (frontSlot) {
+                            // Find the tile with the front camera
+                            const frontTile = multiCamGrid.querySelector(`.multi-tile[data-slot="${frontSlot.slot}"]`);
+                            if (frontTile) {
+                                const tileRect = frontTile.getBoundingClientRect();
+                                const dashHeight = 56; // Height of compact dashboard
+                                const dashWidth = 480; // Width of compact dashboard
+                                const padding = 8; // Small padding from bottom
+                                
+                                // Position at bottom of front camera tile
+                                const topPos = tileRect.bottom - dashHeight - padding;
+                                initialTop = `${Math.max(0, topPos)}px`;
+                                
+                                // Center horizontally within the tile, but keep on screen
+                                const centerX = tileRect.left + (tileRect.width / 2);
+                                const leftPos = centerX - (dashWidth / 2);
+                                // Ensure it doesn't go off the left or right edge
+                                const minLeft = 10; // Minimum margin from left edge
+                                const maxLeft = window.innerWidth - dashWidth - 10; // Maximum margin from right edge
+                                initialLeft = `${Math.max(minLeft, Math.min(leftPos, maxLeft))}px`;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to position compact dashboard at front camera:', e);
+                        // Fall back to default position
+                    }
+                }
+                
+                // Set initial positioning via inline styles (these override CSS)
+                compactDash.style.position = 'fixed';
+                compactDash.style.top = initialTop;
+                compactDash.style.left = initialLeft;
+                compactDash.style.right = 'auto';
+                compactDash.style.bottom = 'auto';
+                compactDash.style.width = '480px';
+                compactDash.style.height = '56px';
+                compactDash.style.padding = '6px 10px';
+                compactDash.style.zIndex = '101';
+                compactDash.style.pointerEvents = 'auto';
+                compactDash.style.cursor = 'grab';
+                // Set initial transform - draggablePanels will update it with !important for compact dashboard
+                compactDash.style.transform = 'translate3d(0, 0, 0)';
+                // Reset drag offset to start fresh
+                resetPanelPosition(compactDash);
+                // Make it draggable - it will update the transform via inline style
+                initDraggablePanels([compactDash]);
+            });
+        }
+    };
+    
+    // Initialize compact dashboard positioning on load
+    async function initCompactDashboardPositioning() {
+        const compactDash = $('dashboardVisCompact');
+        if (!compactDash) return;
+        
+        const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
+        if (window.updateCompactDashboardPositioning) {
+            window.updateCompactDashboardPositioning(isFixed);
+        }
+    }
+    
+    // Initialize on load
+    if (window.electronAPI?.getSetting) {
+        initCompactDashboardPositioning();
+    }
+    
     // Apply initial visibility state
     updateDashboardVisibility();
     updateMapVisibility();
@@ -2620,9 +2845,17 @@ function updateVisualization(sei) {
     // Speed (use absolute value to avoid negative display when in reverse)
     const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
-    speedValue.textContent = speed;
+    
+    // Update default dashboard
+    if (speedValue) speedValue.textContent = speed;
     const unitEl = $('speedUnit');
     if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+    
+    // Update compact dashboard
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = speed;
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
 
     // Gear
     const gear = get('gearState', 'gear_state');
@@ -2635,15 +2868,31 @@ function updateVisualization(sei) {
     if (gearState) {
         gearState.textContent = gearText;
     }
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = gearText;
+    }
 
     // Blinkers - pause animation when video is not playing
     const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
-    blinkLeft?.classList.toggle('active', !!get('blinkerOnLeft', 'blinker_on_left'));
-    blinkRight?.classList.toggle('active', !!get('blinkerOnRight', 'blinker_on_right'));
+    const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+    const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+    
+    // Update default dashboard blinkers
+    blinkLeft?.classList.toggle('active', leftBlinkerOn);
+    blinkRight?.classList.toggle('active', rightBlinkerOn);
     blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
     blinkRight?.classList.toggle('paused', !isCurrentlyPlaying);
+    
+    // Update compact dashboard blinkers
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.toggle('active', leftBlinkerOn);
+    blinkRightCompact?.classList.toggle('active', rightBlinkerOn);
+    blinkLeftCompact?.classList.toggle('paused', !isCurrentlyPlaying);
+    blinkRightCompact?.classList.toggle('paused', !isCurrentlyPlaying);
 
-    // Steering
+    // Steering - smooth animation handles both default and compact dashboards
     const targetAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
     smoothSteeringTo(targetAngle);
 
@@ -2658,28 +2907,50 @@ function updateVisualization(sei) {
     apText?.classList.toggle('active', isActive);
     gearState?.classList.toggle('active', isActive);
     
-    if (apState === 1) {
-        if (apText) apText.textContent = 'Self Driving';
-    } else if (apState === 2) {
-        if (apText) apText.textContent = 'Autosteer';
-    } else if (apState === 3) {
-        if (apText) apText.textContent = 'TACC';
-    } else {
-        if (apText) apText.textContent = 'Manual';
+    let apTextContent = 'Manual';
+    if (apState === 1) apTextContent = 'Self Driving';
+    else if (apState === 2) apTextContent = 'Autosteer';
+    else if (apState === 3) apTextContent = 'TACC';
+    
+    if (apText) apText.textContent = apTextContent;
+    
+    // Update compact dashboard autopilot
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) {
+        autosteerIconCompact.classList.toggle('active', isActive);
+    }
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = apTextContent;
+        apTextCompact.classList.toggle('active', isActive);
+    }
+    if (gearStateCompact) {
+        gearStateCompact.classList.toggle('active', isActive);
     }
 
     // Brake - also detect Tesla's auto-hold (gear in Drive but speed is 0)
     const brakeState = get('brakeApplied', 'brake_applied');
     const isAutoHold = gear === 1 && mps < 0.01; // Gear Drive (1) and essentially stopped
     brakeIcon?.classList.toggle('active', !!brakeState || isAutoHold);
+    
+    // Update compact dashboard brake
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) {
+        brakeIconCompact.classList.toggle('active', !!brakeState || isAutoHold);
+    }
 
     // Accelerator pedal - lights up when pressed
     const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
     const accelPedal = $('accelPedal');
+    const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
     if (accelPedal) {
-        // Detect if pressed (handle both 0-1 and 0-100 ranges)
-        const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
         accelPedal.classList.toggle('active', isPressed);
+    }
+    
+    // Update compact dashboard accelerator
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) {
+        accelPedalCompact.classList.toggle('active', isPressed);
     }
 
     // Extra Data
@@ -3139,6 +3410,7 @@ async function loadNativeSegment(segIdx) {
         
         // Update tile labels to reflect custom camera order
         updateTileLabels();
+        updateCompactDashboardPosition();
         
         // Apply mirror transforms to repeater cameras
         applyMirrorTransforms();

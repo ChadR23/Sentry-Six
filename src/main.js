@@ -2493,3 +2493,123 @@ ipcMain.handle('diagnostics:saveLocal', async (_event, supportId, diagnostics) =
   }
 });
 
+// Submit user feedback
+ipcMain.handle('feedback:submit', async (_event, data) => {
+  try {
+    const { feedback, diagnostics, mediaInfo } = data;
+    
+    const payload = JSON.stringify({ feedback, diagnostics, mediaInfo });
+    const result = await submitFeedbackToServer(payload);
+    
+    return result;
+  } catch (err) {
+    console.error('[FEEDBACK] Submit failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Upload feedback media attachment
+ipcMain.handle('feedback:uploadMedia', async (_event, data) => {
+  try {
+    const { feedbackId, mediaData, fileName, fileType, fileSize } = data;
+    
+    const payload = JSON.stringify({ mediaData, fileName, fileType, fileSize });
+    const result = await uploadFeedbackMediaToServer(feedbackId, payload);
+    
+    return result;
+  } catch (err) {
+    console.error('[FEEDBACK] Media upload failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Submit feedback to support server
+function submitFeedbackToServer(payload) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(SUPPORT_SERVER_URL);
+    
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: '/feedback',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
+    const req = httpModule.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body);
+          if (res.statusCode === 200 && result.success) {
+            console.log(`[FEEDBACK] Submitted with ID: ${result.feedbackId}`);
+            resolve(result);
+          } else {
+            reject(new Error(result.error || `Server error: ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error('Invalid server response'));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(30000, () => {
+      req.destroy();
+      reject(new Error('Upload timeout'));
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+// Upload feedback media to support server
+function uploadFeedbackMediaToServer(feedbackId, payload) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(SUPPORT_SERVER_URL);
+    
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: `/feedback/${feedbackId}/media`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
+    const req = httpModule.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body);
+          if (res.statusCode === 200 && result.success) {
+            console.log(`[FEEDBACK] Media uploaded for: ${feedbackId}`);
+            resolve(result);
+          } else {
+            reject(new Error(result.error || `Server error: ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error('Invalid server response'));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(120000, () => { // 2 min timeout for large files
+      req.destroy();
+      reject(new Error('Upload timeout'));
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+

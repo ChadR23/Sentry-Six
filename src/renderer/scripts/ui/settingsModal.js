@@ -167,6 +167,63 @@ export function initSettingsModal() {
         };
     }
     
+    // Dashboard layout setting
+    const settingsDashboardLayout = $('settingsDashboardLayout');
+    const settingsCompactDashboardFixedRow = $('settingsCompactDashboardFixedRow');
+    const settingsCompactDashboardFixed = $('settingsCompactDashboardFixed');
+    
+    if (settingsDashboardLayout && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('dashboardLayout').then(savedLayout => {
+            settingsDashboardLayout.value = savedLayout || 'default';
+            
+            // Show/hide fixed toggle based on saved layout
+            if (savedLayout === 'compact') {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
+            } else {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
+            }
+        });
+        
+        // Load saved fixed/movable setting
+        if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('compactDashboardFixed').then(savedFixed => {
+                settingsCompactDashboardFixed.checked = savedFixed !== false; // Default to true (fixed)
+            });
+        }
+        
+        settingsDashboardLayout.onchange = async () => {
+            const layout = settingsDashboardLayout.value || 'default';
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('dashboardLayout', layout);
+            }
+            // Trigger layout update
+            if (window.updateDashboardLayout) {
+                window.updateDashboardLayout(layout);
+            }
+            
+            // Show/hide fixed toggle based on selected layout
+            if (layout === 'compact') {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
+            } else {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
+            }
+        };
+    }
+    
+    // Compact dashboard fixed/movable toggle
+    if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
+        settingsCompactDashboardFixed.onchange = async () => {
+            const isFixed = settingsCompactDashboardFixed.checked;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('compactDashboardFixed', isFixed);
+            }
+            // Update dashboard positioning
+            if (window.updateCompactDashboardPositioning) {
+                window.updateCompactDashboardPositioning(isFixed);
+            }
+        };
+    }
+    
     // Map toggle
     if (settingsMapToggle) {
         settingsMapToggle.onchange = () => {
@@ -265,6 +322,19 @@ export function initSettingsModal() {
                 await showSupportIdDialog();
             } catch (err) {
                 console.error('Failed to generate Support ID:', err);
+            }
+        };
+    }
+    
+    // Submit Feedback button in footer
+    const openFeedbackBtn = $('openFeedbackBtn');
+    if (openFeedbackBtn) {
+        openFeedbackBtn.onclick = async () => {
+            try {
+                const { showFeedbackModal } = await import('./feedback.js');
+                showFeedbackModal();
+            } catch (err) {
+                console.error('Failed to open feedback modal:', err);
             }
         };
     }
@@ -792,3 +862,4 @@ function renderFullChangelog(versions) {
         </div>
     `).join('');
 }
+

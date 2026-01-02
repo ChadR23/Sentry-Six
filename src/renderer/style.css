@@ -130,6 +130,19 @@ canvas, .video-player, .tile-video {
     align-items: center;
     justify-content: center;
 }
+
+/* Allow tiles with dashboard to show overflow */
+.multi-tile:has(.dashboard-vis-compact) {
+    overflow: visible;
+}
+
+.multi-tile:has(.dashboard-vis-compact) video,
+.multi-tile:has(.dashboard-vis-compact) canvas {
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
 /* Allow overflow when zoomed so panned content is visible */
 .multi-cam-grid.focused .multi-tile.zoomed {
     overflow: visible;
@@ -944,6 +957,268 @@ canvas, .video-player, .tile-video {
 
 .dashboard-vis:has(.extra-data-container.expanded) {
     height: 260px;
+}
+
+/* Compact Dashboard Layout - positioned at bottom of front camera tile */
+/* Override default dashboard-vis styles */
+.dashboard-vis.dashboard-vis-compact {
+    position: absolute !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: 8px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 16px) !important;
+    height: 56px !important;
+    padding: 6px 10px !important;
+    z-index: 10 !important;
+    display: none;
+    pointer-events: none;
+}
+
+.multi-tile .dashboard-vis-compact {
+    position: absolute !important;
+    bottom: 0.8% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 2%) !important;
+    height: clamp(50px, 8%, 90px) !important;
+    padding: clamp(5px, 0.7%, 8px) clamp(10px, 1.5%, 16px) !important;
+    z-index: 10 !important;
+    display: none;
+    pointer-events: none;
+    top: auto !important;
+    right: auto !important;
+    box-sizing: border-box;
+    font-size: clamp(10px, 1.2vh, 16px);
+    overflow: visible;
+}
+
+.multi-tile .dashboard-vis-compact.visible:not(.hidden):not(.user-hidden) {
+    display: flex !important;
+}
+
+.dashboard-vis-compact.visible {
+    display: flex !important;
+}
+
+.dashboard-vis-compact.hidden {
+    display: none !important;
+}
+
+.dashboard-vis-compact.user-hidden {
+    display: none !important;
+}
+
+.multi-tile .dashboard-vis-compact.visible {
+    display: flex !important;
+}
+
+/* Movable compact dashboard (not fixed to camera) - must override all other rules */
+.dashboard-vis-compact.draggable:not(.fixed-to-camera),
+.dashboard-vis.dashboard-vis-compact.draggable:not(.fixed-to-camera),
+body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    bottom: auto !important;
+    left: auto !important;
+    /* Don't set transform with !important - let draggablePanels.js handle it via inline style */
+    /* JavaScript inline styles can override CSS, but not !important CSS */
+    transform: translate3d(0, 0, 0);
+    width: 480px !important;
+    height: 56px !important;
+    padding: 6px 10px !important;
+    z-index: 101 !important;
+    pointer-events: auto !important;
+    cursor: grab !important;
+    /* Match font-size from fixed state to ensure consistent text sizing */
+    font-size: clamp(10px, 1.2vh, 16px) !important;
+    box-sizing: border-box;
+    /* Ensure glass blur effect is applied (inherits from .dashboard-vis but ensure it's not overridden) */
+    backdrop-filter: blur(var(--glass-blur)) saturate(100%) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(100%) !important;
+}
+
+.dashboard-vis-compact.draggable:not(.fixed-to-camera).visible:not(.hidden):not(.user-hidden) {
+    display: flex !important;
+}
+
+.vis-content-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    gap: clamp(4px, 0.8%, 12px);
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+}
+
+/* Brake Icon Compact */
+.brake-icon-compact {
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
+    object-fit: contain;
+    filter: grayscale(100%) brightness(0.6);
+    opacity: 0.5;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.brake-icon-compact.active {
+    filter: brightness(0) saturate(100%) invert(10%) sepia(100%) saturate(7471%) hue-rotate(349deg) brightness(98%) contrast(98%);
+    opacity: 1;
+}
+
+/* Gear State Compact */
+.gear-state-compact {
+    font-size: clamp(11px, 1.2em, 18px);
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: color 0.3s ease;
+    white-space: nowrap;
+    min-width: clamp(35px, 4.5em, 55px);
+    text-align: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.gear-state-compact.active {
+    color: #0048ff;
+}
+
+/* Turn Signal Compact */
+.turn-signal-compact {
+    width: clamp(20px, 2.6em, 32px);
+    height: clamp(20px, 2.6em, 32px);
+    color: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.turn-signal-compact svg {
+    width: clamp(16px, 2.1em, 28px);
+    height: clamp(16px, 2.1em, 28px);
+}
+
+.turn-signal-compact.active {
+    color: #22c55e;
+    filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
+    animation: blink-signal 0.8s ease-in-out infinite;
+}
+
+.turn-signal-compact.active.paused {
+    animation-play-state: paused;
+}
+
+/* Speed Display Compact */
+.speed-display-compact {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(3px, 0.4em, 6px);
+    min-width: clamp(60px, 7.5em, 90px);
+    flex-shrink: 0;
+    flex-grow: 0;
+    height: 100%;
+}
+
+.speed-value-compact {
+    font-size: clamp(16px, 2.2em, 28px);
+    font-weight: 300;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+}
+
+.speed-unit-compact {
+    font-size: clamp(10px, 1.1em, 16px);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+/* Autopilot Label Compact */
+.autopilot-label-compact {
+    font-size: clamp(10px, 1.2em, 16px);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    min-width: clamp(60px, 7.5em, 95px);
+    text-align: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.autopilot-label-compact.active {
+    color: #0048ff;
+    text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
+}
+
+/* Steering Wheel Compact */
+.steering-wrapper-compact {
+    width: clamp(46px, 6em, 66px);
+    height: clamp(46px, 6em, 66px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    will-change: transform;
+    flex-shrink: 0;
+    flex-grow: 0;
+    transform-origin: center center;
+}
+
+.autosteer-icon-compact {
+    width: clamp(42px, 5.5em, 62px);
+    height: clamp(42px, 5.5em, 62px);
+    object-fit: contain;
+    filter: grayscale(100%) brightness(0.6);
+    opacity: 0.5;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.autosteer-icon-compact.active {
+    filter: none;
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
+}
+
+/* Accelerator Icon Compact */
+.accel-pedal-container-compact {
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.accel-icon-compact {
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
+    object-fit: contain;
+    filter: grayscale(100%) brightness(0.6);
+    opacity: 0.5;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.accel-pedal-container-compact.active .accel-icon-compact {
+    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    opacity: 1;
 }
 
 .map-vis {
@@ -2438,6 +2713,37 @@ canvas, .video-player, .tile-video {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
+/* Select Row */
+.select-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+}
+
+.select-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.select-row-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.select-row-desc {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
 /* Action Row */
 .action-row {
     display: flex;
@@ -2879,6 +3185,163 @@ canvas, .video-player, .tile-video {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Feedback Modal Styles */
+.feedback-modal {
+    max-width: 560px;
+}
+
+.feedback-intro {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.feedback-retention-note {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: rgba(88, 101, 242, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid rgba(88, 101, 242, 0.5);
+}
+
+/* Feedback Form Styles */
+.feedback-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.feedback-textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.feedback-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.feedback-char-count {
+    text-align: right;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 4px;
+}
+
+.feedback-file-label {
+    cursor: pointer;
+}
+
+.feedback-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.feedback-file-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+}
+
+.feedback-file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(88, 101, 242, 0.15);
+    border: 1px solid rgba(88, 101, 242, 0.3);
+    border-radius: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.feedback-file-info.hidden {
+    display: none;
+}
+
+.feedback-file-clear {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.feedback-file-clear:hover {
+    color: #ef5350;
+}
+
+.feedback-file-note {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.feedback-privacy-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 6px;
+    font-size: 11px;
+    color: rgba(76, 175, 80, 0.9);
+    line-height: 1.4;
+}
+
+.feedback-status {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.feedback-status.hidden {
+    display: none;
+}
+
+.feedback-status.success {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #81c784;
+}
+
+.feedback-status.error {
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: #ef9a9a;
+}
+
+.feedback-status.loading {
+    background: rgba(88, 101, 242, 0.15);
+    border: 1px solid rgba(88, 101, 242, 0.3);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Decode loading state */
