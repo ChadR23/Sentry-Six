@@ -2,7 +2,7 @@
   "versions": [
     {
       "version": "2026.1.22",
-      "date": "2026-01-01",
+      "date": "2026-01-02",
       "title": "New Feedback System",
       "changes": [
         {
@@ -20,7 +20,7 @@
         {
           "type": "fix",
           "description": "Fixed an issue where the dashboard & map might disappear if you resized the application window after adjusting their position."
-        }        
+        }
       ]
     },
     {
