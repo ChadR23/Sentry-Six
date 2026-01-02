@@ -3611,6 +3611,22 @@ canvas, .video-player, .tile-video {
     background: rgba(255, 255, 255, 0.12);
 }
 
+.btn-discord {
+    background: #5865F2;
+    color: #fff;
+    border-color: #5865F2;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+}
+
+.btn-discord:hover {
+    background: #4752C4;
+    border-color: #4752C4;
+    color: #fff;
+}
+
 /* Old update modal styles removed - see new styles at end of file */
 
 /* Keybind input recording animation */
