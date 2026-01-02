@@ -5,11 +5,7 @@
 
 import { notify } from './notifications.js';
 
-// Log buffer configuration - increased for comprehensive diagnostics
-const MAX_LOG_ENTRIES = 2000;
-const MAX_ERROR_ENTRIES = 500;
-
-// In-memory log storage
+// In-memory log storage (no limits - VPS has sufficient bandwidth/storage)
 const logBuffer = {
     console: [],
     errors: [],
@@ -75,10 +71,13 @@ function captureLog(level, args) {
         l: level,
         m: args.map(arg => {
             try {
-                if (typeof arg === 'object') {
-                    return JSON.stringify(arg, null, 0).substring(0, 500);
+                if (arg instanceof Error) {
+                    return `${arg.name}: ${arg.message}\n${arg.stack || ''}`;
                 }
-                return String(arg).substring(0, 500);
+                if (typeof arg === 'object') {
+                    return JSON.stringify(arg, null, 0);
+                }
+                return String(arg);
             } catch {
                 return '[Unserializable]';
             }
@@ -86,11 +85,6 @@ function captureLog(level, args) {
     };
 
     logBuffer.console.push(entry);
-    
-    // Trim buffer if needed
-    if (logBuffer.console.length > MAX_LOG_ENTRIES) {
-        logBuffer.console.shift();
-    }
 }
 
 /**
@@ -105,9 +99,9 @@ function captureError(args) {
                     return `${arg.name}: ${arg.message}\n${arg.stack || ''}`;
                 }
                 if (typeof arg === 'object') {
-                    return JSON.stringify(arg, null, 0).substring(0, 1000);
+                    return JSON.stringify(arg, null, 0);
                 }
-                return String(arg).substring(0, 1000);
+                return String(arg);
             } catch {
                 return '[Unserializable]';
             }
@@ -115,11 +109,6 @@ function captureError(args) {
     };
 
     logBuffer.errors.push(entry);
-    
-    // Trim buffer if needed
-    if (logBuffer.errors.length > MAX_ERROR_ENTRIES) {
-        logBuffer.errors.shift();
-    }
 }
 
 /**
@@ -131,27 +120,68 @@ export function logDiagnosticEvent(eventName, data = {}) {
         e: eventName,
         d: data
     });
-    
-    // Keep last 50 events
-    if (logBuffer.events.length > 50) {
-        logBuffer.events.shift();
-    }
 }
 
 /**
- * Redact username from file paths for privacy
- * @param {string} filePath - Original file path
- * @returns {string} Path with username redacted
+ * Redact sensitive information from strings for privacy
+ * - Usernames in file paths
+ * - GPS coordinates and addresses from event.json location logs
+ * @param {string} str - Original string (path or log message)
+ * @returns {string} String with sensitive info redacted
  */
-function redactUsername(filePath) {
-    if (!filePath) return null;
+function redactSensitiveInfo(str) {
+    if (!str) return null;
+    
+    let result = str;
+    
+    // Redact usernames in file paths (handles both regular and JSON-escaped paths)
     // Windows: C:\Users\USERNAME\... -> C:\Users\[REDACTED]\...
+    // Windows JSON: C:\\Users\\USERNAME\\... -> C:\\Users\\[REDACTED]\\...
     // macOS: /Users/USERNAME/... -> /Users/[REDACTED]/...
     // Linux: /home/USERNAME/... -> /home/[REDACTED]/...
-    return filePath
-        .replace(/^([A-Za-z]:\\Users\\)[^\\]+/, '$1[REDACTED]')
-        .replace(/^(\/Users\/)[^\/]+/, '$1[REDACTED]')
-        .replace(/^(\/home\/)[^\/]+/, '$1[REDACTED]');
+    result = result
+        // Windows paths with escaped backslashes (JSON): C:\\Users\\USERNAME\\
+        .replace(/([A-Za-z]:\\\\Users\\\\)([^\\"\s]+)/g, '$1[REDACTED]')
+        // Windows paths with single backslashes: C:\Users\USERNAME\
+        .replace(/([A-Za-z]:\\Users\\)([^\\\s"']+)/g, '$1[REDACTED]')
+        // macOS paths
+        .replace(/(\/Users\/)([^\/\s"']+)/g, '$1[REDACTED]')
+        // Linux paths
+        .replace(/(\/home\/)([^\/\s"']+)/g, '$1[REDACTED]');
+    
+    // Redact GPS coordinates and addresses from event.json location logs
+    // Pattern: "Showing event.json location: LAT LONG ADDRESS" -> "Showing event.json location: [LOCATION REDACTED]"
+    result = result.replace(
+        /((?:showing|event\.json|location)[:\s]+)(-?\d+\.\d+\s+-?\d+\.\d+.*?)$/gi,
+        '$1[LOCATION REDACTED]'
+    );
+    
+    // Also catch standalone GPS coordinates (lat/long pairs)
+    // Pattern: two decimal numbers that look like coordinates
+    result = result.replace(
+        /(location[:\s]+)(-?\d{1,3}\.\d{3,}\s+-?\d{1,3}\.\d{3,})/gi,
+        '$1[COORDS REDACTED]'
+    );
+    
+    return result;
+}
+
+/**
+ * Redact usernames from all log entries
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Logs with usernames redacted
+ */
+/**
+ * Redact sensitive info from all log entries
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Logs with sensitive info redacted
+ */
+function redactLogs(logs) {
+    if (!Array.isArray(logs)) return logs;
+    return logs.map(log => ({
+        ...log,
+        m: redactSensitiveInfo(log.m) || log.m
+    }));
 }
 
 /**
@@ -167,8 +197,8 @@ export async function collectDiagnostics() {
         settings: {},
         hardware: {},
         logs: {
-            console: logBuffer.console.slice(-500), // DevTools console logs
-            errors: logBuffer.errors.slice(-100)    // Errors only
+            console: redactLogs(logBuffer.console.slice()), // All DevTools console logs (redacted)
+            errors: redactLogs(logBuffer.errors.slice())    // All errors (redacted)
         },
         terminalLogs: [] // Main process logs
     };
@@ -181,7 +211,7 @@ export async function collectDiagnostics() {
             diagnostics.appVersion = mainData.appVersion || null;
             diagnostics.pendingUpdate = mainData.pendingUpdate || false;
             diagnostics.hardware = mainData.hardware || {};
-            diagnostics.terminalLogs = mainData.logs || [];
+            diagnostics.terminalLogs = redactLogs(mainData.logs || []);
         }
     } catch (e) {
         diagnostics.error = e.message;
@@ -435,6 +465,12 @@ export async function showSupportIdDialog() {
                         </div>
                     </div>
                     <div class="modal-footer">
+                        <a href="https://discord.com/invite/9QZEzVwdnt" target="_blank" class="btn btn-discord" id="joinDiscordBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                            </svg>
+                            Join Discord for Support
+                        </a>
                         <button id="closeSupportIdBtn" class="btn btn-secondary">Close</button>
                     </div>
                 </div>
@@ -614,8 +650,8 @@ function showDecodeTab(tab, diagnostics, container) {
                             <tr><td>CPU</td><td>${diagnostics.hardware?.cpuModel || 'N/A'}</td></tr>
                             <tr><td>RAM Total</td><td>${formatBytes(diagnostics.hardware?.ramTotal)}</td></tr>
                             <tr><td>RAM Free</td><td>${formatBytes(diagnostics.hardware?.ramFree)}</td></tr>
-                            <tr><td>GPU Detected</td><td>${diagnostics.hardware?.gpuDetected ? 'Yes' : 'No'}</td></tr>
-                            <tr><td>GPU Model</td><td>${diagnostics.hardware?.gpuModel || 'N/A'}</td></tr>
+                            <tr><td>GPU Hardware</td><td>${diagnostics.hardware?.gpuHardware || 'N/A'}</td></tr>
+                            <tr><td>GPU Encoder</td><td>${diagnostics.hardware?.gpuEncoder || diagnostics.hardware?.gpuModel || 'CPU'}</td></tr>
                             <tr><td>FFmpeg</td><td>${diagnostics.hardware?.ffmpegDetected ? 'Detected' : 'Not Found'}</td></tr>
                         </table>
                         <h4>Settings</h4>

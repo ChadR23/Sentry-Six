@@ -6,6 +6,44 @@ const { spawn, spawnSync, execSync } = require('child_process');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
+// ============================================
+// DIAGNOSTICS: Console capture (must be early to catch all logs)
+// ============================================
+const mainLogBuffer = [];
+const originalMainConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  info: console.info.bind(console)
+};
+
+function captureMainLog(level, args) {
+  const entry = {
+    t: Date.now(),
+    l: level,
+    m: args.map(arg => {
+      try {
+        if (arg instanceof Error) {
+          return `${arg.name}: ${arg.message}\n${arg.stack || ''}`;
+        }
+        if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 0);
+        }
+        return String(arg);
+      } catch {
+        return '[Unserializable]';
+      }
+    }).join(' ')
+  };
+  mainLogBuffer.push(entry);
+}
+
+// Override console methods to capture all logs from startup
+console.log = (...args) => { captureMainLog('log', args); originalMainConsole.log(...args); };
+console.warn = (...args) => { captureMainLog('warn', args); originalMainConsole.warn(...args); };
+console.error = (...args) => { captureMainLog('error', args); originalMainConsole.error(...args); };
+console.info = (...args) => { captureMainLog('info', args); originalMainConsole.info(...args); };
+
 // Auto-Update Configuration
 const UPDATE_CONFIG = {
   owner: 'ChadR23',
@@ -147,6 +185,64 @@ function findFFmpegPath() {
  * Returns the first working encoder found, or null if none are available.
  * Caches result to avoid repeated detection.
  */
+/**
+ * Detect actual GPU hardware model name (e.g., "NVIDIA GeForce RTX 4070 Super")
+ * This is separate from encoder detection - shows the actual hardware.
+ */
+let cachedGpuHardware = undefined; // undefined = not checked, null = checked but not found
+function detectGpuHardware() {
+  if (cachedGpuHardware !== undefined) return cachedGpuHardware;
+  
+  try {
+    if (process.platform === 'win32') {
+      // Windows: Use wmic to get GPU name
+      const result = spawnSync('wmic', ['path', 'win32_VideoController', 'get', 'name'], {
+        timeout: 5000,
+        windowsHide: true,
+        shell: true
+      });
+      const output = result.stdout?.toString() || '';
+      const lines = output.split('\n').map(l => l.trim()).filter(l => l && l !== 'Name');
+      if (lines.length > 0) {
+        // Filter out basic display adapters, prefer dedicated GPUs
+        const dedicated = lines.find(l => 
+          l.includes('NVIDIA') || l.includes('AMD') || l.includes('Radeon') || l.includes('GeForce')
+        );
+        cachedGpuHardware = dedicated || lines[0];
+        console.log(`[GPU] Hardware detected: ${cachedGpuHardware}`);
+        return cachedGpuHardware;
+      }
+    } else if (process.platform === 'darwin') {
+      // macOS: Use system_profiler
+      const result = spawnSync('system_profiler', ['SPDisplaysDataType'], {
+        timeout: 5000
+      });
+      const output = result.stdout?.toString() || '';
+      const chipMatch = output.match(/Chipset Model:\s*(.+)/i) || output.match(/Chip:\s*(.+)/i);
+      if (chipMatch) {
+        cachedGpuHardware = chipMatch[1].trim();
+        console.log(`[GPU] Hardware detected: ${cachedGpuHardware}`);
+        return cachedGpuHardware;
+      }
+    } else {
+      // Linux: Use lspci
+      const result = spawnSync('lspci', ['-v'], { timeout: 5000 });
+      const output = result.stdout?.toString() || '';
+      const vgaMatch = output.match(/VGA compatible controller:\s*(.+)/i);
+      if (vgaMatch) {
+        cachedGpuHardware = vgaMatch[1].trim().split('(')[0].trim();
+        console.log(`[GPU] Hardware detected: ${cachedGpuHardware}`);
+        return cachedGpuHardware;
+      }
+    }
+  } catch (err) {
+    console.log('[GPU] Could not detect hardware:', err.message);
+  }
+  
+  cachedGpuHardware = null;
+  return null;
+}
+
 function detectGpuEncoder(ffmpegPath) {
   if (gpuEncoder !== null) return gpuEncoder;
   
@@ -543,7 +639,7 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
 }
 
-async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight, useMetric = false) {
+async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight, useMetric = false, timestampMs = null) {
   return new Promise((resolve) => {
     const webContents = dashboardWindow.webContents;
     const webContentsId = webContents.id;
@@ -569,7 +665,7 @@ async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboard
     };
     
     dashboardReadyCallbacks.set(webContentsId, onReady);
-    webContents.send('dashboard:update', sei, frameNumber, useMetric);
+    webContents.send('dashboard:update', sei, frameNumber, useMetric, timestampMs);
     
     // Fallback timeout if IPC doesn't work (reduced from 1000ms to 200ms)
     setTimeout(() => {
@@ -722,7 +818,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
       
       const currentTimeMs = startTimeMs + (frame * frameTimeMs);
       const sei = findSeiAtTime(seiData, currentTimeMs);
-      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric);
+      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric, currentTimeMs);
       
       let frameData = blackFrame;
       if (image) {
@@ -2025,62 +2121,16 @@ ipcMain.handle('app:isPackaged', async () => {
 });
 
 // Diagnostics & Support ID IPC Handlers
-// Main process log buffer
-const mainLogBuffer = [];
-const MAX_MAIN_LOG_ENTRIES = 200;
-
-// Intercept console in main process to capture logs
-const originalMainConsole = {
-  log: console.log.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console)
-};
-
-function captureMainLog(level, args) {
-  const entry = {
-    t: Date.now(),
-    l: level,
-    m: args.map(arg => {
-      try {
-        if (typeof arg === 'object') {
-          return JSON.stringify(arg, null, 0).substring(0, 500);
-        }
-        return String(arg).substring(0, 500);
-      } catch {
-        return '[Unserializable]';
-      }
-    }).join(' ')
-  };
-  mainLogBuffer.push(entry);
-  if (mainLogBuffer.length > MAX_MAIN_LOG_ENTRIES) {
-    mainLogBuffer.shift();
-  }
-}
-
-// Override console methods in main process
-console.log = (...args) => {
-  captureMainLog('log', args);
-  originalMainConsole.log(...args);
-};
-console.warn = (...args) => {
-  captureMainLog('warn', args);
-  originalMainConsole.warn(...args);
-};
-console.error = (...args) => {
-  captureMainLog('error', args);
-  originalMainConsole.error(...args);
-};
-
 ipcMain.handle('diagnostics:get', async () => {
   try {
-    const currentVersion = getCurrentVersion();
+    const currentVersion = app.getVersion();
     
     // Check for pending update
-    let pendingUpdate = false;
+    let pendingUpdate = null; // null = up to date, string = pending version
     try {
-      const latestVersion = await getLatestVersion();
-      if (latestVersion && currentVersion) {
-        pendingUpdate = latestVersion.version !== currentVersion.version;
+      const latestVersion = await getLatestVersionFromGitHub();
+      if (latestVersion && currentVersion && latestVersion.version !== currentVersion) {
+        pendingUpdate = latestVersion.version; // Store the pending version
       }
     } catch { /* ignore update check errors */ }
     
@@ -2110,19 +2160,23 @@ ipcMain.handle('diagnostics:get', async () => {
       detectGpuEncoder(ffmpegPath);
     }
     
+    // Detect actual GPU hardware
+    const gpuHardware = detectGpuHardware();
+    
     return {
       os: getOSName(),
-      appVersion: currentVersion?.version || 'unknown',
+      appVersion: currentVersion || 'unknown',
       pendingUpdate,
       hardware: {
         cpuModel: os.cpus()[0]?.model || 'unknown',
         ramTotal: os.totalmem(),
         ramFree: os.freemem(),
-        gpuDetected: gpuEncoder !== null,
-        gpuModel: gpuEncoder?.name || null,
+        gpuDetected: gpuEncoder !== null || gpuHardware !== null,
+        gpuHardware: gpuHardware,  // Actual GPU name (e.g., "NVIDIA GeForce RTX 4070 Super")
+        gpuEncoder: gpuEncoder?.name || null,  // Encoder type (e.g., "NVIDIA NVENC")
         ffmpegDetected
       },
-      logs: mainLogBuffer.slice() // All main process logs (up to 200)
+      logs: mainLogBuffer.slice() // All main process logs
     };
   } catch (err) {
     console.error('Failed to collect diagnostics:', err);
