@@ -92,10 +92,8 @@ export function initDraggablePanels(panels) {
             }
         }, true); // Use capture phase to catch it early
         
-        // For compact dashboard, add to constrained panels set
-        if (panel.classList.contains('dashboard-vis-compact')) {
-            constrainedPanels.add(panel);
-        }
+        // Add all draggable panels to constrained panels set for resize handling
+        constrainedPanels.add(panel);
     });
     
     // Initialize resize handler if not already set up
@@ -113,11 +111,17 @@ export function initDraggablePanels(panels) {
 
 /**
  * Constrain draggable panels to stay within viewport bounds
+ * If a panel goes out of bounds, reset it to the closest valid position
  */
 function constrainPanelsToViewport() {
     constrainedPanels.forEach(panel => {
         if (!panel.isConnected) {
             constrainedPanels.delete(panel);
+            return;
+        }
+        
+        // Skip hidden panels
+        if (panel.classList.contains('hidden') || panel.classList.contains('user-hidden')) {
             return;
         }
         
@@ -132,51 +136,63 @@ function constrainPanelsToViewport() {
         const panelWidth = rect.width;
         const panelHeight = rect.height;
         
-        // Calculate bounds (with small margin)
-        const margin = 10;
-        const minX = margin;
-        const maxX = viewportWidth - panelWidth - margin;
-        const minY = margin;
-        const maxY = viewportHeight - panelHeight - margin;
+        // Check if panel is significantly out of bounds (less than 50px visible)
+        const minVisiblePx = 50;
+        const isOutOfBounds = 
+            rect.right < minVisiblePx || 
+            rect.left > viewportWidth - minVisiblePx ||
+            rect.bottom < minVisiblePx || 
+            rect.top > viewportHeight - minVisiblePx;
         
-        // Get the fixed position values (top/left from CSS or inline styles)
-        const computedStyle = window.getComputedStyle(panel);
-        const fixedTop = parseInt(panel.style.top) || parseInt(computedStyle.top) || 20;
-        const fixedLeft = parseInt(panel.style.left) || parseInt(computedStyle.left) || (viewportWidth - panelWidth - 20);
-        
-        // Calculate actual position (fixed position + transform offset)
-        const currentLeft = fixedLeft + offset.x;
-        const currentTop = fixedTop + offset.y;
-        
-        // Check if panel is outside bounds and adjust if needed
-        let newX = offset.x;
-        let newY = offset.y;
-        let needsUpdate = false;
-        
-        if (currentLeft < minX) {
-            // Panel is off left edge - adjust transform to bring it back
-            newX = minX - fixedLeft;
-            needsUpdate = true;
-        } else if (currentLeft > maxX) {
-            // Panel is off right edge - adjust transform to bring it back
-            newX = maxX - fixedLeft;
-            needsUpdate = true;
-        }
-        
-        if (currentTop < minY) {
-            // Panel is off top edge - adjust transform to bring it back
-            newY = minY - fixedTop;
-            needsUpdate = true;
-        } else if (currentTop > maxY) {
-            // Panel is off bottom edge - adjust transform to bring it back
-            newY = maxY - fixedTop;
-            needsUpdate = true;
-        }
-        
-        if (needsUpdate) {
-            offset.x = newX;
-            offset.y = newY;
-            // Update transform
+        if (isOutOfBounds) {
+            // Reset to closest corner/edge position
+            // Determine which corner is closest based on current position
+            const centerX = rect.left + panelWidth / 2;
+            const centerY = rect.top + panelHeight / 2;
+            const viewportCenterX = viewportWidth / 2;
+            const viewportCenterY = viewportHeight / 2;
+            
+            // Calculate target position (closest corner with margin)
+            const margin = 20;
+            let targetLeft, targetTop;
+            
+            // Horizontal: left or right side
+            if (centerX < viewportCenterX) {
+                // Closer to left side
+                targetLeft = margin;
+            } else {
+                // Closer to right side
+                targetLeft = viewportWidth - panelWidth - margin;
+            }
+            
+            // Vertical: top or bottom
+            if (centerY < viewportCenterY) {
+                // Closer to top
+                targetTop = margin;
+            } else {
+                // Closer to bottom - account for controls bar
+                targetTop = viewportHeight - panelHeight - 80;
+            }
+            
+            // Get the CSS base position
+            const computedStyle = window.getComputedStyle(panel);
+            let baseLeft = 0;
+            let baseTop = 0;
+            
+            // Handle panels positioned with 'right' instead of 'left'
+            if (computedStyle.right !== 'auto' && computedStyle.left === 'auto') {
+                const rightVal = parseInt(computedStyle.right) || 20;
+                baseLeft = viewportWidth - panelWidth - rightVal;
+            } else {
+                baseLeft = parseInt(computedStyle.left) || 0;
+            }
+            baseTop = parseInt(computedStyle.top) || 0;
+            
+            // Calculate new offset to achieve target position
+            offset.x = targetLeft - baseLeft;
+            offset.y = targetTop - baseTop;
+            
+            // Apply the corrected transform
             if (panel.classList.contains('dashboard-vis-compact')) {
                 panel.style.setProperty('transform', `translate3d(${offset.x}px, ${offset.y}px, 0)`, 'important');
             } else {
