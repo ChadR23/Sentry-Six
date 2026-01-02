@@ -86,6 +86,7 @@ export function resetCameraOrder() {
     saveCustomCameraOrder();
     updateTileLabels();
     updateEventCameraHighlight?.();
+    updateCompactDashboardPosition();
     
     if (state?.collection?.active && nativeVideo?.currentSegmentIdx >= 0) {
         loadNativeSegment?.(nativeVideo.currentSegmentIdx);
@@ -239,6 +240,7 @@ export function initCameraDragAndDrop() {
             saveCustomCameraOrder();
             updateTileLabels();
             updateEventCameraHighlight?.();
+            updateCompactDashboardPosition();
             
             const state = getState?.();
             const nativeVideo = getNativeVideo?.();
@@ -278,4 +280,34 @@ export function updateTileLabels() {
         }
         
     });
+}
+
+/**
+ * Move compact dashboard to the tile containing the front camera
+ */
+export function updateCompactDashboardPosition() {
+    const multiCamGrid = getMultiCamGrid?.();
+    const compactDash = document.getElementById('dashboardVisCompact');
+    if (!multiCamGrid || !compactDash) return;
+    
+    // Find which slot currently has the front camera
+    const effectiveSlots = getEffectiveSlots();
+    const frontSlot = effectiveSlots.find(s => s.camera === 'front');
+    
+    if (!frontSlot) return;
+    
+    // Find the tile with the front camera
+    const frontTile = multiCamGrid.querySelector(`.multi-tile[data-slot="${frontSlot.slot}"]`);
+    if (!frontTile) return;
+    
+    // Remove dashboard from current location
+    const currentParent = compactDash.parentElement;
+    if (currentParent && currentParent !== frontTile) {
+        compactDash.remove();
+    }
+    
+    // Add dashboard to front camera tile if not already there
+    if (!frontTile.contains(compactDash)) {
+        frontTile.appendChild(compactDash);
+    }
 }

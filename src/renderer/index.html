@@ -47,6 +47,49 @@
                 <div class="multi-tile" data-slot="tc">
                     <div class="multi-label">Front</div>
                     <video id="videoTC" class="tile-video" muted playsinline></video>
+                    <!-- Compact Dashboard positioned at bottom of front camera -->
+                    <div id="dashboardVisCompact" class="dashboard-vis dashboard-vis-compact hidden">
+                        <div class="vis-content-compact">
+                            <!-- Brake Icon -->
+                            <img src="../../assets/pedal_brake.png" class="brake-icon-compact" id="brakeIconCompact" alt="Brake">
+                            
+                            <!-- Gear State -->
+                            <div class="gear-state-compact" id="gearStateCompact">--</div>
+                            
+                            <!-- Left Blinker -->
+                            <div class="turn-signal-compact left" id="blinkLeftCompact">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M19 12H5M12 5l-7 7 7 7"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Speed Display -->
+                            <div class="speed-display-compact">
+                                <div class="speed-value-compact" id="speedValueCompact">0</div>
+                                <div class="speed-unit-compact" id="speedUnitCompact">MPH</div>
+                            </div>
+                            
+                            <!-- Autopilot Label -->
+                            <div class="autopilot-label-compact" id="apTextCompact">Manual</div>
+                            
+                            <!-- Right Blinker -->
+                            <div class="turn-signal-compact right" id="blinkRightCompact">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Steering Wheel -->
+                            <div class="steering-wrapper-compact" id="steeringIconCompact">
+                                <img src="../../assets/autosteer-icon.png" class="autosteer-icon-compact" id="autosteerIconCompact" alt="Autosteer">
+                            </div>
+                            
+                            <!-- Accelerator Icon -->
+                            <div class="accel-pedal-container-compact" id="accelPedalCompact">
+                                <img src="../../assets/pedal_acc.png" class="accel-icon-compact" alt="Accelerator">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="multi-tile" data-slot="tr">
                     <div class="multi-label">Right Pillar</div>
@@ -241,6 +284,7 @@
                     </div>
                 </div>
             </div>
+
         </div>
 
         <!-- Controls -->
@@ -606,6 +650,26 @@
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsDashboardToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label">Dashboard Layout</span>
+                                <span class="select-row-desc">Choose dashboard style</span>
+                            </div>
+                            <select id="settingsDashboardLayout" class="text-input" style="padding: 6px 10px; width: auto;">
+                                <option value="default">Default</option>
+                                <option value="compact">Compact</option>
+                            </select>
+                        </div>
+                        <label class="toggle-row hidden" id="settingsCompactDashboardFixedRow">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Fixed to Front Camera</span>
+                                <span class="toggle-row-desc">Keep compact dashboard attached to front camera</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsCompactDashboardFixed" checked>
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
