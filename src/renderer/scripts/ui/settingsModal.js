@@ -269,6 +269,19 @@ export function initSettingsModal() {
         };
     }
     
+    // Submit Feedback button in footer
+    const openFeedbackBtn = $('openFeedbackBtn');
+    if (openFeedbackBtn) {
+        openFeedbackBtn.onclick = async () => {
+            try {
+                const { showFeedbackModal } = await import('./feedback.js');
+                showFeedbackModal();
+            } catch (err) {
+                console.error('Failed to open feedback modal:', err);
+            }
+        };
+    }
+    
     // Advanced settings toggle
     const advancedSettingsToggle = $('advancedSettingsToggle');
     const advancedSettingsSection = $('advancedSettingsSection');
@@ -792,3 +805,4 @@ function renderFullChangelog(versions) {
         </div>
     `).join('');
 }
+

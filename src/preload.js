@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   retrieveDiagnostics: (supportId, passcode) => ipcRenderer.invoke('diagnostics:retrieve', supportId, passcode),
   saveDiagnosticsLocally: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:saveLocal', supportId, diagnostics),
   
+  // Feedback submission
+  submitFeedback: (data) => ipcRenderer.invoke('feedback:submit', data),
+  uploadFeedbackMedia: (data) => ipcRenderer.invoke('feedback:uploadMedia', data),
+  
   // Event listeners
   on: (channel, callback) => {
     const allowedChannels = ['export:progress', 'update:available', 'update:progress', 'update:downloaded'];

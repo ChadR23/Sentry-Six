@@ -2881,6 +2881,163 @@ canvas, .video-player, .tile-video {
     justify-content: center;
 }
 
+/* Feedback Modal Styles */
+.feedback-modal {
+    max-width: 560px;
+}
+
+.feedback-intro {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.feedback-retention-note {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: rgba(88, 101, 242, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid rgba(88, 101, 242, 0.5);
+}
+
+/* Feedback Form Styles */
+.feedback-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.feedback-textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.feedback-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.feedback-char-count {
+    text-align: right;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 4px;
+}
+
+.feedback-file-label {
+    cursor: pointer;
+}
+
+.feedback-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.feedback-file-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+}
+
+.feedback-file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(88, 101, 242, 0.15);
+    border: 1px solid rgba(88, 101, 242, 0.3);
+    border-radius: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.feedback-file-info.hidden {
+    display: none;
+}
+
+.feedback-file-clear {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.feedback-file-clear:hover {
+    color: #ef5350;
+}
+
+.feedback-file-note {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.feedback-privacy-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 6px;
+    font-size: 11px;
+    color: rgba(76, 175, 80, 0.9);
+    line-height: 1.4;
+}
+
+.feedback-status {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.feedback-status.hidden {
+    display: none;
+}
+
+.feedback-status.success {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #81c784;
+}
+
+.feedback-status.error {
+    background: rgba(244, 67, 54, 0.15);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: #ef9a9a;
+}
+
+.feedback-status.loading {
+    background: rgba(88, 101, 242, 0.15);
+    border: 1px solid rgba(88, 101, 242, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+}
+
 /* Decode loading state */
 .decode-loading {
     text-align: center;
