@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.23",
+      "date": "2026-01-02",
+      "title": "Urgent Bug Fix",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the MacOS auto updater would not work on Automatic Installs. Affected Version: 2026.1.22. If you are on the affected version, please download the latest version from the GitHub releases page."
+        }
+      ]
+    },
+    {
       "version": "2026.1.22",
       "date": "2026-01-02",
       "title": "New Feedback System",
