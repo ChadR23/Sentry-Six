@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.28",
+      "date": "2026-01-02",
+      "title": "Adjusted Export Modal",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Adjusted the export progress bars to be sticky."
+        }
+      ]
+    },
+    {
       "version": "2026.1.27",
       "date": "2026-01-02",
       "title": "Fix FFMPEG detection",
