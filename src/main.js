@@ -2732,8 +2732,8 @@ ipcMain.handle('support:sendMessage', async (_event, data) => {
 // Upload media attachment for a ticket
 ipcMain.handle('support:uploadMedia', async (_event, data) => {
   try {
-    const { ticketId, authToken, mediaData, fileName, fileType, fileSize } = data;
-    const payload = JSON.stringify({ mediaData, fileName, fileType, fileSize });
+    const { ticketId, authToken, mediaData, fileName, fileType, fileSize, message, diagnostics } = data;
+    const payload = JSON.stringify({ mediaData, fileName, fileType, fileSize, message, diagnostics });
     const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/media`, payload, authToken, 180000);
     console.log(`[SUPPORT] Uploaded media to ticket: ${ticketId}`);
     return result;

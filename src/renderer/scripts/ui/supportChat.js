@@ -250,31 +250,30 @@ function initChatEventHandlers() {
 }
 
 /**
- * Handle file selection
+ * Handle file selection (limited to 1 attachment per message)
  */
 function handleFileSelection(e) {
     const files = Array.from(e.target.files);
     
-    for (const file of files) {
-        // Check individual file size
-        if (file.size > MAX_ATTACHMENT_SIZE) {
-            notify(`File "${file.name}" is too large (max 500MB)`, { type: 'error' });
-            continue;
-        }
-        
-        // Check total size
-        const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0) + file.size;
-        if (totalSize > MAX_TOTAL_SIZE) {
-            notify('Total attachment size exceeds 550MB limit', { type: 'error' });
-            break;
-        }
-        
-        // Check for duplicates
-        if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-            selectedFiles.push(file);
-        }
+    if (files.length === 0) return;
+    
+    // Only allow 1 attachment per message
+    if (selectedFiles.length > 0) {
+        notify('Only 1 attachment allowed per message', { type: 'warning' });
+        e.target.value = '';
+        return;
     }
     
+    const file = files[0]; // Take only first file
+    
+    // Check file size
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+        notify(`File "${file.name}" is too large (max 500MB)`, { type: 'error' });
+        e.target.value = '';
+        return;
+    }
+    
+    selectedFiles = [file];
     updateAttachmentsList();
     e.target.value = ''; // Reset input
 }
@@ -359,39 +358,40 @@ async function handleSendMessage() {
             saveTicketToStorage();
             startMessagePolling();
         } else {
-            // Send message to existing ticket
-            showChatStatus('Sending message...', 'loading');
-            const msgResult = await window.electronAPI.sendSupportMessage({
-                ticketId: currentTicket.ticketId,
-                authToken: currentTicket.authToken,
-                message,
-                diagnostics
-            });
-            
-            if (!msgResult.success) {
-                throw new Error(msgResult.error || 'Failed to send message');
+            // If we have attachments, include message with first attachment
+            // Otherwise send message alone
+            if (selectedFiles.length === 0) {
+                showChatStatus('Sending message...', 'loading');
+                const msgResult = await window.electronAPI.sendSupportMessage({
+                    ticketId: currentTicket.ticketId,
+                    authToken: currentTicket.authToken,
+                    message,
+                    diagnostics
+                });
+                
+                if (!msgResult.success) {
+                    throw new Error(msgResult.error || 'Failed to send message');
+                }
             }
         }
         
-        // Upload attachments
+        // Upload attachment (limited to 1 per message)
         if (selectedFiles.length > 0) {
-            showChatStatus('Uploading attachments...', 'loading');
+            showChatStatus('Uploading attachment...', 'loading');
             
-            for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
-                showChatStatus(`Uploading ${file.name} (${i + 1}/${selectedFiles.length})...`, 'loading');
-                
-                const mediaData = await readFileAsBase64(file);
-                
-                await window.electronAPI.uploadSupportMedia({
-                    ticketId: currentTicket.ticketId,
-                    authToken: currentTicket.authToken,
-                    mediaData,
-                    fileName: file.name,
-                    fileType: file.type,
-                    fileSize: file.size
-                });
-            }
+            const file = selectedFiles[0]; // Only first attachment
+            const mediaData = await readFileAsBase64(file);
+            
+            await window.electronAPI.uploadSupportMedia({
+                ticketId: currentTicket.ticketId,
+                authToken: currentTicket.authToken,
+                mediaData,
+                fileName: file.name,
+                fileType: file.type,
+                fileSize: file.size,
+                message,
+                diagnostics
+            });
         }
         
         // Success - clear input and refresh
