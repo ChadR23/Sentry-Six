@@ -4008,8 +4008,25 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 /* Export Progress */
+.export-progress-sticky {
+    position: sticky;
+    bottom: -16px;
+    background: #1e2227;
+    padding: 16px 20px;
+    margin: 16px -20px -16px -20px;
+    padding-bottom: 16px;
+    z-index: 10;
+    box-shadow: 0 20px 0 #1e2227;
+}
+
+.export-progress-sticky:empty,
+.export-progress-sticky:not(:has(.export-progress:not(.hidden))) {
+    display: none;
+}
+
 .export-progress {
-    margin-top: 16px;
+    margin-top: 0;
+    margin-bottom: 8px;
 }
 
 .export-progress.hidden {

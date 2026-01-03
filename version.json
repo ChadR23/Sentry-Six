@@ -1,5 +1,5 @@
 {
-  "version": "2026.1.27",
+  "version": "2026.1.28",
   "releaseDate": "2026-01-02",
-  "releaseName": "Fixed FFMPEG not being detected on Windows Automated Install"
+  "releaseName": "Adjusted Export Modal"
 }
