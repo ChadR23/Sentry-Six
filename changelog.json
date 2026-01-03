@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.32",
+      "date": "2026-01-03",
+      "title": "Overhaul of Support Ticket System",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new Support Ticket system which can be found with the support icon located on the playback bar. This replaces the old feedback and support id system. Leave feedback, bug reports and request troubleshooting through the support ticket system. "
+        }
+      ]
+    },
+    {
       "version": "2026.1.28",
       "date": "2026-01-02",
       "title": "Adjusted Export Modal",

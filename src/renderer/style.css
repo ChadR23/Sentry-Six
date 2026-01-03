@@ -5270,3 +5270,520 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     left: 18px;
     background: #fff;
 }
+
+/* =====================================================
+   SUPPORT CHAT PANEL
+   ===================================================== */
+.support-chat-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background: rgba(15, 15, 22, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    z-index: 10000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.support-chat-panel.visible {
+    transform: translateX(0);
+}
+
+.support-chat-panel.hidden {
+    transform: translateX(100%);
+}
+
+.support-chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    -webkit-app-region: drag;
+}
+
+.support-chat-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.support-chat-title svg {
+    color: #5865F2;
+}
+
+.support-ticket-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(88, 101, 242, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.support-chat-actions {
+    display: flex;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+}
+
+.support-chat-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s;
+}
+
+.support-chat-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.support-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.support-chat-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.support-chat-welcome.hidden {
+    display: none;
+}
+
+.welcome-icon {
+    margin-bottom: 20px;
+    color: #5865F2;
+    opacity: 0.8;
+}
+
+.support-chat-welcome h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 12px;
+}
+
+.support-chat-welcome p {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+.welcome-note {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Chat Messages */
+.chat-message {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    animation: messageSlide 0.3s ease;
+}
+
+@keyframes messageSlide {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.user-message {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #5865F2, #4752c4);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.support-message {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-bottom-left-radius: 4px;
+}
+
+.message-content p {
+    font-size: 14px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.message-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.attachment-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.attachment-preview img,
+.attachment-preview video {
+    max-width: 200px;
+    max-height: 150px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.message-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 8px;
+}
+
+.message-badge.diagnostics {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.message-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.user-message .message-meta {
+    justify-content: flex-end;
+}
+
+/* Chat Composer */
+.support-chat-composer {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.support-chat-attachments {
+    margin-bottom: 12px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.attachment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.attachment-icon {
+    font-size: 16px;
+}
+
+.attachment-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.attachment-size {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.attachment-remove {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+}
+
+.attachment-remove:hover {
+    color: #e74c3c;
+}
+
+.composer-options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.composer-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.composer-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.composer-option input[type="checkbox"] {
+    display: none;
+}
+
+.composer-option:has(input:checked) {
+    background: rgba(88, 101, 242, 0.2);
+    color: #5865F2;
+}
+
+.composer-option svg {
+    flex-shrink: 0;
+}
+
+.composer-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.composer-textarea {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: #fff;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.composer-textarea:focus {
+    outline: none;
+    border-color: rgba(88, 101, 242, 0.5);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.composer-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.composer-send-btn {
+    background: linear-gradient(135deg, #5865F2, #4752c4);
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    color: #fff;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.composer-send-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(88, 101, 242, 0.4);
+}
+
+.composer-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.composer-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.char-count {
+    font-family: 'SF Mono', monospace;
+}
+
+.privacy-note {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.privacy-note svg {
+    opacity: 0.6;
+}
+
+/* Chat Status */
+.support-chat-status {
+    padding: 10px 16px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.support-chat-status.loading {
+    color: #5865F2;
+    background: rgba(88, 101, 242, 0.1);
+}
+
+.support-chat-status.success {
+    color: #2ecc71;
+    background: rgba(46, 204, 113, 0.1);
+}
+
+.support-chat-status.error {
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+}
+
+/* Support Chat Button (in control bar) */
+.support-chat-control-btn {
+    position: relative;
+}
+
+.notif-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    background: #e74c3c;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    animation: badgePulse 2s infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.notif-badge.pulse {
+    animation: newMessagePulse 0.6s ease-out, badgePulse 2s infinite 0.6s !important;
+}
+
+@keyframes newMessagePulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+    50% { transform: scale(1.4); box-shadow: 0 0 0 15px rgba(231, 76, 60, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
+
+.notif-badge.hidden {
+    display: none;
+}
+
+/* Scrollbar for chat messages */
+.support-chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.support-chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.support-chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.support-chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Closed ticket UI */
+.support-ticket-closed {
+    padding: 40px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.support-ticket-closed.hidden {
+    display: none;
+}
+
+.ticket-closed-content {
+    text-align: center;
+}
+
+.ticket-closed-content svg {
+    color: #43b581;
+    margin-bottom: 12px;
+}
+
+.ticket-closed-content p {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 16px 0;
+    font-size: 14px;
+}
+
+.new-ticket-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.new-ticket-btn:hover {
+    background: #4752c4;
+}
+
+.new-ticket-btn svg {
+    color: white;
+}
