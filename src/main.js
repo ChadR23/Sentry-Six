@@ -127,6 +127,15 @@ function findFFmpegPath() {
     }
   } else if (isWin) {
     // Windows: Check bundled paths first, then system
+    // For packaged builds, resources are in process.resourcesPath
+    if (app.isPackaged) {
+      paths.push(
+        path.join(process.resourcesPath, 'ffmpeg_bin', 'ffmpeg.exe'),
+        path.join(process.resourcesPath, 'app', 'ffmpeg_bin', 'ffmpeg.exe'),
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'ffmpeg_bin', 'ffmpeg.exe')
+      );
+    }
+    // Also check standard development paths
     paths.push(
       path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg.exe'),
       path.join(__dirname, 'ffmpeg_bin', 'ffmpeg.exe'),
@@ -158,11 +167,14 @@ function findFFmpegPath() {
       
       if (!exists) continue;
       
+      // Don't use shell:true on Windows - it breaks paths with spaces
+      // Only use shell on macOS for symlink handling
+      const isMac = process.platform === 'darwin';
       const result = spawnSync(p, ['-version'], { 
         timeout: 5000, 
         windowsHide: true,
         encoding: 'utf8',
-        shell: true  // Use shell on macOS to handle symlinks properly
+        shell: isMac  // Only use shell on macOS for symlinks
       });
       
       console.log(`  Spawn result: status=${result.status}, error=${result.error?.message || 'none'}`);

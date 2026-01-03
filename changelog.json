@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.27",
+      "date": "2026-01-02",
+      "title": "Fix FFMPEG detection",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed FFMPEG not being detected on Windows Automated Install"
+        }
+      ]
+    },
+    {
       "version": "2026.1.25",
       "date": "2026-01-02",
       "title": "Fix Windows Installer Failing",
