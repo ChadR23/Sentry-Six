@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.25",
+      "date": "2026-01-02",
+      "title": "Fix Windows Installer Failing",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the Windows Installer failed to update due to an Application Still Open error."
+        }
+      ]
+    },
+    {
       "version": "2026.1.24",
       "date": "2026-01-02",
       "title": "Added timestamp option for video exports",

@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.1.24",
+  "version": "2026.1.25",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
@@ -24,7 +24,7 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^39.2.7",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "24.13.1"
   },
   "dependencies": {
     "electron-updater": "^6.1.7",
@@ -108,7 +108,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "artifactName": "SentrySixRevampedSetup${version}.${ext}"
+      "artifactName": "SentrySixRevampedSetup${version}.${ext}",
+      "include": "build/installer.nsh"
     },
     "publish": {
       "provider": "github",
