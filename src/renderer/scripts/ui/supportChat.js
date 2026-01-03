@@ -13,6 +13,7 @@ let selectedFiles = [];
 let currentTicket = null; // { ticketId, authToken, threadId }
 let messagePollingInterval = null;
 let lastMessageId = null;
+let unreadCount = 0; // Track cumulative unread messages
 
 // Constants
 const MAX_ATTACHMENT_SIZE = 500 * 1024 * 1024; // 500MB
@@ -55,9 +56,8 @@ export function showSupportChat() {
     panel.classList.remove('hidden');
     panel.classList.add('visible');
     
-    // Mark notification as read
-    const notifBadge = $('supportChatNotifBadge');
-    if (notifBadge) notifBadge.classList.add('hidden');
+    // Clear unread count when chat is opened
+    clearUnreadCount();
 }
 
 /**
@@ -644,7 +644,8 @@ async function fetchMessages() {
             const panel = $('supportChatPanel');
             const newSupportMsgs = result.messages.filter(m => m.sender === 'support');
             if (newSupportMsgs.length > 0 && (!panel || !panel.classList.contains('visible'))) {
-                showNewMessageNotification(newSupportMsgs.length);
+                unreadCount += newSupportMsgs.length;
+                showNewMessageNotification(unreadCount);
             }
         }
     } catch (err) {
@@ -695,6 +696,11 @@ function showNewMessageNotification(count) {
     if (badge) {
         badge.textContent = count > 9 ? '9+' : count;
         badge.classList.remove('hidden');
+        
+        // Add pulse animation
+        badge.classList.remove('pulse');
+        void badge.offsetWidth; // Trigger reflow to restart animation
+        badge.classList.add('pulse');
     }
     
     // Show toast notification
@@ -706,6 +712,18 @@ function showNewMessageNotification(count) {
             callback: showSupportChat
         }
     });
+}
+
+/**
+ * Clear unread count and hide badge
+ */
+function clearUnreadCount() {
+    unreadCount = 0;
+    const badge = $('supportChatNotifBadge');
+    if (badge) {
+        badge.classList.add('hidden');
+        badge.classList.remove('pulse');
+    }
 }
 
 /**
