@@ -1673,6 +1673,30 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Clean up all active FFmpeg processes before quitting
+// This prevents orphaned processes that can block the Windows installer
+app.on('before-quit', () => {
+  console.log('[APP] before-quit: cleaning up active exports...');
+  const exportIds = Object.keys(activeExports);
+  if (exportIds.length > 0) {
+    console.log(`[APP] Killing ${exportIds.length} active FFmpeg process(es)`);
+    for (const exportId of exportIds) {
+      const proc = activeExports[exportId];
+      if (proc && !proc.killed) {
+        try {
+          // Use SIGKILL on Windows for immediate termination
+          proc.kill('SIGKILL');
+          console.log(`[APP] Killed export process: ${exportId}`);
+        } catch (err) {
+          console.error(`[APP] Failed to kill export ${exportId}:`, err.message);
+        }
+      }
+      delete activeExports[exportId];
+    }
+  }
+  cancelledExports.clear();
+});
+
 ipcMain.handle('dialog:openFolder', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
