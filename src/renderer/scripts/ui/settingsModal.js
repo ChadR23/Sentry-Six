@@ -313,31 +313,48 @@ export function initSettingsModal() {
     // Initialize keybind settings
     initKeybindSettings();
     
-    // Generate Support ID button (in regular settings)
-    const generateSupportIdBtn = $('generateSupportIdBtn');
-    if (generateSupportIdBtn) {
-        generateSupportIdBtn.onclick = async () => {
+    // Support Chat button (in control bar)
+    const supportChatBtn = $('supportChatBtn');
+    if (supportChatBtn) {
+        supportChatBtn.onclick = async () => {
             try {
-                const { showSupportIdDialog } = await import('./diagnostics.js');
-                await showSupportIdDialog();
+                const { toggleSupportChat, initSupportChat } = await import('./supportChat.js');
+                initSupportChat();
+                toggleSupportChat();
             } catch (err) {
-                console.error('Failed to generate Support ID:', err);
+                console.error('Failed to open support chat:', err);
             }
         };
     }
     
-    // Submit Feedback button in footer
-    const openFeedbackBtn = $('openFeedbackBtn');
-    if (openFeedbackBtn) {
-        openFeedbackBtn.onclick = async () => {
+    // Support Chat button (in settings modal)
+    const openSupportChatFromSettings = $('openSupportChatFromSettings');
+    if (openSupportChatFromSettings) {
+        openSupportChatFromSettings.onclick = async () => {
             try {
-                const { showFeedbackModal } = await import('./feedback.js');
-                showFeedbackModal();
+                // Close settings modal
+                const settingsModal = $('settingsModal');
+                if (settingsModal) settingsModal.classList.add('hidden');
+                
+                // Open support chat
+                const { showSupportChat, initSupportChat } = await import('./supportChat.js');
+                initSupportChat();
+                showSupportChat();
             } catch (err) {
-                console.error('Failed to open feedback modal:', err);
+                console.error('Failed to open support chat from settings:', err);
             }
         };
     }
+    
+    // Initialize support chat on startup (for message polling)
+    (async () => {
+        try {
+            const { checkForActiveTicket } = await import('./supportChat.js');
+            await checkForActiveTicket();
+        } catch (err) {
+            console.error('Failed to initialize support chat:', err);
+        }
+    })();
     
     // Advanced settings toggle
     const advancedSettingsToggle = $('advancedSettingsToggle');

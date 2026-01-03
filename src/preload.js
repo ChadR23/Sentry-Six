@@ -39,16 +39,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   
-  // Diagnostics & Support ID
+  // Diagnostics
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
-  writeDiagnosticFile: (filePath, content) => ipcRenderer.invoke('diagnostics:writeFile', filePath, content),
-  uploadDiagnostics: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:upload', supportId, diagnostics),
-  retrieveDiagnostics: (supportId, passcode) => ipcRenderer.invoke('diagnostics:retrieve', supportId, passcode),
-  saveDiagnosticsLocally: (supportId, diagnostics) => ipcRenderer.invoke('diagnostics:saveLocal', supportId, diagnostics),
   
-  // Feedback submission
-  submitFeedback: (data) => ipcRenderer.invoke('feedback:submit', data),
-  uploadFeedbackMedia: (data) => ipcRenderer.invoke('feedback:uploadMedia', data),
+  // Support Chat
+  createSupportTicket: (data) => ipcRenderer.invoke('support:createTicket', data),
+  sendSupportMessage: (data) => ipcRenderer.invoke('support:sendMessage', data),
+  uploadSupportMedia: (data) => ipcRenderer.invoke('support:uploadMedia', data),
+  fetchSupportMessages: (data) => ipcRenderer.invoke('support:fetchMessages', data),
+  closeSupportTicket: (data) => ipcRenderer.invoke('support:closeTicket', data),
   
   // Event listeners
   on: (channel, callback) => {

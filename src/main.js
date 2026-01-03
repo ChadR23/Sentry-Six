@@ -2697,50 +2697,102 @@ ipcMain.handle('diagnostics:saveLocal', async (_event, supportId, diagnostics) =
   }
 });
 
-// Submit user feedback
-ipcMain.handle('feedback:submit', async (_event, data) => {
+// =====================================================
+// SUPPORT CHAT SYSTEM
+// =====================================================
+
+// Create a new support ticket
+ipcMain.handle('support:createTicket', async (_event, data) => {
   try {
-    const { feedback, diagnostics, mediaInfo } = data;
-    
-    const payload = JSON.stringify({ feedback, diagnostics, mediaInfo });
-    const result = await submitFeedbackToServer(payload);
-    
+    const { message, diagnostics, hasAttachments } = data;
+    const payload = JSON.stringify({ message, diagnostics, hasAttachments });
+    const result = await makeSupportRequest('POST', '/chat/ticket', payload);
+    console.log(`[SUPPORT] Created ticket: ${result.ticketId}`);
     return result;
   } catch (err) {
-    console.error('[FEEDBACK] Submit failed:', err.message);
+    console.error('[SUPPORT] Create ticket failed:', err.message);
     return { success: false, error: err.message };
   }
 });
 
-// Upload feedback media attachment
-ipcMain.handle('feedback:uploadMedia', async (_event, data) => {
+// Send a message to an existing ticket
+ipcMain.handle('support:sendMessage', async (_event, data) => {
   try {
-    const { feedbackId, mediaData, fileName, fileType, fileSize } = data;
-    
+    const { ticketId, authToken, message, diagnostics } = data;
+    const payload = JSON.stringify({ message, diagnostics });
+    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/message`, payload, authToken);
+    console.log(`[SUPPORT] Sent message to ticket: ${ticketId}`);
+    return result;
+  } catch (err) {
+    console.error('[SUPPORT] Send message failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Upload media attachment for a ticket
+ipcMain.handle('support:uploadMedia', async (_event, data) => {
+  try {
+    const { ticketId, authToken, mediaData, fileName, fileType, fileSize } = data;
     const payload = JSON.stringify({ mediaData, fileName, fileType, fileSize });
-    const result = await uploadFeedbackMediaToServer(feedbackId, payload);
-    
+    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/media`, payload, authToken, 180000);
+    console.log(`[SUPPORT] Uploaded media to ticket: ${ticketId}`);
     return result;
   } catch (err) {
-    console.error('[FEEDBACK] Media upload failed:', err.message);
+    console.error('[SUPPORT] Media upload failed:', err.message);
     return { success: false, error: err.message };
   }
 });
 
-// Submit feedback to support server
-function submitFeedbackToServer(payload) {
+// Fetch messages for a ticket
+ipcMain.handle('support:fetchMessages', async (_event, data) => {
+  try {
+    const { ticketId, authToken, since } = data;
+    const query = since ? `?since=${since}` : '';
+    const result = await makeSupportRequest('GET', `/chat/ticket/${ticketId}/messages${query}`, null, authToken);
+    return result;
+  } catch (err) {
+    console.error('[SUPPORT] Fetch messages failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Close a support ticket
+ipcMain.handle('support:closeTicket', async (_event, data) => {
+  try {
+    const { ticketId, authToken, reason } = data;
+    const payload = JSON.stringify({ closedBy: 'User', reason });
+    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/close`, payload, authToken);
+    console.log(`[SUPPORT] Closed ticket: ${ticketId}`);
+    return result;
+  } catch (err) {
+    console.error('[SUPPORT] Close ticket failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Helper function to make support server requests
+function makeSupportRequest(method, path, payload = null, authToken = null, timeout = 30000) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(SUPPORT_SERVER_URL);
+    
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (payload) {
+      headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    
+    if (authToken) {
+      headers['X-Auth-Token'] = authToken;
+    }
     
     const options = {
       hostname: urlObj.hostname,
       port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-      path: '/feedback',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
+      path: path,
+      method: method,
+      headers: headers
     };
 
     const httpModule = urlObj.protocol === 'https:' ? https : require('http');
@@ -2750,8 +2802,7 @@ function submitFeedbackToServer(payload) {
       res.on('end', () => {
         try {
           const result = JSON.parse(body);
-          if (res.statusCode === 200 && result.success) {
-            console.log(`[FEEDBACK] Submitted with ID: ${result.feedbackId}`);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(result);
           } else {
             reject(new Error(result.error || `Server error: ${res.statusCode}`));
@@ -2763,56 +2814,14 @@ function submitFeedbackToServer(payload) {
     });
 
     req.on('error', reject);
-    req.setTimeout(30000, () => {
+    req.setTimeout(timeout, () => {
       req.destroy();
-      reject(new Error('Upload timeout'));
+      reject(new Error('Request timeout'));
     });
-    req.write(payload);
-    req.end();
-  });
-}
-
-// Upload feedback media to support server
-function uploadFeedbackMediaToServer(feedbackId, payload) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(SUPPORT_SERVER_URL);
     
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-      path: `/feedback/${feedbackId}/media`,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const httpModule = urlObj.protocol === 'https:' ? https : require('http');
-    const req = httpModule.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          const result = JSON.parse(body);
-          if (res.statusCode === 200 && result.success) {
-            console.log(`[FEEDBACK] Media uploaded for: ${feedbackId}`);
-            resolve(result);
-          } else {
-            reject(new Error(result.error || `Server error: ${res.statusCode}`));
-          }
-        } catch (e) {
-          reject(new Error('Invalid server response'));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(120000, () => { // 2 min timeout for large files
-      req.destroy();
-      reject(new Error('Upload timeout'));
-    });
-    req.write(payload);
+    if (payload) {
+      req.write(payload);
+    }
     req.end();
   });
 }

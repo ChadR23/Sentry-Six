@@ -349,6 +349,11 @@
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
                 </button>
+                <button id="supportChatBtn" class="control-btn support-chat-control-btn" title="Support Chat">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </button>
                 <button id="settingsBtn" class="control-btn settings-btn" title="Settings">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                         <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
@@ -790,14 +795,12 @@
                     <!-- Support Section -->
                     <div class="modal-section">
                         <div class="modal-section-title">Support</div>
-                        <div class="modal-section-desc">Having issues? Generate a Support ID to share with developers for troubleshooting.</div>
-                        <button id="generateSupportIdBtn" class="btn btn-primary support-id-btn" style="width: 100%; margin-top: 10px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        <div class="modal-section-desc">Having issues? Use the Support Chat button in the playback bar to start a conversation with our team.</div>
+                        <button id="openSupportChatFromSettings" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                             </svg>
-                            Generate Support ID
+                            Open Support Chat
                         </button>
                     </div>
                     
@@ -934,12 +937,6 @@
             </div>
             
             <div class="modal-footer">
-                <button id="openFeedbackBtn" class="btn btn-secondary">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    Submit Feedback
-                </button>
                 <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
             </div>
         </div>
