@@ -516,29 +516,34 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         return;
     }
     
-    // Calculate midpoint time
+    // Use current viewer playback time instead of midpoint for accurate snapshot
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const currentPlaybackSec = nativeVideo?.master?.currentTime || 0;
+    
+    // Clamp to export range if markers are set
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
     const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
     const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
-    const midpointSec = (startSec + endSec) / 2;
+    
+    // Use current playback time, clamped to export range
+    const snapshotSec = Math.max(startSec, Math.min(endSec, currentPlaybackSec));
     
     try {
-        notify('Capturing snapshot...', { type: 'info' });
+        notify('Capturing snapshot...');
         
-        // Find the video file for the snapshot camera at the midpoint segment
+        // Find the video file for the snapshot camera at the current playback position
         const groups = state.collection.active.groups || [];
         const cumStarts = nativeVideo?.cumulativeStarts || [];
         let targetSegment = 0;
         
         for (let i = 0; i < cumStarts.length - 1; i++) {
-            if (midpointSec >= cumStarts[i] && midpointSec < cumStarts[i + 1]) {
+            if (snapshotSec >= cumStarts[i] && snapshotSec < cumStarts[i + 1]) {
                 targetSegment = i;
                 break;
             }
         }
-        if (midpointSec >= cumStarts[cumStarts.length - 1]) {
+        if (snapshotSec >= cumStarts[cumStarts.length - 1]) {
             targetSegment = groups.length - 1;
         }
         
@@ -580,7 +585,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         
         // Calculate local time within segment
         const segmentStartSec = cumStarts[targetSegment] || 0;
-        const localTimeSec = Math.min(midpointSec - segmentStartSec, tempVideo.duration);
+        const localTimeSec = Math.min(snapshotSec - segmentStartSec, tempVideo.duration);
         
         // Capture snapshot
         const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
@@ -754,17 +759,12 @@ function initBlurZoneEditorModal() {
                     maskHeight: canvasDims.height
                 };
                 
-                // Update existing or add new zone
+                // Update existing zone if editing, or add new zone
                 if (exportState.blurZoneEditIndex !== null) {
                     exportState.blurZones[exportState.blurZoneEditIndex] = newZone;
                 } else {
-                    // Check if zone already exists for this camera, replace it
-                    const existingIndex = exportState.blurZones.findIndex(z => z.camera === newZone.camera);
-                    if (existingIndex >= 0) {
-                        exportState.blurZones[existingIndex] = newZone;
-                    } else {
-                        exportState.blurZones.push(newZone);
-                    }
+                    // Always add as new zone (allow multiple zones per camera)
+                    exportState.blurZones.push(newZone);
                 }
                 
                 // Disable dashboard checkbox when blur zones exist
@@ -1382,8 +1382,8 @@ export async function startExport() {
             includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
             timestampPosition, // Position: bottom-center, bottom-left, etc.
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
-            // Blur zone data - filter to only selected cameras, use first one for now (MVP)
-            blurZone: exportState.blurZones.filter(z => cameras.includes(z.camera))[0] || null
+            // Blur zone data - filter to only selected cameras, send all zones
+            blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera))
         };
         
         await window.electronAPI.startExport(exportId, exportData);

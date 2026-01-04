@@ -301,13 +301,12 @@ function handleMouseMove(e) {
  * Handle mouse up (works even outside canvas)
  */
 function handleMouseUp() {
-    if (editorState.draggedAnchor !== null || editorState.isDraggingZone) {
-        editorState.draggedAnchor = null;
-        editorState.isDraggingZone = false;
-        editorState.dragOffset = { x: 0, y: 0 };
-        if (editorState.canvas) {
-            editorState.canvas.style.cursor = 'default';
-        }
+    // Always reset drag state on mouseup to prevent stuck dragging
+    editorState.draggedAnchor = null;
+    editorState.isDraggingZone = false;
+    editorState.dragOffset = { x: 0, y: 0 };
+    if (editorState.canvas) {
+        editorState.canvas.style.cursor = 'default';
     }
 }
 
