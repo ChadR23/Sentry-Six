@@ -5,6 +5,7 @@
 
 import { notify } from '../ui/notifications.js';
 import { formatTimeHMS } from '../ui/timeDisplay.js';
+import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 
 // Export state
 export const exportState = {
@@ -20,7 +21,8 @@ export const exportState = {
     cancelled: false,
     modalMinimized: false,
     currentStep: '',
-    currentProgress: 0
+    currentProgress: 0,
+    blurZone: null // { coordinates: [{x, y}, ...], camera: string }
 };
 
 // DOM helper
@@ -370,6 +372,12 @@ export function openExportModal() {
         closeBtn.style.cursor = 'pointer';
         closeBtn.style.opacity = '1';
     }
+    
+    // Initialize blur zone editor modal
+    initBlurZoneEditorModal();
+    
+    // Update blur zone button text
+    updateBlurZoneButtonText();
 }
 
 /**
@@ -437,6 +445,308 @@ function updateFloatingProgress(step, percentage) {
     
     if (stepEl) stepEl.textContent = step || 'Exporting...';
     if (barFill) barFill.style.width = `${percentage || 0}%`;
+}
+
+/**
+ * Capture a snapshot from video at a specific time
+ * @param {number} timeSec - Time in seconds to capture
+ * @param {HTMLVideoElement} videoElement - Video element to capture from
+ * @returns {Promise<string>} - Data URL of the captured image
+ */
+async function captureVideoSnapshot(timeSec, videoElement) {
+    return new Promise((resolve, reject) => {
+        if (!videoElement) {
+            reject(new Error('No video element provided'));
+            return;
+        }
+        
+        const wasPlaying = !videoElement.paused;
+        const originalTime = videoElement.currentTime;
+        
+        // Seek to target time
+        videoElement.currentTime = timeSec;
+        
+        const onSeeked = () => {
+            videoElement.removeEventListener('seeked', onSeeked);
+            
+            // Create canvas and draw video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth || videoElement.clientWidth;
+            canvas.height = videoElement.videoHeight || videoElement.clientHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // Restore original state
+            videoElement.currentTime = originalTime;
+            if (wasPlaying) {
+                videoElement.play().catch(() => {});
+            }
+            
+            resolve(canvas.toDataURL('image/png'));
+        };
+        
+        videoElement.addEventListener('seeked', onSeeked, { once: true });
+        
+        // Timeout fallback
+        setTimeout(() => {
+            videoElement.removeEventListener('seeked', onSeeked);
+            reject(new Error('Snapshot capture timeout'));
+        }, 5000);
+    });
+}
+
+/**
+ * Initialize blur zone editor modal event handlers
+ */
+function initBlurZoneEditorModal() {
+    const addBtn = $('addBlurZoneBtn');
+    const editorModal = $('blurZoneEditorModal');
+    const closeBtn = $('closeBlurZoneEditorModal');
+    const cancelBtn = $('cancelBlurZoneBtn');
+    const clearBtn = $('clearBlurZoneBtn');
+    const saveBtn = $('saveBlurZoneBtn');
+    const statusEl = $('blurZoneStatus');
+    const statusTextEl = $('blurZoneStatusText');
+    
+    if (!addBtn || !editorModal) return;
+    
+    addBtn.addEventListener('click', async () => {
+        const state = getState?.();
+        const nativeVideo = getNativeVideo?.();
+        
+        if (!state?.collection?.active) {
+            notify('Load a collection first', { type: 'warn' });
+            return;
+        }
+        
+        // Calculate midpoint time
+        const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+        const startPct = exportState.startMarkerPct ?? 0;
+        const endPct = exportState.endMarkerPct ?? 100;
+        const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
+        const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
+        const midpointSec = (startSec + endSec) / 2;
+        
+        // Get the first selected camera for snapshot
+        const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
+        const selectedCameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
+        
+        if (selectedCameras.length === 0) {
+            notify('Please select at least one camera first', { type: 'warn' });
+            return;
+        }
+        
+        // Use back camera if available, otherwise first selected
+        const snapshotCamera = selectedCameras.includes('back') ? 'back' : selectedCameras[0];
+        
+        // Find video element (we'll use nativeVideo.master or create temporary)
+        // For MVP, we'll use a simpler approach: create temporary video element
+        try {
+            notify('Capturing snapshot...', { type: 'info' });
+            
+            // Find the video file for the snapshot camera at the midpoint segment
+            const groups = state.collection.active.groups || [];
+            const cumStarts = nativeVideo?.cumulativeStarts || [];
+            let targetSegment = 0;
+            
+            for (let i = 0; i < cumStarts.length - 1; i++) {
+                if (midpointSec >= cumStarts[i] && midpointSec < cumStarts[i + 1]) {
+                    targetSegment = i;
+                    break;
+                }
+            }
+            if (midpointSec >= cumStarts[cumStarts.length - 1]) {
+                targetSegment = groups.length - 1;
+            }
+            
+            const group = groups[targetSegment];
+            const entry = group?.filesByCamera?.get(snapshotCamera);
+            
+            if (!entry?.file) {
+                notify('Could not find video file for snapshot', { type: 'error' });
+                return;
+            }
+            
+            // Create temporary video element
+            const tempVideo = document.createElement('video');
+            tempVideo.muted = true;
+            tempVideo.playsInline = true;
+            tempVideo.style.display = 'none';
+            document.body.appendChild(tempVideo);
+            
+            // Load video file
+            let videoUrl;
+            if (entry.file.path) {
+                videoUrl = entry.file.path.startsWith('/') 
+                    ? `file://${entry.file.path}` 
+                    : `file:///${entry.file.path.replace(/\\/g, '/')}`;
+            } else if (entry.file instanceof File) {
+                videoUrl = URL.createObjectURL(entry.file);
+            } else {
+                notify('Unsupported file type for snapshot', { type: 'error' });
+                return;
+            }
+            
+            tempVideo.src = videoUrl;
+            
+            await new Promise((resolve, reject) => {
+                tempVideo.onloadedmetadata = resolve;
+                tempVideo.onerror = reject;
+                setTimeout(reject, 10000);
+            });
+            
+            // Calculate local time within segment
+            const segmentStartSec = cumStarts[targetSegment] || 0;
+            const localTimeSec = Math.min(midpointSec - segmentStartSec, tempVideo.duration);
+            
+            // Capture snapshot
+            const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
+            
+            // Clean up
+            tempVideo.src = '';
+            document.body.removeChild(tempVideo);
+            if (videoUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(videoUrl);
+            }
+            
+            // Get video dimensions
+            const videoWidth = tempVideo.videoWidth || 1448;
+            const videoHeight = tempVideo.videoHeight || 938;
+            
+            // Initialize editor with snapshot and load saved coordinates if they exist
+            editorModal.classList.remove('hidden');
+            const savedCoords = exportState.blurZone?.coordinates || null;
+            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords);
+            
+            // Store which camera this zone is for
+            exportState.blurZoneCamera = snapshotCamera;
+            
+        } catch (err) {
+            console.error('Failed to capture snapshot:', err);
+            notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
+        }
+    });
+    
+    const closeEditor = () => {
+        editorModal.classList.add('hidden');
+        resetBlurZoneEditor();
+    };
+    
+    if (closeBtn) closeBtn.addEventListener('click', closeEditor);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            resetBlurZoneEditor();
+            exportState.blurZone = null;
+            if (statusEl) statusEl.classList.add('hidden');
+            // Reinitialize with current image (will be handled by modal close/reopen)
+            // For now, just close and let user reopen if needed
+        });
+    }
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            try {
+                console.log('[BLUR ZONE] Save button clicked');
+                
+                const coords = getNormalizedCoordinates();
+                console.log('[BLUR ZONE] Coordinates:', coords);
+                
+                if (!coords || coords.length < 3) {
+                    notify('Please create a valid blur zone with at least 3 points', { type: 'warn' });
+                    return;
+                }
+                
+                // Generate mask image
+                console.log('[BLUR ZONE] Generating mask image...');
+                const maskImageDataUrl = await generateMaskImage();
+                if (!maskImageDataUrl) {
+                    console.error('[BLUR ZONE] Failed to generate mask image');
+                    notify('Failed to generate mask image', { type: 'error' });
+                    return;
+                }
+                console.log('[BLUR ZONE] Mask image generated, length:', maskImageDataUrl.length);
+                
+                // Extract base64 data (remove data:image/png;base64, prefix)
+                const base64Data = maskImageDataUrl.split(',')[1];
+                if (!base64Data) {
+                    console.error('[BLUR ZONE] Failed to extract base64 data');
+                    notify('Failed to extract mask image data', { type: 'error' });
+                    return;
+                }
+                
+                // Get canvas dimensions
+                const canvasDims = getCanvasDimensions();
+                if (!canvasDims) {
+                    console.error('[BLUR ZONE] Failed to get canvas dimensions');
+                    notify('Failed to get canvas dimensions', { type: 'error' });
+                    return;
+                }
+                console.log('[BLUR ZONE] Canvas dimensions:', canvasDims);
+                
+                exportState.blurZone = {
+                    coordinates: coords,
+                    camera: exportState.blurZoneCamera || 'back',
+                    maskImageBase64: base64Data,
+                    maskWidth: canvasDims.width,
+                    maskHeight: canvasDims.height
+                };
+                
+                console.log('[BLUR ZONE] Zone saved successfully:', {
+                    camera: exportState.blurZone.camera,
+                    numPoints: exportState.blurZone.coordinates.length,
+                    maskSize: `${exportState.blurZone.maskWidth}x${exportState.blurZone.maskHeight}`
+                });
+                
+                if (statusEl) statusEl.classList.remove('hidden');
+                if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
+                
+                // Disable dashboard checkbox (per requirements)
+                const dashboardCheckbox = $('includeDashboard');
+                if (dashboardCheckbox) {
+                    dashboardCheckbox.checked = false;
+                    dashboardCheckbox.disabled = true;
+                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
+                    if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+                }
+                
+                // Update button text to "Edit Zone"
+                updateBlurZoneButtonText();
+                
+                notify('Blur zone saved successfully', { type: 'success' });
+                
+                closeEditor();
+            } catch (err) {
+                console.error('[BLUR ZONE] Save error:', err);
+                notify(`Failed to save blur zone: ${err.message}`, { type: 'error' });
+            }
+        });
+    }
+    
+    // Update status display when modal opens
+    updateBlurZoneButtonText();
+}
+
+/**
+ * Update the blur zone button text based on whether a zone exists
+ */
+function updateBlurZoneButtonText() {
+    const addBtn = $('addBlurZoneBtn');
+    const statusEl = $('blurZoneStatus');
+    const statusTextEl = $('blurZoneStatusText');
+    
+    if (addBtn) {
+        if (exportState.blurZone) {
+            addBtn.textContent = 'Edit Zone';
+            if (statusEl) statusEl.classList.remove('hidden');
+            if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
+        } else {
+            addBtn.textContent = 'Add Zone';
+            if (statusEl) statusEl.classList.add('hidden');
+        }
+    }
 }
 
 /**
@@ -680,8 +990,16 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
+    // Blur zone disables dashboard (per requirements)
+    const hasBlurZone = !!exportState.blurZone;
     const includeDashboardCheckbox = $('includeDashboard');
-    const includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    let includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    
+    // Disable dashboard if blur zone is active
+    if (hasBlurZone) {
+        includeDashboard = false;
+    }
+    
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
     
@@ -978,8 +1296,8 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zone
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZone,
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
@@ -988,7 +1306,9 @@ export async function startExport() {
             // Timestamp-only option (independent of dashboard, uses simple drawtext filter)
             includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
             timestampPosition, // Position: bottom-center, bottom-left, etc.
-            timestampDateFormat // Date format: mdy (US), dmy (International), ymd (ISO)
+            timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
+            // Blur zone data (one zone per export for MVP)
+            blurZone: exportState.blurZone || null
         };
         
         await window.electronAPI.startExport(exportId, exportData);

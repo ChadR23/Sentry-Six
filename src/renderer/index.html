@@ -614,6 +614,25 @@
                     </div>
                 </div>
 
+                <!-- Blur Zone -->
+                <div class="modal-section" style="margin-top: 6px;">
+                    <div class="action-row">
+                        <div class="action-row-info">
+                            <span class="action-row-label">Add Blur Zone</span>
+                            <span class="action-row-desc">Redact sensitive information before sharing</span>
+                        </div>
+                        <button id="addBlurZoneBtn" class="btn btn-secondary btn-small">Add Zone</button>
+                    </div>
+                    <div id="blurZoneStatus" class="info-box info-blue hidden" style="margin-top: 10px;">
+                        <span class="info-box-icon">ℹ️</span>
+                        <span id="blurZoneStatusText">Blur zone configured</span>
+                    </div>
+                    <div class="info-box info-yellow hidden" style="margin-top: 10px;">
+                        <span class="info-box-icon">⚠️</span>
+                        <span>Blur zones disable the Dashboard overlay. Only one blur zone is supported per export.</span>
+                    </div>
+                </div>
+
                 <!-- FFmpeg Status -->
                 <div class="modal-section" style="margin-top: 6px;">
                     <div id="ffmpegStatus" class="info-box info-green">
@@ -650,6 +669,35 @@
             <div class="modal-footer">
                 <button id="cancelExportBtn" class="btn btn-secondary">Cancel</button>
                 <button id="startExportBtn" class="btn btn-primary" disabled>Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blur Zone Editor Modal -->
+    <div id="blurZoneEditorModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh;">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    Blur Zone Editor
+                </h2>
+                <button id="closeBlurZoneEditorModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <div class="info-box info-blue" style="margin-bottom: 15px;">
+                    <span class="info-box-icon">ℹ️</span>
+                    <span>Click and drag the corner handles to resize. Hover over edges to add new points. Click on points to create complex shapes.</span>
+                </div>
+                <div style="display: flex; justify-content: center; align-items: center; background: #000; border-radius: 8px; padding: 20px; min-height: 400px;">
+                    <canvas id="blurZoneEditorCanvas" style="max-width: 100%; max-height: 70vh; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;"></canvas>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelBlurZoneBtn" class="btn btn-secondary">Cancel</button>
+                <button id="clearBlurZoneBtn" class="btn btn-secondary">Clear</button>
+                <button id="saveBlurZoneBtn" class="btn btn-primary">Save Zone</button>
             </div>
         </div>
     </div>
