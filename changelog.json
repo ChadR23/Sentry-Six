@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.35",
+      "date": "2026-01-04",
+      "title": "Addition of Export Blur Zones",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "You can now add blur zones to each individual camera before export. Blur zones can be useful to blur sensitive information before sharing such as, license plates, faces, locations, etc. Note that blur zones apply for the entire duration of the exported video."
+        }
+      ]
+    },
+    {
       "version": "2026.1.32",
       "date": "2026-01-03",
       "title": "Overhaul of Support Ticket System",

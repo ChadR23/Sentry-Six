@@ -1774,6 +1774,29 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 }
 
 app.whenReady().then(async () => {
+  // Check for new packages after update (dev mode only)
+  // This runs before window creation to ensure packages are installed
+  const packageResult = await checkAndInstallPackages();
+  
+  if (packageResult.installed && packageResult.count > 0) {
+    // New packages were installed - show dialog and ask to restart
+    const response = await dialog.showMessageBox({
+      type: 'info',
+      title: 'New Packages Installed',
+      message: `The update installed ${packageResult.count} new package(s).`,
+      detail: 'Please restart the application with "npm start" for the changes to take effect.',
+      buttons: ['Exit Now', 'Continue Anyway'],
+      defaultId: 0,
+      cancelId: 1
+    });
+    
+    if (response.response === 0) {
+      // User chose to exit
+      app.quit();
+      return;
+    }
+  }
+  
   createWindow();
   
   // Set up electron-updater event handlers (only if available)
@@ -1865,6 +1888,84 @@ ipcMain.handle('dialog:openFolder', async () => {
 
 // File-based settings storage for reliable persistence
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+/**
+ * Check if npm packages need to be installed after an update (dev mode only)
+ * @returns {Promise<{needed: boolean, installed: boolean, error?: string}>}
+ */
+async function checkAndInstallPackages() {
+  // Only run for dev mode (npm start users)
+  if (app.isPackaged) {
+    return { needed: false, installed: false };
+  }
+  
+  try {
+    const settings = loadSettings();
+    const versionPath = path.join(__dirname, '..', 'version.json');
+    
+    // Read current version
+    let currentVersion = '0.0.0';
+    if (fs.existsSync(versionPath)) {
+      try {
+        const versionData = JSON.parse(fs.readFileSync(versionPath, 'utf-8'));
+        currentVersion = versionData.version || '0.0.0';
+      } catch (e) {
+        console.log('[STARTUP] Could not read version.json');
+      }
+    }
+    
+    const lastRunVersion = settings.lastRunVersion || '0.0.0';
+    
+    // If version hasn't changed, no need to check
+    if (currentVersion === lastRunVersion) {
+      return { needed: false, installed: false };
+    }
+    
+    console.log(`[STARTUP] Version changed from ${lastRunVersion} to ${currentVersion}, checking for new packages...`);
+    
+    // Run npm install and capture output
+    const projectRoot = path.join(__dirname, '..');
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    
+    const result = spawnSync(npmCmd, ['install'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 120000, // 2 minute timeout
+      shell: true
+    });
+    
+    if (result.error) {
+      console.error('[STARTUP] npm install error:', result.error);
+      // Still update version so we don't keep trying
+      settings.lastRunVersion = currentVersion;
+      saveSettings(settings);
+      return { needed: true, installed: false, error: result.error.message };
+    }
+    
+    const output = (result.stdout || '') + (result.stderr || '');
+    
+    // Check if new packages were actually installed
+    // npm install outputs "added X packages" when new packages are installed
+    const addedMatch = output.match(/added (\d+) package/i);
+    const packagesAdded = addedMatch ? parseInt(addedMatch[1], 10) : 0;
+    
+    // Update last run version
+    settings.lastRunVersion = currentVersion;
+    saveSettings(settings);
+    
+    if (packagesAdded > 0) {
+      console.log(`[STARTUP] Installed ${packagesAdded} new package(s)`);
+      return { needed: true, installed: true, count: packagesAdded };
+    }
+    
+    console.log('[STARTUP] No new packages needed');
+    return { needed: true, installed: false };
+    
+  } catch (err) {
+    console.error('[STARTUP] Package check error:', err);
+    return { needed: false, installed: false, error: err.message };
+  }
+}
 
 function loadSettings() {
   try {
