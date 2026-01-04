@@ -228,55 +228,53 @@ export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedC
 }
 
 /**
- * Set up canvas event listeners
+ * Handle mouse move for dragging (works even outside canvas)
  */
-function setupEventListeners() {
-    const canvas = editorState.canvas;
-    if (!canvas) return;
+function handleMouseMove(e) {
+    if (!editorState.isInitialized || !editorState.canvas) return;
     
-    canvas.addEventListener('mousemove', (e) => {
-        if (!editorState.isInitialized) return;
+    const canvas = editorState.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    if (editorState.draggedAnchor !== null) {
+        // Update dragged anchor position (clamp to canvas bounds)
+        editorState.anchors[editorState.draggedAnchor].x = Math.max(0, Math.min(canvas.width, x));
+        editorState.anchors[editorState.draggedAnchor].y = Math.max(0, Math.min(canvas.height, y));
+        render();
+    } else if (editorState.isDraggingZone) {
+        // Move all anchors by the drag offset
+        const dx = x - editorState.dragOffset.x;
+        const dy = y - editorState.dragOffset.y;
         
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Calculate bounding box of current anchors
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const anchor of editorState.anchors) {
+            if (anchor.x < minX) minX = anchor.x;
+            if (anchor.x > maxX) maxX = anchor.x;
+            if (anchor.y < minY) minY = anchor.y;
+            if (anchor.y > maxY) maxY = anchor.y;
+        }
         
-        if (editorState.draggedAnchor !== null) {
-            // Update dragged anchor position
-            editorState.anchors[editorState.draggedAnchor].x = Math.max(0, Math.min(canvas.width, x));
-            editorState.anchors[editorState.draggedAnchor].y = Math.max(0, Math.min(canvas.height, y));
-            render();
-        } else if (editorState.isDraggingZone) {
-            // Move all anchors by the drag offset
-            const dx = x - editorState.dragOffset.x;
-            const dy = y - editorState.dragOffset.y;
-            
-            // Calculate bounding box of current anchors
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        // Clamp the delta so the entire zone stays within bounds
+        const clampedDx = Math.max(-minX, Math.min(canvas.width - maxX, dx));
+        const clampedDy = Math.max(-minY, Math.min(canvas.height - maxY, dy));
+        
+        // Only move if there's actual movement after clamping
+        if (clampedDx !== 0 || clampedDy !== 0) {
             for (const anchor of editorState.anchors) {
-                if (anchor.x < minX) minX = anchor.x;
-                if (anchor.x > maxX) maxX = anchor.x;
-                if (anchor.y < minY) minY = anchor.y;
-                if (anchor.y > maxY) maxY = anchor.y;
+                anchor.x += clampedDx;
+                anchor.y += clampedDy;
             }
-            
-            // Clamp the delta so the entire zone stays within bounds
-            const clampedDx = Math.max(-minX, Math.min(canvas.width - maxX, dx));
-            const clampedDy = Math.max(-minY, Math.min(canvas.height - maxY, dy));
-            
-            // Only move if there's actual movement after clamping
-            if (clampedDx !== 0 || clampedDy !== 0) {
-                for (const anchor of editorState.anchors) {
-                    anchor.x += clampedDx;
-                    anchor.y += clampedDy;
-                }
-            }
-            
-            editorState.dragOffset.x = x;
-            editorState.dragOffset.y = y;
-            render();
-        } else {
-            // Check for ghost point on hover (but not if inside polygon)
+        }
+        
+        editorState.dragOffset.x = x;
+        editorState.dragOffset.y = y;
+        render();
+    } else {
+        // Only handle hover effects when mouse is over canvas
+        if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
             const isInside = pointInPolygon({ x, y }, editorState.anchors);
             if (!isInside) {
                 const closest = findClosestSegment({ x, y }, editorState.anchors);
@@ -296,7 +294,33 @@ function setupEventListeners() {
             }
             render();
         }
-    });
+    }
+}
+
+/**
+ * Handle mouse up (works even outside canvas)
+ */
+function handleMouseUp() {
+    if (editorState.draggedAnchor !== null || editorState.isDraggingZone) {
+        editorState.draggedAnchor = null;
+        editorState.isDraggingZone = false;
+        editorState.dragOffset = { x: 0, y: 0 };
+        if (editorState.canvas) {
+            editorState.canvas.style.cursor = 'default';
+        }
+    }
+}
+
+/**
+ * Set up canvas event listeners
+ */
+function setupEventListeners() {
+    const canvas = editorState.canvas;
+    if (!canvas) return;
+    
+    // Use document-level listeners for mousemove/mouseup so dragging works outside canvas
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     
     canvas.addEventListener('mousedown', (e) => {
         if (!editorState.isInitialized) return;
@@ -352,21 +376,14 @@ function setupEventListeners() {
         }
     });
     
-    canvas.addEventListener('mouseup', () => {
-        editorState.draggedAnchor = null;
-        editorState.isDraggingZone = false;
-        editorState.dragOffset = { x: 0, y: 0 };
-        canvas.style.cursor = 'default';
-    });
-    
     canvas.addEventListener('mouseleave', () => {
-        editorState.ghostPoint = null;
-        editorState.hoveredSegment = null;
-        editorState.draggedAnchor = null;
-        editorState.isDraggingZone = false;
-        editorState.dragOffset = { x: 0, y: 0 };
-        canvas.style.cursor = 'default';
-        render();
+        // Only clear ghost point, don't cancel dragging
+        if (!editorState.isDraggingZone && editorState.draggedAnchor === null) {
+            editorState.ghostPoint = null;
+            editorState.hoveredSegment = null;
+            canvas.style.cursor = 'default';
+            render();
+        }
     });
 }
 

@@ -22,8 +22,13 @@ export const exportState = {
     modalMinimized: false,
     currentStep: '',
     currentProgress: 0,
-    blurZone: null // { coordinates: [{x, y}, ...], camera: string }
+    blurZones: [], // Array of { coordinates: [{x, y}, ...], camera: string, maskImageBase64, maskWidth, maskHeight }
+    blurZoneCamera: null, // Camera being edited
+    blurZoneEditIndex: null // Index of zone being edited (null = new zone)
 };
+
+// Track if modal listeners have been initialized
+let blurZoneModalInitialized = false;
 
 // DOM helper
 const $ = id => document.getElementById(id);
@@ -376,8 +381,8 @@ export function openExportModal() {
     // Initialize blur zone editor modal
     initBlurZoneEditorModal();
     
-    // Update blur zone button text
-    updateBlurZoneButtonText();
+    // Update blur zone status display
+    updateBlurZoneStatusDisplay();
 }
 
 /**
@@ -500,16 +505,18 @@ async function captureVideoSnapshot(timeSec, videoElement) {
  * Initialize blur zone editor modal event handlers
  */
 function initBlurZoneEditorModal() {
+    // Prevent duplicate initialization
+    if (blurZoneModalInitialized) return;
+    
     const addBtn = $('addBlurZoneBtn');
     const editorModal = $('blurZoneEditorModal');
     const closeBtn = $('closeBlurZoneEditorModal');
     const cancelBtn = $('cancelBlurZoneBtn');
-    const clearBtn = $('clearBlurZoneBtn');
     const saveBtn = $('saveBlurZoneBtn');
-    const statusEl = $('blurZoneStatus');
-    const statusTextEl = $('blurZoneStatusText');
     
     if (!addBtn || !editorModal) return;
+    
+    blurZoneModalInitialized = true;
     
     addBtn.addEventListener('click', async () => {
         const state = getState?.();
@@ -540,8 +547,6 @@ function initBlurZoneEditorModal() {
         // Use back camera if available, otherwise first selected
         const snapshotCamera = selectedCameras.includes('back') ? 'back' : selectedCameras[0];
         
-        // Find video element (we'll use nativeVideo.master or create temporary)
-        // For MVP, we'll use a simpler approach: create temporary video element
         try {
             notify('Capturing snapshot...', { type: 'info' });
             
@@ -614,16 +619,23 @@ function initBlurZoneEditorModal() {
             const videoWidth = tempVideo.videoWidth || 1448;
             const videoHeight = tempVideo.videoHeight || 938;
             
-            // Initialize editor with snapshot and load saved coordinates if they exist
-            editorModal.classList.remove('hidden');
-            const savedCoords = exportState.blurZone?.coordinates || null;
+            // Store which camera this zone is for
+            exportState.blurZoneCamera = snapshotCamera;
+            exportState.blurZoneEditIndex = null; // New zone by default
+            
+            // Check if editing existing zone for this camera
+            const existingZoneIndex = exportState.blurZones.findIndex(z => z.camera === snapshotCamera);
+            const savedCoords = existingZoneIndex >= 0 ? exportState.blurZones[existingZoneIndex].coordinates : null;
+            if (existingZoneIndex >= 0) {
+                exportState.blurZoneEditIndex = existingZoneIndex;
+            }
             
             // Mirror the snapshot for cameras that are mirrored in viewer/export
             const shouldMirror = ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
-            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
             
-            // Store which camera this zone is for
-            exportState.blurZoneCamera = snapshotCamera;
+            // Initialize editor with snapshot
+            editorModal.classList.remove('hidden');
+            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
             
         } catch (err) {
             console.error('Failed to capture snapshot:', err);
@@ -634,28 +646,16 @@ function initBlurZoneEditorModal() {
     const closeEditor = () => {
         editorModal.classList.add('hidden');
         resetBlurZoneEditor();
+        exportState.blurZoneEditIndex = null;
     };
     
     if (closeBtn) closeBtn.addEventListener('click', closeEditor);
     if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
     
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            resetBlurZoneEditor();
-            exportState.blurZone = null;
-            if (statusEl) statusEl.classList.add('hidden');
-            // Reinitialize with current image (will be handled by modal close/reopen)
-            // For now, just close and let user reopen if needed
-        });
-    }
-    
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
             try {
-                console.log('[BLUR ZONE] Save button clicked');
-                
                 const coords = getNormalizedCoordinates();
-                console.log('[BLUR ZONE] Coordinates:', coords);
                 
                 if (!coords || coords.length < 3) {
                     notify('Please create a valid blur zone with at least 3 points', { type: 'warn' });
@@ -663,19 +663,15 @@ function initBlurZoneEditorModal() {
                 }
                 
                 // Generate mask image
-                console.log('[BLUR ZONE] Generating mask image...');
                 const maskImageDataUrl = await generateMaskImage();
                 if (!maskImageDataUrl) {
-                    console.error('[BLUR ZONE] Failed to generate mask image');
                     notify('Failed to generate mask image', { type: 'error' });
                     return;
                 }
-                console.log('[BLUR ZONE] Mask image generated, length:', maskImageDataUrl.length);
                 
-                // Extract base64 data (remove data:image/png;base64, prefix)
+                // Extract base64 data
                 const base64Data = maskImageDataUrl.split(',')[1];
                 if (!base64Data) {
-                    console.error('[BLUR ZONE] Failed to extract base64 data');
                     notify('Failed to extract mask image data', { type: 'error' });
                     return;
                 }
@@ -683,13 +679,11 @@ function initBlurZoneEditorModal() {
                 // Get canvas dimensions
                 const canvasDims = getCanvasDimensions();
                 if (!canvasDims) {
-                    console.error('[BLUR ZONE] Failed to get canvas dimensions');
                     notify('Failed to get canvas dimensions', { type: 'error' });
                     return;
                 }
-                console.log('[BLUR ZONE] Canvas dimensions:', canvasDims);
                 
-                exportState.blurZone = {
+                const newZone = {
                     coordinates: coords,
                     camera: exportState.blurZoneCamera || 'back',
                     maskImageBase64: base64Data,
@@ -697,29 +691,30 @@ function initBlurZoneEditorModal() {
                     maskHeight: canvasDims.height
                 };
                 
-                console.log('[BLUR ZONE] Zone saved successfully:', {
-                    camera: exportState.blurZone.camera,
-                    numPoints: exportState.blurZone.coordinates.length,
-                    maskSize: `${exportState.blurZone.maskWidth}x${exportState.blurZone.maskHeight}`
-                });
+                // Update existing or add new zone
+                if (exportState.blurZoneEditIndex !== null) {
+                    exportState.blurZones[exportState.blurZoneEditIndex] = newZone;
+                } else {
+                    // Check if zone already exists for this camera, replace it
+                    const existingIndex = exportState.blurZones.findIndex(z => z.camera === newZone.camera);
+                    if (existingIndex >= 0) {
+                        exportState.blurZones[existingIndex] = newZone;
+                    } else {
+                        exportState.blurZones.push(newZone);
+                    }
+                }
                 
-                if (statusEl) statusEl.classList.remove('hidden');
-                if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
-                
-                // Disable dashboard checkbox (per requirements)
+                // Disable dashboard checkbox when blur zones exist
                 const dashboardCheckbox = $('includeDashboard');
-                if (dashboardCheckbox) {
+                if (dashboardCheckbox && exportState.blurZones.length > 0) {
                     dashboardCheckbox.checked = false;
                     dashboardCheckbox.disabled = true;
                     const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
                     if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
                 }
                 
-                // Update button text to "Edit Zone"
-                updateBlurZoneButtonText();
-                
+                updateBlurZoneStatusDisplay();
                 notify('Blur zone saved successfully', { type: 'success' });
-                
                 closeEditor();
             } catch (err) {
                 console.error('[BLUR ZONE] Save error:', err);
@@ -727,28 +722,28 @@ function initBlurZoneEditorModal() {
             }
         });
     }
-    
-    // Update status display when modal opens
-    updateBlurZoneButtonText();
 }
 
 /**
- * Update the blur zone button text based on whether a zone exists
+ * Update the blur zone status display in export modal
  */
-function updateBlurZoneButtonText() {
-    const addBtn = $('addBlurZoneBtn');
+function updateBlurZoneStatusDisplay() {
     const statusEl = $('blurZoneStatus');
     const statusTextEl = $('blurZoneStatusText');
+    const addBtn = $('addBlurZoneBtn');
     
-    if (addBtn) {
-        if (exportState.blurZone) {
-            addBtn.textContent = 'Edit Zone';
-            if (statusEl) statusEl.classList.remove('hidden');
-            if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
-        } else {
-            addBtn.textContent = 'Add Zone';
-            if (statusEl) statusEl.classList.add('hidden');
-        }
+    if (exportState.blurZones.length > 0) {
+        if (statusEl) statusEl.classList.remove('hidden');
+        const cameras = [...new Set(exportState.blurZones.map(z => z.camera))];
+        const cameraNames = cameras.map(c => {
+            const names = { front: 'Front', back: 'Back', left_repeater: 'Left Repeater', right_repeater: 'Right Repeater', left_pillar: 'Left Pillar', right_pillar: 'Right Pillar' };
+            return names[c] || c;
+        });
+        if (statusTextEl) statusTextEl.textContent = `${exportState.blurZones.length} blur zone(s) configured for: ${cameraNames.join(', ')}`;
+        if (addBtn) addBtn.textContent = 'Add/Edit Zone';
+    } else {
+        if (statusEl) statusEl.classList.add('hidden');
+        if (addBtn) addBtn.textContent = 'Add Zone';
     }
 }
 
@@ -994,13 +989,24 @@ export async function startExport() {
     const quality = qualityInput?.value || 'high';
     
     // Blur zone disables dashboard (per requirements)
-    const hasBlurZone = !!exportState.blurZone;
+    const hasBlurZones = exportState.blurZones.length > 0;
     const includeDashboardCheckbox = $('includeDashboard');
     let includeDashboard = includeDashboardCheckbox?.checked ?? false;
     
-    // Disable dashboard if blur zone is active
-    if (hasBlurZone) {
+    // Disable dashboard if blur zones are active
+    if (hasBlurZones) {
         includeDashboard = false;
+    }
+    
+    // Check for blur zones on unselected cameras and warn user
+    if (hasBlurZones) {
+        const blurCameras = [...new Set(exportState.blurZones.map(z => z.camera))];
+        const unselectedBlurCameras = blurCameras.filter(c => !cameras.includes(c));
+        if (unselectedBlurCameras.length > 0) {
+            const cameraNames = { front: 'Front', back: 'Back', left_repeater: 'Left Repeater', right_repeater: 'Right Repeater', left_pillar: 'Left Pillar', right_pillar: 'Right Pillar' };
+            const names = unselectedBlurCameras.map(c => cameraNames[c] || c).join(', ');
+            notify(`Warning: Blur zones configured for unselected cameras (${names}) will not be applied`, { type: 'warn' });
+        }
     }
     
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
@@ -1299,8 +1305,8 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zone
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZone,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zones
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZones,
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
@@ -1310,8 +1316,8 @@ export async function startExport() {
             includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
             timestampPosition, // Position: bottom-center, bottom-left, etc.
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
-            // Blur zone data (one zone per export for MVP)
-            blurZone: exportState.blurZone || null
+            // Blur zone data - filter to only selected cameras, use first one for now (MVP)
+            blurZone: exportState.blurZones.filter(z => cameras.includes(z.camera))[0] || null
         };
         
         await window.electronAPI.startExport(exportId, exportData);
