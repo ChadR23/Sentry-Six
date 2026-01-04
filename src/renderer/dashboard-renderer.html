@@ -437,9 +437,10 @@
         
         const MPS_TO_MPH = 2.23694;
         const MPS_TO_KMH = 3.6;
-        const useMetric = false;
+        let currentUseMetric = false; // Will be set per frame from main process
         
-        function updateVisualization(sei, frameNumber = 0) {
+        function updateVisualization(sei, frameNumber = 0, useMetric = false) {
+            currentUseMetric = useMetric;
             if (!sei) return;
             
             const get = (camel, snake) => sei[camel] ?? sei[snake];
@@ -607,13 +608,31 @@
             }
         }, 100);
         
+        // Format timestamp to 12-hour time display
+        function formatTimestamp(timestampMs) {
+            if (!timestampMs) return '--:--';
+            const date = new Date(timestampMs);
+            let h = date.getHours();
+            const m = date.getMinutes();
+            const s = date.getSeconds();
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+        }
+        
         // Listen for SEI data updates
         if (ipcRenderer && ipcRenderer.on) {
-            ipcRenderer.on('dashboard:update', (event, sei, frameNumber) => {
+            ipcRenderer.on('dashboard:update', (event, sei, frameNumber, useMetric, timestampMs) => {
                 if (sei) {
-                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber);
+                    console.log('Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber, 'metric:', useMetric, 'timestamp:', timestampMs);
                 }
-                updateVisualization(sei, frameNumber);
+                updateVisualization(sei, frameNumber, useMetric);
+                
+                // Update time display
+                const timeText = document.getElementById('recordingTimeText');
+                if (timeText && timestampMs) {
+                    timeText.textContent = formatTimestamp(timestampMs);
+                }
                 
                 // Force a reflow to ensure DOM updates are rendered
                 void document.body.offsetHeight;

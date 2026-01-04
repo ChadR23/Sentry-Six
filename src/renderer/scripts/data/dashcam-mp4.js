@@ -9,10 +9,7 @@ class DashcamMP4 {
         this._config = null;
     }
 
-    // -------------------------------------------------------------
     // MP4 Box Navigation
-    // -------------------------------------------------------------
-
     /** Find a box by name within a range */
     findBox(start, end, name) {
         for (let pos = start; pos + 8 <= end;) {
@@ -42,10 +39,7 @@ class DashcamMP4 {
         return { offset: mdat.start, size: mdat.size };
     }
 
-    // -------------------------------------------------------------
     // Video Configuration
-    // -------------------------------------------------------------
-
     /** Get video configuration (lazy-loaded) */
     getConfig() {
         if (this._config) return this._config;
@@ -98,10 +92,7 @@ class DashcamMP4 {
         return this._config;
     }
 
-    // -------------------------------------------------------------
-    // Frame Parsing (for Video Playback)
-    // -------------------------------------------------------------
-
+    // Frame Parsing
     /** Parse video frames with SEI metadata */
     parseFrames(SeiMetadata) {
         const config = this.getConfig();
@@ -144,10 +135,7 @@ class DashcamMP4 {
         return frames;
     }
 
-    // -------------------------------------------------------------
     // SEI Extraction
-    // -------------------------------------------------------------
-
     /** Extract all SEI messages for CSV export */
     extractSeiMessages(SeiMetadata) {
         const mdat = this.findMdat();
@@ -202,10 +190,7 @@ class DashcamMP4 {
         return Uint8Array.from(out);
     }
 
-    // -------------------------------------------------------------
     // Utilities
-    // -------------------------------------------------------------
-
     readAscii(start, len) {
         let s = '';
         for (let i = 0; i < len; i++) s += String.fromCharCode(this.view.getUint8(start + i));
@@ -225,11 +210,7 @@ class DashcamMP4 {
 
 window.DashcamMP4 = DashcamMP4;
 
-// -------------------------------------------------------------
 // Tesla Dashcam Helpers
-// Protobuf initialization, field formatting, and CSV export utilities.
-// -------------------------------------------------------------
-
 (function () {
     let SeiMetadata = null;
     let enumFields = null;
@@ -254,174 +235,7 @@ window.DashcamMP4 = DashcamMP4;
         return { SeiMetadata, enumFields };
     }
 
-    /**
-     * Internal: Get the loaded protobuf instance.
-     * Reserved for future use (e.g., CSV export UI).
-     */
-    function getProtobuf() {
-        return SeiMetadata ? { SeiMetadata, enumFields } : null;
-    }
-
-    /**
-     * Internal: Derive field metadata from SeiMetadata type.
-     * Reserved for future CSV export feature.
-     */
-    function deriveFieldInfo(SeiMetadataCtor, enumMap, options = {}) {
-        return SeiMetadataCtor.fieldsArray.map(field => {
-            const propName = field.name;
-            const snakeName = propName.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
-            const label = propName
-                .replace(/_/g, ' ')
-                .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-                .replace(/\b\w/g, l => l.toUpperCase())
-                .replace(/ Mps$/, ' (m/s)')
-                .replace(/ Deg$/, ' (°)');
-
-            return {
-                propName,
-                protoName: options.useSnakeCase ? snakeName : propName,
-                label: options.useLabels ? label : undefined,
-                enumMap: enumMap[propName] || enumMap[snakeName] || null
-            };
-        });
-    }
-
-    /**
-     * Internal: Format a value for display.
-     * Reserved for future CSV export feature.
-     */
-    function formatValue(value, enumType) {
-        if (enumType) {
-            const name = enumType.valuesById?.[value];
-            if (name) return name;
-            const entry = Object.entries(enumType).find(([, v]) => v === value);
-            if (entry) return entry[0];
-        }
-        if (typeof value === 'boolean') return value ? 'true' : 'false';
-        if (typeof value === 'number') return Number.isInteger(value) ? value : value.toFixed(2);
-        if (typeof value === 'object' && value?.toString) return value.toString();
-        return value;
-    }
-
-    /**
-     * Internal: Build CSV from SEI messages.
-     * Reserved for future CSV export feature.
-     */
-    function buildCsv(messages, fieldInfo) {
-        const headers = fieldInfo.map(f => f.protoName || f.propName);
-        const lines = [headers.join(',')];
-
-        for (const msg of messages) {
-            const values = fieldInfo.map(({ propName, enumMap }) => {
-                let val = msg[propName];
-                if (val === undefined || val === null) return '';
-                if (enumMap?.valuesById) val = enumMap.valuesById[val] ?? val;
-                const text = String(val);
-                return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
-            });
-            lines.push(values.join(','));
-        }
-        return lines.join('\n');
-    }
-
-    /**
-     * Internal: Download a blob as a file.
-     * Reserved for future CSV export feature.
-     */
-    function downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-
-    /** Get MP4 files from drag/drop DataTransfer with streaming support for large folders */
-    async function getFilesFromDataTransfer(items, onProgress = null) {
-        const files = [], entries = [];
-        let directoryName = null;
-        let totalScanned = 0;
-        let lastYield = Date.now();
-        const YIELD_INTERVAL_MS = 50; // Yield to UI every 50ms
-        const BATCH_SIZE = 100; // Process directories in smaller batches
-
-        for (const item of items) {
-            const entry = item.webkitGetAsEntry?.();
-            if (entry) {
-                entries.push(entry);
-                if (entry.isDirectory && entries.length === 1) directoryName = entry.name;
-            }
-        }
-        if (entries.length !== 1 || !entries[0].isDirectory) directoryName = null;
-
-        // Yield to UI to prevent freezing
-        async function maybeYield() {
-            const now = Date.now();
-            if (now - lastYield > YIELD_INTERVAL_MS) {
-                lastYield = now;
-                await new Promise(r => setTimeout(r, 0));
-            }
-        }
-
-        async function traverse(entry) {
-            if (entry.isFile) {
-                try {
-                    const file = await new Promise((res, rej) => entry.file(res, rej));
-                    const lower = file.name.toLowerCase();
-                    // Collect MP4s for playback + Sentry event assets (event.json/event.png) for richer UI.
-                    if (lower.endsWith('.mp4') || lower.endsWith('.json') || lower.endsWith('.png')) {
-                        // Preserve best-effort relative path info for downstream grouping.
-                        try {
-                            Object.defineProperty(file, '_teslaPath', {
-                                value: entry.fullPath || null,
-                                enumerable: false
-                            });
-                        } catch { /* ignore */ }
-                        files.push(file);
-                    }
-                } catch { /* ignore inaccessible files */ }
-                totalScanned++;
-                if (onProgress && totalScanned % 500 === 0) {
-                    onProgress(totalScanned, files.length);
-                }
-                await maybeYield();
-            } else if (entry.isDirectory) {
-                const reader = entry.createReader();
-                // IMPORTANT: DirectoryReader.readEntries() returns results in batches.
-                // You must keep calling it until it returns an empty array, otherwise
-                // large folders silently drop entries.
-                while (true) {
-                    const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-                    if (!batch?.length) break;
-                    
-                    // Process in smaller sequential batches to reduce memory pressure
-                    for (let i = 0; i < batch.length; i += BATCH_SIZE) {
-                        const chunk = batch.slice(i, i + BATCH_SIZE);
-                        await Promise.all(chunk.map(traverse));
-                        await maybeYield();
-                    }
-                }
-            }
-        }
-
-        // Process top-level entries sequentially to reduce memory pressure
-        for (const entry of entries) {
-            await traverse(entry);
-        }
-
-        if (onProgress) onProgress(totalScanned, files.length);
-        return { files, directoryName };
-    }
-
     window.DashcamHelpers = {
-        initProtobuf,
-        getProtobuf,
-        deriveFieldInfo,
-        formatValue,
-        buildCsv,
-        downloadBlob,
-        getFilesFromDataTransfer
+        initProtobuf
     };
 })();
-

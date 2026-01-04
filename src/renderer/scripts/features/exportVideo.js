@@ -5,6 +5,7 @@
 
 import { notify } from '../ui/notifications.js';
 import { formatTimeHMS } from '../ui/timeDisplay.js';
+import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 
 // Export state
 export const exportState = {
@@ -12,7 +13,16 @@ export const exportState = {
     endMarkerPct: null,
     isExporting: false,
     currentExportId: null,
-    ffmpegAvailable: false
+    ffmpegAvailable: false,
+    gpuAvailable: false,
+    gpuName: null,
+    hevcAvailable: false,
+    hevcName: null,
+    cancelled: false,
+    modalMinimized: false,
+    currentStep: '',
+    currentProgress: 0,
+    blurZone: null // { coordinates: [{x, y}, ...], camera: string }
 };
 
 // DOM helper
@@ -24,6 +34,7 @@ let getNativeVideo = null;
 let getBaseFolderPath = null;
 let getProgressBar = null;
 let getFindSeiAtTime = null;
+let getUseMetric = null;
 
 /**
  * Initialize export module with dependencies
@@ -35,6 +46,72 @@ export function initExportModule(deps) {
     getBaseFolderPath = deps.getBaseFolderPath;
     getProgressBar = deps.getProgressBar;
     getFindSeiAtTime = deps.getFindSeiAtTime;
+    getUseMetric = deps.getUseMetric;
+}
+
+/**
+ * Detect available cameras from the current collection
+ * HW3 vehicles only have 4 cameras (no pillars), HW3+/HW4 have 6 cameras
+ * @param {Object} state - App state
+ * @returns {Set<string>} Set of available camera names
+ */
+function detectAvailableCameras(state) {
+    const availableCameras = new Set();
+    const collection = state?.collection?.active;
+    
+    if (!collection?.groups) return availableCameras;
+    
+    // Scan all groups in the collection for available cameras
+    for (const group of collection.groups) {
+        if (group.filesByCamera) {
+            for (const camera of group.filesByCamera.keys()) {
+                availableCameras.add(camera);
+            }
+        }
+    }
+    
+    return availableCameras;
+}
+
+/**
+ * Update camera checkbox visibility based on available cameras
+ * Hides pillar camera options for HW3 vehicles (4-cam systems)
+ * @param {Set<string>} availableCameras - Set of available camera names
+ */
+function updateCameraCheckboxVisibility(availableCameras) {
+    const allCameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]');
+    const hasPillarCameras = availableCameras.has('left_pillar') || availableCameras.has('right_pillar');
+    
+    allCameraCheckboxes.forEach(checkbox => {
+        const camera = checkbox.dataset.camera;
+        const card = checkbox.closest('.option-card');
+        
+        if (!card) return;
+        
+        // Check if this camera is a pillar camera
+        const isPillarCamera = camera === 'left_pillar' || camera === 'right_pillar';
+        
+        if (isPillarCamera && !hasPillarCameras) {
+            // Hide pillar cameras for HW3 vehicles
+            card.style.display = 'none';
+            checkbox.checked = false;
+        } else {
+            // Show and check available cameras
+            card.style.display = '';
+            checkbox.checked = availableCameras.has(camera);
+        }
+    });
+    
+    // Update the grid layout - switch to 2x2 for 4 cameras (option-grid defaults to 2 cols)
+    const layoutSection = document.querySelector('.collapsible-section[data-section="layout"]');
+    const optionGrid = layoutSection?.querySelector('.option-grid');
+    if (optionGrid) {
+        if (hasPillarCameras) {
+            optionGrid.classList.add('option-grid-3');
+        } else {
+            optionGrid.classList.remove('option-grid-3');
+        }
+    }
 }
 
 /**
@@ -81,10 +158,7 @@ export function updateExportMarkers() {
     let startMarker = markersContainer.querySelector('.export-marker.start');
     if (exportState.startMarkerPct !== null) {
         if (!startMarker) {
-            startMarker = document.createElement('div');
-            startMarker.className = 'export-marker start';
-            startMarker.title = 'Export start point (drag to adjust)';
-            makeMarkerDraggable(startMarker, 'start');
+            startMarker = createMarkerElement('start');
             markersContainer.appendChild(startMarker);
         }
         startMarker.style.left = `${exportState.startMarkerPct}%`;
@@ -96,10 +170,7 @@ export function updateExportMarkers() {
     let endMarker = markersContainer.querySelector('.export-marker.end');
     if (exportState.endMarkerPct !== null) {
         if (!endMarker) {
-            endMarker = document.createElement('div');
-            endMarker.className = 'export-marker end';
-            endMarker.title = 'Export end point (drag to adjust)';
-            makeMarkerDraggable(endMarker, 'end');
+            endMarker = createMarkerElement('end');
             markersContainer.appendChild(endMarker);
         }
         endMarker.style.left = `${exportState.endMarkerPct}%`;
@@ -124,10 +195,52 @@ export function updateExportMarkers() {
     }
 }
 
+/**
+ * Create a marker element with remove button
+ * @param {string} type - 'start' or 'end'
+ * @returns {HTMLElement}
+ */
+function createMarkerElement(type) {
+    const marker = document.createElement('div');
+    marker.className = `export-marker ${type}`;
+    marker.title = `Export ${type} point (drag to adjust)`;
+    
+    // Add remove button (X)
+    const removeBtn = document.createElement('div');
+    removeBtn.className = 'marker-remove';
+    removeBtn.title = `Remove ${type} marker`;
+    removeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        removeMarker(type);
+    });
+    marker.appendChild(removeBtn);
+    
+    makeMarkerDraggable(marker, type);
+    return marker;
+}
+
+/**
+ * Remove a specific marker
+ * @param {string} type - 'start' or 'end'
+ */
+function removeMarker(type) {
+    if (type === 'start') {
+        exportState.startMarkerPct = null;
+    } else {
+        exportState.endMarkerPct = null;
+    }
+    updateExportMarkers();
+    updateExportButtonState();
+}
+
 function makeMarkerDraggable(marker, type) {
     let isDragging = false;
     
     marker.addEventListener('mousedown', (e) => {
+        // Ignore clicks on the remove button
+        if (e.target.closest('.marker-remove')) return;
         isDragging = true;
         marker.style.cursor = 'grabbing';
         e.preventDefault();
@@ -192,18 +305,35 @@ export function openExportModal() {
     const modal = $('exportModal');
     if (!modal) return;
     
+    // Detect available cameras from the collection
+    const availableCameras = detectAvailableCameras(state);
+    updateCameraCheckboxVisibility(availableCameras);
+    
     // Show modal first so dimensions are accurate
     modal.classList.remove('hidden');
     
     updateExportRangeDisplay();
     checkFFmpegAvailability();
     
-    // Initialize Layout Lab after modal is visible
-    import('../ui/layoutLab.js').then(({ initLayoutLab }) => {
+    // Initialize Layout Lab and collapsible sections after modal is visible
+    import('../ui/layoutLab.js').then(({ initLayoutLab, setAvailableCameras }) => {
+        // Pass available cameras to Layout Lab
+        if (setAvailableCameras) setAvailableCameras(availableCameras);
         // Wait for next frame to ensure modal is fully rendered
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 initLayoutLab();
+                
+                // Initialize collapsible sections
+                modal.querySelectorAll('.collapsible-header').forEach(header => {
+                    // Remove existing listener to avoid duplicates
+                    const newHeader = header.cloneNode(true);
+                    header.parentNode.replaceChild(newHeader, header);
+                    newHeader.addEventListener('click', () => {
+                        const section = newHeader.closest('.collapsible-section');
+                        if (section) section.classList.toggle('open');
+                    });
+                });
             });
         });
     });
@@ -217,36 +347,405 @@ export function openExportModal() {
     if (progressText) progressText.textContent = 'Preparing...';
     if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
     
-    const filenameInput = $('exportFilename');
-    if (filenameInput) {
-        const date = new Date().toISOString().slice(0, 10);
-        const collName = state.collection.active?.label || 'export';
-        const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-        filenameInput.value = `tesla_${safeName}_${date}`;
-    }
+    // Generate default filename (used when saving via dialog)
+    const date = new Date().toISOString().slice(0, 10);
+    const collName = state.collection.active?.label || 'export';
+    const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+    exportState.defaultFilename = `tesla_${safeName}_${date}.mp4`;
     
     const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
     if (highQuality) highQuality.checked = true;
     
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
-    const cameraInputs = document.querySelectorAll('.camera-toggle input');
+    const cameraInputs = document.querySelectorAll('.option-card input[data-camera]');
     cameraInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     updateExportSizeEstimate();
     
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
+    
+    // Ensure close button is enabled when modal opens
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.disabled = false;
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.opacity = '1';
+    }
+    
+    // Initialize blur zone editor modal
+    initBlurZoneEditorModal();
+    
+    // Update blur zone button text
+    updateBlurZoneButtonText();
 }
 
 /**
- * Close the export modal
+ * Close the export modal (minimizes during active export instead of canceling)
  */
 export function closeExportModal() {
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
     
+    // If exporting, show floating progress instead of canceling
     if (exportState.isExporting && exportState.currentExportId) {
-        cancelExport();
+        exportState.modalMinimized = true;
+        showFloatingProgress();
+    }
+}
+
+/**
+ * Reopen the export modal from the floating progress notification
+ */
+export function reopenExportModal() {
+    const modal = $('exportModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        exportState.modalMinimized = false;
+        hideFloatingProgress();
+    }
+}
+
+/**
+ * Show the floating export progress notification
+ */
+function showFloatingProgress() {
+    const floatingEl = $('exportFloatingProgress');
+    if (floatingEl) {
+        floatingEl.classList.remove('hidden');
+        // Trigger animation after removing hidden
+        requestAnimationFrame(() => {
+            floatingEl.classList.add('show');
+        });
+        updateFloatingProgress(exportState.currentStep, exportState.currentProgress);
+    }
+}
+
+/**
+ * Hide the floating export progress notification
+ */
+function hideFloatingProgress() {
+    const floatingEl = $('exportFloatingProgress');
+    if (floatingEl) {
+        floatingEl.classList.remove('show');
+        setTimeout(() => {
+            floatingEl.classList.add('hidden');
+        }, 200);
+    }
+}
+
+/**
+ * Update the floating progress notification
+ * @param {string} step - Current step text
+ * @param {number} percentage - Progress percentage (0-100)
+ */
+function updateFloatingProgress(step, percentage) {
+    const stepEl = $('exportFloatingStep');
+    const barFill = $('exportFloatingBarFill');
+    
+    if (stepEl) stepEl.textContent = step || 'Exporting...';
+    if (barFill) barFill.style.width = `${percentage || 0}%`;
+}
+
+/**
+ * Capture a snapshot from video at a specific time
+ * @param {number} timeSec - Time in seconds to capture
+ * @param {HTMLVideoElement} videoElement - Video element to capture from
+ * @returns {Promise<string>} - Data URL of the captured image
+ */
+async function captureVideoSnapshot(timeSec, videoElement) {
+    return new Promise((resolve, reject) => {
+        if (!videoElement) {
+            reject(new Error('No video element provided'));
+            return;
+        }
+        
+        const wasPlaying = !videoElement.paused;
+        const originalTime = videoElement.currentTime;
+        
+        // Seek to target time
+        videoElement.currentTime = timeSec;
+        
+        const onSeeked = () => {
+            videoElement.removeEventListener('seeked', onSeeked);
+            
+            // Create canvas and draw video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth || videoElement.clientWidth;
+            canvas.height = videoElement.videoHeight || videoElement.clientHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // Restore original state
+            videoElement.currentTime = originalTime;
+            if (wasPlaying) {
+                videoElement.play().catch(() => {});
+            }
+            
+            resolve(canvas.toDataURL('image/png'));
+        };
+        
+        videoElement.addEventListener('seeked', onSeeked, { once: true });
+        
+        // Timeout fallback
+        setTimeout(() => {
+            videoElement.removeEventListener('seeked', onSeeked);
+            reject(new Error('Snapshot capture timeout'));
+        }, 5000);
+    });
+}
+
+/**
+ * Initialize blur zone editor modal event handlers
+ */
+function initBlurZoneEditorModal() {
+    const addBtn = $('addBlurZoneBtn');
+    const editorModal = $('blurZoneEditorModal');
+    const closeBtn = $('closeBlurZoneEditorModal');
+    const cancelBtn = $('cancelBlurZoneBtn');
+    const clearBtn = $('clearBlurZoneBtn');
+    const saveBtn = $('saveBlurZoneBtn');
+    const statusEl = $('blurZoneStatus');
+    const statusTextEl = $('blurZoneStatusText');
+    
+    if (!addBtn || !editorModal) return;
+    
+    addBtn.addEventListener('click', async () => {
+        const state = getState?.();
+        const nativeVideo = getNativeVideo?.();
+        
+        if (!state?.collection?.active) {
+            notify('Load a collection first', { type: 'warn' });
+            return;
+        }
+        
+        // Calculate midpoint time
+        const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+        const startPct = exportState.startMarkerPct ?? 0;
+        const endPct = exportState.endMarkerPct ?? 100;
+        const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
+        const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
+        const midpointSec = (startSec + endSec) / 2;
+        
+        // Get the first selected camera for snapshot
+        const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
+        const selectedCameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
+        
+        if (selectedCameras.length === 0) {
+            notify('Please select at least one camera first', { type: 'warn' });
+            return;
+        }
+        
+        // Use back camera if available, otherwise first selected
+        const snapshotCamera = selectedCameras.includes('back') ? 'back' : selectedCameras[0];
+        
+        // Find video element (we'll use nativeVideo.master or create temporary)
+        // For MVP, we'll use a simpler approach: create temporary video element
+        try {
+            notify('Capturing snapshot...', { type: 'info' });
+            
+            // Find the video file for the snapshot camera at the midpoint segment
+            const groups = state.collection.active.groups || [];
+            const cumStarts = nativeVideo?.cumulativeStarts || [];
+            let targetSegment = 0;
+            
+            for (let i = 0; i < cumStarts.length - 1; i++) {
+                if (midpointSec >= cumStarts[i] && midpointSec < cumStarts[i + 1]) {
+                    targetSegment = i;
+                    break;
+                }
+            }
+            if (midpointSec >= cumStarts[cumStarts.length - 1]) {
+                targetSegment = groups.length - 1;
+            }
+            
+            const group = groups[targetSegment];
+            const entry = group?.filesByCamera?.get(snapshotCamera);
+            
+            if (!entry?.file) {
+                notify('Could not find video file for snapshot', { type: 'error' });
+                return;
+            }
+            
+            // Create temporary video element
+            const tempVideo = document.createElement('video');
+            tempVideo.muted = true;
+            tempVideo.playsInline = true;
+            tempVideo.style.display = 'none';
+            document.body.appendChild(tempVideo);
+            
+            // Load video file
+            let videoUrl;
+            if (entry.file.path) {
+                videoUrl = entry.file.path.startsWith('/') 
+                    ? `file://${entry.file.path}` 
+                    : `file:///${entry.file.path.replace(/\\/g, '/')}`;
+            } else if (entry.file instanceof File) {
+                videoUrl = URL.createObjectURL(entry.file);
+            } else {
+                notify('Unsupported file type for snapshot', { type: 'error' });
+                return;
+            }
+            
+            tempVideo.src = videoUrl;
+            
+            await new Promise((resolve, reject) => {
+                tempVideo.onloadedmetadata = resolve;
+                tempVideo.onerror = reject;
+                setTimeout(reject, 10000);
+            });
+            
+            // Calculate local time within segment
+            const segmentStartSec = cumStarts[targetSegment] || 0;
+            const localTimeSec = Math.min(midpointSec - segmentStartSec, tempVideo.duration);
+            
+            // Capture snapshot
+            const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
+            
+            // Clean up
+            tempVideo.src = '';
+            document.body.removeChild(tempVideo);
+            if (videoUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(videoUrl);
+            }
+            
+            // Get video dimensions
+            const videoWidth = tempVideo.videoWidth || 1448;
+            const videoHeight = tempVideo.videoHeight || 938;
+            
+            // Initialize editor with snapshot and load saved coordinates if they exist
+            editorModal.classList.remove('hidden');
+            const savedCoords = exportState.blurZone?.coordinates || null;
+            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords);
+            
+            // Store which camera this zone is for
+            exportState.blurZoneCamera = snapshotCamera;
+            
+        } catch (err) {
+            console.error('Failed to capture snapshot:', err);
+            notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
+        }
+    });
+    
+    const closeEditor = () => {
+        editorModal.classList.add('hidden');
+        resetBlurZoneEditor();
+    };
+    
+    if (closeBtn) closeBtn.addEventListener('click', closeEditor);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            resetBlurZoneEditor();
+            exportState.blurZone = null;
+            if (statusEl) statusEl.classList.add('hidden');
+            // Reinitialize with current image (will be handled by modal close/reopen)
+            // For now, just close and let user reopen if needed
+        });
+    }
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            try {
+                console.log('[BLUR ZONE] Save button clicked');
+                
+                const coords = getNormalizedCoordinates();
+                console.log('[BLUR ZONE] Coordinates:', coords);
+                
+                if (!coords || coords.length < 3) {
+                    notify('Please create a valid blur zone with at least 3 points', { type: 'warn' });
+                    return;
+                }
+                
+                // Generate mask image
+                console.log('[BLUR ZONE] Generating mask image...');
+                const maskImageDataUrl = await generateMaskImage();
+                if (!maskImageDataUrl) {
+                    console.error('[BLUR ZONE] Failed to generate mask image');
+                    notify('Failed to generate mask image', { type: 'error' });
+                    return;
+                }
+                console.log('[BLUR ZONE] Mask image generated, length:', maskImageDataUrl.length);
+                
+                // Extract base64 data (remove data:image/png;base64, prefix)
+                const base64Data = maskImageDataUrl.split(',')[1];
+                if (!base64Data) {
+                    console.error('[BLUR ZONE] Failed to extract base64 data');
+                    notify('Failed to extract mask image data', { type: 'error' });
+                    return;
+                }
+                
+                // Get canvas dimensions
+                const canvasDims = getCanvasDimensions();
+                if (!canvasDims) {
+                    console.error('[BLUR ZONE] Failed to get canvas dimensions');
+                    notify('Failed to get canvas dimensions', { type: 'error' });
+                    return;
+                }
+                console.log('[BLUR ZONE] Canvas dimensions:', canvasDims);
+                
+                exportState.blurZone = {
+                    coordinates: coords,
+                    camera: exportState.blurZoneCamera || 'back',
+                    maskImageBase64: base64Data,
+                    maskWidth: canvasDims.width,
+                    maskHeight: canvasDims.height
+                };
+                
+                console.log('[BLUR ZONE] Zone saved successfully:', {
+                    camera: exportState.blurZone.camera,
+                    numPoints: exportState.blurZone.coordinates.length,
+                    maskSize: `${exportState.blurZone.maskWidth}x${exportState.blurZone.maskHeight}`
+                });
+                
+                if (statusEl) statusEl.classList.remove('hidden');
+                if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
+                
+                // Disable dashboard checkbox (per requirements)
+                const dashboardCheckbox = $('includeDashboard');
+                if (dashboardCheckbox) {
+                    dashboardCheckbox.checked = false;
+                    dashboardCheckbox.disabled = true;
+                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
+                    if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+                }
+                
+                // Update button text to "Edit Zone"
+                updateBlurZoneButtonText();
+                
+                notify('Blur zone saved successfully', { type: 'success' });
+                
+                closeEditor();
+            } catch (err) {
+                console.error('[BLUR ZONE] Save error:', err);
+                notify(`Failed to save blur zone: ${err.message}`, { type: 'error' });
+            }
+        });
+    }
+    
+    // Update status display when modal opens
+    updateBlurZoneButtonText();
+}
+
+/**
+ * Update the blur zone button text based on whether a zone exists
+ */
+function updateBlurZoneButtonText() {
+    const addBtn = $('addBlurZoneBtn');
+    const statusEl = $('blurZoneStatus');
+    const statusTextEl = $('blurZoneStatusText');
+    
+    if (addBtn) {
+        if (exportState.blurZone) {
+            addBtn.textContent = 'Edit Zone';
+            if (statusEl) statusEl.classList.remove('hidden');
+            if (statusTextEl) statusTextEl.textContent = `Blur zone configured for ${exportState.blurZone.camera} camera`;
+        } else {
+            addBtn.textContent = 'Add Zone';
+            if (statusEl) statusEl.classList.add('hidden');
+        }
     }
 }
 
@@ -291,7 +790,7 @@ export function updateExportSizeEstimate() {
     const endPct = exportState.endMarkerPct ?? 100;
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
     
-    const selectedCameras = document.querySelectorAll('.camera-toggle input:checked');
+    const selectedCameras = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameraCount = selectedCameras.length || 6;
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
@@ -315,6 +814,13 @@ export function updateExportSizeEstimate() {
     
     const gridW = perCam[0] * cols;
     const gridH = perCam[1] * rows;
+    
+    // Show warning for Maximum quality (exceeds GPU encoder limits)
+    const maxQualityWarningEl = $('maxQualityWarning');
+    if (maxQualityWarningEl) {
+        const isMaxQuality = quality === 'max';
+        maxQualityWarningEl.classList.toggle('hidden', !isMaxQuality);
+    }
     const pixels = gridW * gridH;
     const mbPerMin = pixels * 0.000018;
     const estimatedMB = Math.round(durationMin * mbPerMin);
@@ -330,6 +836,47 @@ export function updateExportSizeEstimate() {
 export async function checkFFmpegAvailability() {
     const statusEl = $('ffmpegStatus');
     const startBtn = $('startExportBtn');
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
+    const dashboardGpuWarning = $('dashboardGpuWarning');
+    const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
+    const timestampCheckbox = $('includeTimestamp');
+    const timestampOptions = $('timestampOptions');
+    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+    
+    // Set up dashboard checkbox toggle for options visibility
+    if (dashboardCheckbox && dashboardOptions) {
+        dashboardCheckbox.addEventListener('change', () => {
+            if (dashboardCheckbox.checked) {
+                dashboardOptions.classList.remove('hidden');
+                // Dashboard includes timestamp, so disable timestamp-only option
+                if (timestampCheckbox) {
+                    timestampCheckbox.checked = false;
+                    timestampCheckbox.disabled = true;
+                    if (timestampToggleRow) timestampToggleRow.classList.add('disabled');
+                    if (timestampOptions) timestampOptions.classList.add('hidden');
+                }
+            } else {
+                dashboardOptions.classList.add('hidden');
+                // Re-enable timestamp option when dashboard is disabled
+                if (timestampCheckbox) {
+                    timestampCheckbox.disabled = false;
+                    if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+                }
+            }
+        });
+    }
+    
+    // Set up timestamp checkbox toggle for options visibility
+    if (timestampCheckbox && timestampOptions) {
+        timestampCheckbox.addEventListener('change', () => {
+            if (timestampCheckbox.checked) {
+                timestampOptions.classList.remove('hidden');
+            } else {
+                timestampOptions.classList.add('hidden');
+            }
+        });
+    }
     
     if (!statusEl) return;
     
@@ -339,10 +886,42 @@ export async function checkFFmpegAvailability() {
         if (window.electronAPI?.checkFFmpeg) {
             const result = await window.electronAPI.checkFFmpeg();
             exportState.ffmpegAvailable = result.available;
+            exportState.gpuAvailable = !!result.gpu;
+            exportState.gpuName = result.gpu?.name || null;
+            exportState.hevcAvailable = !!result.hevc;
+            exportState.hevcName = result.hevc?.name || null;
             
             if (result.available) {
-                statusEl.innerHTML = '<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">FFmpeg ready</span>';
+                // Build status text with GPU info
+                let statusText = 'FFmpeg ready';
+                if (result.gpu) {
+                    statusText += ` • GPU: ${result.gpu.name}`;
+                    if (result.hevc) {
+                        statusText += ` + HEVC`;
+                    }
+                } else {
+                    statusText += ' • CPU only (no GPU encoder)';
+                }
+                if (result.fakeNoGpu) {
+                    statusText += ' [DEV: Fake No GPU]';
+                }
+                
+                statusEl.innerHTML = `<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">${statusText}</span>`;
                 if (startBtn) startBtn.disabled = false;
+                
+                // Dashboard overlay requires GPU - disable checkbox if no GPU
+                if (dashboardCheckbox) {
+                    if (!result.gpu) {
+                        dashboardCheckbox.disabled = true;
+                        dashboardCheckbox.checked = false;
+                        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+                        if (dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
+                    } else {
+                        dashboardCheckbox.disabled = false;
+                        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+                        if (dashboardGpuWarning) dashboardGpuWarning.classList.add('hidden');
+                    }
+                }
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -351,10 +930,18 @@ export async function checkFFmpegAvailability() {
                     statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Place ffmpeg.exe in the ffmpeg_bin folder.</span>';
                 }
                 if (startBtn) startBtn.disabled = true;
+                if (dashboardCheckbox) {
+                    dashboardCheckbox.disabled = true;
+                    dashboardCheckbox.checked = false;
+                }
             }
         } else {
             statusEl.innerHTML = '<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">Export not available (running in browser)</span>';
             if (startBtn) startBtn.disabled = true;
+            if (dashboardCheckbox) {
+                dashboardCheckbox.disabled = true;
+                dashboardCheckbox.checked = false;
+            }
         }
     } catch (err) {
         statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">Error checking FFmpeg</span>';
@@ -380,7 +967,7 @@ export async function startExport() {
         return;
     }
     
-    const cameraCheckboxes = document.querySelectorAll('.camera-toggle input[type="checkbox"]:checked');
+    const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
@@ -397,15 +984,29 @@ export async function startExport() {
         console.error('Failed to get layout data:', err);
     }
     
-    const filenameInput = $('exportFilename');
-    let filename = filenameInput?.value?.trim() || `tesla_export_${new Date().toISOString().slice(0, 10)}`;
-    if (!filename.toLowerCase().endsWith('.mp4')) filename += '.mp4';
+    // Use the default filename generated when modal opened
+    let filename = exportState.defaultFilename || `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`;
     
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
+    // Blur zone disables dashboard (per requirements)
+    const hasBlurZone = !!exportState.blurZone;
     const includeDashboardCheckbox = $('includeDashboard');
-    const includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    let includeDashboard = includeDashboardCheckbox?.checked ?? false;
+    
+    // Disable dashboard if blur zone is active
+    if (hasBlurZone) {
+        includeDashboard = false;
+    }
+    
+    const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
+    const dashboardSize = $('dashboardSize')?.value || 'medium';
+    
+    const includeTimestampCheckbox = $('includeTimestamp');
+    const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
+    const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
+    const timestampDateFormat = $('timestampDateFormat')?.value || 'mdy';
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -414,11 +1015,25 @@ export async function startExport() {
     const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
     
+    // Open file dialog FIRST for instant response, before any heavy processing
+    const outputPath = await window.electronAPI.saveFile({
+        title: 'Save Tesla Export',
+        defaultPath: filename
+    });
+    
+    if (!outputPath) {
+        notify('Export cancelled', { type: 'info' });
+        return;
+    }
+    
     // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
+    // This happens AFTER file dialog so user gets instant feedback
     let seiData = null;
     if (includeDashboard) {
         try {
+            notify('Extracting telemetry data...', { type: 'info' });
+            
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
@@ -432,6 +1047,13 @@ export async function startExport() {
             
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
+                // Check for cancellation before processing each segment
+                if (exportState.cancelled) {
+                    console.log('SEI extraction cancelled by user');
+                    seiData = null;
+                    break;
+                }
+                
                 const group = groups[i];
                 const segStartMs = (cumStarts[i] || 0) * 1000;
                 const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
@@ -510,16 +1132,6 @@ export async function startExport() {
     }
     // If dashboard is disabled, seiData remains null and no files are loaded into memory
     
-    const outputPath = await window.electronAPI.saveFile({
-        title: 'Save Tesla Export',
-        defaultPath: filename
-    });
-    
-    if (!outputPath) {
-        notify('Export cancelled', { type: 'info' });
-        return;
-    }
-    
     const segments = [];
     const groups = state.collection.active.groups || [];
     const cumStarts = nativeVideo?.cumulativeStarts || [];
@@ -580,9 +1192,14 @@ export async function startExport() {
     
     if (startBtn) startBtn.disabled = true;
     
+    // Show hint during export
+    const minimizeHint = $('exportMinimizeHint');
+    if (minimizeHint) minimizeHint.classList.remove('hidden');
+    
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
     exportState.isExporting = true;
+    exportState.cancelled = false; // Reset cancellation flag
     
     if (window.electronAPI?.on) {
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
@@ -591,12 +1208,41 @@ export async function startExport() {
             if (progress.type === 'progress') {
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
                 if (progressText) progressText.textContent = progress.message;
+                
+                // Track progress for floating notification
+                exportState.currentStep = progress.message;
+                exportState.currentProgress = progress.percentage;
+                
+                // Update floating notification if modal is minimized
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(progress.message, progress.percentage);
+                }
             } else if (progress.type === 'dashboard-progress') {
                 if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
                 if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
+                
+                // Track dashboard progress for floating notification
+                exportState.currentStep = `Dashboard: ${progress.message}`;
+                exportState.currentProgress = progress.percentage * 0.5; // Dashboard is first half of progress
+                
+                // Update floating notification if modal is minimized
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(exportState.currentStep, exportState.currentProgress);
+                }
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
+                exportState.cancelled = false;
+                exportState.modalMinimized = false;
+                exportState.currentStep = '';
+                exportState.currentProgress = 0;
+                
+                // Hide floating notification on complete
+                hideFloatingProgress();
+                
+                // Hide hint
+                const minHint = $('exportMinimizeHint');
+                if (minHint) minHint.classList.add('hidden');
                 
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
@@ -604,6 +1250,12 @@ export async function startExport() {
                     if (dashboardProgressBar) dashboardProgressBar.style.width = '100%';
                     if (dashboardProgressText) dashboardProgressText.textContent = 'Complete';
                     notify(progress.message, { type: 'success' });
+                    
+                    // Show modal if it was minimized so user sees completion
+                    const modal = $('exportModal');
+                    if (modal?.classList.contains('hidden')) {
+                        modal.classList.remove('hidden');
+                    }
                     
                     setTimeout(() => {
                         if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
@@ -615,9 +1267,24 @@ export async function startExport() {
                     if (progressText) progressText.textContent = progress.message;
                     notify(progress.message, { type: 'error' });
                     if (startBtn) startBtn.disabled = false;
+                    
+                    // Show modal on error so user sees what happened
+                    const modal = $('exportModal');
+                    if (modal?.classList.contains('hidden')) {
+                        modal.classList.remove('hidden');
+                    }
                 }
             }
         });
+    }
+    
+    // Check for cancellation after SEI extraction but before starting export
+    if (exportState.cancelled) {
+        console.log('Export cancelled before starting FFmpeg');
+        exportState.isExporting = false;
+        exportState.currentExportId = null;
+        if (startBtn) startBtn.disabled = false;
+        return;
     }
     
     try {
@@ -629,10 +1296,19 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zone
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZone,
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
-            layoutData: layoutData || null
+            layoutData: layoutData || null,
+            useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
+            dashboardPosition, // Position: bottom-center, bottom-left, bottom-right, top-center, etc.
+            dashboardSize, // Size: small (20%), medium (30%), large (40%)
+            // Timestamp-only option (independent of dashboard, uses simple drawtext filter)
+            includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
+            timestampPosition, // Position: bottom-center, bottom-left, etc.
+            timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
+            // Blur zone data (one zone per export for MVP)
+            blurZone: exportState.blurZone || null
         };
         
         await window.electronAPI.startExport(exportId, exportData);
@@ -641,6 +1317,7 @@ export async function startExport() {
         notify(`Export failed: ${err.message}`, { type: 'error' });
         exportState.isExporting = false;
         exportState.currentExportId = null;
+        exportState.cancelled = false; // Reset cancellation flag
         if (startBtn) startBtn.disabled = false;
     }
 }
@@ -649,6 +1326,9 @@ export async function startExport() {
  * Cancel an ongoing export
  */
 export async function cancelExport() {
+    // Set cancellation flag immediately so SEI extraction loop can check it
+    exportState.cancelled = true;
+    
     if (exportState.currentExportId && window.electronAPI?.cancelExport) {
         await window.electronAPI.cancelExport(exportState.currentExportId);
         notify('Export cancelled', { type: 'info' });
@@ -656,6 +1336,17 @@ export async function cancelExport() {
     
     exportState.isExporting = false;
     exportState.currentExportId = null;
+    exportState.cancelled = false;
+    exportState.modalMinimized = false;
+    exportState.currentStep = '';
+    exportState.currentProgress = 0;
+    
+    // Hide floating progress if visible
+    hideFloatingProgress();
+    
+    // Hide hint
+    const minimizeHint = $('exportMinimizeHint');
+    if (minimizeHint) minimizeHint.classList.add('hidden');
     
     const progressEl = $('exportProgress');
     const startBtn = $('startExportBtn');
@@ -663,7 +1354,9 @@ export async function cancelExport() {
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;
     
-    closeExportModal();
+    // Close modal completely when cancelled
+    const modal = $('exportModal');
+    if (modal) modal.classList.add('hidden');
 }
 
 /**

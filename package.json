@@ -1,12 +1,17 @@
 {
   "name": "sentry-six-revamped",
-  "version": "1.0.0",
+  "version": "2026.1.32",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:mac-intel": "electron-builder --mac --x64",
+    "build:mac-apple-silicon": "electron-builder --mac --arm64",
+    "build:all": "electron-builder --win --mac"
   },
   "keywords": [
     "tesla",
@@ -19,22 +24,20 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^39.2.7",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "24.13.1"
   },
   "dependencies": {
+    "electron-updater": "^6.1.7",
     "protobufjs": "^7.5.4"
   },
   "build": {
     "appId": "com.sentrysix.revamped",
-    "productName": "Sentry Six Revamped",
+    "productName": "Sentry-Six-Revamped",
     "win": {
+      "icon": "assets/Sentry_Six.ico",
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
           "arch": ["x64"]
         }
       ],
@@ -44,12 +47,56 @@
       "certificateFile": null,
       "certificatePassword": null
     },
+    "mac": {
+      "icon": "assets/Sentry_Six.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null,
+      "artifactName": "SentrySixRevamped-${version}-macOS.${ext}"
+    },
+    "dmg": {
+      "icon": "assets/Sentry_Six.icns",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "linux": {
+      "icon": "assets/Sentry_Six.png"
+    },
+    "asarUnpack": [
+      "ffmpeg_bin/**/*"
+    ],
     "files": [
       "src/**/*",
       "assets/**/*",
       "ffmpeg_bin/**/*",
       "LICENSE.txt",
       "package.json",
+      "version.json",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",
@@ -69,7 +116,15 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "SentrySixRevampedSetup${version}.${ext}",
+      "include": "build/installer.nsh"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ChadR23",
+      "repo": "Sentry-Six",
+      "releaseType": "release"
     }
   }
 }

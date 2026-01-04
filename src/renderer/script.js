@@ -12,19 +12,21 @@ import { initSteeringWheel, smoothSteeringTo, stopSteeringAnimation, resetSteeri
 import { formatTimeHMS, updateTimeDisplayNew, updateRecordingTime } from './scripts/ui/timeDisplay.js';
 import { 
     exportState, initExportModule, setExportMarker, updateExportMarkers, 
-    updateExportButtonState, openExportModal, closeExportModal, 
+    updateExportButtonState, openExportModal, closeExportModal, reopenExportModal,
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
     startExport, cancelExport, clearExportMarkers 
 } from './scripts/features/exportVideo.js';
 import { initLayoutLab } from './scripts/ui/layoutLab.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
-import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings } from './scripts/ui/settingsModal.js';
+import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal } from './scripts/ui/settingsModal.js';
+import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
+import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
-    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder
+    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder, updateCompactDashboardPosition
 } from './scripts/features/cameraRearrange.js';
-import { initDraggablePanels } from './scripts/ui/draggablePanels.js';
+import { initDraggablePanels, resetPanelPosition } from './scripts/ui/draggablePanels.js';
 import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight } from './scripts/ui/eventMarkers.js';
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
@@ -99,21 +101,11 @@ const videoTR = $('videoTR');
 const videoBL = $('videoBL');
 const videoBC = $('videoBC');
 const videoBR = $('videoBR');
-// Video elements for immersive layout
-const videoImmersiveMain = $('videoImmersiveMain');
-const videoOverlayTL = $('videoOverlayTL');
-const videoOverlayTR = $('videoOverlayTR');
-const videoOverlayBL = $('videoOverlayBL');
-const videoOverlayBC = $('videoOverlayBC');
-const videoOverlayBR = $('videoOverlayBR');
 
 // Video element map by slot
 const videoBySlot = {
     tl: videoTL, tc: videoTC, tr: videoTR,
-    bl: videoBL, bc: videoBC, br: videoBR,
-    main: videoImmersiveMain,
-    overlay_tl: videoOverlayTL, overlay_tr: videoOverlayTR,
-    overlay_bl: videoOverlayBL, overlay_bc: videoOverlayBC, overlay_br: videoOverlayBR
+    bl: videoBL, bc: videoBC, br: videoBR
 };
 
 // URL object references for cleanup
@@ -164,6 +156,34 @@ function resetDashboardAndMap() {
     const accelPedal = $('accelPedal');
     if (accelPedal) accelPedal.classList.remove('active');
     
+    // Reset compact dashboard elements
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) brakeIconCompact.classList.remove('active');
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) accelPedalCompact.classList.remove('active');
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = '--';
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = '--';
+        gearStateCompact.classList.remove('active');
+    }
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.remove('active', 'paused');
+    blinkRightCompact?.classList.remove('active', 'paused');
+    const steeringIconCompact = $('steeringIconCompact');
+    if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = 'Manual';
+        apTextCompact.classList.remove('active');
+    }
+    
     // Reset extra data
     if (valSeq) valSeq.textContent = '--';
     if (valLat) valLat.textContent = '--';
@@ -183,6 +203,12 @@ function resetDashboardAndMap() {
         mapPolyline = null;
     }
     mapPath = [];
+    
+    // Clear event location marker (Sentry/Saved clip static pin)
+    if (eventLocationMarker) {
+        eventLocationMarker.remove();
+        eventLocationMarker = null;
+    }
     
     // Clear SEI data cache and tracking flags
     if (nativeVideo) {
@@ -225,6 +251,34 @@ function resetDashboardOnly() {
     brakeIcon?.classList.remove('active');
     const accelPedal = $('accelPedal');
     if (accelPedal) accelPedal.classList.remove('active');
+    
+    // Reset compact dashboard elements
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) brakeIconCompact.classList.remove('active');
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) accelPedalCompact.classList.remove('active');
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = '--';
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = '--';
+        gearStateCompact.classList.remove('active');
+    }
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.remove('active', 'paused');
+    blinkRightCompact?.classList.remove('active', 'paused');
+    const steeringIconCompact = $('steeringIconCompact');
+    if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = 'Manual';
+        apTextCompact.classList.remove('active');
+    }
     
     // Reset extra data
     if (valSeq) valSeq.textContent = '--';
@@ -282,10 +336,16 @@ function showEventJsonLocation(coll) {
         popupAnchor: [0, -32]
     });
     
+    // Clear any existing event location marker before adding new one
+    if (eventLocationMarker) {
+        eventLocationMarker.remove();
+        eventLocationMarker = null;
+    }
+    
     // Create marker and add popup with location info
     const latlng = L.latLng(lat, lon);
     // Note: This is a static event location marker, separate from the moving GPS marker
-    const eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
+    eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
     
     // Center map on location
     map.setView(latlng, 16);
@@ -326,6 +386,7 @@ const mapVis = $('mapVis');
 let map = null;
 // mapMarker moved to scripts/ui/mapVisualization.js
 let mapPolyline = null;
+let eventLocationMarker = null; // Static marker for Sentry/Saved clip event locations
 let mapPath = [];
 
 // Extra Data Elements
@@ -430,10 +491,13 @@ function hasValidGps(sei) {
         };
     }
 
-    // Panel layout mode (floating/collapsed only)
+    // Panel layout mode (floating/collapsed or docked/hidden based on layout style)
     const panelMode = createClipsPanelMode({ map, clipsCollapseBtn });
     panelMode.initClipsPanelMode();
     clipsCollapseBtn.onclick = (e) => { e.preventDefault(); panelMode.toggleCollapsedMode(); };
+    
+    // Store panelMode functions globally for settings modal access
+    window._panelMode = panelMode;
 
     cameraSelect.onchange = () => {
         const g = selection.selectedGroupId ? library.clipGroupById.get(selection.selectedGroupId) : null;
@@ -442,18 +506,17 @@ function hasValidGps(sei) {
         if (multi.enabled) {
             // In multi-cam, the dropdown selects the master camera (telemetry + timeline).
             multi.masterCamera = cameraSelect.value;
-            reloadSelectedGroup();
         } else {
             selection.selectedCamera = cameraSelect.value;
-            loadClipGroupCamera(g, selection.selectedCamera);
         }
+        // Note: Camera changes are handled by selectDayCollection() in native video mode
     };
 
     multiCamToggle.onchange = () => {
         multi.enabled = !!multiCamToggle.checked;
         localStorage.setItem(MULTI_ENABLED_KEY, multi.enabled ? '1' : '0');
         if (multiLayoutSelect) multiLayoutSelect.disabled = !multi.enabled;
-        reloadSelectedGroup();
+        // Note: Multi-cam toggle changes are applied on next segment load in native video mode
     };
 
     // Dashboard (SEI overlay) toggle
@@ -483,9 +546,11 @@ function hasValidGps(sei) {
             if (window.electronAPI?.setSetting) {
                 window.electronAPI.setSetting('useMetric', useMetric);
             }
-            // Update speed unit display
+            // Update speed unit display for both dashboards
             const unitEl = $('speedUnit');
             if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+            const unitElCompact = $('speedUnitCompact');
+            if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
         };
     }
 
@@ -534,6 +599,173 @@ function hasValidGps(sei) {
         if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
     }
 
+    // Load dashboard layout setting and apply
+    let dashboardLayout = 'default';
+    window.dashboardLayout = dashboardLayout; // Initialize global
+    if (window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('dashboardLayout').then(savedLayout => {
+            dashboardLayout = savedLayout || 'default';
+            window.dashboardLayout = dashboardLayout;
+            updateDashboardLayout(dashboardLayout);
+        });
+    }
+    
+    // Global function to update dashboard layout (used by settings modal)
+    window.updateDashboardLayout = async (layout) => {
+        dashboardLayout = layout || 'default';
+        window.dashboardLayout = dashboardLayout; // Store globally for dashboardVisibility
+        const defaultDash = $('dashboardVis');
+        const compactDash = $('dashboardVisCompact');
+        
+        if (defaultDash && compactDash) {
+            if (dashboardLayout === 'compact') {
+                defaultDash.classList.add('hidden');
+                compactDash.classList.remove('hidden');
+                // Ensure compact dashboard is visible if enabled
+                if (state?.ui?.dashboardEnabled) {
+                    compactDash.classList.add('visible');
+                    compactDash.classList.remove('user-hidden');
+                }
+                // Update positioning based on setting
+                const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
+                if (window.updateCompactDashboardPositioning) {
+                    window.updateCompactDashboardPositioning(isFixed);
+                }
+            } else {
+                defaultDash.classList.remove('hidden');
+                compactDash.classList.add('hidden');
+                compactDash.classList.remove('visible');
+            }
+            // Update visibility based on enabled state
+            updateDashboardVisibility();
+        }
+    };
+    
+    // Global function to update compact dashboard positioning (fixed vs movable)
+    window.updateCompactDashboardPositioning = (isFixed) => {
+        const compactDash = $('dashboardVisCompact');
+        if (!compactDash) return;
+        
+        if (isFixed) {
+            // Fixed mode: remove draggable, attach to front camera
+            compactDash.classList.add('fixed-to-camera');
+            compactDash.classList.remove('draggable');
+            // Reset drag offset and clear transform
+            resetPanelPosition(compactDash);
+            compactDash.style.cursor = '';
+            
+            // Re-attach to front camera first - move it to the tile
+            if (updateCompactDashboardPosition) {
+                updateCompactDashboardPosition();
+            }
+            
+            // Use double requestAnimationFrame to ensure DOM update and CSS recalculation happens
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    // Clear all inline positioning styles to let CSS handle it
+                    // The CSS rule .multi-tile .dashboard-vis-compact will take over
+                    compactDash.style.position = '';
+                    compactDash.style.top = '';
+                    compactDash.style.right = '';
+                    compactDash.style.bottom = '';
+                    compactDash.style.left = '';
+                    compactDash.style.width = '';
+                    compactDash.style.height = '';
+                    compactDash.style.padding = '';
+                    compactDash.style.zIndex = '';
+                    // Clear transform - CSS will set translateX(-50%)
+                    compactDash.style.transform = '';
+                    compactDash.style.pointerEvents = '';
+                });
+            });
+        } else {
+            // Movable mode: make it draggable like default dashboard
+            compactDash.classList.remove('fixed-to-camera');
+            compactDash.classList.add('draggable');
+            // Move to body if it's inside a tile
+            const parent = compactDash.parentElement;
+            if (parent && parent.classList.contains('multi-tile')) {
+                document.body.appendChild(compactDash);
+            }
+            // Use requestAnimationFrame to ensure DOM/CSS updates are applied
+            requestAnimationFrame(() => {
+                // Find the front camera tile to position dashboard at its bottom
+                const multiCamGrid = document.getElementById('multiCamGrid');
+                let initialTop = '20px';
+                let initialLeft = '20px';
+                
+                if (multiCamGrid && getEffectiveSlots) {
+                    try {
+                        // Find which slot currently has the front camera
+                        const effectiveSlots = getEffectiveSlots();
+                        const frontSlot = effectiveSlots.find(s => s.camera === 'front');
+                        
+                        if (frontSlot) {
+                            // Find the tile with the front camera
+                            const frontTile = multiCamGrid.querySelector(`.multi-tile[data-slot="${frontSlot.slot}"]`);
+                            if (frontTile) {
+                                const tileRect = frontTile.getBoundingClientRect();
+                                const dashHeight = 56; // Height of compact dashboard
+                                const dashWidth = 480; // Width of compact dashboard
+                                const padding = 8; // Small padding from bottom
+                                
+                                // Position at bottom of front camera tile
+                                const topPos = tileRect.bottom - dashHeight - padding;
+                                initialTop = `${Math.max(0, topPos)}px`;
+                                
+                                // Center horizontally within the tile, but keep on screen
+                                const centerX = tileRect.left + (tileRect.width / 2);
+                                const leftPos = centerX - (dashWidth / 2);
+                                // Ensure it doesn't go off the left or right edge
+                                const minLeft = 10; // Minimum margin from left edge
+                                const maxLeft = window.innerWidth - dashWidth - 10; // Maximum margin from right edge
+                                initialLeft = `${Math.max(minLeft, Math.min(leftPos, maxLeft))}px`;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to position compact dashboard at front camera:', e);
+                        // Fall back to default position
+                    }
+                }
+                
+                // Set initial positioning via inline styles (these override CSS)
+                compactDash.style.position = 'fixed';
+                compactDash.style.top = initialTop;
+                compactDash.style.left = initialLeft;
+                compactDash.style.right = 'auto';
+                compactDash.style.bottom = 'auto';
+                compactDash.style.width = '480px';
+                compactDash.style.height = '56px';
+                compactDash.style.padding = '6px 10px';
+                compactDash.style.zIndex = '101';
+                compactDash.style.pointerEvents = 'auto';
+                compactDash.style.cursor = 'grab';
+                // Set initial transform - draggablePanels will update it with !important for compact dashboard
+                compactDash.style.transform = 'translate3d(0, 0, 0)';
+                // Reset drag offset to start fresh
+                resetPanelPosition(compactDash);
+                // Make it draggable - it will update the transform via inline style
+                initDraggablePanels([compactDash]);
+            });
+        }
+    };
+    
+    // Initialize compact dashboard positioning on load
+    async function initCompactDashboardPositioning() {
+        const compactDash = $('dashboardVisCompact');
+        if (!compactDash) return;
+        
+        const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
+        if (window.updateCompactDashboardPositioning) {
+            window.updateCompactDashboardPositioning(isFixed);
+        }
+    }
+    
+    // Initialize on load
+    if (window.electronAPI?.getSetting) {
+        initCompactDashboardPositioning();
+    }
+    
     // Apply initial visibility state
     updateDashboardVisibility();
     updateMapVisibility();
@@ -547,8 +779,6 @@ function hasValidGps(sei) {
         };
     }
 
-    // Layout quick switch buttons (removed - buttons don't exist in HTML)
-    updateMultiLayoutButtons();
 
     // Skip buttons (±15 seconds)
     if (skipBackBtn) skipBackBtn.onclick = (e) => { e.preventDefault(); skipSeconds(-15); };
@@ -573,7 +803,11 @@ function hasValidGps(sei) {
         exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); };
     }
     if (closeExportModal) {
-        closeExportModal.onclick = (e) => { e.preventDefault(); closeExportModalFn(); };
+        closeExportModal.onclick = (e) => { 
+            e.preventDefault(); 
+            // During export, this will minimize the modal and show floating progress
+            closeExportModalFn(); 
+        };
     }
     if (cancelExportBtn) {
         cancelExportBtn.onclick = (e) => { e.preventDefault(); cancelExport(); };
@@ -581,18 +815,27 @@ function hasValidGps(sei) {
     if (startExportBtn) {
         startExportBtn.onclick = (e) => { e.preventDefault(); startExport(); };
     }
-    // Close modal on backdrop click
+    // Close modal on backdrop click (minimize during export, close otherwise)
     if (exportModal) {
         exportModal.onclick = (e) => {
-            if (e.target === exportModal) closeExportModalFn();
+            if (e.target === exportModal) {
+                closeExportModalFn();
+            }
         };
     }
+    
+    // Floating export progress - reopen modal button
+    const exportFloatingOpenBtn = $('exportFloatingOpenBtn');
+    if (exportFloatingOpenBtn) {
+        exportFloatingOpenBtn.onclick = (e) => { e.preventDefault(); reopenExportModal(); };
+    }
+    
 
 
     // Initialize native video playback system
     initNativeVideoPlayback();
 
-    // Multi focus mode (click a tile - works for both standard and immersive layouts)
+    // Multi focus mode (click a tile to expand)
     // Debounced to prevent rapid clicking issues
     let lastFocusToggle = 0;
     if (multiCamGrid) {
@@ -605,10 +848,7 @@ function hasValidGps(sei) {
             if (now - lastFocusToggle < 200) return;
             lastFocusToggle = now;
             
-            // Handle both standard tiles and immersive overlays/main
-            const tile = e.target.closest?.('.multi-tile') 
-                      || e.target.closest?.('.immersive-overlay')
-                      || e.target.closest?.('.immersive-main');
+            const tile = e.target.closest?.('.multi-tile');
             if (!tile) return;
             const slot = tile.getAttribute('data-slot');
             if (!slot) return;
@@ -629,10 +869,7 @@ function hasValidGps(sei) {
     initCameraDragAndDrop();
 })();
 
-// -------------------------------------------------------------
-// Explicit mode transitions
-// -------------------------------------------------------------
-
+// Mode Transitions
 function setMode(nextMode) {
     const normalized = (nextMode === 'collection') ? 'collection' : 'clip';
     if (state.mode === normalized) return;
@@ -659,49 +896,31 @@ function setMultiLayout(layoutId) {
     multi.layoutId = next;
     localStorage.setItem(MULTI_LAYOUT_KEY, next);
     if (multiLayoutSelect) multiLayoutSelect.value = next;
-    updateMultiLayoutButtons();
 
-    // Set grid column mode and layout type for the new layout
+    // Set grid column mode for the layout
     const layout = MULTI_LAYOUTS[next];
     if (multiCamGrid && layout) {
         multiCamGrid.setAttribute('data-columns', layout.columns || 3);
-        // Set layout type for immersive mode CSS
-        if (layout.type === 'immersive') {
-            multiCamGrid.setAttribute('data-layout-type', 'immersive');
-            // Set overlay opacity as CSS variable
-            multiCamGrid.style.setProperty('--immersive-opacity', layout.overlayOpacity || 0.9);
-        } else {
-            multiCamGrid.removeAttribute('data-layout-type');
-            multiCamGrid.style.removeProperty('--immersive-opacity');
-        }
     }
 
-    if (multi.enabled) {
+    if (multi.enabled && state.ui.nativeVideoMode && state.collection.active) {
         // In native video mode, reload the current segment with new layout
-        if (state.ui.nativeVideoMode && state.collection.active) {
-            // Use >= 0 check to properly handle segment 0 (0 is falsy in JS)
-            const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
-            const wasPlaying = nativeVideo.playing;
-            const currentTime = nativeVideo.master?.currentTime || 0;
-            
-            loadNativeSegment(segIdx).then(() => {
-                // Restore playback position and state
-                if (nativeVideo.master) {
-                    nativeVideo.master.currentTime = currentTime;
-                    syncMultiVideos(currentTime);
-                }
-                if (wasPlaying) {
-                    playNative();
-                }
-            });
-        } else {
-            reloadSelectedGroup();
-        }
+        // Use >= 0 check to properly handle segment 0 (0 is falsy in JS)
+        const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
+        const wasPlaying = nativeVideo.playing;
+        const currentTime = nativeVideo.master?.currentTime || 0;
+        
+        loadNativeSegment(segIdx).then(() => {
+            // Restore playback position and state
+            if (nativeVideo.master) {
+                nativeVideo.master.currentTime = currentTime;
+                syncMultiVideos(currentTime);
+            }
+            if (wasPlaying) {
+                playNative();
+            }
+        });
     }
-}
-
-function updateMultiLayoutButtons() {
-    // Layout buttons removed - function kept for compatibility but does nothing
 }
 
 // Zoom/Pan moved to scripts/ui/zoomPan.js
@@ -757,10 +976,24 @@ initSettingsModalDeps({
     getUseMetric: () => useMetric,
     updateEventCameraHighlight,
     resetCameraOrder,
-    openDevSettingsModal: openDevSettings
+    openDevSettingsModal: openDevSettings,
+    setLayoutStyle: (style) => window._panelMode?.setLayoutStyle?.(style),
+    getLayoutStyle: () => window._panelMode?.getLayoutStyle?.() || 'modern'
 });
 initSettingsModal();
 initDevSettingsModal();
+initChangelogModal();
+
+// Initialize diagnostics system (captures console logs for Support ID)
+initDiagnostics();
+logDiagnosticEvent('app_initialized');
+
+// Initialize Welcome Guide for first-time users
+initWelcomeGuide();
+
+// Expose welcome guide functions for developer settings
+window._resetWelcomeGuide = resetWelcomeGuide;
+window._openWelcomeGuide = openWelcomeGuide;
 
 // Keybind System - moved to scripts/lib/keybinds.js
 // Initialize keybind actions (handlers stay here since they use local functions)
@@ -851,6 +1084,9 @@ async function checkForUpdatesOnStartup() {
 
 // Delay update check to allow app to fully initialize
 setTimeout(checkForUpdatesOnStartup, 2000);
+
+// Show welcome guide for first-time users (after app fully initializes)
+setTimeout(checkAndShowWelcomeGuide, 1000);
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once
@@ -1534,17 +1770,7 @@ function resetMultiStreams() {
     multi.streams.clear();
 }
 
-async function reloadSelectedGroup() {
-    // Legacy WebCodecs reloading removed - native video playback handles this now
-    // This function is kept for API compatibility but does nothing
-}
-
-// Legacy WebCodecs multi-cam loading removed - native video playback is now used exclusively
-
-// -------------------------------------------------------------
-// Folder ingest + Clip Groups (Phase 1)
-// -------------------------------------------------------------
-
+// Folder Ingest + Clip Groups
 function getRootFolderNameFromWebkitRelativePath(relPath) {
     if (!relPath || typeof relPath !== 'string') return null;
     const parts = relPath.split('/').filter(Boolean);
@@ -1975,11 +2201,11 @@ function selectClipGroup(groupId) {
     if (!g.filesByCamera.has(multi.masterCamera)) multi.masterCamera = defaultCam;
     updateCameraSelect(g);
     cameraSelect.value = multi.enabled ? multi.masterCamera : selection.selectedCamera;
-    reloadSelectedGroup();
-
+    // Note: Clip group loading is handled by selectDayCollection() in native video mode
 }
 
 function selectSentryCollection(collectionId) {
+    console.log('%c[SELECT] selectSentryCollection called with:', 'color: orange; font-weight: bold', collectionId);
     const items = buildDisplayItems();
     const it = items.find(x => x.type === 'collection' && x.id === collectionId);
     if (!it) return;
@@ -2021,7 +2247,7 @@ function selectSentryCollection(collectionId) {
 
 function selectDayCollection(dayKey) {
     try {
-        console.log('Selecting day collection:', dayKey);
+        console.log('%c[SELECT] selectDayCollection called with:', 'color: lime; font-weight: bold', dayKey);
         console.log('Available day collections:', library.dayCollections ? Array.from(library.dayCollections.keys()) : 'none');
         
         const coll = library.dayCollections?.get(dayKey);
@@ -2065,23 +2291,19 @@ function selectDayCollection(dayKey) {
         localStorage.setItem(MULTI_ENABLED_KEY, '1');
     }
     
-    // Ensure layout is applied to grid (sets data-columns, data-layout-type)
+    // Ensure layout is applied to grid
     const layoutId = multi.layoutId || DEFAULT_MULTI_LAYOUT;
     const layout = MULTI_LAYOUTS[layoutId];
     if (multiCamGrid && layout) {
         multiCamGrid.setAttribute('data-columns', layout.columns || 3);
-        if (layout.type === 'immersive') {
-            multiCamGrid.setAttribute('data-layout-type', 'immersive');
-            multiCamGrid.style.setProperty('--immersive-opacity', layout.overlayOpacity || 0.9);
-        } else {
-            multiCamGrid.removeAttribute('data-layout-type');
-            multiCamGrid.style.removeProperty('--immersive-opacity');
-        }
     }
 
-    // Initialize segment duration tracking (estimate 60s per segment, update as we load)
+    // Initialize segment duration tracking with estimates, then probe actual durations
     const numSegs = coll.groups?.length || 0;
-    nativeVideo.segmentDurations = new Array(numSegs).fill(60); // Estimated
+    const groups = coll.groups || [];
+    
+    // Start with 60s estimates for immediate UI responsiveness
+    nativeVideo.segmentDurations = new Array(numSegs).fill(60);
     nativeVideo.cumulativeStarts = [];
     let cum = 0;
     for (let i = 0; i <= numSegs; i++) {
@@ -2101,7 +2323,6 @@ function selectDayCollection(dayKey) {
 
     // Calculate anchorMs from event metadata for Sentry/Saved clips
     let anchorMs = 0;
-    const groups = coll.groups || [];
     let eventMeta = null;
     for (const g of groups) {
         if (g.eventMeta) {
@@ -2126,9 +2347,41 @@ function selectDayCollection(dayKey) {
     const startOffsetMs = Math.max(0, anchorMs - 15000); // 15 seconds before event
     const startOffsetSec = startOffsetMs / 1000;
 
+    // Probe actual segment durations in the background for accurate seek positioning
+    // This runs concurrently with loading the first segment
+    console.log('Starting duration probe for', groups.length, 'segments');
+    probeSegmentDurations(groups).then(probedDurations => {
+        console.log('Duration probe completed:', probedDurations);
+        if (!state.collection.active || state.collection.active.id !== coll.id) return; // Stale
+        
+        // Update durations with actual values
+        nativeVideo.segmentDurations = probedDurations;
+        nativeVideo.cumulativeStarts = [];
+        let cumulative = 0;
+        for (let i = 0; i <= probedDurations.length; i++) {
+            nativeVideo.cumulativeStarts.push(cumulative);
+            if (i < probedDurations.length) cumulative += probedDurations[i];
+        }
+        
+        // Update time display with accurate total duration
+        const totalSec = nativeVideo.cumulativeStarts[probedDurations.length] || 60;
+        const vid = nativeVideo.master;
+        const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
+        const cumStart = nativeVideo.cumulativeStarts[segIdx] || 0;
+        const currentSec = cumStart + (vid?.currentTime || 0);
+        updateTimeDisplayNew(Math.floor(currentSec), Math.floor(totalSec));
+        
+        // Refresh event timeline marker with accurate durations
+        updateEventTimelineMarker();
+        
+        console.log('Timeline updated with actual durations, total:', totalSec.toFixed(1) + 's');
+    }).catch(err => {
+        console.warn('Duration probing failed, using estimates:', err);
+    });
+
     // Load first segment with native video, then seek to event offset
     loadNativeSegment(0).then(() => {
-        // Update time display with total duration
+        // Update time display with total duration (may be updated again when probing completes)
         const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
         updateTimeDisplayNew(0, totalSec);
         
@@ -2229,14 +2482,7 @@ async function ingestSentryEventJson(eventAssetsByKey) {
     }
 }
 
-function loadClipGroupCamera(group, camera) {
-    // Legacy WebCodecs loader - native video uses selectDayCollection() instead
-    notify('Please select a day collection from the clip browser.', { type: 'info' });
-}
-
-// Legacy preview/thumbnail code removed - not used in current UI
-
-// escapeHtml/cssEscape moved to src/utils.js
+// escapeHtml/cssEscape moved to scripts/lib/utils.js
 
 // Playback Logic
 playBtn.onclick = () => {
@@ -2280,8 +2526,8 @@ function previewAtSliderValue() {
 
 function maybeAutoplayAfterSeek() {
     if (!autoplayToggle?.checked) return;
-    // If the user is still dragging, don't restart yet.
-    if (state.ui.isScrubbing) return;
+    // If the user is still dragging or an async seek is in progress, don't restart yet.
+    if (state.ui.isScrubbing || nativeVideo.isSeeking) return;
     setTimeout(() => play(), 0);
 }
 
@@ -2353,14 +2599,6 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault();
             clearMultiFocus();
         }
-    } else if (e.code === 'ArrowLeft' && e.shiftKey) {
-        // Shift+Left: Skip back 15 seconds
-        e.preventDefault();
-        skipSeconds(-15);
-    } else if (e.code === 'ArrowRight' && e.shiftKey) {
-        // Shift+Right: Skip forward 15 seconds
-        e.preventDefault();
-        skipSeconds(15);
     } else if (e.code === 'ArrowLeft') {
         // Left: Small step back (1 second in native mode, frame in WebCodecs mode)
         e.preventDefault();
@@ -2582,7 +2820,8 @@ async function showCollectionAtMs(ms) {
     const localMs = Math.max(0, clamped - segStart);
 
     if (segIdx !== state.collection.active.currentSegmentIdx) {
-        await loadCollectionSegment(segIdx, token);
+        // Update segment index (legacy WebCodecs loading removed - native video uses loadNativeSegment)
+        state.collection.active.currentSegmentIdx = segIdx;
         if (!state.collection.active || state.collection.active.loadToken !== token) return;
     }
 
@@ -2592,16 +2831,6 @@ async function showCollectionAtMs(ms) {
     progressBar.value = Math.floor(clamped);
     showFrame(idx);
 }
-
-async function loadCollectionSegment(segIdx, token) {
-    // Legacy WebCodecs segment loading - native video uses loadNativeSegment() instead
-    // This is kept for Sentry collection mode compatibility but is not used in day collections
-    if (!state.collection.active) return;
-    state.collection.active.currentSegmentIdx = segIdx;
-    state.collection.active.loading = false;
-}
-
-// Legacy WebCodecs rendering functions removed - native video playback is now used exclusively
 
 // G-Force Meter moved to scripts/ui/gforceMeter.js
 // Compass moved to scripts/ui/compass.js
@@ -2616,9 +2845,17 @@ function updateVisualization(sei) {
     // Speed (use absolute value to avoid negative display when in reverse)
     const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
-    speedValue.textContent = speed;
+    
+    // Update default dashboard
+    if (speedValue) speedValue.textContent = speed;
     const unitEl = $('speedUnit');
     if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+    
+    // Update compact dashboard
+    const speedValueCompact = $('speedValueCompact');
+    if (speedValueCompact) speedValueCompact.textContent = speed;
+    const unitElCompact = $('speedUnitCompact');
+    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
 
     // Gear
     const gear = get('gearState', 'gear_state');
@@ -2631,15 +2868,31 @@ function updateVisualization(sei) {
     if (gearState) {
         gearState.textContent = gearText;
     }
+    const gearStateCompact = $('gearStateCompact');
+    if (gearStateCompact) {
+        gearStateCompact.textContent = gearText;
+    }
 
     // Blinkers - pause animation when video is not playing
     const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
-    blinkLeft?.classList.toggle('active', !!get('blinkerOnLeft', 'blinker_on_left'));
-    blinkRight?.classList.toggle('active', !!get('blinkerOnRight', 'blinker_on_right'));
+    const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+    const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+    
+    // Update default dashboard blinkers
+    blinkLeft?.classList.toggle('active', leftBlinkerOn);
+    blinkRight?.classList.toggle('active', rightBlinkerOn);
     blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
     blinkRight?.classList.toggle('paused', !isCurrentlyPlaying);
+    
+    // Update compact dashboard blinkers
+    const blinkLeftCompact = $('blinkLeftCompact');
+    const blinkRightCompact = $('blinkRightCompact');
+    blinkLeftCompact?.classList.toggle('active', leftBlinkerOn);
+    blinkRightCompact?.classList.toggle('active', rightBlinkerOn);
+    blinkLeftCompact?.classList.toggle('paused', !isCurrentlyPlaying);
+    blinkRightCompact?.classList.toggle('paused', !isCurrentlyPlaying);
 
-    // Steering
+    // Steering - smooth animation handles both default and compact dashboards
     const targetAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
     smoothSteeringTo(targetAngle);
 
@@ -2654,28 +2907,50 @@ function updateVisualization(sei) {
     apText?.classList.toggle('active', isActive);
     gearState?.classList.toggle('active', isActive);
     
-    if (apState === 1) {
-        if (apText) apText.textContent = 'Self Driving';
-    } else if (apState === 2) {
-        if (apText) apText.textContent = 'Autosteer';
-    } else if (apState === 3) {
-        if (apText) apText.textContent = 'TACC';
-    } else {
-        if (apText) apText.textContent = 'Manual';
+    let apTextContent = 'Manual';
+    if (apState === 1) apTextContent = 'Self Driving';
+    else if (apState === 2) apTextContent = 'Autosteer';
+    else if (apState === 3) apTextContent = 'TACC';
+    
+    if (apText) apText.textContent = apTextContent;
+    
+    // Update compact dashboard autopilot
+    const autosteerIconCompact = $('autosteerIconCompact');
+    if (autosteerIconCompact) {
+        autosteerIconCompact.classList.toggle('active', isActive);
+    }
+    const apTextCompact = $('apTextCompact');
+    if (apTextCompact) {
+        apTextCompact.textContent = apTextContent;
+        apTextCompact.classList.toggle('active', isActive);
+    }
+    if (gearStateCompact) {
+        gearStateCompact.classList.toggle('active', isActive);
     }
 
     // Brake - also detect Tesla's auto-hold (gear in Drive but speed is 0)
     const brakeState = get('brakeApplied', 'brake_applied');
     const isAutoHold = gear === 1 && mps < 0.01; // Gear Drive (1) and essentially stopped
     brakeIcon?.classList.toggle('active', !!brakeState || isAutoHold);
+    
+    // Update compact dashboard brake
+    const brakeIconCompact = $('brakeIconCompact');
+    if (brakeIconCompact) {
+        brakeIconCompact.classList.toggle('active', !!brakeState || isAutoHold);
+    }
 
     // Accelerator pedal - lights up when pressed
     const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
     const accelPedal = $('accelPedal');
+    const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
     if (accelPedal) {
-        // Detect if pressed (handle both 0-1 and 0-100 ranges)
-        const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
         accelPedal.classList.toggle('active', isPressed);
+    }
+    
+    // Update compact dashboard accelerator
+    const accelPedalCompact = $('accelPedalCompact');
+    if (accelPedalCompact) {
+        accelPedalCompact.classList.toggle('active', isPressed);
     }
 
     // Extra Data
@@ -2748,9 +3023,7 @@ function updateTimeDisplay(frameIndex) {
     updateTimeDisplayNew(currentSec, totalSec);
 }
 
-// ============================================================
-// Skip Seconds - moved to scripts/features/skipSeconds.js
-// ============================================================
+// Skip Seconds
 initSkipSeconds({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
@@ -2761,9 +3034,7 @@ initSkipSeconds({
     showFrame
 });
 
-// ============================================================
-// Native Video Playback System (GPU-accelerated, smooth)
-// ============================================================
+// Native Video Playback System
 const nativeVideo = {
     master: null,           // Master video element (drives timeline)
     streams: new Map(),     // slot -> { video, file, url }
@@ -2775,9 +3046,99 @@ const nativeVideo = {
     segmentDurations: [],   // Actual duration of each segment in seconds
     cumulativeStarts: [],   // Cumulative start time of each segment in seconds
     isTransitioning: false, // Guard to prevent double-triggering segment transitions
+    isSeeking: false,       // Guard to prevent progress bar updates during user-initiated seeks
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
     dashboardReset: false   // Track if dashboard has been reset for no-SEI section
 };
+
+/**
+ * Probe video durations for all segments upfront to enable accurate seek positioning.
+ * Uses temporary video elements to get actual durations without full loading.
+ * @param {Array} groups - Array of clip groups with filesByCamera maps
+ * @returns {Promise<number[]>} - Array of segment durations in seconds
+ */
+async function probeSegmentDurations(groups) {
+    if (!groups || groups.length === 0) return [];
+    
+    console.log('Probing durations for', groups.length, 'segments...');
+    const durations = [];
+    
+    // Helper to get video URL from entry (same as in loadNativeSegment)
+    const getVideoUrl = (entry) => {
+        if (!entry) return null;
+        if (entry.file?.isElectronFile && entry.file?.path) {
+            const filePath = entry.file.path;
+            const fileUrl = filePath.startsWith('/') 
+                ? `file://${filePath}` 
+                : `file:///${filePath.replace(/\\/g, '/')}`;
+            return { url: fileUrl, isBlob: false };
+        }
+        if (entry.file && entry.file instanceof File) {
+            const url = URL.createObjectURL(entry.file);
+            return { url, isBlob: true };
+        }
+        return null;
+    };
+    
+    // Probe each segment's duration using a temporary video element
+    for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        // Prefer front camera for duration, fall back to any available camera
+        const entry = group.filesByCamera.get('front') || 
+                      group.filesByCamera.values().next().value;
+        const urlData = getVideoUrl(entry);
+        
+        if (!urlData) {
+            console.warn('No video file for segment', i, '- using 60s estimate');
+            durations.push(60);
+            continue;
+        }
+        
+        try {
+            const duration = await new Promise((resolve, reject) => {
+                const tempVid = document.createElement('video');
+                tempVid.preload = 'metadata';
+                tempVid.muted = true;
+                
+                const cleanup = () => {
+                    tempVid.src = '';
+                    tempVid.load();
+                    if (urlData.isBlob) {
+                        URL.revokeObjectURL(urlData.url);
+                    }
+                };
+                
+                const timeout = setTimeout(() => {
+                    cleanup();
+                    reject(new Error('Timeout'));
+                }, 5000); // 5s timeout per segment
+                
+                tempVid.onloadedmetadata = () => {
+                    clearTimeout(timeout);
+                    const dur = tempVid.duration;
+                    cleanup();
+                    resolve(Number.isFinite(dur) ? dur : 60);
+                };
+                
+                tempVid.onerror = () => {
+                    clearTimeout(timeout);
+                    cleanup();
+                    reject(new Error('Load error'));
+                };
+                
+                tempVid.src = urlData.url;
+            });
+            
+            durations.push(duration);
+        } catch (err) {
+            console.warn('Failed to probe segment', i, ':', err.message, '- using 60s estimate');
+            durations.push(60);
+        }
+    }
+    
+    console.log('Probed durations:', durations.map(d => d.toFixed(1) + 's').join(', '));
+    return durations;
+}
 
 function initNativeVideoPlayback() {
     console.log('Initializing native video playback');
@@ -2825,6 +3186,9 @@ function onMasterTimeUpdate() {
     // Skip time updates during segment transitions to prevent time display glitches
     if (nativeVideo.isTransitioning) return;
     
+    // Skip progress bar updates while user is scrubbing or seeking to prevent fighting with user input
+    const skipProgressUpdate = state.ui.isScrubbing || nativeVideo.isSeeking;
+    
     const currentVidSec = vid.currentTime || 0;
     const currentVidMs = currentVidSec * 1000;
     
@@ -2857,16 +3221,18 @@ function onMasterTimeUpdate() {
         updateTimeDisplayNew(Math.floor(currentSec), Math.floor(totalSec));
         updateRecordingTime({ collection: state.collection.active, segIdx, videoCurrentTime: nativeVideo.master?.currentTime || 0 });
         
-        // Progress bar as smooth percentage
-        const pct = (currentSec / totalSec) * 100;
-        progressBar.value = Math.min(100, pct);
+        // Progress bar as smooth percentage (skip if user is scrubbing)
+        if (!skipProgressUpdate) {
+            const pct = (currentSec / totalSec) * 100;
+            progressBar.value = Math.min(100, pct);
+        }
         return;
     }
     
     // Single clip mode
     const totalSec = vid.duration || 0;
     updateTimeDisplayNew(currentVidSec, totalSec);
-    if (totalSec > 0) {
+    if (totalSec > 0 && !skipProgressUpdate) {
         progressBar.value = (currentVidSec / totalSec) * 100;
     }
     
@@ -3044,6 +3410,7 @@ async function loadNativeSegment(segIdx) {
         
         // Update tile labels to reflect custom camera order
         updateTileLabels();
+        updateCompactDashboardPosition();
         
         // Apply mirror transforms to repeater cameras
         applyMirrorTransforms();
@@ -3372,6 +3739,15 @@ async function seekNativeDayCollectionBySec(targetSec) {
     const cumStarts = nativeVideo.cumulativeStarts;
     if (!cumStarts.length) return;
     
+    // If a seek is already in progress, ignore this one to prevent race conditions
+    if (nativeVideo.isSeeking) {
+        console.log('Seek already in progress, ignoring new seek to', targetSec.toFixed(1) + 's');
+        return;
+    }
+    
+    // Set seeking flag to prevent progress bar updates and overlapping seeks
+    nativeVideo.isSeeking = true;
+    
     const totalSec = cumStarts[cumStarts.length - 1];
     const clampedSec = Math.max(0, Math.min(totalSec, targetSec));
     
@@ -3399,16 +3775,24 @@ async function seekNativeDayCollectionBySec(targetSec) {
         vid.currentTime = Math.min(localSec, vid.duration || 60);
         syncMultiVideos(vid.currentTime);
         
+        // Update progress bar and time display immediately
+        const pct = (clampedSec / totalSec) * 100;
+        progressBar.value = Math.min(100, pct);
+        updateTimeDisplayNew(Math.floor(clampedSec), Math.floor(totalSec));
+        
         // Resume playback if it was playing before seek
         if (wasPlaying) {
             playNative();
         }
     }
+    
+    // Clear seeking flag after a short delay to let the video element settle
+    setTimeout(() => {
+        nativeVideo.isSeeking = false;
+    }, 100);
 }
 
-// ============================================================
-// Event Timeline Markers - moved to scripts/ui/eventMarkers.js
-// ============================================================
+// Event Timeline Markers
 initEventMarkers({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
@@ -3417,16 +3801,14 @@ initEventMarkers({
     seekNativeDayCollectionBySec
 });
 
-// ============================================================
-// Export Functions - moved to scripts/features/exportVideo.js
-// ============================================================
-
+// Export Functions
 // Initialize export module with dependencies
 initExportModule({
     getState: () => state,
     getNativeVideo: () => nativeVideo,
     getBaseFolderPath: () => baseFolderPath,
-    getProgressBar: () => progressBar
+    getProgressBar: () => progressBar,
+    getUseMetric: () => useMetric
 });
 
 // Alias for closeExportModal (used internally)
@@ -3442,14 +3824,10 @@ window.selectDayCollectionWrapper = function(dayKey) {
 // Call updateExportButtonState initially
 setTimeout(updateExportButtonState, 500);
 
-// ============================================================
-// Auto-Update System - moved to scripts/features/autoUpdate.js
-// ============================================================
+// Auto-Update System
 initAutoUpdate();
 
-// -------------------------------------------------------------
-// Camera Rearrangement - moved to scripts/features/cameraRearrange.js
-// -------------------------------------------------------------
+// Camera Rearrangement
 initCameraRearrange({
     getMultiCamGrid: () => multiCamGrid,
     getState: () => state,

@@ -17,15 +17,25 @@ export const layoutState = {
     cameras: new Map(), // camera -> { x, y, width, height }
     canvasWidth: 0,     // Canvas width (set on init, 16:9 aspect ratio)
     canvasHeight: 0,    // Canvas height
-    snapThreshold: 10   // Pixels threshold for snapping
+    snapThreshold: 10,  // Pixels threshold for snapping
+    availableCameras: null // Set of available cameras (null = all cameras available)
 };
+
+/**
+ * Set available cameras for the layout lab
+ * Used to filter cameras for HW3 vehicles (4-cam systems without pillars)
+ * @param {Set<string>} cameras - Set of available camera names
+ */
+export function setAvailableCameras(cameras) {
+    layoutState.availableCameras = cameras;
+}
 
 /**
  * Initialize the layout lab canvas
  */
 export function initLayoutLab() {
     const canvas = document.getElementById('layoutCanvas');
-    const toggles = document.querySelectorAll('.camera-toggle input[type="checkbox"]');
+    const toggles = document.querySelectorAll('.option-card input[data-camera]');
     
     if (!canvas) return;
     
@@ -111,7 +121,7 @@ function updateCanvas() {
     const canvas = document.getElementById('layoutCanvas');
     if (!canvas || layoutState.canvasWidth === 0) return; // Wait for canvas to be initialized
     
-    const checkedCameras = Array.from(document.querySelectorAll('.camera-toggle input:checked'))
+    const checkedCameras = Array.from(document.querySelectorAll('.option-card input[data-camera]:checked'))
         .map(cb => cb.dataset.camera);
     
     // Check if we're going from 0 cameras to having cameras (reset all positions)

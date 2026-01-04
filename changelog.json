@@ -1,0 +1,340 @@
+{
+  "versions": [
+    {
+      "version": "2026.1.32",
+      "date": "2026-01-03",
+      "title": "Overhaul of Support Ticket System",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new Support Ticket system which can be found with the support icon located on the playback bar. This replaces the old feedback and support id system. Leave feedback, bug reports and request troubleshooting through the support ticket system. "
+        }
+      ]
+    },
+    {
+      "version": "2026.1.28",
+      "date": "2026-01-02",
+      "title": "Adjusted Export Modal",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Adjusted the export progress bars to be sticky."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.27",
+      "date": "2026-01-02",
+      "title": "Fix FFMPEG detection",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed FFMPEG not being detected on Windows Automated Install"
+        }
+      ]
+    },
+    {
+      "version": "2026.1.25",
+      "date": "2026-01-02",
+      "title": "Fix Windows Installer Failing",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the Windows Installer failed to update due to an Application Still Open error."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.24",
+      "date": "2026-01-02",
+      "title": "Added timestamp option for video exports",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added an option to add a timestamp to exported footage without dashboard overlay burn in. There are additional date formats for international users."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.23",
+      "date": "2026-01-02",
+      "title": "Urgent Bug Fix",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the MacOS auto updater would not work on Automatic Installs. Affected Version: 2026.1.22. If you are on the affected version, please download the latest version from the GitHub releases page."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.22",
+      "date": "2026-01-02",
+      "title": "New Feedback System",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new Send Feedback button that can be found in the Settings Menu. You can attach media to assist with feedback/bug reports."
+        },
+        {
+          "type": "feature",
+          "description": "Added a new compact dashboard layout which can be changed in the Settings menu."
+        },
+        {
+          "type": "feature",
+          "description": "Added MacOS Automatic Install .dmg file to current and all future releases."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed an issue where the dashboard & map might disappear if you resized the application window after adjusting their position."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.17",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed current time on export dashboard overlay being delayed. now will be accurate down to the Sec."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.16",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed current time on export dashboard overlay not appearing."
+        },
+        {
+          "type": "improvement",
+          "description": "Improved diagnostic system."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.11",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed AMD GPU not being detected properly. Which was causing issues with GPU encoding."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed UI issues and auto updater issues."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.9",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed auto update system in preparation for .exe releases"
+        }
+      ]
+    },
+    {
+      "version": "2026.1.6",
+      "date": "2026-01-01",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed AMD GPU not being detected properly."
+        }
+      ]
+    },
+    {
+      "version": "2026.1.5",
+      "date": "2026-01-01",
+      "title": "Sentry Six Revamped Public Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed map event pins not clearing properly."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed video auto playing when paused and using seeking functions."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed playback bar not updating after seeking while paused."
+        },
+        {
+          "type": "improvement",
+          "description": "Revamped Diagnostic Support System to not rely on Third Party Services and added additional measures to protect user diagnostic data."
+        },
+        {
+          "type": "improvement",
+          "description": "Reduced PII & not helpful support diagnostic data."
+        },
+        {
+          "type": "improvement",
+          "description": "Updated default branch to main."
+        },
+        {
+          "type": "improvement",
+          "description": "Added warning if no GPU is detected for export telemetry overlay toggle."
+        },
+        {
+          "type": "improvement",
+          "description": "Cleaned up dead code & comments."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed legacy drag & drop code."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed some keybinds in favor of customizable keyboard shortcuts."
+        },
+        {
+          "type": "feature",
+          "description": "Added ability to check for updates without having to relaunch app."
+        },
+        {
+          "type": "feature",
+          "description": "Added ability to swap between Main and Dev-SEI Branch. Dev-SEI is now used for Beta."
+        }
+      ]
+    },
+    {
+      "version": "2026.1",
+      "date": "2026-01-01",
+      "title": "Sentry Six Revamped Public Release",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Changed version naming to match year and week similar to Tesla's version naming."
+        },
+        {
+          "type": "improvement",
+          "description": "Changed the camera export layout to match HW3/HW4 camera count."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed playback bar jumping around to a different spot than selected."
+        }
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "date": "2025-12-31",
+      "title": "Add new user welcome guide",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added new user welcome guide"
+        }
+      ]
+    },
+    {
+      "version": "1.1.5.1",
+      "date": "2025-12-31",
+      "title": "Add Classic Layout Setting & Ability to Minimize Export Modal during export",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added ability to switch between Classic and Modern layout styles"
+        },
+        {
+          "type": "feature",
+          "description": "Added ability to minimize export modal during export and see progress on a floating notification"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed a rare issue where updates would sometimes not work properly"
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2025-12-31",
+      "title": "Added diagnostics tool to Settings",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added a new diagnostics button to the settings modal that will generate a shareable id to share with the Sentry Six team for debugging purposes."
+        }
+      ]
+    },
+    {
+      "version": "1.0.4",
+      "date": "2025-12-30",
+      "title": "Prevents modal from closing during update",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Prevents the update modal from closing during an update if the user attempts to close it."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed changelogs not loading properly. Updated to grab changelog from github repo instead of locally due to inital testing.."
+        },
+        {
+          "type": "improvement",
+          "description": "Improved video export marker UX and layout"
+        }
+      ]
+    },
+    {
+      "version": "1.0.1",
+      "date": "2025-12-30",
+      "title": "UI Overhaul & Export Improvements",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed rare issue of export cancellation not working properly"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed FFmpeg memory leak"
+        },
+        {
+          "type": "improvement",
+          "description": "Improved GPU encoding & added HEVC encoder detection"
+        },
+        {
+          "type": "improvement",
+          "description": "Significantly reduced export time when Dashboard Overlay is enabled"
+        },
+        {
+          "type": "feature",
+          "description": "Added ability for Maximum Quality export to be done with GPU if HEVC is available"
+        },
+        {
+          "type": "improvement",
+          "description": "Overhaul of Settings & Export UI to improve tidiness and match the design language between the modals"
+        },
+        {
+          "type": "feature",
+          "description": "Added changelog viewer in Settings"
+        },
+        {
+          "type": "feature",
+          "description": "New version-based update system with semantic versioning"
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-12-16",
+      "title": "Initial Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Inital Release"
+        }
+      ]
+    }
+  ]
+}

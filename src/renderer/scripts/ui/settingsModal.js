@@ -5,6 +5,46 @@
 
 import { initKeybindSettings } from '../lib/keybinds.js';
 
+/**
+ * Initialize modal tabs functionality
+ * @param {HTMLElement} modal - The modal element containing tabs
+ */
+function initModalTabs(modal) {
+    if (!modal) return;
+    
+    const tabs = modal.querySelectorAll('.modal-tab');
+    const contents = modal.querySelectorAll('.modal-tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+            
+            // Update active tab
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Update active content
+            contents.forEach(c => {
+                c.classList.toggle('active', c.dataset.tab === targetTab);
+            });
+        });
+    });
+}
+
+/**
+ * Initialize collapsible sections
+ */
+export function initCollapsibleSections() {
+    document.querySelectorAll('.collapsible-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const section = header.closest('.collapsible-section');
+            if (section) {
+                section.classList.toggle('open');
+            }
+        });
+    });
+}
+
 // DOM helper
 const $ = id => document.getElementById(id);
 
@@ -14,6 +54,8 @@ let getUseMetric = null;
 let updateEventCameraHighlight = null;
 let resetCameraOrder = null;
 let openDevSettingsModal = null;
+let setLayoutStyle = null;
+let getLayoutStyle = null;
 
 /**
  * Initialize settings modal with dependencies
@@ -25,6 +67,8 @@ export function initSettingsModalDeps(deps) {
     updateEventCameraHighlight = deps.updateEventCameraHighlight;
     resetCameraOrder = deps.resetCameraOrder;
     openDevSettingsModal = deps.openDevSettingsModal;
+    setLayoutStyle = deps.setLayoutStyle;
+    getLayoutStyle = deps.getLayoutStyle;
 }
 
 /**
@@ -36,6 +80,13 @@ export function initSettingsModal() {
     
     const settingsBtn = $('settingsBtn');
     const settingsModal = $('settingsModal');
+    
+    // Initialize tabs
+    initModalTabs(settingsModal);
+    
+    // Initialize collapsible sections (for export modal)
+    initCollapsibleSections();
+    
     const closeSettingsModal = $('closeSettingsModal');
     const closeSettingsBtn = $('closeSettingsBtn');
     
@@ -75,6 +126,13 @@ export function initSettingsModal() {
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
                 
+                // Sync layout style toggle
+                const settingsLayoutStyle = $('settingsLayoutStyle');
+                if (settingsLayoutStyle) {
+                    const currentStyle = getLayoutStyle?.() || 'modern';
+                    settingsLayoutStyle.checked = currentStyle === 'classic';
+                }
+                
                 const disableAutoUpdate = $('settingsDisableAutoUpdate');
                 if (disableAutoUpdate && window.electronAPI?.getSetting) {
                     window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
@@ -109,6 +167,63 @@ export function initSettingsModal() {
         };
     }
     
+    // Dashboard layout setting
+    const settingsDashboardLayout = $('settingsDashboardLayout');
+    const settingsCompactDashboardFixedRow = $('settingsCompactDashboardFixedRow');
+    const settingsCompactDashboardFixed = $('settingsCompactDashboardFixed');
+    
+    if (settingsDashboardLayout && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('dashboardLayout').then(savedLayout => {
+            settingsDashboardLayout.value = savedLayout || 'default';
+            
+            // Show/hide fixed toggle based on saved layout
+            if (savedLayout === 'compact') {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
+            } else {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
+            }
+        });
+        
+        // Load saved fixed/movable setting
+        if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('compactDashboardFixed').then(savedFixed => {
+                settingsCompactDashboardFixed.checked = savedFixed !== false; // Default to true (fixed)
+            });
+        }
+        
+        settingsDashboardLayout.onchange = async () => {
+            const layout = settingsDashboardLayout.value || 'default';
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('dashboardLayout', layout);
+            }
+            // Trigger layout update
+            if (window.updateDashboardLayout) {
+                window.updateDashboardLayout(layout);
+            }
+            
+            // Show/hide fixed toggle based on selected layout
+            if (layout === 'compact') {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
+            } else {
+                if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
+            }
+        };
+    }
+    
+    // Compact dashboard fixed/movable toggle
+    if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
+        settingsCompactDashboardFixed.onchange = async () => {
+            const isFixed = settingsCompactDashboardFixed.checked;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('compactDashboardFixed', isFixed);
+            }
+            // Update dashboard positioning
+            if (window.updateCompactDashboardPositioning) {
+                window.updateCompactDashboardPositioning(isFixed);
+            }
+        };
+    }
+    
     // Map toggle
     if (settingsMapToggle) {
         settingsMapToggle.onchange = () => {
@@ -126,6 +241,19 @@ export function initSettingsModal() {
                 metricToggle.checked = settingsMetricToggle.checked;
                 metricToggle.dispatchEvent(new Event('change'));
             }
+        };
+    }
+    
+    // Layout style toggle (Modern floating vs Classic sidebar)
+    const settingsLayoutStyle = $('settingsLayoutStyle');
+    if (settingsLayoutStyle) {
+        // Initialize checkbox state from current layout
+        const currentStyle = getLayoutStyle?.() || 'modern';
+        settingsLayoutStyle.checked = currentStyle === 'classic';
+        
+        settingsLayoutStyle.onchange = () => {
+            const newStyle = settingsLayoutStyle.checked ? 'classic' : 'modern';
+            setLayoutStyle?.(newStyle);
         };
     }
     
@@ -185,6 +313,49 @@ export function initSettingsModal() {
     // Initialize keybind settings
     initKeybindSettings();
     
+    // Support Chat button (in control bar)
+    const supportChatBtn = $('supportChatBtn');
+    if (supportChatBtn) {
+        supportChatBtn.onclick = async () => {
+            try {
+                const { toggleSupportChat, initSupportChat } = await import('./supportChat.js');
+                initSupportChat();
+                toggleSupportChat();
+            } catch (err) {
+                console.error('Failed to open support chat:', err);
+            }
+        };
+    }
+    
+    // Support Chat button (in settings modal)
+    const openSupportChatFromSettings = $('openSupportChatFromSettings');
+    if (openSupportChatFromSettings) {
+        openSupportChatFromSettings.onclick = async () => {
+            try {
+                // Close settings modal
+                const settingsModal = $('settingsModal');
+                if (settingsModal) settingsModal.classList.add('hidden');
+                
+                // Open support chat
+                const { showSupportChat, initSupportChat } = await import('./supportChat.js');
+                initSupportChat();
+                showSupportChat();
+            } catch (err) {
+                console.error('Failed to open support chat from settings:', err);
+            }
+        };
+    }
+    
+    // Initialize support chat on startup (for message polling)
+    (async () => {
+        try {
+            const { checkForActiveTicket } = await import('./supportChat.js');
+            await checkForActiveTicket();
+        } catch (err) {
+            console.error('Failed to initialize support chat:', err);
+        }
+    })();
+    
     // Advanced settings toggle
     const advancedSettingsToggle = $('advancedSettingsToggle');
     const advancedSettingsSection = $('advancedSettingsSection');
@@ -211,6 +382,78 @@ export function initSettingsModal() {
                 await window.electronAPI.setSetting('disableAutoUpdate', this.checked);
             }
         });
+    }
+    
+    // Update branch selector
+    const settingsUpdateBranch = $('settingsUpdateBranch');
+    const branchNote = $('branchInstallerNote');
+    if (settingsUpdateBranch) {
+        // Check if app is packaged (NSIS install) - disable branch switching
+        if (window.electronAPI?.devGetAppPaths) {
+            window.electronAPI.devGetAppPaths().then(paths => {
+                if (paths.isPackaged) {
+                    // Disable branch switcher for NSIS installs
+                    settingsUpdateBranch.disabled = true;
+                    settingsUpdateBranch.value = 'main';
+                    settingsUpdateBranch.style.opacity = '0.5';
+                    settingsUpdateBranch.style.cursor = 'not-allowed';
+                    if (branchNote) {
+                        branchNote.style.display = 'block';
+                    }
+                }
+            });
+        }
+        
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('updateBranch').then(savedValue => {
+                settingsUpdateBranch.value = savedValue || 'main';
+            });
+        }
+        
+        settingsUpdateBranch.addEventListener('change', async function() {
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('updateBranch', this.value);
+            }
+        });
+    }
+    
+    // Check for updates button
+    const checkForUpdatesBtn = $('checkForUpdatesBtn');
+    if (checkForUpdatesBtn) {
+        checkForUpdatesBtn.onclick = async () => {
+            if (window.electronAPI?.checkForUpdates) {
+                checkForUpdatesBtn.disabled = true;
+                checkForUpdatesBtn.textContent = 'Checking...';
+                try {
+                    const result = await window.electronAPI.checkForUpdates();
+                    if (result?.updateAvailable) {
+                        // Update modal will be shown by the update:available event
+                        checkForUpdatesBtn.textContent = 'Update Found!';
+                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+                    } else if (result?.error) {
+                        checkForUpdatesBtn.textContent = 'Check Failed';
+                        checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
+                    } else {
+                        checkForUpdatesBtn.textContent = 'Up to Date ✓';
+                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+                    }
+                    // Reset button after 3 seconds
+                    setTimeout(() => {
+                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.style.background = '';
+                        checkForUpdatesBtn.disabled = false;
+                    }, 3000);
+                } catch (err) {
+                    checkForUpdatesBtn.textContent = 'Check Failed';
+                    checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
+                    setTimeout(() => {
+                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.style.background = '';
+                        checkForUpdatesBtn.disabled = false;
+                    }, 3000);
+                }
+            }
+        };
     }
     
     // Sentry camera highlight toggle
@@ -293,6 +536,15 @@ export function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('glassBlur', parseInt(this.value, 10));
             }
+        });
+    }
+    
+    // Include Dashboard toggle in export modal - show/hide options
+    const includeDashboard = document.getElementById('includeDashboard');
+    const dashboardOptions = document.getElementById('dashboardOptions');
+    if (includeDashboard && dashboardOptions) {
+        includeDashboard.addEventListener('change', () => {
+            dashboardOptions.classList.toggle('hidden', !includeDashboard.checked);
         });
     }
     
@@ -386,22 +638,40 @@ export function initDevSettingsModal() {
         devForceLatest.onclick = async () => {
             if (window.electronAPI?.devForceLatestVersion) {
                 const result = await window.electronAPI.devForceLatestVersion();
-                showDevOutput(result.success 
-                    ? 'Version forced to latest: ' + result.version + '\n\nUpdate check will now pass.'
-                    : 'Error: ' + result.error);
+                if (result.success) {
+                    showDevOutput('Version forced to latest: v' + result.version + '\n\nUpdate check will now pass.');
+                    updateDevVersionDisplay();
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
             }
         };
     }
     
-    // Set Testing Version
-    const devSetTesting = $('devSetTesting');
-    if (devSetTesting) {
-        devSetTesting.onclick = async () => {
-            if (window.electronAPI?.devSetTestingVersion) {
-                const result = await window.electronAPI.devSetTestingVersion();
-                showDevOutput(result.success
-                    ? 'Version set to: ' + result.version + '\n\nThis will trigger an update prompt on next check.'
-                    : 'Error: ' + result.error);
+    // Set Old Version (triggers update)
+    const devSetOldVersion = $('devSetOldVersion');
+    if (devSetOldVersion) {
+        devSetOldVersion.onclick = async () => {
+            if (window.electronAPI?.devSetOldVersion) {
+                const result = await window.electronAPI.devSetOldVersion();
+                if (result.success) {
+                    showDevOutput('Version set to: v' + result.version + '\n\nThis will trigger an update prompt.\nUse "Check Updates" to test.');
+                    updateDevVersionDisplay();
+                } else {
+                    showDevOutput('Error: ' + result.error);
+                }
+            }
+        };
+    }
+    
+    // Check for Updates
+    const devCheckUpdate = $('devCheckUpdate');
+    if (devCheckUpdate) {
+        devCheckUpdate.onclick = async () => {
+            if (window.electronAPI?.checkForUpdates) {
+                showDevOutput('Checking for updates...');
+                await window.electronAPI.checkForUpdates();
+                showDevOutput('Update check complete.\nIf an update is available, the update modal will appear.');
             }
         };
     }
@@ -434,6 +704,74 @@ export function initDevSettingsModal() {
             }
         };
     }
+    
+    // Fake No GPU Toggle
+    const devFakeNoGpu = $('devFakeNoGpu');
+    if (devFakeNoGpu) {
+        // Load current setting
+        window.electronAPI?.getSetting?.('devFakeNoGpu').then(value => {
+            devFakeNoGpu.checked = value === true;
+        });
+        
+        devFakeNoGpu.onchange = async () => {
+            const value = devFakeNoGpu.checked;
+            await window.electronAPI?.setSetting?.('devFakeNoGpu', value);
+            showDevOutput(value 
+                ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
+                : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
+        };
+    }
+    
+    // Decode Support ID (dev only)
+    const devDecodeSupportId = $('devDecodeSupportId');
+    if (devDecodeSupportId) {
+        devDecodeSupportId.onclick = async () => {
+            try {
+                const { showDecodeSupportIdDialog } = await import('./diagnostics.js');
+                showDecodeSupportIdDialog();
+            } catch (err) {
+                console.error('Failed to open decode dialog:', err);
+                showDevOutput('Error opening decode dialog:\n' + err.message);
+            }
+        };
+    }
+    
+    // Reset Welcome Guide
+    const devResetWelcomeGuide = $('devResetWelcomeGuide');
+    if (devResetWelcomeGuide) {
+        devResetWelcomeGuide.onclick = async () => {
+            if (window._resetWelcomeGuide) {
+                await window._resetWelcomeGuide();
+                showDevOutput('Welcome Guide Reset\n\nThe welcome guide will appear on next app launch.\nOr click "Show Welcome Guide" to see it now.');
+            } else {
+                showDevOutput('Error: Welcome guide module not loaded');
+            }
+        };
+    }
+    
+    // Show Welcome Guide Now
+    const devShowWelcomeGuide = $('devShowWelcomeGuide');
+    if (devShowWelcomeGuide) {
+        devShowWelcomeGuide.onclick = () => {
+            if (window._openWelcomeGuide) {
+                closeDevSettings();
+                window._openWelcomeGuide();
+            } else {
+                showDevOutput('Error: Welcome guide module not loaded');
+            }
+        };
+    }
+}
+
+/**
+ * Update the version display in dev settings
+ */
+async function updateDevVersionDisplay() {
+    const devCurrentVersion = $('devCurrentVersion');
+    if (devCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
+        const versionInfo = await window.electronAPI.devGetCurrentVersion();
+        devCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
+    }
 }
 
 /**
@@ -441,5 +779,104 @@ export function initDevSettingsModal() {
  */
 export function openDevSettings() {
     const devSettingsModal = $('devSettingsModal');
-    if (devSettingsModal) devSettingsModal.classList.remove('hidden');
+    if (devSettingsModal) {
+        devSettingsModal.classList.remove('hidden');
+        updateDevVersionDisplay();
+    }
 }
+
+/**
+ * Initialize changelog modal and settings version display
+ */
+export function initChangelogModal() {
+    const changelogModal = $('changelogModal');
+    const closeChangelogModal = $('closeChangelogModal');
+    const closeChangelogBtn = $('closeChangelogBtn');
+    const viewChangelogBtn = $('viewChangelogBtn');
+    const settingsCurrentVersion = $('settingsCurrentVersion');
+    
+    // Load and display current version in settings
+    if (settingsCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
+        window.electronAPI.devGetCurrentVersion().then(versionInfo => {
+            settingsCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
+        });
+    }
+    
+    function closeChangelog() {
+        if (changelogModal) changelogModal.classList.add('hidden');
+    }
+    
+    if (closeChangelogModal) closeChangelogModal.onclick = closeChangelog;
+    if (closeChangelogBtn) closeChangelogBtn.onclick = closeChangelog;
+    
+    if (changelogModal) {
+        changelogModal.onclick = (e) => {
+            if (e.target === changelogModal) closeChangelog();
+        };
+    }
+    
+    // View Changelog button
+    if (viewChangelogBtn) {
+        viewChangelogBtn.onclick = async () => {
+            if (changelogModal) {
+                changelogModal.classList.remove('hidden');
+                
+                const fullChangelogContent = $('fullChangelogContent');
+                if (fullChangelogContent) {
+                    fullChangelogContent.innerHTML = '<div class="changelog-loading">Loading changelog...</div>';
+                    
+                    // Load changelog
+                    if (window.electronAPI?.getChangelog) {
+                        const changelog = await window.electronAPI.getChangelog();
+                        fullChangelogContent.innerHTML = renderFullChangelog(changelog.versions || []);
+                    } else {
+                        fullChangelogContent.innerHTML = '<div class="changelog-loading">Unable to load changelog</div>';
+                    }
+                }
+            }
+        };
+    }
+}
+
+/**
+ * Render full changelog (all versions)
+ */
+function renderFullChangelog(versions) {
+    if (!versions || versions.length === 0) {
+        return '<div class="changelog-loading">No changelog available</div>';
+    }
+    
+    const typeIcons = {
+        feature: '✦',
+        improvement: '↑',
+        fix: '✓'
+    };
+    
+    const formatDate = (dateStr) => {
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
+    
+    return versions.map(entry => `
+        <div class="changelog-version">
+            <div class="changelog-version-header">
+                <span class="changelog-version-tag">v${entry.version}</span>
+                <span class="changelog-version-date">${formatDate(entry.date)}</span>
+            </div>
+            <div class="changelog-version-title">${entry.title}</div>
+            <div class="changelog-changes">
+                ${entry.changes.map(change => `
+                    <div class="changelog-item">
+                        <span class="changelog-item-type ${change.type}">${typeIcons[change.type] || '•'}</span>
+                        <span>${change.description}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+

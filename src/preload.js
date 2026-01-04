@@ -18,18 +18,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelExport: (exportId) => ipcRenderer.invoke('export:cancel', exportId),
   checkFFmpeg: () => ipcRenderer.invoke('ffmpeg:check'),
   
-  // Update operations
+  // Update operations (using electron-updater)
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  installAndRestart: () => ipcRenderer.invoke('update:installAndRestart'),
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
-  bypassUpdate: () => ipcRenderer.invoke('update:bypass'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
+  getChangelog: () => ipcRenderer.invoke('update:getChangelog'),
   
   // Developer settings operations
   devOpenDevTools: () => ipcRenderer.invoke('dev:openDevTools'),
   devResetSettings: () => ipcRenderer.invoke('dev:resetSettings'),
   devForceLatestVersion: () => ipcRenderer.invoke('dev:forceLatestVersion'),
-  devSetTestingVersion: () => ipcRenderer.invoke('dev:setTestingVersion'),
+  devSetOldVersion: () => ipcRenderer.invoke('dev:setOldVersion'),
+  devGetCurrentVersion: () => ipcRenderer.invoke('dev:getCurrentVersion'),
   devGetAppPaths: () => ipcRenderer.invoke('dev:getAppPaths'),
   devReloadApp: () => ipcRenderer.invoke('dev:reloadApp'),
   
@@ -37,9 +39,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   
+  // Diagnostics
+  getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
+  
+  // Support Chat
+  createSupportTicket: (data) => ipcRenderer.invoke('support:createTicket', data),
+  sendSupportMessage: (data) => ipcRenderer.invoke('support:sendMessage', data),
+  uploadSupportMedia: (data) => ipcRenderer.invoke('support:uploadMedia', data),
+  fetchSupportMessages: (data) => ipcRenderer.invoke('support:fetchMessages', data),
+  closeSupportTicket: (data) => ipcRenderer.invoke('support:closeTicket', data),
+  
   // Event listeners
   on: (channel, callback) => {
-    const allowedChannels = ['export:progress', 'update:available', 'update:progress'];
+    const allowedChannels = ['export:progress', 'update:available', 'update:progress', 'update:downloaded'];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
     }
@@ -53,4 +65,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners(channel);
   }
 });
-

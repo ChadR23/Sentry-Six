@@ -11,8 +11,9 @@ let smoothedTarget = 0;        // Smoothed target (reduces noise)
 let steeringAnimationId = null;
 let lastSteeringTime = 0;
 
-// DOM element reference
+// DOM element references
 let steeringIcon = null;
+let steeringIconCompact = null;
 
 // Spring-damper physics base constants (tuned for 1x playback)
 const STEERING_STIFFNESS_BASE = 15.0;  // Spring force
@@ -28,6 +29,7 @@ let getPlaybackRate = () => 1;
  */
 export function initSteeringWheel(playbackRateGetter) {
     steeringIcon = document.getElementById('steeringIcon');
+    steeringIconCompact = document.getElementById('steeringIconCompact');
     if (playbackRateGetter) {
         getPlaybackRate = playbackRateGetter;
     }
@@ -76,6 +78,9 @@ function animateSteeringWheel() {
     if (steeringIcon) {
         steeringIcon.style.transform = `rotate(${steeringPosition}deg)`;
     }
+    if (steeringIconCompact) {
+        steeringIconCompact.style.transform = `rotate(${steeringPosition}deg)`;
+    }
     
     // Check if we're settled (very close to target with low velocity)
     const settleThreshold = 0.1 * playbackRate;
@@ -87,6 +92,9 @@ function animateSteeringWheel() {
         steeringVelocity = 0;
         if (steeringIcon) {
             steeringIcon.style.transform = `rotate(${steeringPosition}deg)`;
+        }
+        if (steeringIconCompact) {
+            steeringIconCompact.style.transform = `rotate(${steeringPosition}deg)`;
         }
         steeringAnimationId = null;
         return;
@@ -118,7 +126,13 @@ export function resetSteeringWheel() {
     if (!steeringIcon) {
         steeringIcon = document.getElementById('steeringIcon');
     }
+    if (!steeringIconCompact) {
+        steeringIconCompact = document.getElementById('steeringIconCompact');
+    }
     if (steeringIcon) {
         steeringIcon.style.transform = 'rotate(0deg)';
+    }
+    if (steeringIconCompact) {
+        steeringIconCompact.style.transform = 'rotate(0deg)';
     }
 }

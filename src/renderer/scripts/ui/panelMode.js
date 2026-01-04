@@ -1,37 +1,188 @@
 import { CLIPS_MODE_KEY } from '../lib/storageKeys.js';
 
-// Clips panel mode (floating / collapsed only)
+const DEFAULT_SIDEBAR_WIDTH = 360;
+const MIN_SIDEBAR_WIDTH = 280;
+const MAX_SIDEBAR_WIDTH = 600;
+
+// In-memory cache for layout style (loaded async from settings.json)
+let cachedLayoutStyle = 'modern';
+let cachedSidebarWidth = DEFAULT_SIDEBAR_WIDTH;
+
+// Clips panel mode (floating/collapsed or docked/hidden based on layout style)
 export function createClipsPanelMode({ map, clipsCollapseBtn } = {}) {
+  
+  // Get the current layout style from cache
+  function getLayoutStyle() {
+    return cachedLayoutStyle;
+  }
+
+  // Get the current sidebar width
+  function getSidebarWidth() {
+    return cachedSidebarWidth;
+  }
+
+  // Apply sidebar width to CSS variable
+  function applySidebarWidth(width) {
+    document.documentElement.style.setProperty('--clips-dock-width', `${width}px`);
+  }
+
   function applyClipsMode(mode) {
-    const m = (mode === 'collapsed') ? 'collapsed' : 'floating';
-    document.body.classList.remove('clips-mode-floating', 'clips-mode-docked', 'clips-mode-collapsed');
+    const layoutStyle = getLayoutStyle();
+    let m;
+    
+    if (layoutStyle === 'classic') {
+      // Classic layout: docked sidebar or hidden
+      m = (mode === 'hidden' || mode === 'collapsed') ? 'hidden' : 'docked';
+    } else {
+      // Modern layout: floating or collapsed
+      m = (mode === 'collapsed' || mode === 'hidden') ? 'collapsed' : 'floating';
+    }
+    
+    document.body.classList.remove('clips-mode-floating', 'clips-mode-docked', 'clips-mode-collapsed', 'clips-mode-hidden');
     document.body.classList.add(`clips-mode-${m}`);
     localStorage.setItem(CLIPS_MODE_KEY, m);
 
     if (clipsCollapseBtn) {
-      const isCollapsed = (m === 'collapsed');
-      clipsCollapseBtn.title = isCollapsed ? 'Expand panel' : 'Collapse panel';
-      clipsCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand panel' : 'Collapse panel');
+      const isCollapsed = (m === 'collapsed' || m === 'hidden');
+      if (layoutStyle === 'classic') {
+        clipsCollapseBtn.title = isCollapsed ? 'Show sidebar' : 'Hide sidebar';
+        clipsCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Show sidebar' : 'Hide sidebar');
+      } else {
+        clipsCollapseBtn.title = isCollapsed ? 'Expand panel' : 'Collapse panel';
+        clipsCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand panel' : 'Collapse panel');
+      }
     }
 
     // Leaflet sometimes needs a nudge when UI moves around.
     if (map) setTimeout(() => { try { map.invalidateSize(); } catch { } }, 150);
   }
 
-  function initClipsPanelMode() {
-    // Always start in floating mode
-    applyClipsMode('floating');
+  async function initClipsPanelMode() {
+    // Load settings from settings.json
+    if (window.electronAPI?.getSetting) {
+      const savedStyle = await window.electronAPI.getSetting('layoutStyle');
+      cachedLayoutStyle = savedStyle || 'modern';
+      
+      const savedWidth = await window.electronAPI.getSetting('sidebarWidth');
+      cachedSidebarWidth = savedWidth || DEFAULT_SIDEBAR_WIDTH;
+      applySidebarWidth(cachedSidebarWidth);
+    }
+    
+    const layoutStyle = getLayoutStyle();
+    const saved = localStorage.getItem(CLIPS_MODE_KEY);
+    
+    if (layoutStyle === 'classic') {
+      applyClipsMode(saved === 'hidden' ? 'hidden' : 'docked');
+      initResizeHandle();
+    } else {
+      applyClipsMode(saved === 'collapsed' ? 'collapsed' : 'floating');
+    }
   }
 
   function toggleCollapsedMode() {
-    const current = localStorage.getItem(CLIPS_MODE_KEY) || 'floating';
-    if (current === 'collapsed') {
-      applyClipsMode('floating');
-      return;
+    const layoutStyle = getLayoutStyle();
+    const current = localStorage.getItem(CLIPS_MODE_KEY);
+    
+    if (layoutStyle === 'classic') {
+      if (current === 'hidden') {
+        applyClipsMode('docked');
+        // Ensure resize handle exists when showing sidebar
+        initResizeHandle();
+      } else {
+        applyClipsMode('hidden');
+      }
+    } else {
+      if (current === 'collapsed') {
+        applyClipsMode('floating');
+      } else {
+        applyClipsMode('collapsed');
+      }
     }
-    applyClipsMode('collapsed');
   }
 
-  return { initClipsPanelMode, applyClipsMode, toggleCollapsedMode };
-}
+  async function setLayoutStyle(style) {
+    cachedLayoutStyle = style;
+    // Save to settings.json
+    if (window.electronAPI?.setSetting) {
+      await window.electronAPI.setSetting('layoutStyle', style);
+    }
+    // Re-apply mode with new layout style
+    const saved = localStorage.getItem(CLIPS_MODE_KEY);
+    if (style === 'classic') {
+      applyClipsMode(saved === 'hidden' ? 'hidden' : 'docked');
+      initResizeHandle();
+    } else {
+      applyClipsMode(saved === 'collapsed' ? 'collapsed' : 'floating');
+    }
+  }
 
+  async function setSidebarWidth(width) {
+    const clampedWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, width));
+    cachedSidebarWidth = clampedWidth;
+    applySidebarWidth(clampedWidth);
+    // Save to settings.json
+    if (window.electronAPI?.setSetting) {
+      await window.electronAPI.setSetting('sidebarWidth', clampedWidth);
+    }
+    // Nudge map
+    if (map) setTimeout(() => { try { map.invalidateSize(); } catch { } }, 50);
+  }
+
+  // Initialize the resize handle for classic sidebar
+  function initResizeHandle() {
+    const clipBrowser = document.querySelector('.clip-browser');
+    if (!clipBrowser) return;
+    
+    // Remove existing handle if any
+    const existingHandle = clipBrowser.querySelector('.sidebar-resize-handle');
+    if (existingHandle) existingHandle.remove();
+    
+    // Create resize handle
+    const handle = document.createElement('div');
+    handle.className = 'sidebar-resize-handle';
+    clipBrowser.appendChild(handle);
+    
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+      if (getLayoutStyle() !== 'classic') return;
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = cachedSidebarWidth;
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const delta = e.clientX - startX;
+      const newWidth = startWidth + delta;
+      applySidebarWidth(Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, newWidth)));
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      // Save the final width
+      const computedWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--clips-dock-width'));
+      if (!isNaN(computedWidth)) {
+        setSidebarWidth(computedWidth);
+      }
+    });
+  }
+
+  return { 
+    initClipsPanelMode, 
+    applyClipsMode, 
+    toggleCollapsedMode, 
+    setLayoutStyle, 
+    getLayoutStyle,
+    setSidebarWidth,
+    getSidebarWidth
+  };
+}
