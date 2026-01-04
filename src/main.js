@@ -1347,41 +1347,41 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       
       // Apply blur zone to individual camera stream BEFORE grid composition
       if (blurZone && blurZone.maskImageBase64 && blurZone.camera) {
-        // Find the camera stream in cameraStreams array
         const blurStream = cameraStreams.find(s => s.camera === blurZone.camera);
         if (blurStream) {
           const blurCameraStreamTag = blurStream.tag;
-          console.log(`[BLUR] Applying blur zone to camera: ${blurZone.camera} (stream: ${blurCameraStreamTag})`);
+          const cam = blurZone.camera;
+          console.log(`[BLUR] Applying blur zone to camera: ${cam} (stream: ${blurCameraStreamTag})`);
           try {
-            // Write mask image to temp file
             const maskBuffer = Buffer.from(blurZone.maskImageBase64, 'base64');
             const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${Date.now()}.png`);
             fs.writeFileSync(maskPath, maskBuffer);
             tempFiles.push(maskPath);
             
-            // Count existing inputs to determine mask input index
-            // Inputs order: video inputs, black source, base canvas (if custom layout), dashboard (if enabled)
-            let maskInputIdx = inputs.length; // After video inputs
-            maskInputIdx++; // After black source
-            if (baseInputIdx !== null) maskInputIdx++; // After base canvas if custom layout
-            if (useDashboard) maskInputIdx++; // After dashboard if present
+            // Calculate mask input index (after all existing inputs)
+            let maskInputIdx = inputs.length + 1; // +1 for black source
+            if (baseInputIdx !== null) maskInputIdx++;
+            if (useDashboard) maskInputIdx++;
             
-            // Load mask image as input (loop for video duration)
             cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
             
-            const cameraW = w + (w % 2); // Ensure even dimensions
+            const cameraW = w + (w % 2);
             const cameraH = h + (h % 2);
             
-            // Scale mask to camera size (not grid size!) and convert to alpha format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${blurZone.camera}]`);
+            // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             
-            // Create blurred version of the camera stream
-            const blurredStreamTag = `[blurred_${blurZone.camera}]`;
-            filters.push(`${blurCameraStreamTag}boxblur=10:10[blurred_temp_${blurZone.camera}]`);
-            filters.push(`[blurred_temp_${blurZone.camera}][mask_alpha_${blurZone.camera}]alphamerge[blurred_with_alpha_${blurZone.camera}]`);
-            filters.push(`${blurCameraStreamTag}[blurred_with_alpha_${blurZone.camera}]overlay=0:0:format=auto${blurredStreamTag}`);
+            // Scale mask and convert to alpha format
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
             
-            // Update the stream tag in cameraStreams array to use blurred version
+            // Apply blur to one copy, then apply alpha mask
+            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+            
+            // Overlay the blurred+masked region onto the original base
+            const blurredStreamTag = `[blurred_${cam}]`;
+            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+            
             blurStream.tag = blurredStreamTag;
           } catch (err) {
             console.error('[BLUR] Failed to apply blur zone:', err);
@@ -1431,38 +1431,38 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const blurStream = gridStreams.find(s => s.camera === blurZone.camera);
         if (blurStream) {
           const blurCameraStreamTag = blurStream.tag;
-          console.log(`[BLUR] Applying blur zone to camera: ${blurZone.camera} (stream: ${blurCameraStreamTag})`);
+          const cam = blurZone.camera;
+          console.log(`[BLUR] Applying blur zone to camera: ${cam} (stream: ${blurCameraStreamTag})`);
           try {
-            // Write mask image to temp file
             const maskBuffer = Buffer.from(blurZone.maskImageBase64, 'base64');
             const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${Date.now()}.png`);
             fs.writeFileSync(maskPath, maskBuffer);
             tempFiles.push(maskPath);
             
-            // Count existing inputs to determine mask input index
-            // Inputs order: video inputs, black source, dashboard (if enabled)
-            let maskInputIdx = inputs.length; // After video inputs
-            maskInputIdx++; // After black source
-            if (useDashboard) maskInputIdx++; // After dashboard if present
+            // Calculate mask input index (after all existing inputs)
+            let maskInputIdx = inputs.length + 1; // +1 for black source
+            if (useDashboard) maskInputIdx++;
             
-            // Load mask image as input (loop for video duration)
             cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
             
-            const cameraW = w + (w % 2); // Ensure even dimensions
+            const cameraW = w + (w % 2);
             const cameraH = h + (h % 2);
             
-            // Scale mask to camera size and convert to alpha format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${blurZone.camera}]`);
+            // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             
-            // Create blurred version of the camera stream
-            const blurredStreamTag = `[blurred_${blurZone.camera}]`;
-            filters.push(`${blurCameraStreamTag}boxblur=10:10[blurred_temp_${blurZone.camera}]`);
-            filters.push(`[blurred_temp_${blurZone.camera}][mask_alpha_${blurZone.camera}]alphamerge[blurred_with_alpha_${blurZone.camera}]`);
-            filters.push(`${blurCameraStreamTag}[blurred_with_alpha_${blurZone.camera}]overlay=0:0:format=auto${blurredStreamTag}`);
+            // Scale mask and convert to alpha format
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
             
-            // Update the stream tag
+            // Apply blur to one copy, then apply alpha mask
+            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+            
+            // Overlay the blurred+masked region onto the original base
+            const blurredStreamTag = `[blurred_${cam}]`;
+            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+            
             blurStream.tag = blurredStreamTag;
-            // Update streamTags array for xstack
             const streamIndex = streamTags.indexOf(blurCameraStreamTag);
             if (streamIndex !== -1) {
               streamTags[streamIndex] = blurredStreamTag;
