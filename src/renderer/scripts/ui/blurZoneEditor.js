@@ -385,6 +385,34 @@ function setupEventListeners() {
             render();
         }
     });
+    
+    // Double-click to remove anchor point (minimum 3 points required)
+    canvas.addEventListener('dblclick', (e) => {
+        if (!editorState.isInitialized) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Check if double-clicking on an anchor point
+        for (let i = 0; i < editorState.anchors.length; i++) {
+            const anchor = editorState.anchors[i];
+            const dx = x - anchor.x;
+            const dy = y - anchor.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < 10) {
+                // Only remove if we have more than 3 points
+                if (editorState.anchors.length > 3) {
+                    editorState.anchors.splice(i, 1);
+                    editorState.draggedAnchor = null;
+                    render();
+                }
+                e.preventDefault();
+                return;
+            }
+        }
+    });
 }
 
 /**

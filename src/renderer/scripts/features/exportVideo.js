@@ -502,6 +502,186 @@ async function captureVideoSnapshot(timeSec, videoElement) {
 }
 
 /**
+ * Open the blur zone editor for a specific camera
+ * @param {string} snapshotCamera - Camera to capture snapshot from
+ * @param {HTMLElement} editorModal - The editor modal element
+ * @param {number|null} editIndex - Index of existing zone to edit, or null for new zone
+ */
+async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editIndex = null) {
+    const state = getState?.();
+    const nativeVideo = getNativeVideo?.();
+    
+    if (!state?.collection?.active) {
+        notify('Load a collection first', { type: 'warn' });
+        return;
+    }
+    
+    // Calculate midpoint time
+    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
+    const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
+    const midpointSec = (startSec + endSec) / 2;
+    
+    try {
+        notify('Capturing snapshot...', { type: 'info' });
+        
+        // Find the video file for the snapshot camera at the midpoint segment
+        const groups = state.collection.active.groups || [];
+        const cumStarts = nativeVideo?.cumulativeStarts || [];
+        let targetSegment = 0;
+        
+        for (let i = 0; i < cumStarts.length - 1; i++) {
+            if (midpointSec >= cumStarts[i] && midpointSec < cumStarts[i + 1]) {
+                targetSegment = i;
+                break;
+            }
+        }
+        if (midpointSec >= cumStarts[cumStarts.length - 1]) {
+            targetSegment = groups.length - 1;
+        }
+        
+        const group = groups[targetSegment];
+        const entry = group?.filesByCamera?.get(snapshotCamera);
+        
+        if (!entry?.file) {
+            notify(`Could not find video file for ${snapshotCamera} camera`, { type: 'error' });
+            return;
+        }
+        
+        // Create temporary video element
+        const tempVideo = document.createElement('video');
+        tempVideo.muted = true;
+        tempVideo.playsInline = true;
+        tempVideo.style.display = 'none';
+        document.body.appendChild(tempVideo);
+        
+        // Load video file
+        let videoUrl;
+        if (entry.file.path) {
+            videoUrl = entry.file.path.startsWith('/') 
+                ? `file://${entry.file.path}` 
+                : `file:///${entry.file.path.replace(/\\/g, '/')}`;
+        } else if (entry.file instanceof File) {
+            videoUrl = URL.createObjectURL(entry.file);
+        } else {
+            notify('Unsupported file type for snapshot', { type: 'error' });
+            return;
+        }
+        
+        tempVideo.src = videoUrl;
+        
+        await new Promise((resolve, reject) => {
+            tempVideo.onloadedmetadata = resolve;
+            tempVideo.onerror = reject;
+            setTimeout(reject, 10000);
+        });
+        
+        // Calculate local time within segment
+        const segmentStartSec = cumStarts[targetSegment] || 0;
+        const localTimeSec = Math.min(midpointSec - segmentStartSec, tempVideo.duration);
+        
+        // Capture snapshot
+        const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
+        
+        // Clean up
+        tempVideo.src = '';
+        document.body.removeChild(tempVideo);
+        if (videoUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(videoUrl);
+        }
+        
+        // Get video dimensions
+        const videoWidth = tempVideo.videoWidth || 1448;
+        const videoHeight = tempVideo.videoHeight || 938;
+        
+        // Store which camera this zone is for
+        exportState.blurZoneCamera = snapshotCamera;
+        exportState.blurZoneEditIndex = editIndex;
+        
+        // Load existing coordinates if editing
+        const savedCoords = editIndex !== null ? exportState.blurZones[editIndex]?.coordinates : null;
+        
+        // Mirror the snapshot for cameras that are mirrored in viewer/export (back and repeaters only)
+        const shouldMirror = ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
+        
+        // Initialize editor with snapshot
+        editorModal.classList.remove('hidden');
+        initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
+        
+    } catch (err) {
+        console.error('Failed to capture snapshot:', err);
+        notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
+    }
+}
+
+/**
+ * Render the list of configured blur zones with edit/remove buttons
+ */
+function renderBlurZoneList() {
+    const listEl = $('blurZoneList');
+    if (!listEl) return;
+    
+    const cameraNames = {
+        front: 'Front',
+        back: 'Back',
+        left_repeater: 'Left Repeater',
+        right_repeater: 'Right Repeater',
+        left_pillar: 'Left Pillar',
+        right_pillar: 'Right Pillar'
+    };
+    
+    if (exportState.blurZones.length === 0) {
+        listEl.innerHTML = '';
+        return;
+    }
+    
+    listEl.innerHTML = exportState.blurZones.map((zone, index) => `
+        <div class="blur-zone-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 6px;">
+            <span style="color: var(--text-secondary);">
+                <strong>${cameraNames[zone.camera] || zone.camera}</strong> - ${zone.coordinates.length} points
+            </span>
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary btn-small blur-zone-edit-btn" data-index="${index}" style="padding: 4px 10px; font-size: 12px;">Edit</button>
+                <button class="btn btn-secondary btn-small blur-zone-remove-btn" data-index="${index}" style="padding: 4px 10px; font-size: 12px; color: #ff6b6b;">Remove</button>
+            </div>
+        </div>
+    `).join('');
+    
+    // Add event listeners for edit/remove buttons
+    listEl.querySelectorAll('.blur-zone-edit-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const index = parseInt(btn.dataset.index, 10);
+            const zone = exportState.blurZones[index];
+            if (zone) {
+                const editorModal = $('blurZoneEditorModal');
+                await openBlurZoneEditorForCamera(zone.camera, editorModal, index);
+            }
+        });
+    });
+    
+    listEl.querySelectorAll('.blur-zone-remove-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const index = parseInt(btn.dataset.index, 10);
+            exportState.blurZones.splice(index, 1);
+            renderBlurZoneList();
+            updateBlurZoneStatusDisplay();
+            
+            // Re-enable dashboard if no more blur zones
+            if (exportState.blurZones.length === 0) {
+                const dashboardCheckbox = $('includeDashboard');
+                if (dashboardCheckbox) {
+                    dashboardCheckbox.disabled = false;
+                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
+                    if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+                }
+            }
+        });
+    });
+}
+
+/**
  * Initialize blur zone editor modal event handlers
  */
 function initBlurZoneEditorModal() {
@@ -519,128 +699,11 @@ function initBlurZoneEditorModal() {
     blurZoneModalInitialized = true;
     
     addBtn.addEventListener('click', async () => {
-        const state = getState?.();
-        const nativeVideo = getNativeVideo?.();
+        // Get camera from dropdown
+        const cameraSelect = $('blurZoneCameraSelect');
+        const snapshotCamera = cameraSelect?.value || 'back';
         
-        if (!state?.collection?.active) {
-            notify('Load a collection first', { type: 'warn' });
-            return;
-        }
-        
-        // Calculate midpoint time
-        const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-        const startPct = exportState.startMarkerPct ?? 0;
-        const endPct = exportState.endMarkerPct ?? 100;
-        const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
-        const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
-        const midpointSec = (startSec + endSec) / 2;
-        
-        // Get the first selected camera for snapshot
-        const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
-        const selectedCameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
-        
-        if (selectedCameras.length === 0) {
-            notify('Please select at least one camera first', { type: 'warn' });
-            return;
-        }
-        
-        // Use back camera if available, otherwise first selected
-        const snapshotCamera = selectedCameras.includes('back') ? 'back' : selectedCameras[0];
-        
-        try {
-            notify('Capturing snapshot...', { type: 'info' });
-            
-            // Find the video file for the snapshot camera at the midpoint segment
-            const groups = state.collection.active.groups || [];
-            const cumStarts = nativeVideo?.cumulativeStarts || [];
-            let targetSegment = 0;
-            
-            for (let i = 0; i < cumStarts.length - 1; i++) {
-                if (midpointSec >= cumStarts[i] && midpointSec < cumStarts[i + 1]) {
-                    targetSegment = i;
-                    break;
-                }
-            }
-            if (midpointSec >= cumStarts[cumStarts.length - 1]) {
-                targetSegment = groups.length - 1;
-            }
-            
-            const group = groups[targetSegment];
-            const entry = group?.filesByCamera?.get(snapshotCamera);
-            
-            if (!entry?.file) {
-                notify('Could not find video file for snapshot', { type: 'error' });
-                return;
-            }
-            
-            // Create temporary video element
-            const tempVideo = document.createElement('video');
-            tempVideo.muted = true;
-            tempVideo.playsInline = true;
-            tempVideo.style.display = 'none';
-            document.body.appendChild(tempVideo);
-            
-            // Load video file
-            let videoUrl;
-            if (entry.file.path) {
-                videoUrl = entry.file.path.startsWith('/') 
-                    ? `file://${entry.file.path}` 
-                    : `file:///${entry.file.path.replace(/\\/g, '/')}`;
-            } else if (entry.file instanceof File) {
-                videoUrl = URL.createObjectURL(entry.file);
-            } else {
-                notify('Unsupported file type for snapshot', { type: 'error' });
-                return;
-            }
-            
-            tempVideo.src = videoUrl;
-            
-            await new Promise((resolve, reject) => {
-                tempVideo.onloadedmetadata = resolve;
-                tempVideo.onerror = reject;
-                setTimeout(reject, 10000);
-            });
-            
-            // Calculate local time within segment
-            const segmentStartSec = cumStarts[targetSegment] || 0;
-            const localTimeSec = Math.min(midpointSec - segmentStartSec, tempVideo.duration);
-            
-            // Capture snapshot
-            const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
-            
-            // Clean up
-            tempVideo.src = '';
-            document.body.removeChild(tempVideo);
-            if (videoUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(videoUrl);
-            }
-            
-            // Get video dimensions
-            const videoWidth = tempVideo.videoWidth || 1448;
-            const videoHeight = tempVideo.videoHeight || 938;
-            
-            // Store which camera this zone is for
-            exportState.blurZoneCamera = snapshotCamera;
-            exportState.blurZoneEditIndex = null; // New zone by default
-            
-            // Check if editing existing zone for this camera
-            const existingZoneIndex = exportState.blurZones.findIndex(z => z.camera === snapshotCamera);
-            const savedCoords = existingZoneIndex >= 0 ? exportState.blurZones[existingZoneIndex].coordinates : null;
-            if (existingZoneIndex >= 0) {
-                exportState.blurZoneEditIndex = existingZoneIndex;
-            }
-            
-            // Mirror the snapshot for cameras that are mirrored in viewer/export
-            const shouldMirror = ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
-            
-            // Initialize editor with snapshot
-            editorModal.classList.remove('hidden');
-            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
-            
-        } catch (err) {
-            console.error('Failed to capture snapshot:', err);
-            notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
-        }
+        await openBlurZoneEditorForCamera(snapshotCamera, editorModal);
     });
     
     const closeEditor = () => {
@@ -732,6 +795,9 @@ function updateBlurZoneStatusDisplay() {
     const statusTextEl = $('blurZoneStatusText');
     const addBtn = $('addBlurZoneBtn');
     
+    // Render the blur zone list
+    renderBlurZoneList();
+    
     if (exportState.blurZones.length > 0) {
         if (statusEl) statusEl.classList.remove('hidden');
         const cameras = [...new Set(exportState.blurZones.map(z => z.camera))];
@@ -739,8 +805,8 @@ function updateBlurZoneStatusDisplay() {
             const names = { front: 'Front', back: 'Back', left_repeater: 'Left Repeater', right_repeater: 'Right Repeater', left_pillar: 'Left Pillar', right_pillar: 'Right Pillar' };
             return names[c] || c;
         });
-        if (statusTextEl) statusTextEl.textContent = `${exportState.blurZones.length} blur zone(s) configured for: ${cameraNames.join(', ')}`;
-        if (addBtn) addBtn.textContent = 'Add/Edit Zone';
+        if (statusTextEl) statusTextEl.textContent = `${exportState.blurZones.length} blur zone(s) - Dashboard overlay disabled`;
+        if (addBtn) addBtn.textContent = 'Add Zone';
     } else {
         if (statusEl) statusEl.classList.add('hidden');
         if (addBtn) addBtn.textContent = 'Add Zone';

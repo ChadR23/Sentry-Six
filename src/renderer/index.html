@@ -621,15 +621,23 @@
                             <span class="action-row-label">Add Blur Zone</span>
                             <span class="action-row-desc">Redact sensitive information before sharing</span>
                         </div>
-                        <button id="addBlurZoneBtn" class="btn btn-secondary btn-small">Add Zone</button>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <select id="blurZoneCameraSelect" class="modal-select" style="min-width: 140px;">
+                                <option value="back">Back</option>
+                                <option value="front">Front</option>
+                                <option value="left_repeater">Left Repeater</option>
+                                <option value="right_repeater">Right Repeater</option>
+                                <option value="left_pillar">Left Pillar</option>
+                                <option value="right_pillar">Right Pillar</option>
+                            </select>
+                            <button id="addBlurZoneBtn" class="btn btn-secondary btn-small">Add Zone</button>
+                        </div>
                     </div>
+                    <!-- List of configured blur zones -->
+                    <div id="blurZoneList" class="blur-zone-list" style="margin-top: 10px;"></div>
                     <div id="blurZoneStatus" class="info-box info-blue hidden" style="margin-top: 10px;">
                         <span class="info-box-icon">ℹ️</span>
                         <span id="blurZoneStatusText">Blur zone configured</span>
-                    </div>
-                    <div class="info-box info-yellow hidden" style="margin-top: 10px;">
-                        <span class="info-box-icon">⚠️</span>
-                        <span>Blur zones disable the Dashboard overlay. Only one blur zone is supported per export.</span>
                     </div>
                 </div>
 
@@ -675,7 +683,7 @@
 
     <!-- Blur Zone Editor Modal -->
     <div id="blurZoneEditorModal" class="modal hidden">
-        <div class="modal-content" style="max-width: 900px; max-height: 90vh;">
+        <div class="modal-content" style="max-width: 990px; max-height: 95vh;">
             <div class="modal-header">
                 <h2>
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
