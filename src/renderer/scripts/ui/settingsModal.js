@@ -27,6 +27,8 @@ function initModalTabs(modal) {
             contents.forEach(c => {
                 c.classList.toggle('active', c.dataset.tab === targetTab);
             });
+            
+            tab.blur();
         });
     });
 }
@@ -141,6 +143,7 @@ export function initSettingsModal() {
                 }
                 settingsModal.classList.remove('hidden');
             }
+            settingsBtn.blur();
         };
     }
     
@@ -164,6 +167,7 @@ export function initSettingsModal() {
                 dashboardToggle.checked = settingsDashboardToggle.checked;
                 dashboardToggle.dispatchEvent(new Event('change'));
             }
+            settingsDashboardToggle.blur();
         };
     }
     
@@ -207,6 +211,7 @@ export function initSettingsModal() {
             } else {
                 if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
             }
+            settingsDashboardLayout.blur();
         };
     }
     
@@ -221,6 +226,7 @@ export function initSettingsModal() {
             if (window.updateCompactDashboardPositioning) {
                 window.updateCompactDashboardPositioning(isFixed);
             }
+            settingsCompactDashboardFixed.blur();
         };
     }
     
@@ -231,6 +237,7 @@ export function initSettingsModal() {
                 mapToggle.checked = settingsMapToggle.checked;
                 mapToggle.dispatchEvent(new Event('change'));
             }
+            settingsMapToggle.blur();
         };
     }
     
@@ -241,6 +248,7 @@ export function initSettingsModal() {
                 metricToggle.checked = settingsMetricToggle.checked;
                 metricToggle.dispatchEvent(new Event('change'));
             }
+            settingsMetricToggle.blur();
         };
     }
     
@@ -254,6 +262,7 @@ export function initSettingsModal() {
         settingsLayoutStyle.onchange = () => {
             const newStyle = settingsLayoutStyle.checked ? 'classic' : 'modern';
             setLayoutStyle?.(newStyle);
+            settingsLayoutStyle.blur();
         };
     }
     
@@ -291,6 +300,7 @@ export function initSettingsModal() {
                     defaultFolderStatus.className = 'folder-status error';
                 }
             }
+            browseDefaultFolderBtn.blur();
         };
     }
     
@@ -307,11 +317,60 @@ export function initSettingsModal() {
                 defaultFolderStatus.className = 'folder-status';
                 setTimeout(() => { defaultFolderStatus.textContent = ''; }, 2000);
             }
+            clearDefaultFolderBtn.blur();
         };
     }
     
     // Initialize keybind settings
     initKeybindSettings();
+    
+    // Skip duration setting
+    const settingsSkipDuration = $('settingsSkipDuration');
+    const skipForwardLabel = $('skipForwardLabel');
+    const skipBackwardLabel = $('skipBackwardLabel');
+    const skipBackBtn = $('skipBackBtn');
+    const skipForwardBtn = $('skipForwardBtn');
+    
+    function updateSkipLabels(duration) {
+        // Update settings modal labels
+        if (skipForwardLabel) skipForwardLabel.textContent = `Skip Forward ${duration}s`;
+        if (skipBackwardLabel) skipBackwardLabel.textContent = `Skip Backward ${duration}s`;
+        // Update playback bar button labels and titles
+        if (skipBackBtn) {
+            const backLabel = skipBackBtn.querySelector('.skip-label');
+            if (backLabel) backLabel.textContent = duration;
+            skipBackBtn.title = `Skip back ${duration} seconds`;
+        }
+        if (skipForwardBtn) {
+            const fwdLabel = skipForwardBtn.querySelector('.skip-label');
+            if (fwdLabel) fwdLabel.textContent = duration;
+            skipForwardBtn.title = `Skip forward ${duration} seconds`;
+        }
+    }
+    
+    if (settingsSkipDuration) {
+        // Load saved skip duration
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('skipDuration').then(savedValue => {
+                const duration = savedValue || 15;
+                settingsSkipDuration.value = duration;
+                updateSkipLabels(duration);
+                window._skipDuration = duration;
+            });
+        } else {
+            window._skipDuration = 15;
+            updateSkipLabels(15);
+        }
+        
+        settingsSkipDuration.addEventListener('change', async function() {
+            const duration = parseInt(this.value, 10);
+            window._skipDuration = duration;
+            updateSkipLabels(duration);
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('skipDuration', duration);
+            }
+        });
+    }
     
     // Support Chat button (in control bar)
     const supportChatBtn = $('supportChatBtn');
@@ -324,6 +383,7 @@ export function initSettingsModal() {
             } catch (err) {
                 console.error('Failed to open support chat:', err);
             }
+            supportChatBtn.blur();
         };
     }
     
@@ -343,6 +403,7 @@ export function initSettingsModal() {
             } catch (err) {
                 console.error('Failed to open support chat from settings:', err);
             }
+            openSupportChatFromSettings.blur();
         };
     }
     
@@ -365,6 +426,7 @@ export function initSettingsModal() {
             e.preventDefault();
             advancedSettingsSection.classList.toggle('hidden');
             advancedSettingsToggle.classList.toggle('expanded', !advancedSettingsSection.classList.contains('hidden'));
+            advancedSettingsToggle.blur();
         };
     }
     
@@ -381,6 +443,7 @@ export function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('disableAutoUpdate', this.checked);
             }
+            settingsDisableAutoUpdate.blur();
         });
     }
     
@@ -414,6 +477,7 @@ export function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('updateBranch', this.value);
             }
+            settingsUpdateBranch.blur();
         });
     }
     
@@ -453,6 +517,7 @@ export function initSettingsModal() {
                     }, 3000);
                 }
             }
+            checkForUpdatesBtn.blur();
         };
     }
     
@@ -476,6 +541,7 @@ export function initSettingsModal() {
                 await window.electronAPI.setSetting('sentryCameraHighlight', this.checked);
             }
             updateEventCameraHighlight?.();
+            settingsSentryCameraHighlight.blur();
         });
     }
     
@@ -499,6 +565,7 @@ export function initSettingsModal() {
                 await window.electronAPI.setSetting('savedCameraHighlight', this.checked);
             }
             updateEventCameraHighlight?.();
+            settingsSavedCameraHighlight.blur();
         });
     }
     
@@ -508,6 +575,7 @@ export function initSettingsModal() {
         resetCameraOrderBtn.onclick = (e) => {
             e.preventDefault();
             resetCameraOrder?.();
+            resetCameraOrderBtn.blur();
         };
     }
     
@@ -536,6 +604,7 @@ export function initSettingsModal() {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('glassBlur', parseInt(this.value, 10));
             }
+            settingsGlassBlur.blur();
         });
     }
     
@@ -611,6 +680,7 @@ export function initDevSettingsModal() {
                 const result = await window.electronAPI.devOpenDevTools();
                 showDevOutput(result.success ? 'DevTools opened successfully' : 'Error: ' + result.error);
             }
+            devOpenConsole.blur();
         };
     }
     
@@ -629,6 +699,7 @@ export function initDevSettingsModal() {
                     }
                 }
             }
+            devResetSettings.blur();
         };
     }
     
@@ -645,6 +716,7 @@ export function initDevSettingsModal() {
                     showDevOutput('Error: ' + result.error);
                 }
             }
+            devForceLatest.blur();
         };
     }
     
@@ -661,6 +733,7 @@ export function initDevSettingsModal() {
                     showDevOutput('Error: ' + result.error);
                 }
             }
+            devSetOldVersion.blur();
         };
     }
     
@@ -673,6 +746,7 @@ export function initDevSettingsModal() {
                 await window.electronAPI.checkForUpdates();
                 showDevOutput('Update check complete.\nIf an update is available, the update modal will appear.');
             }
+            devCheckUpdate.blur();
         };
     }
     
@@ -691,6 +765,7 @@ export function initDevSettingsModal() {
                     'Temp:       ' + paths.temp
                 );
             }
+            devShowPaths.blur();
         };
     }
     
@@ -702,6 +777,7 @@ export function initDevSettingsModal() {
                 showDevOutput('Reloading application...');
                 setTimeout(() => { window.electronAPI.devReloadApp(); }, 500);
             }
+            devReloadApp.blur();
         };
     }
     
@@ -719,6 +795,7 @@ export function initDevSettingsModal() {
             showDevOutput(value 
                 ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
                 : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
+            devFakeNoGpu.blur();
         };
     }
     
@@ -733,6 +810,7 @@ export function initDevSettingsModal() {
                 console.error('Failed to open decode dialog:', err);
                 showDevOutput('Error opening decode dialog:\n' + err.message);
             }
+            devDecodeSupportId.blur();
         };
     }
     
@@ -746,6 +824,7 @@ export function initDevSettingsModal() {
             } else {
                 showDevOutput('Error: Welcome guide module not loaded');
             }
+            devResetWelcomeGuide.blur();
         };
     }
     
@@ -759,6 +838,7 @@ export function initDevSettingsModal() {
             } else {
                 showDevOutput('Error: Welcome guide module not loaded');
             }
+            devShowWelcomeGuide.blur();
         };
     }
 }
@@ -806,8 +886,8 @@ export function initChangelogModal() {
         if (changelogModal) changelogModal.classList.add('hidden');
     }
     
-    if (closeChangelogModal) closeChangelogModal.onclick = closeChangelog;
-    if (closeChangelogBtn) closeChangelogBtn.onclick = closeChangelog;
+    if (closeChangelogModal) closeChangelogModal.onclick = () => { closeChangelog(); closeChangelogModal.blur(); };
+    if (closeChangelogBtn) closeChangelogBtn.onclick = () => { closeChangelog(); closeChangelogBtn.blur(); };
     
     if (changelogModal) {
         changelogModal.onclick = (e) => {
@@ -834,6 +914,7 @@ export function initChangelogModal() {
                     }
                 }
             }
+            viewChangelogBtn.blur();
         };
     }
 }

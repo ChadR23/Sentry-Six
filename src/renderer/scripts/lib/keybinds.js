@@ -201,6 +201,7 @@ export async function handleGlobalKeydown(e) {
     for (const [action, binding] of Object.entries(keybinds)) {
         if (binding.identifier === identifier) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             if (keybindActions[action]) {
                 keybindActions[action]();
             }

@@ -874,17 +874,27 @@
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Skip Forward 15s</span>
+                            <span class="keybind-label" id="skipForwardLabel">Skip Forward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Skip Backward 15s</span>
+                            <span class="keybind-label" id="skipBackwardLabel">Skip Backward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact" style="margin-top: 4px;">
+                            <span class="keybind-label">Skip Duration</span>
+                            <div class="keybind-input-wrapper">
+                                <select id="settingsSkipDuration" class="settings-select" style="width: 116px; padding: 4px 8px; font-size: 11px;">
+                                    <option value="1">1 second</option>
+                                    <option value="5">5 seconds</option>
+                                    <option value="15" selected>15 seconds</option>
+                                </select>
                             </div>
                         </div>
                         <div class="keybind-row-compact">

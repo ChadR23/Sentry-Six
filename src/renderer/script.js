@@ -477,6 +477,7 @@ function hasValidGps(sei) {
     chooseFolderBtn.onclick = (e) => {
         e.preventDefault();
         openFolderPicker();
+        chooseFolderBtn.blur();
     };
 
     if (dayFilter) {
@@ -488,13 +489,14 @@ function hasValidGps(sei) {
             } else {
                 renderClipList();
             }
+            dayFilter.blur();
         };
     }
 
     // Panel layout mode (floating/collapsed or docked/hidden based on layout style)
     const panelMode = createClipsPanelMode({ map, clipsCollapseBtn });
     panelMode.initClipsPanelMode();
-    clipsCollapseBtn.onclick = (e) => { e.preventDefault(); panelMode.toggleCollapsedMode(); };
+    clipsCollapseBtn.onclick = (e) => { e.preventDefault(); panelMode.toggleCollapsedMode(); clipsCollapseBtn.blur(); };
     
     // Store panelMode functions globally for settings modal access
     window._panelMode = panelMode;
@@ -569,6 +571,7 @@ function hasValidGps(sei) {
             const rate = parseFloat(speedSelect.value) || 1;
             applyPlaybackRate(rate);
             localStorage.setItem('playbackRate', rate.toString());
+            speedSelect.blur();
         };
     }
 
@@ -780,9 +783,9 @@ function hasValidGps(sei) {
     }
 
 
-    // Skip buttons (±15 seconds)
-    if (skipBackBtn) skipBackBtn.onclick = (e) => { e.preventDefault(); skipSeconds(-15); };
-    if (skipForwardBtn) skipForwardBtn.onclick = (e) => { e.preventDefault(); skipSeconds(15); };
+    // Skip buttons (use configurable duration, default 15 seconds)
+    if (skipBackBtn) skipBackBtn.onclick = (e) => { e.preventDefault(); skipSeconds(-(window._skipDuration || 15)); skipBackBtn.blur(); };
+    if (skipForwardBtn) skipForwardBtn.onclick = (e) => { e.preventDefault(); skipSeconds(window._skipDuration || 15); skipForwardBtn.blur(); };
 
     // Export buttons
     const setStartMarkerBtn = $('setStartMarkerBtn');
@@ -794,13 +797,13 @@ function hasValidGps(sei) {
     const cancelExportBtn = $('cancelExportBtn');
 
     if (setStartMarkerBtn) {
-        setStartMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('start'); };
+        setStartMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('start'); setStartMarkerBtn.blur(); };
     }
     if (setEndMarkerBtn) {
-        setEndMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('end'); };
+        setEndMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('end'); setEndMarkerBtn.blur(); };
     }
     if (exportBtn) {
-        exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); };
+        exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); exportBtn.blur(); };
     }
     if (closeExportModal) {
         closeExportModal.onclick = (e) => { 
@@ -1003,10 +1006,10 @@ initKeybindActions({
         if (playBtn && !playBtn.disabled) playBtn.click();
     },
     skipForward: () => {
-        skipSeconds(15);
+        skipSeconds(window._skipDuration || 15);
     },
     skipBackward: () => {
-        skipSeconds(-15);
+        skipSeconds(-(window._skipDuration || 15));
     },
     toggleDash: () => {
         const dashboardToggle = $('dashboardToggle');
@@ -1778,6 +1781,7 @@ overlayChooseFolderBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openFolderPicker();
+    overlayChooseFolderBtn.blur();
 };
 
 // Fallback for browsers without showDirectoryPicker
@@ -2542,6 +2546,7 @@ async function ingestSentryEventJson(eventAssetsByKey) {
 playBtn.onclick = () => {
     const isPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
     isPlaying ? pause() : play();
+    playBtn.blur();
 };
 function previewAtSliderValue() {
     // Native video mode with day collection: seek across entire day
@@ -2640,52 +2645,13 @@ document.addEventListener('keydown', (e) => {
         activeEl.isContentEditable
     );
 
-    if (e.code === 'Space') {
-        // If a button/input is focused, let the browser handle it normally
-        if (isInteractive) return;
-        e.preventDefault();
-        player.playing ? pause() : play();
-    } else if (e.code === 'Escape') {
+    if (e.code === 'Escape') {
         if (state.ui.openEventRowId) {
             e.preventDefault();
             closeEventPopout();
         } else if (state.ui.multiFocusSlot) {
             e.preventDefault();
             clearMultiFocus();
-        }
-    } else if (e.code === 'ArrowLeft') {
-        // Left: Small step back (1 second in native mode, frame in WebCodecs mode)
-        e.preventDefault();
-        if (state.ui.nativeVideoMode && nativeVideo.master) {
-            nativeVideo.master.currentTime = Math.max(0, nativeVideo.master.currentTime - 1);
-            syncMultiVideos(nativeVideo.master.currentTime);
-        } else if (state.collection.active) {
-            const prev = Math.max(0, +progressBar.value - 1000);
-            progressBar.value = prev;
-            showCollectionAtMs(prev);
-            maybeAutoplayAfterSeek();
-        } else {
-            const prev = Math.max(0, +progressBar.value - 15);
-            progressBar.value = prev;
-            showFrame(prev);
-            maybeAutoplayAfterSeek();
-        }
-    } else if (e.code === 'ArrowRight') {
-        // Right: Small step forward
-        e.preventDefault();
-        if (state.ui.nativeVideoMode && nativeVideo.master) {
-            nativeVideo.master.currentTime = Math.min(nativeVideo.master.duration || 0, nativeVideo.master.currentTime + 1);
-            syncMultiVideos(nativeVideo.master.currentTime);
-        } else if (state.collection.active) {
-            const next = Math.min(+progressBar.max, +progressBar.value + 1000);
-            progressBar.value = next;
-            showCollectionAtMs(next);
-            maybeAutoplayAfterSeek();
-        } else {
-            const next = Math.min(player.frames.length - 1, +progressBar.value + 15);
-            progressBar.value = next;
-            showFrame(next);
-            maybeAutoplayAfterSeek();
         }
     }
 });

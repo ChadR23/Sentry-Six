@@ -1,6 +1,25 @@
 {
   "versions": [
     {
+      "version": "2026.1.37",
+      "date": "2026-01-04",
+      "title": "Bug Fixes",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where some shortcut keys would not work."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed an issue where some buttons would stay focused and pressing the space key would trigger them."
+        },
+        {
+          "type": "improvement",
+          "description": "Added the option to change the fastforward and backward duration under shortcuts."
+        }
+      ]
+    },
+    {
       "version": "2026.1.36",
       "date": "2026-01-04",
       "title": "Addition of Export Blur Zones & Improvements",
