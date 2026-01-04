@@ -16,7 +16,9 @@ const editorState = {
     dragOffset: { x: 0, y: 0 },
     imageWidth: 0,
     imageHeight: 0,
-    isInitialized: false
+    isInitialized: false,
+    listenersAttached: false,
+    isMirrored: false
 };
 
 /**
@@ -145,8 +147,13 @@ export function loadSavedCoordinates(coordinates, canvasWidth, canvasHeight) {
 
 /**
  * Initialize the blur zone editor with an image
+ * @param {string} imageDataUrl - Base64 image data URL
+ * @param {number} imageWidth - Original image width
+ * @param {number} imageHeight - Original image height
+ * @param {Array|null} savedCoordinates - Previously saved coordinates
+ * @param {boolean} mirror - Whether to mirror the image horizontally
  */
-export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedCoordinates = null) {
+export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedCoordinates = null, mirror = false) {
     const modal = document.getElementById('blurZoneEditorModal');
     if (!modal) return;
     
@@ -157,6 +164,7 @@ export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedC
     editorState.ctx = canvas.getContext('2d');
     editorState.imageWidth = imageWidth;
     editorState.imageHeight = imageHeight;
+    editorState.isMirrored = mirror;
     
     // Set canvas size to match container
     const container = canvas.parentElement;
@@ -174,7 +182,17 @@ export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedC
     const img = new Image();
     img.onload = () => {
         editorState.image = img;
-        editorState.ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+        
+        // Draw image (mirrored if needed)
+        if (editorState.isMirrored) {
+            editorState.ctx.save();
+            editorState.ctx.translate(displayWidth, 0);
+            editorState.ctx.scale(-1, 1);
+            editorState.ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+            editorState.ctx.restore();
+        } else {
+            editorState.ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+        }
         
         // Initialize with saved coordinates or default centered rectangle
         if (savedCoordinates && savedCoordinates.length >= 3) {
@@ -202,8 +220,11 @@ export function initBlurZoneEditor(imageDataUrl, imageWidth, imageHeight, savedC
     };
     img.src = imageDataUrl;
     
-    // Set up event listeners
-    setupEventListeners();
+    // Set up event listeners (only once)
+    if (!editorState.listenersAttached) {
+        setupEventListeners();
+        editorState.listenersAttached = true;
+    }
 }
 
 /**
@@ -230,9 +251,25 @@ function setupEventListeners() {
             const dx = x - editorState.dragOffset.x;
             const dy = y - editorState.dragOffset.y;
             
+            // Calculate bounding box of current anchors
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (const anchor of editorState.anchors) {
-                anchor.x = Math.max(0, Math.min(canvas.width, anchor.x + dx));
-                anchor.y = Math.max(0, Math.min(canvas.height, anchor.y + dy));
+                if (anchor.x < minX) minX = anchor.x;
+                if (anchor.x > maxX) maxX = anchor.x;
+                if (anchor.y < minY) minY = anchor.y;
+                if (anchor.y > maxY) maxY = anchor.y;
+            }
+            
+            // Clamp the delta so the entire zone stays within bounds
+            const clampedDx = Math.max(-minX, Math.min(canvas.width - maxX, dx));
+            const clampedDy = Math.max(-minY, Math.min(canvas.height - maxY, dy));
+            
+            // Only move if there's actual movement after clamping
+            if (clampedDx !== 0 || clampedDy !== 0) {
+                for (const anchor of editorState.anchors) {
+                    anchor.x += clampedDx;
+                    anchor.y += clampedDy;
+                }
             }
             
             editorState.dragOffset.x = x;
@@ -344,7 +381,15 @@ function render() {
     // Clear and redraw image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (editorState.image) {
-        ctx.drawImage(editorState.image, 0, 0, canvas.width, canvas.height);
+        if (editorState.isMirrored) {
+            ctx.save();
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(editorState.image, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        } else {
+            ctx.drawImage(editorState.image, 0, 0, canvas.width, canvas.height);
+        }
     }
     
     // Draw polygon fill (semi-transparent blue/purple)
@@ -461,6 +506,9 @@ export function resetBlurZoneEditor() {
     editorState.ghostPoint = null;
     editorState.hoveredSegment = null;
     editorState.draggedAnchor = null;
+    editorState.isDraggingZone = false;
+    editorState.dragOffset = { x: 0, y: 0 };
     editorState.isInitialized = false;
+    editorState.isMirrored = false;
 }
 

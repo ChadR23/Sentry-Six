@@ -617,7 +617,10 @@ function initBlurZoneEditorModal() {
             // Initialize editor with snapshot and load saved coordinates if they exist
             editorModal.classList.remove('hidden');
             const savedCoords = exportState.blurZone?.coordinates || null;
-            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords);
+            
+            // Mirror the snapshot for cameras that are mirrored in viewer/export
+            const shouldMirror = ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
+            initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
             
             // Store which camera this zone is for
             exportState.blurZoneCamera = snapshotCamera;
