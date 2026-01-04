@@ -59,21 +59,26 @@ Have questions, feedback, or want to connect with other users?
 Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Requirements
-- Windows / MacOS / Linux
+- Windows / MacOS 10.12+ / Linux
 
-## Automatic Installation for Windows (Recommended, easiest)
+## Automatic Installation for Windows & MacOS (Recommended, easiest)
 1. Go to the Sentry Six [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
-2. Download the SentrySixRevampedSetup.exe
-3. Run the Installer 
+2. Download the SentrySixRevampedSetup.exe (SentrySixRevampedSetup.dmg for MacOS) 
+3. Run the Installer
 4. Run Sentry Six Revamped
 
-## Manual Installation (Required to recieve Beta Branch Updates)
+**Note for macOS users:** You may encounter a security warning because this app is not digitally signed. As this is an open-source project, we do not maintain a paid subscription to the Apple Developer Program. To launch the app, navigate to **System Settings > Privacy & Security**, scroll down, and click **"Open Anyway."**
+
+ <img width="245.5" height="96.5" alt="Screenshot_2026-01-02_at_1 17 05_PM" src="https://github.com/user-attachments/assets/81c21fef-6eb6-49c9-a0d3-75765eb32685" />
+
+
+## Manual Installation
 
 1. Install [node.js](https://nodejs.org/en/download)
 2. Extract Sentry Six to your desired location.
-3. In your Sentry Six folder, right click and click on "Open in Terminal"
-4. Use the following command: `npm install`
-5. To run Sentry Six, use `npm start`
+3. Open a new Terminal & head to the Sentry Six folder `cd C:\users\yourname\downloads\Sentry-Six-Revamped`
+4. In your Sentry Six folder, use the following command: `npm install`
+6. To run Sentry Six, use `npm start`
 
 ## Usage
 
@@ -90,7 +95,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Project Origin & Credits
 
-This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [Scottmg1](https://github.com/Scottmg1) and use of the **Claude Opus 4.5 AI Model** during development.
+This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [**Scottmg1**](https://github.com/Scottmg1) and use of the **Claude Opus 4.5 AI Model** during development.
 
 Special thanks to [**Parallax**](https://github.com/DennisGarvey), [**JeffFromTheIRS**](https://github.com/JeffFromTheIRS) and **38tu** for hands-on beta testing and invaluable feedback.
 
