@@ -1024,7 +1024,7 @@ export async function startExport() {
     }
     
     if (!baseFolderPath) {
-        notify('Export requires selecting a folder via the folder picker. Please re-select your TeslaCam folder.', { type: 'warn' });
+        notify('Export requires selecting a folder via the folder picker. Please re-select your dashcam folder.', { type: 'warn' });
         return;
     }
     

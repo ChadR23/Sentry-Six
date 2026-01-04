@@ -1052,9 +1052,9 @@ async function loadDefaultFolderOnStartup() {
     }
     if (savedFolder && window.electronAPI?.readDir) {
         try {
-            console.log('Auto-loading default TeslaCam folder:', savedFolder);
+            console.log('Auto-loading default dashcam folder:', savedFolder);
             baseFolderPath = savedFolder;
-            showLoading('Loading default folder...', 'Looking for TeslaCam clips');
+            showLoading('Loading default folder...', 'Looking for dashcam clips');
             await traverseDirectoryElectron(savedFolder);
         } catch (err) {
             hideLoading();
@@ -1105,7 +1105,7 @@ async function openFolderPicker() {
             baseFolderPath = folderPath;
             console.log('Selected folder path:', baseFolderPath);
             
-            showLoading('Scanning folder...', 'Looking for TeslaCam clips');
+            showLoading('Scanning folder...', 'Looking for dashcam clips');
             await traverseDirectoryElectron(folderPath);
             return;
         } catch (err) {
@@ -1119,7 +1119,7 @@ async function openFolderPicker() {
     // Fallback to File System Access API (no export support)
     if ('showDirectoryPicker' in window) {
         try {
-            showLoading('Opening folder...', 'Please select a TeslaCam folder');
+            showLoading('Opening folder...', 'Please select a dashcam folder');
             baseFolderPath = null; // No actual path available
             const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
             await traverseDirectoryHandle(dirHandle);
@@ -1138,7 +1138,10 @@ async function openFolderPicker() {
 
 // Traverse directory using Electron's fs APIs (provides actual file paths)
 async function traverseDirectoryElectron(dirPath) {
-    const folderName = dirPath.split('/').pop() || dirPath.split('\\').pop();
+    // Normalize path separators and extract folder name
+    const normalizedPath = dirPath.replace(/\\/g, '/');
+    const folderName = normalizedPath.split('/').pop();
+    const folderNameLower = folderName.toLowerCase();
     
     // Create a pseudo directory handle structure for compatibility
     rootDirHandle = { name: folderName, kind: 'directory' };
@@ -1151,22 +1154,42 @@ async function traverseDirectoryElectron(dirPath) {
         dateHandles: new Map()
     };
     
+    // Check if the selected folder itself is a clip folder
+    const isClipFolder = ['recentclips', 'sentryclips', 'savedclips'].includes(folderNameLower);
+    
     try {
-        const entries = await window.electronAPI.readDir(dirPath);
-        
-        for (const entry of entries) {
-            if (!entry.isDirectory) continue;
-            const name = entry.name.toLowerCase();
+        if (isClipFolder) {
+            // User selected a clip folder directly (e.g., SentryClips)
+            const pseudoEntry = { name: folderName, path: dirPath, isDirectory: true };
+            if (folderNameLower === 'recentclips') {
+                folderStructure.recentClips = pseudoEntry;
+                await scanRecentClipsElectron(dirPath);
+            } else if (folderNameLower === 'sentryclips') {
+                folderStructure.sentryClips = pseudoEntry;
+                await scanEventFolderElectron(dirPath, 'sentry');
+            } else if (folderNameLower === 'savedclips') {
+                folderStructure.savedClips = pseudoEntry;
+                await scanEventFolderElectron(dirPath, 'saved');
+            }
+        } else {
+            // User selected a parent folder (e.g., TeslaCam, teslausb, or any custom name)
+            // Scan for clip subfolders
+            const entries = await window.electronAPI.readDir(dirPath);
             
-            if (name === 'recentclips') {
-                folderStructure.recentClips = entry;
-                await scanRecentClipsElectron(entry.path);
-            } else if (name === 'sentryclips') {
-                folderStructure.sentryClips = entry;
-                await scanEventFolderElectron(entry.path, 'sentry');
-            } else if (name === 'savedclips') {
-                folderStructure.savedClips = entry;
-                await scanEventFolderElectron(entry.path, 'saved');
+            for (const entry of entries) {
+                if (!entry.isDirectory) continue;
+                const name = entry.name.toLowerCase();
+                
+                if (name === 'recentclips') {
+                    folderStructure.recentClips = entry;
+                    await scanRecentClipsElectron(entry.path);
+                } else if (name === 'sentryclips') {
+                    folderStructure.sentryClips = entry;
+                    await scanEventFolderElectron(entry.path, 'sentry');
+                } else if (name === 'savedclips') {
+                    folderStructure.savedClips = entry;
+                    await scanEventFolderElectron(entry.path, 'saved');
+                }
             }
         }
     } catch (err) {
@@ -1176,7 +1199,7 @@ async function traverseDirectoryElectron(dirPath) {
     hideLoading();
     
     if (!folderStructure.dates.size) {
-        notify('No TeslaCam clips found. Make sure you selected a TeslaCam folder.', { type: 'warn' });
+        notify('No dashcam clips found. Select a folder containing RecentClips, SentryClips, or SavedClips, or select one of those folders directly.', { type: 'warn' });
         return;
     }
     
@@ -1444,20 +1467,40 @@ async function traverseDirectoryHandle(dirHandle) {
         dateHandles: new Map()
     };
 
+    // Check if the selected folder itself is a clip folder
+    const folderNameLower = dirHandle.name.toLowerCase();
+    const isClipFolder = ['recentclips', 'sentryclips', 'savedclips'].includes(folderNameLower);
+
     // Find the main clip folders
     try {
-        for await (const entry of dirHandle.values()) {
-            if (entry.kind !== 'directory') continue;
-            const name = entry.name.toLowerCase();
-            if (name === 'recentclips') {
-                folderStructure.recentClips = entry;
-                await scanRecentClipsForDates(entry);
-            } else if (name === 'sentryclips') {
-                folderStructure.sentryClips = entry;
-                await scanEventFolderForDates(entry, 'sentry');
-            } else if (name === 'savedclips') {
-                folderStructure.savedClips = entry;
-                await scanEventFolderForDates(entry, 'saved');
+        if (isClipFolder) {
+            // User selected a clip folder directly (e.g., SentryClips)
+            if (folderNameLower === 'recentclips') {
+                folderStructure.recentClips = dirHandle;
+                await scanRecentClipsForDates(dirHandle);
+            } else if (folderNameLower === 'sentryclips') {
+                folderStructure.sentryClips = dirHandle;
+                await scanEventFolderForDates(dirHandle, 'sentry');
+            } else if (folderNameLower === 'savedclips') {
+                folderStructure.savedClips = dirHandle;
+                await scanEventFolderForDates(dirHandle, 'saved');
+            }
+        } else {
+            // User selected a parent folder (e.g., TeslaCam, teslausb, or any custom name)
+            // Scan for clip subfolders
+            for await (const entry of dirHandle.values()) {
+                if (entry.kind !== 'directory') continue;
+                const name = entry.name.toLowerCase();
+                if (name === 'recentclips') {
+                    folderStructure.recentClips = entry;
+                    await scanRecentClipsForDates(entry);
+                } else if (name === 'sentryclips') {
+                    folderStructure.sentryClips = entry;
+                    await scanEventFolderForDates(entry, 'sentry');
+                } else if (name === 'savedclips') {
+                    folderStructure.savedClips = entry;
+                    await scanEventFolderForDates(entry, 'saved');
+                }
             }
         }
     } catch (err) {
@@ -1467,7 +1510,7 @@ async function traverseDirectoryHandle(dirHandle) {
     hideLoading();
 
     if (!folderStructure.dates.size) {
-        notify('No TeslaCam clips found. Make sure you selected a TeslaCam folder.', { type: 'warn' });
+        notify('No dashcam clips found. Select a folder containing RecentClips, SentryClips, or SavedClips, or select one of those folders directly.', { type: 'warn' });
         return;
     }
 
@@ -1796,18 +1839,29 @@ function parseTeslaCamPath(relPath) {
     const norm = (relPath || '').replace(/\\/g, '/');
     const parts = norm.split('/').filter(Boolean);
 
-    // Find "TeslaCam" segment if present.
-    const teslaIdx = parts.findIndex(p => p.toLowerCase() === 'teslacam');
-    const base = teslaIdx >= 0 ? parts.slice(teslaIdx) : parts;
-
-    // base: ["TeslaCam", "<tag>", ...]
-    if (base.length >= 2 && base[0].toLowerCase() === 'teslacam') {
-        const tag = base[1];
-        const rest = base.slice(2);
+    // Known clip folder names (case-insensitive)
+    const clipFolders = ['recentclips', 'sentryclips', 'savedclips'];
+    
+    // Find any known parent folder (TeslaCam, teslausb, or any folder containing clip subfolders)
+    // First, look for a clip folder directly in the path
+    const clipFolderIdx = parts.findIndex(p => clipFolders.includes(p.toLowerCase()));
+    if (clipFolderIdx >= 0) {
+        // Found a clip folder - use it as the tag
+        const tag = parts[clipFolderIdx];
+        const rest = parts.slice(clipFolderIdx + 1);
         return { tag, rest };
     }
 
-    // No TeslaCam root: best effort tag from first folder if any
+    // Legacy: Find "TeslaCam" or "teslausb" segment if present
+    const knownRoots = ['teslacam', 'teslausb'];
+    const rootIdx = parts.findIndex(p => knownRoots.includes(p.toLowerCase()));
+    if (rootIdx >= 0 && parts.length > rootIdx + 1) {
+        const tag = parts[rootIdx + 1];
+        const rest = parts.slice(rootIdx + 2);
+        return { tag, rest };
+    }
+
+    // No known root: best effort tag from first folder if any
     if (parts.length >= 2) return { tag: parts[0], rest: parts.slice(1) };
     return { tag: 'Unknown', rest: parts.slice(1) };
 }
