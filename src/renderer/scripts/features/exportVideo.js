@@ -516,18 +516,15 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         return;
     }
     
-    // Use current viewer playback time instead of midpoint for accurate snapshot
+    // Use current viewer playback time (cumulative position across all segments)
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    const currentPlaybackSec = nativeVideo?.master?.currentTime || 0;
+    const segIdx = nativeVideo?.currentSegmentIdx || 0;
+    const cumStart = nativeVideo?.cumulativeStarts?.[segIdx] || 0;
+    const masterTime = nativeVideo?.master?.currentTime || 0;
+    const currentPlaybackSec = cumStart + masterTime;
     
-    // Clamp to export range if markers are set
-    const startPct = exportState.startMarkerPct ?? 0;
-    const endPct = exportState.endMarkerPct ?? 100;
-    const startSec = (Math.min(startPct, endPct) / 100) * totalSec;
-    const endSec = (Math.max(startPct, endPct) / 100) * totalSec;
-    
-    // Use current playback time, clamped to export range
-    const snapshotSec = Math.max(startSec, Math.min(endSec, currentPlaybackSec));
+    // Use current playback time directly (don't clamp to export range - user wants to see what's playing)
+    const snapshotSec = Math.max(0, Math.min(totalSec, currentPlaybackSec));
     
     try {
         notify('Capturing snapshot...');

@@ -235,8 +235,11 @@ function handleMouseMove(e) {
     
     const canvas = editorState.canvas;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // Account for CSS scaling (displayed size vs internal canvas size)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     
     if (editorState.draggedAnchor !== null) {
         // Update dragged anchor position (clamp to canvas bounds)
@@ -325,8 +328,11 @@ function setupEventListeners() {
         if (!editorState.isInitialized) return;
         
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Account for CSS scaling (displayed size vs internal canvas size)
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         // Check if clicking on an anchor point (highest priority)
         for (let i = 0; i < editorState.anchors.length; i++) {
@@ -390,8 +396,11 @@ function setupEventListeners() {
         if (!editorState.isInitialized) return;
         
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Account for CSS scaling (displayed size vs internal canvas size)
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         // Check if double-clicking on an anchor point
         for (let i = 0; i < editorState.anchors.length; i++) {
