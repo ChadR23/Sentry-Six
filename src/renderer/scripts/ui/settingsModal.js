@@ -703,53 +703,6 @@ export function initDevSettingsModal() {
         };
     }
     
-    // Force Latest Version
-    const devForceLatest = $('devForceLatest');
-    if (devForceLatest) {
-        devForceLatest.onclick = async () => {
-            if (window.electronAPI?.devForceLatestVersion) {
-                const result = await window.electronAPI.devForceLatestVersion();
-                if (result.success) {
-                    showDevOutput('Version forced to latest: v' + result.version + '\n\nUpdate check will now pass.');
-                    updateDevVersionDisplay();
-                } else {
-                    showDevOutput('Error: ' + result.error);
-                }
-            }
-            devForceLatest.blur();
-        };
-    }
-    
-    // Set Old Version (triggers update)
-    const devSetOldVersion = $('devSetOldVersion');
-    if (devSetOldVersion) {
-        devSetOldVersion.onclick = async () => {
-            if (window.electronAPI?.devSetOldVersion) {
-                const result = await window.electronAPI.devSetOldVersion();
-                if (result.success) {
-                    showDevOutput('Version set to: v' + result.version + '\n\nThis will trigger an update prompt.\nUse "Check Updates" to test.');
-                    updateDevVersionDisplay();
-                } else {
-                    showDevOutput('Error: ' + result.error);
-                }
-            }
-            devSetOldVersion.blur();
-        };
-    }
-    
-    // Check for Updates
-    const devCheckUpdate = $('devCheckUpdate');
-    if (devCheckUpdate) {
-        devCheckUpdate.onclick = async () => {
-            if (window.electronAPI?.checkForUpdates) {
-                showDevOutput('Checking for updates...');
-                await window.electronAPI.checkForUpdates();
-                showDevOutput('Update check complete.\nIf an update is available, the update modal will appear.');
-            }
-            devCheckUpdate.blur();
-        };
-    }
-    
     // Show App Paths
     const devShowPaths = $('devShowPaths');
     if (devShowPaths) {
@@ -769,18 +722,6 @@ export function initDevSettingsModal() {
         };
     }
     
-    // Reload App
-    const devReloadApp = $('devReloadApp');
-    if (devReloadApp) {
-        devReloadApp.onclick = async () => {
-            if (window.electronAPI?.devReloadApp) {
-                showDevOutput('Reloading application...');
-                setTimeout(() => { window.electronAPI.devReloadApp(); }, 500);
-            }
-            devReloadApp.blur();
-        };
-    }
-    
     // Fake No GPU Toggle
     const devFakeNoGpu = $('devFakeNoGpu');
     if (devFakeNoGpu) {
@@ -796,21 +737,6 @@ export function initDevSettingsModal() {
                 ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
                 : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
             devFakeNoGpu.blur();
-        };
-    }
-    
-    // Decode Support ID (dev only)
-    const devDecodeSupportId = $('devDecodeSupportId');
-    if (devDecodeSupportId) {
-        devDecodeSupportId.onclick = async () => {
-            try {
-                const { showDecodeSupportIdDialog } = await import('./diagnostics.js');
-                showDecodeSupportIdDialog();
-            } catch (err) {
-                console.error('Failed to open decode dialog:', err);
-                showDevOutput('Error opening decode dialog:\n' + err.message);
-            }
-            devDecodeSupportId.blur();
         };
     }
     
@@ -844,24 +770,12 @@ export function initDevSettingsModal() {
 }
 
 /**
- * Update the version display in dev settings
- */
-async function updateDevVersionDisplay() {
-    const devCurrentVersion = $('devCurrentVersion');
-    if (devCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
-        const versionInfo = await window.electronAPI.devGetCurrentVersion();
-        devCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
-    }
-}
-
-/**
  * Open the developer settings modal
  */
 export function openDevSettings() {
     const devSettingsModal = $('devSettingsModal');
     if (devSettingsModal) {
         devSettingsModal.classList.remove('hidden');
-        updateDevVersionDisplay();
     }
 }
 

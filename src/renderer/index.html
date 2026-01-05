@@ -516,17 +516,54 @@
                     </div>
                 </div>
 
-                <!-- Dashboard - Collapsible -->
-                <div class="collapsible-section" data-section="dashboard">
+                <!-- Overlays Section -->
+                <div class="collapsible-section open" data-section="overlays">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title">Telemetry Overlay</span>
+                        <span class="collapsible-header-title">Overlays</span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
                         <div class="collapsible-content">
+                            <label class="toggle-row" id="timestampToggleRow">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Timestamp</span>
+                                    <span class="toggle-row-desc">Burn-in recording date and time</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="includeTimestamp">
+                                    <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                </div>
+                            </label>
+                            <div id="timestampOptions" class="hidden">
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Position</span>
+                                        <span class="select-row-desc">Placement on video</span>
+                                    </div>
+                                    <select id="timestampPosition" class="settings-select">
+                                        <option value="bottom-center" selected>Bottom Center</option>
+                                        <option value="bottom-left">Bottom Left</option>
+                                        <option value="bottom-right">Bottom Right</option>
+                                        <option value="top-center">Top Center</option>
+                                        <option value="top-left">Top Left</option>
+                                        <option value="top-right">Top Right</option>
+                                    </select>
+                                </div>
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Date Format</span>
+                                        <span class="select-row-desc">Display format</span>
+                                    </div>
+                                    <select id="timestampDateFormat" class="settings-select">
+                                        <option value="mdy" selected>MM/DD/YYYY (US)</option>
+                                        <option value="dmy">DD/MM/YYYY (International)</option>
+                                        <option value="ymd">YYYY-MM-DD (ISO)</option>
+                                    </select>
+                                </div>
+                            </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label">Include Dashboard</span>
+                                    <span class="toggle-row-label">Dashboard</span>
                                     <span class="toggle-row-desc">Burn-in speed, gear, and telemetry</span>
                                 </div>
                                 <div class="toggle-switch">
@@ -534,15 +571,15 @@
                                     <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                                 </div>
                             </label>
-                            <div id="dashboardGpuWarning" class="info-box info-red hidden" style="margin-top: 8px;">
+                            <div id="dashboardGpuWarning" class="info-box info-red hidden">
                                 <span class="info-box-icon">⚠️</span>
-                                <span>Dashboard overlay requires GPU encoding. No compatible GPU encoder was detected on this system.</span>
+                                <span>Dashboard overlay requires GPU encoding. No compatible GPU detected.</span>
                             </div>
-                            <div id="dashboardOptions" class="hidden" style="margin-top: 10px;">
+                            <div id="dashboardOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
                                         <span class="select-row-label">Position</span>
-                                        <span class="select-row-desc">Dashboard placement on video</span>
+                                        <span class="select-row-desc">Placement on video</span>
                                     </div>
                                     <select id="dashboardPosition" class="settings-select">
                                         <option value="bottom-center">Bottom Center</option>
@@ -556,7 +593,7 @@
                                 <div class="select-row">
                                     <div class="select-row-info">
                                         <span class="select-row-label">Size</span>
-                                        <span class="select-row-desc">Dashboard overlay size</span>
+                                        <span class="select-row-desc">Dashboard size</span>
                                     </div>
                                     <select id="dashboardSize" class="settings-select">
                                         <option value="small">Small (20%)</option>
@@ -564,58 +601,17 @@
                                         <option value="large">Large (40%)</option>
                                     </select>
                                 </div>
+                                <div class="info-box info-blue">
+                                    <span class="info-box-icon">ℹ️</span>
+                                    <span>Dashboard is pre-rendered for optimal performance.</span>
+                                </div>
                             </div>
-                            <div class="info-box info-blue" style="margin-top: 10px;">
-                                <span class="info-box-icon">ℹ️</span>
-                                <span>Dashboard is pre-rendered for optimal performance.</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Timestamp Overlay -->
-                <div class="modal-section" style="margin-top: 6px;">
-                    <label class="toggle-row" id="timestampToggleRow">
-                        <div class="toggle-row-info">
-                            <span class="toggle-row-label">Add Timestamp Overlay</span>
-                            <span class="toggle-row-desc">Burn-in recording time on exported video</span>
-                        </div>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="includeTimestamp">
-                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                        </div>
-                    </label>
-                    <div id="timestampOptions" class="hidden" style="margin-top: 10px;">
-                        <div class="select-row">
-                            <div class="select-row-info">
-                                <span class="select-row-label">Position</span>
-                                <span class="select-row-desc">Timestamp placement on video</span>
-                            </div>
-                            <select id="timestampPosition" class="settings-select">
-                                <option value="bottom-center" selected>Bottom Center</option>
-                                <option value="bottom-left">Bottom Left</option>
-                                <option value="bottom-right">Bottom Right</option>
-                                <option value="top-center">Top Center</option>
-                                <option value="top-left">Top Left</option>
-                                <option value="top-right">Top Right</option>
-                            </select>
-                        </div>
-                        <div class="select-row">
-                            <div class="select-row-info">
-                                <span class="select-row-label">Date Format</span>
-                                <span class="select-row-desc">Choose date display format</span>
-                            </div>
-                            <select id="timestampDateFormat" class="settings-select">
-                                <option value="mdy" selected>MM/DD/YYYY (US)</option>
-                                <option value="dmy">DD/MM/YYYY (International)</option>
-                                <option value="ymd">YYYY-MM-DD (ISO)</option>
-                            </select>
                         </div>
                     </div>
                 </div>
 
                 <!-- Blur Zone -->
-                <div class="modal-section" style="margin-top: 6px;">
+                <div class="modal-section">
                     <div class="action-row">
                         <div class="action-row-info">
                             <span class="action-row-label">Add Blur Zone</span>
@@ -642,7 +638,7 @@
                 </div>
 
                 <!-- FFmpeg Status -->
-                <div class="modal-section" style="margin-top: 6px;">
+                <div class="modal-section">
                     <div id="ffmpegStatus" class="info-box info-green">
                         <span class="info-box-icon">⏳</span>
                         <span class="status-text">Checking FFmpeg...</span>
@@ -747,23 +743,33 @@
                         </label>
                     </div>
                     
-                    <!-- Display Section -->
+                    <!-- Overlays Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Display</div>
+                        <div class="modal-section-title">Overlays</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Dashboard Overlay</span>
-                                <span class="toggle-row-desc">Speed, gear, steering and telemetry</span>
+                                <span class="toggle-row-label">Dashboard</span>
+                                <span class="toggle-row-desc">Show speed, gear, and telemetry data</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsDashboardToggle" checked>
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">GPS Map</span>
+                                <span class="toggle-row-desc">Show route map with vehicle position</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMapToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
                         <div class="select-row">
                             <div class="select-row-info">
                                 <span class="select-row-label">Dashboard Layout</span>
-                                <span class="select-row-desc">Choose dashboard style</span>
+                                <span class="select-row-desc">Default or compact style</span>
                             </div>
                             <select id="settingsDashboardLayout" class="settings-select">
                                 <option value="default">Default</option>
@@ -773,42 +779,27 @@
                         <label class="toggle-row hidden" id="settingsCompactDashboardFixedRow">
                             <div class="toggle-row-info">
                                 <span class="toggle-row-label">Fixed to Front Camera</span>
-                                <span class="toggle-row-desc">Keep compact dashboard attached to front camera</span>
+                                <span class="toggle-row-desc">Keep compact dashboard on front camera</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsCompactDashboardFixed" checked>
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label">GPS Map</span>
-                                <span class="toggle-row-desc">Show route map overlay</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsMapToggle" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
                         <div class="slider-row">
                             <div class="slider-row-info">
                                 <span class="slider-row-label">Glass Blur</span>
-                                <span class="slider-row-desc">Panel blur intensity</span>
+                                <span class="slider-row-desc">Overlay blur intensity</span>
                             </div>
                             <div class="slider-row-control">
                                 <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
                                 <span id="glassBlurValue" class="slider-row-value">7px</span>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Units Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title">Units</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Metric Units (KM/H)</span>
-                                <span class="toggle-row-desc">Use kilometers per hour</span>
+                                <span class="toggle-row-label">Metric Units</span>
+                                <span class="toggle-row-desc">Use kilometers per hour (KM/H)</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsMetricToggle">
@@ -925,6 +916,20 @@
                                 <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
                             </div>
                         </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Set Export Marker In</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSetMarkerIn" data-action="setMarkerIn" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="setMarkerIn" title="Clear">✕</button>
+                            </div>
+                        </div>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Set Export Marker Out</span>
+                            <div class="keybind-input-wrapper">
+                                <input type="text" class="keybind-input" id="keybindSetMarkerOut" data-action="setMarkerOut" placeholder="—" readonly>
+                                <button class="keybind-clear" data-action="setMarkerOut" title="Clear">✕</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -953,7 +958,7 @@
                             </select>
                         </div>
                         <div id="branchInstallerNote" class="settings-note" style="display: none; margin: 8px 0 12px 0; padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border-radius: 6px; font-size: 12px; color: rgba(255, 193, 7, 0.9);">
-                            ⚠️ Beta versions are only available for manual installs (npm start). <a href="#" onclick="window.electronAPI?.openExternal('https://github.com/ChadR23/Sentry-Six#installation'); return false;" style="color: #ffc107;">Learn more</a>
+                            ⚠️ Beta versions are only available for manual installs (npm start). <a href="#" onclick="window.electronAPI?.openExternal('https://github.com/ChadR23/Sentry-Six#manual-installation'); return false;" style="color: #ffc107;">Learn more</a>
                         </div>
                         <div class="action-row">
                             <div class="action-row-info">
@@ -1041,37 +1046,6 @@
                 </div>
                 
                 <div class="modal-section">
-                    <div class="modal-section-title">Version Control</div>
-                    <div class="dev-version-display">
-                        <span class="dev-version-label">Current Version:</span>
-                        <span id="devCurrentVersion" class="dev-version-value">Loading...</span>
-                    </div>
-                    <div class="dev-grid">
-                        <button id="devForceLatest" class="dev-card">
-                            <span class="dev-card-icon">⏩</span>
-                            <div class="dev-card-info">
-                                <span class="dev-card-label">Force Latest</span>
-                                <span class="dev-card-desc">Set to remote version</span>
-                            </div>
-                        </button>
-                        <button id="devSetOldVersion" class="dev-card">
-                            <span class="dev-card-icon">⏪</span>
-                            <div class="dev-card-info">
-                                <span class="dev-card-label">Set Old Version</span>
-                                <span class="dev-card-desc">Set to v0.0.1 for testing</span>
-                            </div>
-                        </button>
-                        <button id="devCheckUpdate" class="dev-card">
-                            <span class="dev-card-icon">🔍</span>
-                            <div class="dev-card-info">
-                                <span class="dev-card-label">Check Updates</span>
-                                <span class="dev-card-desc">Trigger update check now</span>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="modal-section">
                     <div class="modal-section-title">Export Testing</div>
                     <label class="toggle-row">
                         <div class="toggle-row-info">
@@ -1113,26 +1087,6 @@
                             <div class="dev-card-info">
                                 <span class="dev-card-label">App Paths</span>
                                 <span class="dev-card-desc">Show file locations</span>
-                            </div>
-                        </button>
-                        <button id="devReloadApp" class="dev-card">
-                            <span class="dev-card-icon">🔄</span>
-                            <div class="dev-card-info">
-                                <span class="dev-card-label">Reload App</span>
-                                <span class="dev-card-desc">Force renderer reload</span>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="modal-section">
-                    <div class="modal-section-title">Support ID Lookup</div>
-                    <div class="dev-grid">
-                        <button id="devDecodeSupportId" class="dev-card">
-                            <span class="dev-card-icon">🔓</span>
-                            <div class="dev-card-info">
-                                <span class="dev-card-label">Lookup Support ID</span>
-                                <span class="dev-card-desc">View user diagnostic data</span>
                             </div>
                         </button>
                     </div>
@@ -1248,9 +1202,8 @@
         <div class="modal-content welcome-guide-modal">
             <div class="modal-header">
                 <h2>
-                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #00d4ff;">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #00d4ff;">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
                     Welcome to Sentry Six
                 </h2>

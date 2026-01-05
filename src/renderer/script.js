@@ -1041,6 +1041,14 @@ initKeybindActions({
     toggleClips: () => {
         const clipsCollapseBtn = $('clipsCollapseBtn');
         if (clipsCollapseBtn) clipsCollapseBtn.click();
+    },
+    setMarkerIn: () => {
+        const setStartMarkerBtn = $('setStartMarkerBtn');
+        if (setStartMarkerBtn && !setStartMarkerBtn.disabled) setStartMarkerBtn.click();
+    },
+    setMarkerOut: () => {
+        const setEndMarkerBtn = $('setEndMarkerBtn');
+        if (setEndMarkerBtn && !setEndMarkerBtn.disabled) setEndMarkerBtn.click();
     }
 });
 

@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.1.38",
+      "date": "2026-01-04",
+      "title": "Overall UI Improvements & Fixes",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Improved overall UI consistency and layout."
+        }
+      ]
+    },
+    {
       "version": "2026.1.37",
       "date": "2026-01-04",
       "title": "Bug Fixes",

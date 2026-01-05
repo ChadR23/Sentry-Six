@@ -766,11 +766,21 @@ function initBlurZoneEditorModal() {
                 
                 // Disable dashboard checkbox when blur zones exist
                 const dashboardCheckbox = $('includeDashboard');
+                const dashboardOptions = $('dashboardOptions');
                 if (dashboardCheckbox && exportState.blurZones.length > 0) {
                     dashboardCheckbox.checked = false;
                     dashboardCheckbox.disabled = true;
                     const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
                     if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+                    if (dashboardOptions) dashboardOptions.classList.add('hidden');
+                    
+                    // Re-enable timestamp toggle since dashboard is now disabled
+                    const timestampCheckbox = $('includeTimestamp');
+                    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+                    if (timestampCheckbox) {
+                        timestampCheckbox.disabled = false;
+                        if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+                    }
                 }
                 
                 updateBlurZoneStatusDisplay();
@@ -791,6 +801,8 @@ function updateBlurZoneStatusDisplay() {
     const statusEl = $('blurZoneStatus');
     const statusTextEl = $('blurZoneStatusText');
     const addBtn = $('addBlurZoneBtn');
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
     
     // Render the blur zone list
     renderBlurZoneList();
@@ -804,9 +816,33 @@ function updateBlurZoneStatusDisplay() {
         });
         if (statusTextEl) statusTextEl.textContent = `${exportState.blurZones.length} blur zone(s) - Dashboard overlay disabled`;
         if (addBtn) addBtn.textContent = 'Add Zone';
+        
+        // Ensure dashboard is disabled when blur zones exist
+        if (dashboardCheckbox) {
+            dashboardCheckbox.checked = false;
+            dashboardCheckbox.disabled = true;
+            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
+            if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+        }
+        if (dashboardOptions) dashboardOptions.classList.add('hidden');
+        
+        // Re-enable timestamp toggle since dashboard is disabled
+        const timestampCheckbox = $('includeTimestamp');
+        const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+        if (timestampCheckbox) {
+            timestampCheckbox.disabled = false;
+            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+        }
     } else {
         if (statusEl) statusEl.classList.add('hidden');
         if (addBtn) addBtn.textContent = 'Add Zone';
+        
+        // Re-enable dashboard when no blur zones
+        if (dashboardCheckbox) {
+            dashboardCheckbox.disabled = false;
+            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
+            if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+        }
     }
 }
 
@@ -971,12 +1007,14 @@ export async function checkFFmpegAvailability() {
                 if (startBtn) startBtn.disabled = false;
                 
                 // Dashboard overlay requires GPU - disable checkbox if no GPU
+                // Also keep disabled if blur zones exist
                 if (dashboardCheckbox) {
-                    if (!result.gpu) {
+                    const hasBlurZones = exportState.blurZones.length > 0;
+                    if (!result.gpu || hasBlurZones) {
                         dashboardCheckbox.disabled = true;
                         dashboardCheckbox.checked = false;
                         if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-                        if (dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
+                        if (!result.gpu && dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
                     } else {
                         dashboardCheckbox.disabled = false;
                         if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
