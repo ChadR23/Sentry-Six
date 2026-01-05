@@ -182,9 +182,15 @@ export async function handleGlobalKeydown(e) {
         return;
     }
     
-    // Check if we're in an input field (don't trigger keybinds)
+    // Check if we're in a text input field (don't trigger keybinds)
+    // Allow keybinds for range sliders (e.g., progress bar) since they're not text entry
     const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+    const isTextInput = activeEl && (
+        (activeEl.tagName === 'INPUT' && activeEl.type !== 'range') ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable
+    );
+    if (isTextInput) {
         return;
     }
     
