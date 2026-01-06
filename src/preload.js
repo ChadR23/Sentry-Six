@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   uploadSupportMedia: (data) => ipcRenderer.invoke('support:uploadMedia', data),
   fetchSupportMessages: (data) => ipcRenderer.invoke('support:fetchMessages', data),
   closeSupportTicket: (data) => ipcRenderer.invoke('support:closeTicket', data),
+  markSupportRead: (data) => ipcRenderer.invoke('support:markRead', data),
   
   // Event listeners
   on: (channel, callback) => {

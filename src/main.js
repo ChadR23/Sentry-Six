@@ -2772,7 +2772,7 @@ function ensureDiagnosticsDir() {
 }
 
 // Support server configuration
-const SUPPORT_SERVER_URL = 'http://51.79.71.202:3847';
+const SUPPORT_SERVER_URL = 'https://api.sentry-six.com';
 
 // Upload diagnostics to support server (no auth required for upload)
 ipcMain.handle('diagnostics:upload', async (_event, _unused, diagnostics) => {
@@ -3057,6 +3057,21 @@ ipcMain.handle('support:closeTicket', async (_event, data) => {
     return result;
   } catch (err) {
     console.error('[SUPPORT] Close ticket failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Mark support messages as read (triggers Discord :eyes: reaction)
+ipcMain.handle('support:markRead', async (_event, data) => {
+  try {
+    const { ticketId, authToken } = data;
+    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/mark-read`, null, authToken);
+    if (result.markedRead > 0) {
+      console.log(`[SUPPORT] Marked ${result.markedRead} messages as read for ticket: ${ticketId}`);
+    }
+    return result;
+  } catch (err) {
+    console.error('[SUPPORT] Mark read failed:', err.message);
     return { success: false, error: err.message };
   }
 });

@@ -1,21 +1,37 @@
 {
   "versions": [
     {
-      "version": "2026.1.40",
+      "version": "2026.1.41",
       "date": "2026-01-06",
-      "title": "Feature Release",
+      "title": "New Features & Bug Fixes",
       "changes": [
         {
           "type": "feature",
+<<<<<<< HEAD
           "description": "Added Compact SEI Dashboard to Export. you can now choose from default and Compact. Also Added Time Stamp"
+=======
+          "description": "Added a new Compact Dashboard option to Export. You can now choose between default and Compact."
+        },
+        {
+          "type": "feature",
+          "description": "Check out our new website at https://sentry-six.com"
+>>>>>>> Dev-SEI
         },
         {
           "type": "fix",
-          "description": "Fixed UI being able to be resized to small sized. Added Size min."
+          "description": "Fixed Compact Dashboard UI being able to be resized to small sized. Added a minimum size."
         },
         {
           "type": "improvement",
+<<<<<<< HEAD
           "description": "Added Time Stamp to Compact UI."
+=======
+          "description": "Added timestamp to Compact Dashboard UI."
+        },
+        {
+          "type": "improvement",
+          "description": "Improved the support chat system. (You must update for the Support Chat system to work if you're on a old version.)"
+>>>>>>> Dev-SEI
         }
       ]
     },
