@@ -19,7 +19,7 @@ let unreadCount = 0; // Track cumulative unread messages
 const MAX_ATTACHMENT_SIZE = 500 * 1024 * 1024; // 500MB
 const MAX_TOTAL_SIZE = 550 * 1024 * 1024; // 550MB total with overhead
 const POLL_INTERVAL = 10000; // 10 seconds
-const SUPPORT_SERVER_URL = 'http://localhost:3847'; // Must match main.js
+const SUPPORT_SERVER_URL = 'https://api.sentry-six.com'; // Must match main.js
 
 /**
  * Initialize the support chat system
@@ -56,8 +56,10 @@ export function showSupportChat() {
     panel.classList.remove('hidden');
     panel.classList.add('visible');
     
-    // Clear unread count when chat is opened
+    // Clear unread count, dismiss notification, and mark messages as read when chat is opened
     clearUnreadCount();
+    dismissSupportNotification();
+    markMessagesAsRead();
 }
 
 /**
@@ -545,6 +547,9 @@ function addMessageToUI(msg) {
     const messagesContainer = $('supportChatMessages');
     const welcome = $('supportChatWelcome');
     
+    // Skip if panel hasn't been created yet (messages will be loaded when panel opens)
+    if (!messagesContainer || !welcome) return;
+    
     // Hide welcome message
     welcome.classList.add('hidden');
     
@@ -598,13 +603,29 @@ function addMessageToUI(msg) {
             ${badgesHtml}
         </div>
         <div class="message-meta">
-            <span class="message-sender">${msg.sender === 'user' ? 'You' : 'Support'}</span>
+            <span class="message-sender">${msg.sender === 'user' ? 'You' : (msg.responder || 'Support')}</span>
             <span class="message-time">${time}</span>
         </div>
     `;
     
     messagesContainer.appendChild(msgEl);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+/**
+ * Mark support messages as read (triggers Discord :eyes: reaction)
+ */
+async function markMessagesAsRead() {
+    if (!currentTicket) return;
+    
+    try {
+        await window.electronAPI.markSupportRead({
+            ticketId: currentTicket.ticketId,
+            authToken: currentTicket.authToken
+        });
+    } catch (err) {
+        console.error('[SupportChat] Mark read error:', err);
+    }
 }
 
 /**
@@ -621,9 +642,28 @@ async function fetchMessages() {
         });
         
         if (result.success && result.messages) {
+            // Check panel visibility BEFORE processing
+            const panel = $('supportChatPanel');
+            const isPanelVisible = panel && panel.classList.contains('visible');
+            
+            // Count unread support messages BEFORE marking as read
+            const unreadSupportMsgs = result.messages.filter(m => m.sender === 'support' && m.read === false);
+            
+            // Add messages to UI (only update lastMessageId if panel exists)
+            const messagesContainer = $('supportChatMessages');
             for (const msg of result.messages) {
                 addMessageToUI(msg);
-                if (msg.id) lastMessageId = msg.id;
+                // Only track lastMessageId if messages were actually added to UI
+                if (msg.id && messagesContainer) lastMessageId = msg.id;
+            }
+            
+            // Only mark messages as read if panel is visible
+            if (isPanelVisible) {
+                markMessagesAsRead();
+            } else if (unreadSupportMsgs.length > 0) {
+                // Show notification for new unread support messages when panel is hidden
+                unreadCount += unreadSupportMsgs.length;
+                showNewMessageNotification(unreadCount);
             }
             
             // Check if ticket was closed (by support)
@@ -636,14 +676,6 @@ async function fetchMessages() {
                 }
                 showClosedTicketUI();
                 return;
-            }
-            
-            // Show notification for new support messages if panel is hidden
-            const panel = $('supportChatPanel');
-            const newSupportMsgs = result.messages.filter(m => m.sender === 'support');
-            if (newSupportMsgs.length > 0 && (!panel || !panel.classList.contains('visible'))) {
-                unreadCount += newSupportMsgs.length;
-                showNewMessageNotification(unreadCount);
             }
         }
     } catch (err) {
@@ -676,52 +708,45 @@ function stopMessagePolling() {
 }
 
 /**
- * Show new message notification
+ * Show new message notification popup (persistent until dismissed or chat opened)
  */
+let supportNotificationId = null;
+
 function showNewMessageNotification(count) {
-    // Update badge on support button
-    let badge = $('supportChatNotifBadge');
-    if (!badge) {
-        const btn = $('supportChatBtn');
-        if (btn) {
-            badge = document.createElement('span');
-            badge.id = 'supportChatNotifBadge';
-            badge.className = 'notif-badge';
-            btn.appendChild(badge);
-        }
-    }
+    // Remove existing notification if any
+    dismissSupportNotification();
     
-    if (badge) {
-        badge.textContent = count > 9 ? '9+' : count;
-        badge.classList.remove('hidden');
-        
-        // Add pulse animation
-        badge.classList.remove('pulse');
-        void badge.offsetWidth; // Trigger reflow to restart animation
-        badge.classList.add('pulse');
-    }
-    
-    // Show toast notification
-    notify(`New support response received`, { 
+    // Create persistent notification with X button
+    supportNotificationId = notify(`📩 ${count} new support message${count > 1 ? 's' : ''} received`, { 
         type: 'info', 
-        timeoutMs: 5000,
+        timeoutMs: 0, // Persistent - no auto-dismiss
+        dismissible: true, // Shows X button
         action: {
-            label: 'View',
-            callback: showSupportChat
+            label: 'Open Chat',
+            callback: () => {
+                showSupportChat();
+                dismissSupportNotification();
+            }
         }
     });
 }
 
 /**
- * Clear unread count and hide badge
+ * Dismiss the support notification
+ */
+function dismissSupportNotification() {
+    if (supportNotificationId) {
+        const notif = document.querySelector(`[data-notif-id="${supportNotificationId}"]`);
+        if (notif) notif.remove();
+        supportNotificationId = null;
+    }
+}
+
+/**
+ * Clear unread count
  */
 function clearUnreadCount() {
     unreadCount = 0;
-    const badge = $('supportChatNotifBadge');
-    if (badge) {
-        badge.classList.add('hidden');
-        badge.classList.remove('pulse');
-    }
 }
 
 /**
