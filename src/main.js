@@ -1697,8 +1697,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cmd.push('-g', (FPS * 2).toString());
       } else if (activeEncoder.codec === 'h264_qsv' || activeEncoder.codec === 'hevc_qsv') {
         // Intel QuickSync: CQP mode
+        // QSV uses x264-style presets: veryfast, faster, fast, medium, slow, slower, veryslow
+        // (NOT "balanced" which is AMD AMF only)
         const qsvQp = Math.max(18, Math.min(46, crf));
-        cmd.push('-preset', 'balanced');
+        cmd.push('-preset', 'medium');
         cmd.push('-global_quality', qsvQp.toString());
         cmd.push('-g', (FPS * 2).toString());
       } else {
