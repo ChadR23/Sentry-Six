@@ -7,15 +7,11 @@
       "changes": [
         {
           "type": "feature",
-<<<<<<< HEAD
-          "description": "Added Compact SEI Dashboard to Export. you can now choose from default and Compact. Also Added Time Stamp"
-=======
           "description": "Added a new Compact Dashboard option to Export. You can now choose between default and Compact."
         },
         {
           "type": "feature",
           "description": "Check out our new website at https://sentry-six.com"
->>>>>>> Dev-SEI
         },
         {
           "type": "fix",
@@ -23,15 +19,11 @@
         },
         {
           "type": "improvement",
-<<<<<<< HEAD
-          "description": "Added Time Stamp to Compact UI."
-=======
           "description": "Added timestamp to Compact Dashboard UI."
         },
         {
           "type": "improvement",
           "description": "Improved the support chat system. (You must update for the Support Chat system to work if you're on a old version.)"
->>>>>>> Dev-SEI
         }
       ]
     },
