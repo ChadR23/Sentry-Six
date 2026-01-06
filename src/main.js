@@ -1421,8 +1421,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             // Split the camera stream into two copies
             filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             
-            // Scale mask to grayscale for masking
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
+            // Scale mask to grayscale for masking, then convert to yuv420p to match video format
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuv420p[mask_gray_${cam}]`);
             
             // Apply strong blur to one copy
             filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
