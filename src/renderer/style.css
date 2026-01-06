@@ -1035,6 +1035,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     /* Match font-size from fixed state to ensure consistent text sizing */
     font-size: clamp(10px, 1.2vh, 16px) !important;
     box-sizing: border-box;
+    overflow: hidden !important;
     /* Ensure glass blur effect is applied (inherits from .dashboard-vis but ensure it's not overridden) */
     backdrop-filter: blur(var(--glass-blur)) saturate(100%) !important;
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(100%) !important;
@@ -1162,7 +1163,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     gap: 2px;
     flex-shrink: 0;
     flex-grow: 0;
-    min-width: clamp(70px, 9em, 110px);
+    min-width: clamp(60px, 7.5em, 90px);
 }
 
 /* Recording Time Compact */
