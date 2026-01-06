@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <title>Dashboard Renderer</title>
     <style>
+        :root {
+            --glass-blur: 7px;
+        }
         * {
             margin: 0;
             padding: 0;
@@ -34,8 +37,8 @@
                 rgba(45, 45, 50, 0.25) 0%, 
                 rgba(35, 35, 40, 0.20) 50%,
                 rgba(28, 28, 32, 0.25) 100%);
-            backdrop-filter: blur(7px) saturate(100%);
-            -webkit-backdrop-filter: blur(7px) saturate(100%);
+            backdrop-filter: blur(var(--glass-blur)) saturate(100%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(100%);
             border-radius: 24px;
             border: 1px solid rgba(255, 255, 255, 0.12);
             box-shadow: 
@@ -618,6 +621,16 @@
             const ampm = h >= 12 ? 'PM' : 'AM';
             h = h % 12 || 12;
             return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+        }
+        
+        // Listen for settings updates (glass blur, etc.)
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('dashboard:settings', (event, settings) => {
+                if (settings.glassBlur !== undefined) {
+                    document.documentElement.style.setProperty('--glass-blur', `${settings.glassBlur}px`);
+                    console.log('Dashboard: glass blur set to', settings.glassBlur);
+                }
+            });
         }
         
         // Listen for SEI data updates

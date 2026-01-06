@@ -1111,6 +1111,7 @@ export async function startExport() {
         }
     }
     
+    const dashboardStyle = $('dashboardStyle')?.value || 'standard';
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
     
@@ -1412,6 +1413,8 @@ export async function startExport() {
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
+            glassBlur: parseInt(document.documentElement.style.getPropertyValue('--glass-blur') || '7', 10), // Glass blur setting
+            dashboardStyle, // Style: standard (full layout) or compact (streamlined)
             dashboardPosition, // Position: bottom-center, bottom-left, bottom-right, top-center, etc.
             dashboardSize, // Size: small (20%), medium (30%), large (40%)
             // Timestamp-only option (independent of dashboard, uses simple drawtext filter)

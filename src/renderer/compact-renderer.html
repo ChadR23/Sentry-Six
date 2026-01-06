@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Compact Dashboard Renderer</title>
+    <style>
+        :root {
+            --glass-blur: 12px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html {
+            font-size: 16px;
+            overflow: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        html::-webkit-scrollbar {
+            display: none;
+        }
+        body {
+            background: transparent;
+            overflow: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            width: 500px;
+            height: 76px;
+            transform-origin: top left;
+            transform: scale(var(--scale-x, 1), var(--scale-y, 1));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body::-webkit-scrollbar {
+            display: none;
+        }
+        #dashboardVis {
+            width: 480px;
+            height: 56px;
+            background: linear-gradient(180deg, 
+                rgba(45, 45, 50, 0.85) 0%, 
+                rgba(35, 35, 40, 0.90) 50%,
+                rgba(28, 28, 32, 0.85) 100%);
+            backdrop-filter: blur(var(--glass-blur)) saturate(100%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(100%);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            font-size: clamp(10px, 1.2vh, 16px);
+            flex-shrink: 0;
+        }
+        .vis-content-compact {
+            display: flex;
+            align-items: center;
+            justify-content: space-evenly;
+            gap: clamp(4px, 0.8%, 12px);
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 0;
+            margin: 0;
+        }
+        /* Brake Icon Compact */
+        .brake-icon-compact {
+            width: clamp(18px, 2.5em, 28px);
+            height: clamp(18px, 2.5em, 28px);
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+        .brake-icon-compact.active {
+            filter: brightness(0) saturate(100%) invert(10%) sepia(100%) saturate(7471%) hue-rotate(349deg) brightness(98%) contrast(98%);
+            opacity: 1;
+        }
+        /* Gear State Compact */
+        .gear-state-compact {
+            font-size: clamp(11px, 1.2em, 18px);
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: color 0.3s ease;
+            white-space: nowrap;
+            min-width: clamp(35px, 4.5em, 55px);
+            text-align: center;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+        .gear-state-compact.active {
+            color: #0048ff;
+        }
+        /* Turn Signal Compact */
+        .turn-signal-compact {
+            width: clamp(20px, 2.6em, 32px);
+            height: clamp(20px, 2.6em, 32px);
+            color: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+        .turn-signal-compact svg {
+            width: clamp(16px, 2.1em, 28px);
+            height: clamp(16px, 2.1em, 28px);
+        }
+        .turn-signal-compact.active {
+            color: #22c55e;
+            filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
+        }
+        /* Speed Display Compact */
+        .speed-display-compact {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(3px, 0.4em, 6px);
+            min-width: clamp(60px, 7.5em, 90px);
+            flex-shrink: 0;
+            flex-grow: 0;
+            height: 100%;
+        }
+        .speed-value-compact {
+            font-size: clamp(16px, 2.2em, 28px);
+            font-weight: 300;
+            line-height: 1;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+            display: flex;
+            align-items: center;
+        }
+        .speed-unit-compact {
+            font-size: clamp(10px, 1.1em, 16px);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            line-height: 1;
+        }
+        /* Autopilot Label Compact */
+        .autopilot-label-compact {
+            font-size: clamp(10px, 1.2em, 16px);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            min-width: clamp(60px, 7.5em, 95px);
+            text-align: center;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+        .autopilot-label-compact.active {
+            color: #0048ff;
+            text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
+        }
+        /* Steering Wheel Compact */
+        .steering-wrapper-compact {
+            width: clamp(46px, 6em, 66px);
+            height: clamp(46px, 6em, 66px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            will-change: transform;
+            flex-shrink: 0;
+            flex-grow: 0;
+            transform-origin: center center;
+        }
+        .autosteer-icon-compact {
+            width: clamp(42px, 5.5em, 62px);
+            height: clamp(42px, 5.5em, 62px);
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+        }
+        .autosteer-icon-compact.active {
+            filter: none;
+            opacity: 1;
+            filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
+        }
+        /* Accelerator Icon Compact */
+        .accel-pedal-container-compact {
+            width: clamp(18px, 2.5em, 28px);
+            height: clamp(18px, 2.5em, 28px);
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+        .accel-icon-compact {
+            width: clamp(18px, 2.5em, 28px);
+            height: clamp(18px, 2.5em, 28px);
+            object-fit: contain;
+            filter: grayscale(100%) brightness(0.6);
+            opacity: 0.5;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+        }
+        .accel-pedal-container-compact.active .accel-icon-compact {
+            filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboardVis" class="dashboard-vis dashboard-vis-compact">
+        <div class="vis-content-compact">
+            <!-- Brake Icon -->
+            <img src="../../assets/pedal_brake.png" class="brake-icon-compact" id="brakeIconCompact" alt="Brake">
+            
+            <!-- Gear State -->
+            <div class="gear-state-compact" id="gearStateCompact">--</div>
+            
+            <!-- Left Blinker -->
+            <div class="turn-signal-compact left" id="blinkLeftCompact">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 5l-7 7 7 7"/>
+                </svg>
+            </div>
+            
+            <!-- Speed Display -->
+            <div class="speed-display-compact">
+                <div class="speed-value-compact" id="speedValueCompact">0</div>
+                <div class="speed-unit-compact" id="speedUnitCompact">MPH</div>
+            </div>
+            
+            <!-- Autopilot Label -->
+            <div class="autopilot-label-compact" id="apTextCompact">Manual</div>
+            
+            <!-- Right Blinker -->
+            <div class="turn-signal-compact right" id="blinkRightCompact">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </div>
+            
+            <!-- Steering Wheel -->
+            <div class="steering-wrapper-compact" id="steeringIconCompact">
+                <img src="../../assets/autosteer-icon.png" class="autosteer-icon-compact" id="autosteerIconCompact" alt="Autosteer">
+            </div>
+            
+            <!-- Accelerator Icon -->
+            <div class="accel-pedal-container-compact" id="accelPedalCompact">
+                <img src="../../assets/pedal_acc.png" class="accel-icon-compact" alt="Accelerator">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Base dashboard dimensions (must match main.js constants for compact style)
+        // Body is 500x76 to provide padding for rounded corners
+        const BASE_WIDTH = 500;
+        const BASE_HEIGHT = 76;
+        
+        // Calculate and apply scale based on window size
+        function applyScale() {
+            const scaleX = window.innerWidth / BASE_WIDTH;
+            const scaleY = window.innerHeight / BASE_HEIGHT;
+            document.body.style.setProperty('--scale-x', scaleX);
+            document.body.style.setProperty('--scale-y', scaleY);
+        }
+        
+        // Apply scale on load and resize
+        applyScale();
+        window.addEventListener('resize', applyScale);
+        
+        let ipcRenderer;
+        try {
+            if (typeof require !== 'undefined') {
+                ipcRenderer = require('electron').ipcRenderer;
+            } else if (window.electronAPI) {
+                ipcRenderer = {
+                    send: () => {},
+                    on: () => {}
+                };
+            }
+        } catch (err) {
+            ipcRenderer = {
+                send: () => {},
+                on: () => {}
+            };
+        }
+        
+        const MPS_TO_MPH = 2.23694;
+        const MPS_TO_KMH = 3.6;
+        let currentUseMetric = false;
+        
+        function updateVisualization(sei, frameNumber = 0, useMetric = false) {
+            currentUseMetric = useMetric;
+            if (!sei) return;
+            
+            const get = (camel, snake) => sei[camel] ?? sei[snake];
+            
+            // Speed
+            const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+            const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
+            document.getElementById('speedValueCompact').textContent = speed;
+            document.getElementById('speedUnitCompact').textContent = useMetric ? 'KM/H' : 'MPH';
+            
+            // Gear
+            const gear = get('gearState', 'gear_state');
+            let gearText = '--';
+            if (gear === 0) gearText = 'PARK';
+            else if (gear === 1) gearText = 'DRIVE';
+            else if (gear === 2) gearText = 'REVERSE';
+            else if (gear === 3) gearText = 'NEUTRAL';
+            document.getElementById('gearStateCompact').textContent = gearText;
+            
+            // Blinkers
+            const blinkLeft = document.getElementById('blinkLeftCompact');
+            const blinkRight = document.getElementById('blinkRightCompact');
+            const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+            const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+            
+            // Frame-based blinker animation: 0.8s cycle at 36fps = 29 frames
+            const frameNum = frameNumber ?? 0;
+            const framesPerCycle = 29;
+            const frameInCycle = frameNum % framesPerCycle;
+            const isBlinkOn = frameInCycle < Math.floor(framesPerCycle / 2);
+            
+            if (blinkLeft) {
+                const shouldShow = leftBlinkerOn && isBlinkOn;
+                blinkLeft.classList.toggle('active', shouldShow);
+            }
+            if (blinkRight) {
+                const shouldShow = rightBlinkerOn && isBlinkOn;
+                blinkRight.classList.toggle('active', shouldShow);
+            }
+            
+            // Autopilot
+            const apState = get('autopilotState', 'autopilot_state');
+            const isActive = apState === 1 || apState === 2;
+            const apText = document.getElementById('apTextCompact');
+            const gearState = document.getElementById('gearStateCompact');
+            
+            if (apText) {
+                apText.classList.toggle('active', isActive);
+                if (apState === 1) {
+                    apText.textContent = 'Self Driving';
+                } else if (apState === 2) {
+                    apText.textContent = 'Autosteer';
+                } else if (apState === 3) {
+                    apText.textContent = 'TACC';
+                } else {
+                    apText.textContent = 'Manual';
+                }
+            }
+            
+            if (gearState) {
+                gearState.classList.toggle('active', isActive);
+            }
+            
+            // Brake
+            const brakeState = get('brakeApplied', 'brake_applied');
+            const isAutoHold = gear === 1 && mps < 0.01;
+            const brakeIcon = document.getElementById('brakeIconCompact');
+            if (brakeIcon) {
+                brakeIcon.classList.toggle('active', !!brakeState || isAutoHold);
+            }
+            
+            // Accelerator
+            const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+            const isAccelPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
+            const accelPedal = document.getElementById('accelPedalCompact');
+            if (accelPedal) {
+                accelPedal.classList.toggle('active', isAccelPressed);
+            }
+            
+            // Steering wheel / Autosteer icon
+            const autosteerIcon = document.getElementById('autosteerIconCompact');
+            if (autosteerIcon) {
+                autosteerIcon.classList.toggle('active', isActive);
+            }
+            
+            // Steering angle rotation
+            const steeringAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
+            const steeringWrapper = document.getElementById('steeringIconCompact');
+            if (steeringWrapper) {
+                steeringWrapper.style.transform = `rotate(${steeringAngle}deg)`;
+            }
+        }
+        
+        let isReady = false;
+        
+        // Signal ready when loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            applyScale();
+            isReady = true;
+            if (ipcRenderer?.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        });
+        
+        setTimeout(() => {
+            if (isReady && ipcRenderer?.send) {
+                ipcRenderer.send('dashboard:ready');
+            }
+        }, 100);
+        
+        // Format timestamp to 12-hour time display
+        function formatTimestamp(timestampMs) {
+            if (!timestampMs) return '--:--';
+            const date = new Date(timestampMs);
+            let h = date.getHours();
+            const m = date.getMinutes();
+            const s = date.getSeconds();
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+        }
+        
+        // Listen for settings updates (glass blur, etc.)
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('dashboard:settings', (event, settings) => {
+                if (settings.glassBlur !== undefined) {
+                    document.documentElement.style.setProperty('--glass-blur', `${settings.glassBlur}px`);
+                    console.log('Compact Dashboard: glass blur set to', settings.glassBlur);
+                }
+            });
+        }
+        
+        // Listen for SEI data updates (same IPC message as standard dashboard)
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('dashboard:update', (event, sei, frameNumber, useMetric, timestampMs) => {
+                if (sei) {
+                    console.log('Compact Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber);
+                }
+                updateVisualization(sei, frameNumber, useMetric);
+                
+                // Force a reflow to ensure DOM updates are rendered
+                void document.body.offsetHeight;
+                
+                // Use requestAnimationFrame to ensure browser has painted the changes
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (isReady && ipcRenderer && ipcRenderer.send) {
+                            ipcRenderer.send('dashboard:ready');
+                        }
+                    });
+                });
+            });
+        }
+    </script>
+</body>
+</html>

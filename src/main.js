@@ -595,7 +595,8 @@ function convertVideoTimeToTimestamp(videoTimeMs, segments, cumStarts) {
 }
 
 // Create a hidden BrowserWindow for dashboard rendering
-async function createDashboardRenderer(dashboardWidth, dashboardHeight) {
+// style: 'standard' (default) or 'compact'
+async function createDashboardRenderer(dashboardWidth, dashboardHeight, style = 'standard') {
   return new Promise((resolve, reject) => {
     const dashboardWindow = new BrowserWindow({
       width: dashboardWidth,
@@ -610,11 +611,14 @@ async function createDashboardRenderer(dashboardWidth, dashboardHeight) {
       }
     });
     
+    // Select template based on style
+    const templateFile = style === 'compact' ? 'compact-renderer.html' : 'dashboard-renderer.html';
+    
     // Try multiple possible paths for the dashboard renderer
     const possiblePaths = [
-      path.join(__dirname, 'renderer', 'dashboard-renderer.html'),
-      path.join(app.getAppPath(), 'src', 'renderer', 'dashboard-renderer.html'),
-      path.join(process.resourcesPath || __dirname, 'src', 'renderer', 'dashboard-renderer.html')
+      path.join(__dirname, 'renderer', templateFile),
+      path.join(app.getAppPath(), 'src', 'renderer', templateFile),
+      path.join(process.resourcesPath || __dirname, 'src', 'renderer', templateFile)
     ];
     
     let dashboardPath = null;
@@ -692,12 +696,15 @@ ipcMain.on('dashboard:ready', (event) => {
 });
 
 // Base dashboard dimensions (reference for scaling)
-const BASE_DASHBOARD_WIDTH = 600;
-const BASE_DASHBOARD_HEIGHT = 250;
-const DASHBOARD_ASPECT_RATIO = BASE_DASHBOARD_WIDTH / BASE_DASHBOARD_HEIGHT; // 2.4:1
+// Standard style: 600x250 (2.4:1 aspect ratio)
+// Compact style: 500x76 (includes padding for rounded corners, actual dashboard is 480x56)
+const DASHBOARD_DIMENSIONS = {
+  standard: { width: 600, height: 250 },
+  compact: { width: 500, height: 76 }
+};
 
-// Calculate dashboard size based on output video dimensions and size preference
-function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium') {
+// Calculate dashboard size based on output video dimensions, size preference, and style
+function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium', style = 'standard') {
   // Size options: small (20%), medium (30%), large (40%)
   const sizeMultipliers = {
     'small': 0.20,
@@ -706,8 +713,12 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
   const multiplier = sizeMultipliers[sizeOption] || 0.30;
   
+  // Get base dimensions for the selected style
+  const baseDims = DASHBOARD_DIMENSIONS[style] || DASHBOARD_DIMENSIONS.standard;
+  const aspectRatio = baseDims.width / baseDims.height;
+  
   const targetWidth = Math.round(outputWidth * multiplier);
-  const targetHeight = Math.round(targetWidth / DASHBOARD_ASPECT_RATIO);
+  const targetHeight = Math.round(targetWidth / aspectRatio);
   // Ensure even dimensions (required for video encoding)
   return {
     width: targetWidth + (targetWidth % 2),
@@ -813,7 +824,9 @@ function imageToRGBA(image, width, height, outputBuffer) {
 }
 
 // Pre-render dashboard to temp video (prevents memory leak)
-async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress, segments, cumStarts) {
+// style: 'standard' (default) or 'compact'
+// glassBlur: blur intensity for glass effect (default 7)
+async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress, segments, cumStarts, style = 'standard', glassBlur = 7) {
   const FPS = 36;
   const totalFrames = Math.ceil(durationSec * FPS);
   const frameTimeMs = 1000 / FPS;
@@ -823,11 +836,14 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
   // Use .mov container with qtrle codec for proper RGBA alpha support
   const tempDashPath = path.join(os.tmpdir(), `dashboard_${exportId}_${Date.now()}.mov`);
   
-  console.log(`[DASHBOARD] Pre-rendering ${totalFrames} frames to ${tempDashPath}`);
+  console.log(`[DASHBOARD] Pre-rendering ${totalFrames} frames (style: ${style}, glassBlur: ${glassBlur}) to ${tempDashPath}`);
   sendDashboardProgress(0, 'Pre-rendering dashboard overlay...');
   
-  // Create dashboard renderer window
-  const dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight);
+  // Create dashboard renderer window with the selected style
+  const dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight, style);
+  
+  // Send glass blur setting to the dashboard renderer
+  dashboardWindow.webContents.send('dashboard:settings', { glassBlur });
   
   try {
     // Spawn FFmpeg to encode dashboard frames to temp video
@@ -966,7 +982,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid' } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid' } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -1195,8 +1211,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         // Dashboard input index: after black source (and base canvas if custom layout)
         const dashboardInputIdx = baseInputIdx !== null ? baseInputIdx + 1 : inputs.length + 1;
         
-        // Calculate dashboard size based on output resolution and user's size preference
-        const dashboardSizeCalc = calculateDashboardSize(totalW, totalH, dashboardSize);
+        // Calculate dashboard size based on output resolution, user's size preference, and style
+        const dashboardSizeCalc = calculateDashboardSize(totalW, totalH, dashboardSize, dashboardStyle);
         const dashboardWidth = dashboardSizeCalc.width;
         const dashboardHeight = dashboardSizeCalc.height;
         
@@ -1219,7 +1235,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             dashboardTempPath = await preRenderDashboard(
               event, exportId, ffmpegPath, seiData, startTimeMs, durationSec,
               dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress,
-              segments, cumStarts
+              segments, cumStarts, dashboardStyle, glassBlur
             );
             tempFiles.push(dashboardTempPath);
             useDashboard = true;
