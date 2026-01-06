@@ -1,8 +1,27 @@
 {
   "versions": [
     {
+      "version": "2026.1.40",
+      "date": "2026-01-06",
+      "title": "Feature Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added Compact SEI Dashboard to Export. you can now choose from default and Compact. Also Added Time Stamp"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed UI being able to be resized to small sized. Added Size min."
+        },
+        {
+          "type": "improvement",
+          "description": "Added Time Stamp to Compact UI."
+        }
+      ]
+    },
+    {
       "version": "2026.1.39",
-      "date": "2026-01-05",
+      "date": "2026-01-06",
       "title": "Overall UI Improvements & Fixes",
       "changes": [
         {

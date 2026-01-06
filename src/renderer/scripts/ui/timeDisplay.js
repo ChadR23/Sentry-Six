@@ -50,7 +50,8 @@ export function updateTimeDisplayNew(currentSec, totalSec) {
 export function updateRecordingTime(opts) {
     const { collection, segIdx, videoCurrentTime } = opts;
     const timeText = document.getElementById('recordingTimeText');
-    if (!timeText) return;
+    const timeTextCompact = document.getElementById('recordingTimeTextCompact');
+    if (!timeText && !timeTextCompact) return;
     
     try {
         const group = collection?.groups?.[segIdx];
@@ -81,7 +82,9 @@ export function updateRecordingTime(opts) {
             
             const ampm = h >= 12 ? 'PM' : 'AM';
             const h12 = h % 12 || 12;
-            timeText.textContent = `${h12}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+            const formattedTime = `${h12}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+            if (timeText) timeText.textContent = formattedTime;
+            if (timeTextCompact) timeTextCompact.textContent = formattedTime;
         }
     } catch (e) {
         console.warn('updateRecordingTime error:', e);

@@ -153,17 +153,36 @@
             align-items: center;
             line-height: 1;
         }
+        /* Autopilot Section Compact (Time + Label stacked) */
+        .autopilot-section-compact {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            flex-shrink: 0;
+            flex-grow: 0;
+            min-width: clamp(70px, 9em, 110px);
+        }
+        /* Recording Time Compact */
+        .recording-time-compact {
+            font-size: clamp(9px, 1em, 14px);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
         /* Autopilot Label Compact */
         .autopilot-label-compact {
-            font-size: clamp(10px, 1.2em, 16px);
+            font-size: clamp(9px, 1em, 14px);
             font-weight: 500;
             color: rgba(255, 255, 255, 0.5);
             transition: all 0.3s ease;
             white-space: nowrap;
-            min-width: clamp(60px, 7.5em, 95px);
             text-align: center;
-            flex-shrink: 0;
-            flex-grow: 0;
+            line-height: 1;
         }
         .autopilot-label-compact.active {
             color: #0048ff;
@@ -237,8 +256,13 @@
                 <div class="speed-unit-compact" id="speedUnitCompact">MPH</div>
             </div>
             
-            <!-- Autopilot Label -->
-            <div class="autopilot-label-compact" id="apTextCompact">Manual</div>
+            <!-- Autopilot Section with Time -->
+            <div class="autopilot-section-compact">
+                <div class="recording-time-compact" id="recordingTimeCompact">
+                    <span id="recordingTimeTextCompact">--:--</span>
+                </div>
+                <div class="autopilot-label-compact" id="apTextCompact">Manual</div>
+            </div>
             
             <!-- Right Blinker -->
             <div class="turn-signal-compact right" id="blinkRightCompact">
@@ -439,6 +463,12 @@
                     console.log('Compact Dashboard received SEI update, speed:', sei.vehicleSpeedMps ?? sei.vehicle_speed_mps, 'frame:', frameNumber);
                 }
                 updateVisualization(sei, frameNumber, useMetric);
+                
+                // Update time display
+                const timeTextCompact = document.getElementById('recordingTimeTextCompact');
+                if (timeTextCompact && timestampMs) {
+                    timeTextCompact.textContent = formatTimestamp(timestampMs);
+                }
                 
                 // Force a reflow to ensure DOM updates are rendered
                 void document.body.offsetHeight;
