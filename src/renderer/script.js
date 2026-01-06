@@ -356,9 +356,10 @@ function showEventJsonLocation(coll) {
 function formatEventReason(reason) {
     const reasonMap = {
         'sentry_aware_object_detection': 'Object Detected',
-        'vehicle_auto_emergency_braking': 'Auto Emergency Braking',
+        'vehicle_auto_emergency_braking': 'Automatic Emergency Braking',
         'user_interaction_dashcam_icon_tapped': 'Manual Save',
         'user_interaction_dashcam_panel_save': 'Manual Save',
+        'user_interaction_dashcam_launcher_action_tapped': 'Manual Save',
         'user_interaction_honk': 'Honk Triggered',
         'sentry_aware_accel': 'Acceleration Detected',
         'collision': 'Collision Detected',

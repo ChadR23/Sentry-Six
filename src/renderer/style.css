@@ -1840,6 +1840,38 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .toast.toast--info  .dot { background: rgba(62, 156, 191, 0.95); }
 .toast.toast--success .dot { background: rgba(76, 175, 80, 0.95); }
 
+.toast-action {
+    background: rgba(62, 156, 191, 0.3);
+    border: 1px solid rgba(62, 156, 191, 0.5);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: auto;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+}
+.toast-action:hover {
+    background: rgba(62, 156, 191, 0.5);
+}
+
+.toast-dismiss {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    margin-left: 4px;
+    transition: color 0.15s ease;
+}
+.toast-dismiss:hover {
+    color: rgba(255, 255, 255, 0.9);
+}
+
 /* Floating Export Progress Notification */
 .export-floating-progress {
     position: fixed;
@@ -5559,6 +5591,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: center;
     padding: 0 4px;
     animation: badgePulse 2s infinite;
+    z-index: 100;
+    pointer-events: none;
 }
 
 @keyframes badgePulse {
