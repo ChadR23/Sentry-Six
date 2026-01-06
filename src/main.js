@@ -966,7 +966,7 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [] } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid' } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -1400,19 +1400,36 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const cameraW = w + (w % 2);
           const cameraH = h + (h % 2);
           
-          // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
-          filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-          
-          // Scale mask and convert to alpha format
-          filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-          
-          // Apply blur to one copy, then apply alpha mask
-          filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-          filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-          
-          // Overlay the blurred+masked region onto the original base
           const blurredStreamTag = `[blurred_${cam}]`;
-          filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+          
+          if (blurType === 'transparent') {
+            // Transparent blur: uses alpha channel for smooth edge blending (slower)
+            // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+            
+            // Scale mask and convert to alpha format
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
+            
+            // Apply blur to one copy, then apply alpha mask
+            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+            
+            // Overlay the blurred+masked region onto the original base
+            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+          } else {
+            // Solid blur (default): direct mask overlay without alpha channel (faster)
+            // Split the camera stream into two copies
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+            
+            // Scale mask to grayscale for masking
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
+            
+            // Apply strong blur to one copy
+            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
+            
+            // Use blend filter with mask: where mask is white, use blurred; where black, use original
+            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+          }
           
           blurStream.tag = blurredStreamTag;
         } catch (err) {
@@ -1507,13 +1524,22 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const cameraW = w + (w % 2);
           const cameraH = h + (h % 2);
           
-          filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-          filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-          filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-          filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-          
           const blurredStreamTag = `[blurred_${cam}]`;
-          filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+          
+          if (blurType === 'transparent') {
+            // Transparent blur: uses alpha channel for smooth edge blending (slower)
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
+            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+          } else {
+            // Solid blur (default): direct mask overlay without alpha channel (faster)
+            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
+            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
+            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+          }
           
           blurStream.tag = blurredStreamTag;
           const streamIndex = streamTags.indexOf(blurCameraStreamTag);

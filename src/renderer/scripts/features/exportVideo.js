@@ -24,7 +24,8 @@ export const exportState = {
     currentProgress: 0,
     blurZones: [], // Array of { coordinates: [{x, y}, ...], camera: string, maskImageBase64, maskWidth, maskHeight }
     blurZoneCamera: null, // Camera being edited
-    blurZoneEditIndex: null // Index of zone being edited (null = new zone)
+    blurZoneEditIndex: null, // Index of zone being edited (null = new zone)
+    blurType: 'solid' // 'solid' (faster) or 'transparent' (blends edges)
 };
 
 // Track if modal listeners have been initialized
@@ -1418,7 +1419,8 @@ export async function startExport() {
             timestampPosition, // Position: bottom-center, bottom-left, etc.
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
             // Blur zone data - filter to only selected cameras, send all zones
-            blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera))
+            blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
+            blurType: $('blurTypeSelect')?.value || 'solid' // 'solid' or 'transparent'
         };
         
         await window.electronAPI.startExport(exportId, exportData);
