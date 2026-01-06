@@ -7,7 +7,7 @@
       "changes": [
         {
           "type": "feature",
-          "description": "Added Compact SEI Dashboard to Export. you can now choose from default and Compact. Also Added Time Stamp"
+          "description": "Added Compact SEI Dashboard to Export. you can now choose from default and Compact. Also Added Time Stamp."
         },
         {
           "type": "fix",
@@ -16,6 +16,14 @@
         {
           "type": "improvement",
           "description": "Added Time Stamp to Compact UI."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed UI bug with Compact getting cut off"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed bug with export Compact having background shadow."
         }
       ]
     },
