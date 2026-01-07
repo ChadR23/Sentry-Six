@@ -7,7 +7,7 @@
       "changes": [
         {
           "type": "fix",
-          "description": "Fixed issue with Mac OS exporting Compact Dashboard with Big assets."
+          "description": "Fixed issue with MacOS exporting Compact Dashboard with Big assets."
         },
         {
           "type": "fix",
@@ -15,23 +15,23 @@
         },
         {
           "type": "fix",
-          "description": "Fixed Bug with Time Showing wrong time by about 1 hr."
+          "description": "Fixed a bug with the time showing wrong by 1 hour during export."
         },
         {
           "type": "fix",
-          "description": "Fixed Issue with MacOS exporting SEI Dashboard not lookin similar to Windows."
+          "description": "Fixed an issue with MacOS exporting SEI Dashboard not looking similar to Windows."
         },
         {
           "type": "improvement",
-          "description": "Swapped around Time, Gear. To give room to add the Date. when exporting"
+          "description": "Swapped positions on export overlay for time & gear. To give room to add the date when exporting."
         },
         {
           "type": "feature",
-          "description": "Added an X-Large (55%) Option for Dashboard Size. This is Due to macOS Retina making Dashboard look smaller then Windows.\nRECOMMENDED SIZE FOR MACOS: Large (45%)"
+          "description": "Added an X-Large (55%) Option for Dashboard Size. This is Due to MacOS Retina making the dashboard look smaller then Windows. We recommend large (45%) for MacOS users."
         },
         {
           "type": "feature",
-          "description": "Added Date to SEI Dashboard when Exporting."
+          "description": "Added date to SEI Dashboard when exporting."
         }
       ]
     },
