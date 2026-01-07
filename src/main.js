@@ -447,11 +447,18 @@ function detectHEVCEncoder(ffmpegPath) {
         }
         
         // Test encoder with realistic test input (like old code used testsrc2)
-        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', 'testsrc2=duration=1:size=320x240:rate=1'];
+        // HEVC VideoToolbox needs larger resolution and specific settings
+        const isHEVC = codec.includes('hevc');
+        const testSize = isHEVC ? '640x480' : '320x240';
+        let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', `testsrc2=duration=1:size=${testSize}:rate=1`];
         
         // Add encoder-specific settings
         if (codec.includes('videotoolbox')) {
-          testArgs.push('-b:v', '2M');
+          // VideoToolbox HEVC needs higher bitrate and may need allow_sw for testing
+          testArgs.push('-b:v', isHEVC ? '5M' : '2M');
+          if (isHEVC) {
+            testArgs.push('-allow_sw', '1'); // Allow software fallback for HEVC test
+          }
         }
         
         testArgs.push('-c:v', codec, '-frames:v', '1', '-f', 'null', '-');
