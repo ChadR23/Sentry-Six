@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
+const { writeCompactDashboardAss, cleanupAssFile } = require('./assGenerator');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
@@ -637,118 +638,13 @@ function convertVideoTimeToTimestamp(videoTimeMs, segments, cumStarts) {
   return null;
 }
 
-// Create a hidden BrowserWindow for dashboard rendering
-// style: 'standard' (default) or 'compact'
-async function createDashboardRenderer(dashboardWidth, dashboardHeight, style = 'standard') {
-  return new Promise((resolve, reject) => {
-    const dashboardWindow = new BrowserWindow({
-      width: dashboardWidth,
-      height: dashboardHeight,
-      show: false,
-      transparent: true,
-      frame: false,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        webSecurity: false
-      }
-    });
-    
-    // Select template based on style
-    const templateFile = style === 'compact' ? 'compact-renderer.html' : 'dashboard-renderer.html';
-    
-    // Try multiple possible paths for the dashboard renderer
-    const possiblePaths = [
-      path.join(__dirname, 'renderer', templateFile),
-      path.join(app.getAppPath(), 'src', 'renderer', templateFile),
-      path.join(process.resourcesPath || __dirname, 'src', 'renderer', templateFile)
-    ];
-    
-    let dashboardPath = null;
-    for (const testPath of possiblePaths) {
-      if (fs.existsSync(testPath)) {
-        dashboardPath = testPath;
-        break;
-      }
-    }
-    
-    if (!dashboardPath) {
-      console.error('Dashboard renderer HTML not found. Tried:', possiblePaths);
-      dashboardWindow.close();
-      reject(new Error('Dashboard renderer HTML file not found'));
-      return;
-    }
-    
-    console.log('Loading dashboard renderer from:', dashboardPath);
-    
-    // Enable console logging for debugging
-    dashboardWindow.webContents.on('console-message', (event, level, message) => {
-      console.log(`[Dashboard Renderer] ${message}`);
-    });
-    
-    // Set up error handlers
-    dashboardWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      if (isMainFrame) {
-        console.error('Dashboard renderer failed to load:', errorCode, errorDescription, validatedURL);
-        clearTimeout(timeout);
-        dashboardWindow.close();
-        reject(new Error(`Failed to load dashboard: ${errorDescription} (code: ${errorCode})`));
-      }
-    });
-    
-    // Wait for window to be ready with timeout
-    const timeout = setTimeout(() => {
-      console.error('Dashboard renderer timeout - taking too long to load');
-      dashboardWindow.close();
-      reject(new Error('Dashboard renderer initialization timeout (10s)'));
-    }, 10000); // 10 second timeout
-    
-    dashboardWindow.webContents.once('did-finish-load', () => {
-      clearTimeout(timeout);
-      console.log('Dashboard renderer loaded successfully');
-      
-      // Wait a bit more for rendering and DOM to be ready, then resolve
-      setTimeout(() => {
-        console.log('Dashboard renderer ready for use');
-        resolve(dashboardWindow);
-      }, 800);
-    });
-    
-    // Load the file
-    console.log('Attempting to load dashboard file:', dashboardPath);
-    dashboardWindow.loadFile(dashboardPath).catch(err => {
-      clearTimeout(timeout);
-      console.error('Error loading dashboard file:', err);
-      dashboardWindow.close();
-      reject(err);
-    });
-  });
-}
-
-// Store active dashboard renderers and their ready callbacks
-const dashboardReadyCallbacks = new Map();
-
-// IPC handler for dashboard ready signals
-ipcMain.on('dashboard:ready', (event) => {
-  const webContentsId = event.sender.id;
-  const callback = dashboardReadyCallbacks.get(webContentsId);
-  if (callback) {
-    dashboardReadyCallbacks.delete(webContentsId);
-    callback();
-  }
-});
-
-// Base dashboard dimensions (reference for scaling)
-// Standard style: 600x250 (2.4:1 aspect ratio)
-// Compact style: 500x76 (includes padding for rounded corners, actual dashboard is 480x56)
+// Dashboard dimensions for compact style (ASS subtitle overlay)
 const DASHBOARD_DIMENSIONS = {
-  standard: { width: 600, height: 250 },
   compact: { width: 500, height: 76 }
 };
 
 // Calculate dashboard size based on output video dimensions, size preference, and style
-function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium', style = 'standard') {
-  // Size options: small (20%), medium (30%), large (40%)
+function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium', style = 'compact') {
   const sizeMultipliers = {
     'small': 0.20,
     'medium': 0.30,
@@ -756,8 +652,7 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
   const multiplier = sizeMultipliers[sizeOption] || 0.30;
   
-  // Get base dimensions for the selected style
-  const baseDims = DASHBOARD_DIMENSIONS[style] || DASHBOARD_DIMENSIONS.standard;
+  const baseDims = DASHBOARD_DIMENSIONS[style] || DASHBOARD_DIMENSIONS.compact;
   const aspectRatio = baseDims.width / baseDims.height;
   
   const targetWidth = Math.round(outputWidth * multiplier);
@@ -767,258 +662,6 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
     width: targetWidth + (targetWidth % 2),
     height: targetHeight + (targetHeight % 2)
   };
-}
-
-async function renderDashboardFrame(dashboardWindow, sei, frameNumber, dashboardWidth, dashboardHeight, useMetric = false, timestampMs = null) {
-  return new Promise((resolve) => {
-    const webContents = dashboardWindow.webContents;
-    const webContentsId = webContents.id;
-    let resolved = false;
-    
-    // IPC callback: dashboard signals ready after DOM updates are painted
-    const onReady = () => {
-      if (resolved) return;
-      resolved = true;
-      // Reduced delay: 16ms (one frame) is sufficient for DOM paint to complete
-      // Previous 100ms was excessive and caused major slowdown
-      setTimeout(() => {
-        webContents.capturePage({
-          x: 0, y: 0,
-          width: dashboardWidth,
-          height: dashboardHeight
-        }).then(image => {
-          resolve(image);
-        }).catch(() => {
-          resolve(null);
-        });
-      }, 16);
-    };
-    
-    dashboardReadyCallbacks.set(webContentsId, onReady);
-    webContents.send('dashboard:update', sei, frameNumber, useMetric, timestampMs);
-    
-    // Fallback timeout if IPC doesn't work (reduced from 1000ms to 200ms)
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        dashboardReadyCallbacks.delete(webContentsId);
-        webContents.capturePage({
-          x: 0, y: 0,
-          width: dashboardWidth,
-          height: dashboardHeight
-        }).then(image => {
-          resolve(image);
-        }).catch(() => resolve(null));
-      }
-    }, 200);
-  });
-}
-
-/**
- * Convert NativeImage to RGBA buffer, reusing provided buffer to prevent memory leaks.
- * IMPORTANT: This function modifies the provided outputBuffer in-place.
- * @param {NativeImage} image - Electron NativeImage from capturePage
- * @param {number} width - Target width
- * @param {number} height - Target height  
- * @param {Buffer} outputBuffer - Pre-allocated buffer to write RGBA data into (must be width*height*4 bytes)
- * @returns {boolean} - true if successful, false if failed
- */
-function imageToRGBA(image, width, height, outputBuffer) {
-  try {
-    const size = image.getSize();
-    let bitmap;
-    
-    if (size.width !== width || size.height !== height) {
-      // Resize creates a new NativeImage - get bitmap then let it be GC'd
-      const resized = image.resize({ width, height });
-      bitmap = resized.toBitmap();
-      // resized will be GC'd when this scope exits
-    } else {
-      bitmap = image.toBitmap();
-    }
-    
-    // NativeImage.toBitmap() returns BGRA on ALL platforms (Windows, macOS, Linux)
-    // FFmpeg rawvideo expects RGBA, so we must swap R and B channels
-    const expectedSize = width * height * 4;
-    
-    if (bitmap.length < expectedSize || outputBuffer.length < expectedSize) {
-      console.warn(`Buffer size mismatch: bitmap=${bitmap.length}, output=${outputBuffer.length}, expected=${expectedSize}`);
-      return false;
-    }
-    
-    // Convert BGRA to RGBA - required on all platforms
-    for (let i = 0; i < expectedSize; i += 4) {
-      outputBuffer[i] = bitmap[i + 2];     // R (from B position)
-      outputBuffer[i + 1] = bitmap[i + 1]; // G
-      outputBuffer[i + 2] = bitmap[i];     // B (from R position)
-      outputBuffer[i + 3] = bitmap[i + 3]; // A
-    }
-    
-    // bitmap buffer will be GC'd when this function returns
-    return true;
-  } catch (err) {
-    console.error('imageToRGBA error:', err.message);
-    return false;
-  }
-}
-
-// Pre-render dashboard to temp video (prevents memory leak)
-// style: 'standard' (default) or 'compact'
-// glassBlur: blur intensity for glass effect (default 7)
-async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTimeMs, durationSec, dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress, segments, cumStarts, style = 'standard', glassBlur = 7) {
-  const FPS = 36;
-  const totalFrames = Math.ceil(durationSec * FPS);
-  const frameTimeMs = 1000 / FPS;
-  const frameSize = dashboardWidth * dashboardHeight * 4;
-  
-  // Create temp file for dashboard video
-  // Use .mov container with qtrle codec for proper RGBA alpha support
-  const tempDashPath = path.join(os.tmpdir(), `dashboard_${exportId}_${Date.now()}.mov`);
-  
-  console.log(`[DASHBOARD] Pre-rendering ${totalFrames} frames (style: ${style}, glassBlur: ${glassBlur}) to ${tempDashPath}`);
-  sendDashboardProgress(0, 'Pre-rendering dashboard overlay...');
-  
-  // Create dashboard renderer window with the selected style
-  const dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight, style);
-  
-  // Send settings (glass blur, accent color) to the dashboard renderer
-  const settings = loadSettings();
-  const dashboardAccentColor = settings.dashboardAccentColor || '#0048ff';
-  dashboardWindow.webContents.send('dashboard:settings', { glassBlur, dashboardAccentColor });
-  
-  try {
-    // Spawn FFmpeg to encode dashboard frames to temp video
-    // Use qtrle (QuickTime Animation) codec which properly supports RGBA with alpha
-    // H.264/libx264 does NOT support alpha channels - transparent areas become black
-    const dashArgs = [
-      '-f', 'rawvideo',
-      '-pixel_format', 'rgba',
-      '-video_size', `${dashboardWidth}x${dashboardHeight}`,
-      '-framerate', FPS.toString(),
-      '-i', 'pipe:0',
-      '-c:v', 'qtrle',        // QuickTime Animation - supports RGBA with alpha
-      '-pix_fmt', 'argb',     // ARGB format for proper alpha
-      '-y',
-      tempDashPath
-    ];
-    console.log(`[DASHBOARD] FFmpeg command: ${ffmpegPath} ${dashArgs.join(' ')}`);
-    console.log(`[DASHBOARD] Temp directory: ${os.tmpdir()}`);
-    
-    const dashProc = spawn(ffmpegPath, dashArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
-    
-    // Consume stdout/stderr to prevent buffer deadlock
-    let ffmpegStderr = '';
-    dashProc.stdout.on('data', () => {}); // Drain stdout
-    dashProc.stderr.on('data', (data) => {
-      ffmpegStderr += data.toString();
-      // Keep only last 2KB to avoid memory issues
-      if (ffmpegStderr.length > 2048) {
-        ffmpegStderr = ffmpegStderr.slice(-2048);
-      }
-    });
-    
-    const dashPipe = dashProc.stdin;
-    
-    // Pre-allocate reusable buffers
-    const blackFrame = Buffer.alloc(frameSize, 0);
-    const frameBuffer = Buffer.alloc(frameSize);
-    
-    // Track drain state for backpressure
-    let drainResolve = null;
-    dashPipe.on('drain', () => {
-      if (drainResolve) {
-        const resolve = drainResolve;
-        drainResolve = null;
-        resolve();
-      }
-    });
-    
-    dashPipe.on('error', (err) => {
-      if (err.code !== 'EPIPE') console.error('Dashboard pipe error:', err.message);
-    });
-    
-    // Render all frames
-    for (let frame = 0; frame < totalFrames; frame++) {
-      // Check for cancellation
-      if (cancelledExports.has(exportId)) {
-        console.log('Dashboard pre-render cancelled');
-        dashPipe.end();
-        dashProc.kill();
-        dashboardWindow.close();
-        try { fs.unlinkSync(tempDashPath); } catch {}
-        throw new Error('Export cancelled');
-      }
-      
-      const currentTimeMs = startTimeMs + (frame * frameTimeMs);
-      const sei = findSeiAtTime(seiData, currentTimeMs);
-      
-      // Convert video time offset to actual timestamp (epoch ms) for display
-      // This accounts for start/end markers by finding the correct segment
-      const actualTimestampMs = convertVideoTimeToTimestamp(currentTimeMs, segments, cumStarts) || currentTimeMs;
-      
-      const image = await renderDashboardFrame(dashboardWindow, sei, frame, dashboardWidth, dashboardHeight, useMetric, actualTimestampMs);
-      
-      let frameData = blackFrame;
-      if (image) {
-        const success = imageToRGBA(image, dashboardWidth, dashboardHeight, frameBuffer);
-        if (success) frameData = frameBuffer;
-      }
-      
-      // Write with backpressure
-      const canContinue = dashPipe.write(frameData);
-      if (!canContinue) {
-        await new Promise(resolve => {
-          drainResolve = resolve;
-          setTimeout(resolve, 5000); // Safety timeout
-        });
-      }
-      
-      // Progress update
-      if (frame % 50 === 0) {
-        const pct = Math.floor((frame / totalFrames) * 100);
-        sendDashboardProgress(pct, `Pre-rendering dashboard... ${pct}%`);
-      }
-    }
-    
-    // Close pipe and wait for FFmpeg to finish
-    console.log(`[DASHBOARD] All ${totalFrames} frames written, closing pipe...`);
-    dashPipe.end();
-    
-    console.log('[DASHBOARD] Waiting for FFmpeg to finish encoding...');
-    await new Promise((resolve, reject) => {
-      // Add timeout to detect hangs
-      const ffmpegTimeout = setTimeout(() => {
-        console.error('[DASHBOARD] FFmpeg timeout after 60s waiting for close');
-        console.error('[DASHBOARD] FFmpeg stderr:', ffmpegStderr);
-        dashProc.kill('SIGKILL');
-        reject(new Error('Dashboard FFmpeg timed out after 60 seconds. Check temp directory permissions.'));
-      }, 60000);
-      
-      dashProc.on('close', (code) => {
-        clearTimeout(ffmpegTimeout);
-        console.log(`[DASHBOARD] FFmpeg closed with code ${code}`);
-        if (code !== 0) {
-          console.error('[DASHBOARD] FFmpeg stderr:', ffmpegStderr);
-        }
-        if (code === 0) resolve();
-        else reject(new Error(`Dashboard encoding failed with code ${code}: ${ffmpegStderr.slice(-500)}`));
-      });
-      dashProc.on('error', (err) => {
-        clearTimeout(ffmpegTimeout);
-        console.error('[DASHBOARD] FFmpeg error:', err);
-        reject(err);
-      });
-    });
-    
-    sendDashboardProgress(100, 'Dashboard pre-render complete');
-    console.log(`[DASHBOARD] Pre-render complete: ${tempDashPath}`);
-    
-    return tempDashPath;
-  } finally {
-    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
-      dashboardWindow.close();
-    }
-  }
 }
 
 // Video Export Implementation
@@ -1257,47 +900,44 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const dashboardWidth = dashboardSizeCalc.width;
         const dashboardHeight = dashboardSizeCalc.height;
         
-        // Flag to track if dashboard should be included in final export
-        let useDashboard = false;
+        let useAssDashboard = false;
+        let assTempPath = null;
 
         if (includeDashboard && seiData && seiData.length > 0) {
-          // Check for cancellation before starting dashboard pre-render
           if (cancelledExports.has(exportId)) {
-            console.log('Export cancelled before dashboard pre-render');
+            console.log('Export cancelled before dashboard generation');
             throw new Error('Export cancelled');
           }
           
           try {
-            // PRE-RENDER DASHBOARD TO TEMP FILE
-            // This prevents the massive memory leak caused by FFmpeg buffering
-            // frames while waiting for pipe input to sync with video inputs
-            // Build cumStarts array from segments (each segment has startSec)
+            sendDashboardProgress(5, 'Generating dashboard overlay...');
             const cumStarts = segments.map(seg => seg.startSec || 0);
-            dashboardTempPath = await preRenderDashboard(
-              event, exportId, ffmpegPath, seiData, startTimeMs, durationSec,
-              dashboardWidth, dashboardHeight, useMetric, sendDashboardProgress,
-              segments, cumStarts, dashboardStyle, glassBlur
-            );
-            tempFiles.push(dashboardTempPath);
-            useDashboard = true;
             
-            // Add pre-rendered dashboard video as input (regular file, not pipe)
-            cmd.push('-i', dashboardTempPath);
+            assTempPath = await writeCompactDashboardAss(exportId, seiData, startTimeMs, endTimeMs, {
+              playResX: totalW,
+              playResY: totalH,
+              position: dashboardPosition,
+              size: dashboardSize,
+              useMetric,
+              segments,
+              cumStarts
+            });
+            tempFiles.push(assTempPath);
+            useAssDashboard = true;
             
-            console.log(`[DASHBOARD] Using pre-rendered dashboard: ${dashboardTempPath}`);
+            sendDashboardProgress(100, 'Dashboard overlay ready');
+            console.log(`[ASS] Generated dashboard: ${assTempPath}`);
           } catch (err) {
-            // If cancelled, re-throw to stop the export
             if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
               throw err;
             }
-            sendDashboardProgress(0, `Dashboard pre-render failed: ${err.message}. Continuing without overlay...`);
-            dashboardTempPath = null;
-            useDashboard = false;
+            console.error('[ASS] Failed to generate dashboard:', err);
+            sendDashboardProgress(0, `Dashboard generation failed: ${err.message}. Continuing without overlay...`);
+            useAssDashboard = false;
           }
         }
         
-        // Flag to track if timestamp should be included in final export (using drawtext filter)
-        let useTimestamp = includeTimestamp && !useDashboard;
+        let useTimestamp = includeTimestamp && !useAssDashboard;
         
         // Calculate timestamp basetime from first relevant segment
         let timestampBasetimeUs = null;
@@ -1445,10 +1085,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           fs.writeFileSync(maskPath, compositeMaskBuffer);
           tempFiles.push(maskPath);
           
-          // Calculate mask input index
-          let maskInputIdx = inputs.length + 1; // +1 for black source
+          let maskInputIdx = inputs.length + 1;
           if (baseInputIdx !== null) maskInputIdx++;
-          if (useDashboard) maskInputIdx++;
           maskInputIdx += maskInputOffset;
           maskInputOffset++;
           
@@ -1571,8 +1209,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           fs.writeFileSync(maskPath, compositeMaskBuffer);
           tempFiles.push(maskPath);
           
-          let maskInputIdx = inputs.length + 1; // +1 for black source
-          if (useDashboard) maskInputIdx++;
+          let maskInputIdx = inputs.length + 1;
           maskInputIdx += gridMaskInputOffset;
           gridMaskInputOffset++;
           
@@ -1658,11 +1295,17 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'top-right': `W-w-${padding}:${padding}`
     };
     
-    if (useDashboard) {
-      // Dashboard overlay (includes timestamp in the dashboard)
-      const overlayPos = positionExprs[dashboardPosition] || positionExprs['bottom-center'];
-      filters.push(`[grid][${dashboardInputIdx}:v]overlay=${overlayPos}:format=auto[out]`);
-      console.log(`[DASHBOARD] Overlay position: ${dashboardPosition} -> ${overlayPos}`);
+    if (useAssDashboard && assTempPath) {
+      // ASS SUBTITLE DASHBOARD (compact style) - High-speed GPU-accelerated rendering
+      // The ASS filter burns subtitles directly into the video at GPU encoder speed
+      // This is MUCH faster than BrowserWindow capture loop (30min -> 3-5min)
+      // Escape Windows path for FFmpeg (colons and backslashes need escaping)
+      const escapedAssPath = assTempPath
+        .replace(/\\/g, '/')           // Convert backslashes to forward slashes
+        .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
+      
+      filters.push(`[grid]ass='${escapedAssPath}'[out]`);
+      console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
     } else if (useTimestamp && timestampBasetimeUs) {
       // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
       // Position expressions for drawtext (x/y coordinates)
