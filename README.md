@@ -63,7 +63,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Automatic Installation for Windows & MacOS (Recommended, easiest)
 1. Go to the Sentry Six [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
-2. Download the SentrySixRevampedSetup.exe (SentrySixRevampedSetup.dmg for MacOS) 
+2. Download the SentrySixRevampedSetup.exe (SentrySixRevamped.dmg for MacOS) 
 3. Run the Installer
 4. Run Sentry Six Revamped
 
@@ -88,8 +88,6 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 4. Use the playback controls and in/out markers to select the part of the clip you'd like to export.
 
 ## Notes
-- For MacOS:
-  - Install ffmpeg via `brew install ffmpeg` using HomeBrew
 - SEI telemetry is typically not recorded while parked
 - Brake/accelerator pedal data is not logged during Self Driving. Pedal activity while Autopilot/Self Driving is engaged indicates driver input.
 

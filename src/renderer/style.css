@@ -4,6 +4,8 @@
     --text-color: #f0f0f5;
     --accent-color: #00d4ff; /* Vibrant cyan */
     --accent-glow: rgba(0, 212, 255, 0.4);
+    --dashboard-accent: #0048ff; /* Dashboard overlay accent (autopilot, active states) */
+    --dashboard-accent-glow: rgba(0, 72, 255, 0.5);
     --panel-bg: rgba(20, 20, 30, 0.7);
     --border-color: rgba(255, 255, 255, 0.1);
     --vis-bg: rgba(0, 0, 0, 0.5);
@@ -1090,7 +1092,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .gear-state-compact.active {
-    color: #0048ff;
+    color: var(--dashboard-accent);
 }
 
 /* Turn Signal Compact */
@@ -1189,8 +1191,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .autopilot-label-compact.active {
-    color: #0048ff;
-    text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
+    color: var(--dashboard-accent);
+    text-shadow: 0 0 8px var(--dashboard-accent-glow);
 }
 
 /* Steering Wheel Compact */
@@ -1218,7 +1220,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .autosteer-icon-compact.active {
     filter: none;
     opacity: 1;
-    filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
+    filter: drop-shadow(0 0 10px var(--dashboard-accent-glow));
 }
 
 /* Accelerator Icon Compact */
@@ -1524,7 +1526,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .autosteer-icon.active {
     filter: none;
     opacity: 1;
-    filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6));
+    filter: drop-shadow(0 0 10px var(--dashboard-accent-glow));
 }
 
 .autopilot-label-container {
@@ -1543,8 +1545,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .autopilot-label.active {
-    color: #0048ff;
-    text-shadow: 0 0 8px rgba(0, 72, 255, 0.5);
+    color: var(--dashboard-accent);
+    text-shadow: 0 0 8px var(--dashboard-accent-glow);
 }
 
 .brake-icon {
@@ -1653,7 +1655,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .gear-state.active {
-    color: #0048ff;
+    color: var(--dashboard-accent);
 }
 
 .speed-value {
@@ -2978,14 +2980,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .option-card.selected,
 .option-card:has(input:checked) {
-    background: rgba(0, 212, 255, 0.12);
-    border-color: var(--accent-color);
+    background: rgba(62, 156, 191, 0.2);
+    border-color: #3e9cbf;
 }
 
 .option-card input {
     width: 14px;
     height: 14px;
-    accent-color: var(--accent-color);
+    accent-color: #3e9cbf;
     margin: 0;
 }
 
@@ -3148,6 +3150,81 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .dev-output-box.hidden {
     display: none;
+}
+
+/* Color Picker Row */
+.color-picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+.color-picker-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.color-picker-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.color-picker-desc {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.color-picker-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-picker-input {
+    width: 40px;
+    height: 32px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    cursor: pointer;
+    background: transparent;
+    padding: 2px;
+}
+
+.color-picker-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 5px;
+}
+
+.color-reset-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.color-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Dev Card Primary (for important actions like Support ID) */
@@ -3961,13 +4038,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .btn-primary {
-    background: rgba(62, 156, 191, 0.8);
+    background: color-mix(in srgb, var(--accent-color) 80%, transparent);
     color: #fff;
-    border-color: rgba(62, 156, 191, 0.9);
+    border-color: color-mix(in srgb, var(--accent-color) 90%, transparent);
 }
 
 .btn-primary:not(:disabled):hover {
-    background: rgba(62, 156, 191, 1);
+    background: var(--accent-color);
 }
 
 .btn-secondary {
@@ -4629,9 +4706,9 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 100%;
 }
 
-/* Ensure steering wheel shows blue glow in preview */
+/* Ensure steering wheel shows accent glow in preview */
 .welcome-preview-dash .autosteer-icon.active {
-    filter: drop-shadow(0 0 10px rgba(0, 72, 255, 0.6)) drop-shadow(0 0 20px rgba(0, 120, 255, 0.4));
+    filter: drop-shadow(0 0 10px var(--dashboard-accent-glow)) drop-shadow(0 0 20px var(--dashboard-accent-glow));
     opacity: 1;
 }
 

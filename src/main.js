@@ -881,8 +881,10 @@ async function preRenderDashboard(event, exportId, ffmpegPath, seiData, startTim
   // Create dashboard renderer window with the selected style
   const dashboardWindow = await createDashboardRenderer(dashboardWidth, dashboardHeight, style);
   
-  // Send glass blur setting to the dashboard renderer
-  dashboardWindow.webContents.send('dashboard:settings', { glassBlur });
+  // Send settings (glass blur, accent color) to the dashboard renderer
+  const settings = loadSettings();
+  const dashboardAccentColor = settings.dashboardAccentColor || '#0048ff';
+  dashboardWindow.webContents.send('dashboard:settings', { glassBlur, dashboardAccentColor });
   
   try {
     // Spawn FFmpeg to encode dashboard frames to temp video

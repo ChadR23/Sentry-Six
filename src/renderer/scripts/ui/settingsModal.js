@@ -767,6 +767,93 @@ export function initDevSettingsModal() {
             devShowWelcomeGuide.blur();
         };
     }
+    
+    // Theme Customization - App Accent Color
+    const DEFAULT_APP_ACCENT = '#00d4ff';
+    const DEFAULT_DASHBOARD_ACCENT = '#0048ff';
+    
+    const devAppAccentColor = $('devAppAccentColor');
+    const devResetAppAccent = $('devResetAppAccent');
+    
+    function applyAppAccentColor(color) {
+        document.documentElement.style.setProperty('--accent-color', color);
+        // Calculate glow color with alpha
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        document.documentElement.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`);
+    }
+    
+    if (devAppAccentColor) {
+        // Load saved color
+        window.electronAPI?.getSetting?.('appAccentColor').then(savedColor => {
+            const color = savedColor || DEFAULT_APP_ACCENT;
+            devAppAccentColor.value = color;
+            applyAppAccentColor(color);
+        });
+        
+        devAppAccentColor.addEventListener('input', (e) => {
+            applyAppAccentColor(e.target.value);
+        });
+        
+        devAppAccentColor.addEventListener('change', async (e) => {
+            await window.electronAPI?.setSetting?.('appAccentColor', e.target.value);
+            showDevOutput(`App Accent Color: ${e.target.value}\n\nColor applied to UI elements.`);
+        });
+    }
+    
+    if (devResetAppAccent) {
+        devResetAppAccent.onclick = async () => {
+            if (devAppAccentColor) devAppAccentColor.value = DEFAULT_APP_ACCENT;
+            applyAppAccentColor(DEFAULT_APP_ACCENT);
+            await window.electronAPI?.setSetting?.('appAccentColor', DEFAULT_APP_ACCENT);
+            showDevOutput('App Accent Color: Reset to default (#00d4ff)');
+            devResetAppAccent.blur();
+        };
+    }
+    
+    // Theme Customization - Dashboard Accent Color
+    const devDashboardAccentColor = $('devDashboardAccentColor');
+    const devResetDashboardAccent = $('devResetDashboardAccent');
+    
+    function applyDashboardAccentColor(color) {
+        document.documentElement.style.setProperty('--dashboard-accent', color);
+        // Calculate glow color with alpha
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        document.documentElement.style.setProperty('--dashboard-accent-glow', `rgba(${r}, ${g}, ${b}, 0.5)`);
+        // Store globally for dashboard renderers and export
+        window._dashboardAccentColor = color;
+    }
+    
+    if (devDashboardAccentColor) {
+        // Load saved color
+        window.electronAPI?.getSetting?.('dashboardAccentColor').then(savedColor => {
+            const color = savedColor || DEFAULT_DASHBOARD_ACCENT;
+            devDashboardAccentColor.value = color;
+            applyDashboardAccentColor(color);
+        });
+        
+        devDashboardAccentColor.addEventListener('input', (e) => {
+            applyDashboardAccentColor(e.target.value);
+        });
+        
+        devDashboardAccentColor.addEventListener('change', async (e) => {
+            await window.electronAPI?.setSetting?.('dashboardAccentColor', e.target.value);
+            showDevOutput(`Dashboard Accent Color: ${e.target.value}\n\nColor applied to dashboard overlays.`);
+        });
+    }
+    
+    if (devResetDashboardAccent) {
+        devResetDashboardAccent.onclick = async () => {
+            if (devDashboardAccentColor) devDashboardAccentColor.value = DEFAULT_DASHBOARD_ACCENT;
+            applyDashboardAccentColor(DEFAULT_DASHBOARD_ACCENT);
+            await window.electronAPI?.setSetting?.('dashboardAccentColor', DEFAULT_DASHBOARD_ACCENT);
+            showDevOutput('Dashboard Accent Color: Reset to default (#0048ff)');
+            devResetDashboardAccent.blur();
+        };
+    }
 }
 
 /**
