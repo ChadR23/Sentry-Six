@@ -1,5 +1,5 @@
 {
-  "version": "2026.2.2",
+  "version": "2026.2.3",
   "releaseDate": "2026-01-07",
-  "releaseName": "Fix Unicode characters preventing loading"
+  "releaseName": "Fix Unicode characters & Update Dashboard Exporting"
 }

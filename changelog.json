@@ -1,6 +1,21 @@
 {
   "versions": [
     {
+      "version": "2026.2.3",
+      "date": "2026-01-07",
+      "title": "Fix Unicode characters & Update Dashboard Exporting",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where Unicode characters were not being properly encoded causing folder/clip selection not working."
+        },
+        {
+          "type": "improvement",
+          "description": "Improved the dashboard export layout and reduced the amount of time the pre-render takes by almost 99%."
+        }
+      ]
+    },
+    {
       "version": "2026.2.1",
       "date": "2026-01-06",
       "title": "Fix Unicode characters preventing loading",
