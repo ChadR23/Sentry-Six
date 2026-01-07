@@ -1,6 +1,7 @@
 # Sentry Six Revamped
+#### View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration. All in one beautiful app.
 
-Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI and even save the important parts needed! Use it on your preferred OS - Windows, MacOS, or Linux. Included in this program is the ability to visualize Tesla’s new SEI data introduced in the 2025 Holiday Update (2025.44.25).
+Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
 
 https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
@@ -10,19 +11,21 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
   - Select a default folder in the settings
   - Easily browse files by date
   - Supports Recent, Sentry, and Saved Clips
-  - Event Triggers (e.g. "User Triggered" or "Collision")
+  - Event Triggers (e.g. "Manual Save", "Sentry", etc.)
 
     <img width="176.5" height="275.5" alt="image" src="https://github.com/user-attachments/assets/1b2f3970-965b-431a-b1c9-073a7fd30800" />
 
 - **Multi-Camera Playback**
-  - Simultaneously play all six cameras at once
-  - Front, Back, B-Pillars, Repeaters
+  - View all cameras at once
+    - Front, Back, B-Pillars (HW4/AI4+), Repeaters
   - Synced playback across all cameras
-  - Speed control: 0.5x to 4x
+  - Focus on the details with speed controls, from half speed (0.5x) to 4x.
  
 - **SEI Telemetry**
-  - Togglable overlay displaying data such as speed, steering angle, autopilot status, turn signals, etc.
-  - Route tracking
+  - Visualize the car's actions
+    - See data such as speed, gear, autopilot status, and more
+  - GPS data
+    - See the path your car took during the clip
   - *Requirements for SEI Telemetry*
     - *2025.44.25 or newer*
     - *Hardware 3 (HW3/AI3) or newer*
@@ -35,16 +38,20 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
   - Pick different export qualities
     - Mobile, Medium, High, Maximum
   - Add the SEI overlay to your export
+    - Choose either between the full and compact overlays
     - Overlay is pre-rendered for optimal performance
+  - Use blur zones to ensure privacy
+    - *Currently cannot be used with the overlay*
 
   <img width="208.5" height="299" alt="ClipExport" src="https://github.com/user-attachments/assets/525a20d2-447b-44c6-8396-55159c29a555" />
 
 - **Customizable Settings**
   - Adjustable glass blur intensity
-  - Toggle between metric or imperial
+  - Toggle between metric or imperial measurements (Km/H or MPH)
   - Keyboard shortcuts
   - Switch between stable and dev branches
-  - Toggle event highlights on triggered cameras
+  - Event Highlights
+    - See which camera was triggered, visualized with a yellow or red highlight
 
   <img width="220.4" height="395.1" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
 
@@ -64,7 +71,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 ## Automatic Installation for Windows & MacOS (Recommended, easiest)
 1. Go to the Sentry Six [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
 2. Download the SentrySixRevampedSetup.exe (SentrySixRevamped.dmg for MacOS) 
-3. Run the Installer
+3. Run the installer
 4. Run Sentry Six Revamped
 
 **Note for macOS users:** You may encounter a security warning because this app is not digitally signed. As this is an open-source project, we do not maintain a paid subscription to the Apple Developer Program. To launch the app, navigate to **System Settings > Privacy & Security**, scroll down, and click **"Open Anyway."**
@@ -76,7 +83,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 1. Install [node.js](https://nodejs.org/en/download)
 2. Extract Sentry Six to your desired location.
-3. Open a new Terminal & head to the Sentry Six folder `cd C:\users\yourname\downloads\Sentry-Six-Revamped`
+3. Open a new Terminal (Command Prompt or Power Shell) and head to the Sentry Six folder `cd C:\users\yourname\downloads\Sentry-Six-Revamped`
 4. In your Sentry Six folder, use the following command: `npm install`
 6. To run Sentry Six, use `npm start`
 
@@ -89,6 +96,7 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Notes
 - SEI telemetry is typically not recorded while parked
+- SEI telemetry while using Smart Summon will be notated as manual
 - Brake/accelerator pedal data is not logged during Self Driving. Pedal activity while Autopilot/Self Driving is engaged indicates driver input.
 
 ## Project Origin & Credits
