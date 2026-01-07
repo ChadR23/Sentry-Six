@@ -837,8 +837,8 @@ function imageToRGBA(image, width, height, outputBuffer) {
       bitmap = image.toBitmap();
     }
     
-    // NativeImage.toBitmap() returns BGRA on Windows, RGBA on macOS/Linux
-    // FFmpeg requires RGBA, so we swap R and B channels on Windows
+    // NativeImage.toBitmap() returns BGRA on ALL platforms (Windows, macOS, Linux)
+    // FFmpeg rawvideo expects RGBA, so we must swap R and B channels
     const expectedSize = width * height * 4;
     
     if (bitmap.length < expectedSize || outputBuffer.length < expectedSize) {
@@ -846,16 +846,12 @@ function imageToRGBA(image, width, height, outputBuffer) {
       return false;
     }
     
-    if (process.platform === 'win32') {
-      // Convert BGRA to RGBA on Windows - write directly to output buffer
-      for (let i = 0; i < expectedSize; i += 4) {
-        outputBuffer[i] = bitmap[i + 2];     // R
-        outputBuffer[i + 1] = bitmap[i + 1]; // G
-        outputBuffer[i + 2] = bitmap[i];     // B
-        outputBuffer[i + 3] = bitmap[i + 3]; // A
-      }
-    } else {
-      bitmap.copy(outputBuffer, 0, 0, expectedSize);
+    // Convert BGRA to RGBA - required on all platforms
+    for (let i = 0; i < expectedSize; i += 4) {
+      outputBuffer[i] = bitmap[i + 2];     // R (from B position)
+      outputBuffer[i + 1] = bitmap[i + 1]; // G
+      outputBuffer[i + 2] = bitmap[i];     // B (from R position)
+      outputBuffer[i + 3] = bitmap[i + 3]; // A
     }
     
     // bitmap buffer will be GC'd when this function returns
