@@ -563,9 +563,11 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         // Load video file
         let videoUrl;
         if (entry.file.path) {
+            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+            const normalizedPath = entry.file.path.replace(/\\/g, '/');
             videoUrl = entry.file.path.startsWith('/') 
-                ? `file://${entry.file.path}` 
-                : `file:///${entry.file.path.replace(/\\/g, '/')}`;
+                ? `file://${encodeURI(entry.file.path)}` 
+                : `file:///${encodeURI(normalizedPath)}`;
         } else if (entry.file instanceof File) {
             videoUrl = URL.createObjectURL(entry.file);
         } else {
@@ -1186,18 +1188,22 @@ export async function startExport() {
                             // Load file into buffer (one at a time)
                             if (entry.file?.isElectronFile && entry.file?.path) {
                                 const filePath = entry.file.path;
+                                // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+                                const normalizedPath = filePath.replace(/\\/g, '/');
                                 const fileUrl = filePath.startsWith('/') 
-                                    ? `file://${filePath}` 
-                                    : `file:///${filePath.replace(/\\/g, '/')}`;
+                                    ? `file://${encodeURI(filePath)}` 
+                                    : `file:///${encodeURI(normalizedPath)}`;
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
                             } else if (entry.file instanceof File) {
                                 buffer = await entry.file.arrayBuffer();
                             } else if (entry.file.path) {
                                 const filePath = entry.file.path;
+                                // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+                                const normalizedPath = filePath.replace(/\\/g, '/');
                                 const fileUrl = filePath.startsWith('/') 
-                                    ? `file://${filePath}` 
-                                    : `file:///${filePath.replace(/\\/g, '/')}`;
+                                    ? `file://${encodeURI(filePath)}` 
+                                    : `file:///${encodeURI(normalizedPath)}`;
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
                             }

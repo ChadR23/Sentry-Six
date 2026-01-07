@@ -3097,9 +3097,11 @@ async function probeSegmentDurations(groups) {
         if (!entry) return null;
         if (entry.file?.isElectronFile && entry.file?.path) {
             const filePath = entry.file.path;
+            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+            const normalizedPath = filePath.replace(/\\/g, '/');
             const fileUrl = filePath.startsWith('/') 
-                ? `file://${filePath}` 
-                : `file:///${filePath.replace(/\\/g, '/')}`;
+                ? `file://${encodeURI(filePath)}` 
+                : `file:///${encodeURI(normalizedPath)}`;
             return { url: fileUrl, isBlob: false };
         }
         if (entry.file && entry.file instanceof File) {
@@ -3384,10 +3386,11 @@ async function loadNativeSegment(segIdx) {
         // If it's an Electron file with path, use file:// protocol
         if (entry.file?.isElectronFile && entry.file?.path) {
             const filePath = entry.file.path;
-            // Convert path to file:// URL
+            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+            const normalizedPath = filePath.replace(/\\/g, '/');
             const fileUrl = filePath.startsWith('/') 
-                ? `file://${filePath}` 
-                : `file:///${filePath.replace(/\\/g, '/')}`;
+                ? `file://${encodeURI(filePath)}` 
+                : `file:///${encodeURI(normalizedPath)}`;
             return { url: fileUrl, isBlob: false };
         }
         
@@ -3655,9 +3658,11 @@ async function extractSeiFromEntry(entry) {
     if (entry.file?.isElectronFile && entry.file?.path) {
         try {
             const filePath = entry.file.path;
+            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
+            const normalizedPath = filePath.replace(/\\/g, '/');
             const fileUrl = filePath.startsWith('/') 
-                ? `file://${filePath}` 
-                : `file:///${filePath.replace(/\\/g, '/')}`;
+                ? `file://${encodeURI(filePath)}` 
+                : `file:///${encodeURI(normalizedPath)}`;
             const response = await fetch(fileUrl);
             const buffer = await response.arrayBuffer();
             return extractSeiFromBuffer(buffer);

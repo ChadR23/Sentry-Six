@@ -1,5 +1,5 @@
 {
-  "version": "2026.1.43",
-  "releaseDate": "2026-01-06",
-  "releaseName": "Bundle FFMPEG on MacOS"
+  "version": "2026.2.1",
+  "releaseDate": "2026-01-07",
+  "releaseName": "Fix Unicode characters preventing loading"
 }

@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.2.1",
+      "date": "2026-01-06",
+      "title": "Fix Unicode characters preventing loading",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed an issue where Unicode characters were not being properly encoded causing folder/clip selection not working."
+        }
+      ]
+    },
+    {
       "version": "2026.1.43",
       "date": "2026-01-06",
       "title": "Bundled FFMPEG on MacOS",
