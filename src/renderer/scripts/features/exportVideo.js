@@ -6,6 +6,7 @@
 import { notify } from '../ui/notifications.js';
 import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
+import { filePathToUrl } from '../lib/utils.js';
 
 // Export state
 export const exportState = {
@@ -1185,23 +1186,13 @@ export async function startExport() {
                             
                             // Load file into buffer (one at a time)
                             if (entry.file?.isElectronFile && entry.file?.path) {
-                                const filePath = entry.file.path;
-                                // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-                                const normalizedPath = filePath.replace(/\\/g, '/');
-                                const fileUrl = filePath.startsWith('/') 
-                                    ? `file://${encodeURI(filePath)}` 
-                                    : `file:///${encodeURI(normalizedPath)}`;
+                                const fileUrl = filePathToUrl(entry.file.path);
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
                             } else if (entry.file instanceof File) {
                                 buffer = await entry.file.arrayBuffer();
                             } else if (entry.file.path) {
-                                const filePath = entry.file.path;
-                                // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-                                const normalizedPath = filePath.replace(/\\/g, '/');
-                                const fileUrl = filePath.startsWith('/') 
-                                    ? `file://${encodeURI(filePath)}` 
-                                    : `file:///${encodeURI(normalizedPath)}`;
+                                const fileUrl = filePathToUrl(entry.file.path);
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
                             }

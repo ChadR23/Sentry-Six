@@ -496,6 +496,10 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           drawBrakePedalTab(pedalScale) + `{\\p0}`
         ));
         
+        // Speed and gear font sizes (declared early as used by gear display)
+        const speedNumSize = Math.round(fontSize * 1.4);
+        const speedUnitSize = Math.round(fontSize * 0.55);
+        
         // Gear state
         const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
@@ -514,9 +518,6 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         ));
         
         // Speed display - number with unit beside it (e.g. "32 MPH")
-        // Use \an6 (right-center) for number and \an4 (left-center) for unit, positioned next to each other
-        const speedNumSize = Math.round(fontSize * 1.4);
-        const speedUnitSize = Math.round(fontSize * 0.55);
         const speedGap = fontSize * 0.15; // Small gap between number and unit
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an6\\pos(${positions.speed - speedGap},${pos.y})\\bord0\\shad0\\fs${speedNumSize}\\1c&HFFFFFF&}${prev.speed}`

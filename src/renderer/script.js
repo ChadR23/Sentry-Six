@@ -1,7 +1,7 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
 import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, SENTRY_CAMERA_HIGHLIGHT_KEY, SAVED_CAMERA_HIGHLIGHT_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
-import { escapeHtml, cssEscape } from './scripts/lib/utils.js';
+import { escapeHtml, cssEscape, filePathToUrl } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
 import { notify } from './scripts/ui/notifications.js';
 import { showLoading, updateLoading, hideLoading, yieldToUI } from './scripts/ui/loadingOverlay.js';
@@ -3096,12 +3096,7 @@ async function probeSegmentDurations(groups) {
     const getVideoUrl = (entry) => {
         if (!entry) return null;
         if (entry.file?.isElectronFile && entry.file?.path) {
-            const filePath = entry.file.path;
-            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-            const normalizedPath = filePath.replace(/\\/g, '/');
-            const fileUrl = filePath.startsWith('/') 
-                ? `file://${encodeURI(filePath)}` 
-                : `file:///${encodeURI(normalizedPath)}`;
+            const fileUrl = filePathToUrl(entry.file.path);
             return { url: fileUrl, isBlob: false };
         }
         if (entry.file && entry.file instanceof File) {
@@ -3385,12 +3380,7 @@ async function loadNativeSegment(segIdx) {
         
         // If it's an Electron file with path, use file:// protocol
         if (entry.file?.isElectronFile && entry.file?.path) {
-            const filePath = entry.file.path;
-            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-            const normalizedPath = filePath.replace(/\\/g, '/');
-            const fileUrl = filePath.startsWith('/') 
-                ? `file://${encodeURI(filePath)}` 
-                : `file:///${encodeURI(normalizedPath)}`;
+            const fileUrl = filePathToUrl(entry.file.path);
             return { url: fileUrl, isBlob: false };
         }
         
@@ -3657,12 +3647,7 @@ async function extractSeiFromEntry(entry) {
     // If it's an Electron file with path, fetch via file:// protocol
     if (entry.file?.isElectronFile && entry.file?.path) {
         try {
-            const filePath = entry.file.path;
-            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-            const normalizedPath = filePath.replace(/\\/g, '/');
-            const fileUrl = filePath.startsWith('/') 
-                ? `file://${encodeURI(filePath)}` 
-                : `file:///${encodeURI(normalizedPath)}`;
+            const fileUrl = filePathToUrl(entry.file.path);
             const response = await fetch(fileUrl);
             const buffer = await response.arrayBuffer();
             return extractSeiFromBuffer(buffer);
