@@ -1,7 +1,7 @@
 {
   "versions": [
     {
-      "version": "2026.2.4",
+      "version": "2026.2.5",
       "date": "2026-01-07",
       "title": "Bug Fix Release",
       "changes": [
@@ -10,12 +10,8 @@
           "description": "Fixed issue with Mac OS exporting Compact Dashboard with Big assets."
         },
         {
-          "type": "improvement",
-          "description": "Swapped around Time, Gear. To give room to add the Date. when exporting"
-        },
-        {
-          "type": "feature",
-          "description": "Added Date to SEI Dashboard when Exporting."
+          "type": "fix",
+          "description": "Fixed an issue where the steering wheel would turn the wrong direction on exported video."
         },
         {
           "type": "fix",
@@ -26,8 +22,16 @@
           "description": "Fixed Issue with MacOS exporting SEI Dashboard not lookin similar to Windows."
         },
         {
+          "type": "improvement",
+          "description": "Swapped around Time, Gear. To give room to add the Date. when exporting"
+        },
+        {
           "type": "feature",
           "description": "Added an X-Large (55%) Option for Dashboard Size. This is Due to macOS Retina making Dashboard look smaller then Windows.\nRECOMMENDED SIZE FOR MACOS: Large (45%)"
+        },
+        {
+          "type": "feature",
+          "description": "Added Date to SEI Dashboard when Exporting."
         }
       ]
     },

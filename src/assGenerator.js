@@ -583,7 +583,9 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         
         // Steering wheel - from testwheel.svg (Illustrator export), centered at (0,0) for proper rotation
         const steerColor = prev.apActive ? '&HFF4800&' : '&H707070&'; // Blue when AP active
-        const angle = prev.steeringAngle || 0;
+        // ASS \frz rotates counter-clockwise for positive angles, but CSS rotate() is clockwise
+        // Negate the angle so exported steering wheel matches the live preview direction
+        const angle = -(prev.steeringAngle || 0);
         // Base path radius is ~446.5 units, scale to fit iconSize
         const steerScale = iconSize / 446.5 * 0.5; // Scale to ~50% of iconSize
         const steerX = Math.round(positions.steering);
