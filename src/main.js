@@ -1733,8 +1733,17 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cmd.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString());
         cmd.push('-g', (FPS * 2).toString());
       } else if (activeEncoder.codec === 'h264_videotoolbox' || activeEncoder.codec === 'hevc_videotoolbox') {
-        // Apple VideoToolbox: Quality scale inverted (higher = better)
-        cmd.push('-q:v', Math.max(40, 100 - crf * 2).toString());
+        // Apple VideoToolbox: Use bitrate mode for better compatibility
+        // Quality-based encoding can fail on some hardware configurations
+        // Target ~8Mbps for high quality, scaled by CRF
+        const baseBitrate = 8000; // 8Mbps base
+        const bitrateMultiplier = Math.max(0.3, 1 - (crf - 18) * 0.03); // Scale down with higher CRF
+        const targetBitrate = Math.round(baseBitrate * bitrateMultiplier);
+        cmd.push('-b:v', `${targetBitrate}k`);
+        cmd.push('-maxrate', `${Math.round(targetBitrate * 1.5)}k`);
+        cmd.push('-bufsize', `${targetBitrate * 2}k`);
+        cmd.push('-allow_sw', '1'); // Allow software fallback for compatibility
+        cmd.push('-realtime', '0'); // Disable realtime for better quality
         cmd.push('-g', (FPS * 2).toString());
       } else if (activeEncoder.codec === 'h264_qsv' || activeEncoder.codec === 'hevc_qsv') {
         // Intel QuickSync: CQP mode
@@ -1764,7 +1773,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     
     cmd.push('-t', durationSec.toString());
     cmd.push('-movflags', '+faststart');
-    cmd.push('-pix_fmt', 'yuv420p');
+    
+    // Set pixel format - VideoToolbox handles this internally, others need explicit setting
+    // The filter chain already converts to yuv420p, but CPU encoders need the output hint
+    const isVideoToolbox = activeEncoder?.codec?.includes('videotoolbox');
+    if (!isVideoToolbox) {
+      cmd.push('-pix_fmt', 'yuv420p');
+    }
     
     // GPU encoders: use constant frame rate to prevent frame drops
     if (useGpu) {
