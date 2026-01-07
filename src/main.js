@@ -582,13 +582,14 @@ function parseTimestampKeyFromFilename(filename) {
   return `${match[1]}-${match[2]}-${match[3]}_${match[4]}-${match[5]}-${match[6]}`;
 }
 
-// Convert timestamp key to epoch milliseconds
+// Convert timestamp key to epoch milliseconds (Tesla filenames are in UTC)
 function parseTimestampKeyToEpochMs(timestampKey) {
   if (!timestampKey) return null;
   const match = String(timestampKey).match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   const [, Y, Mo, D, h, mi, s] = match;
-  return new Date(+Y, +Mo - 1, +D, +h, +mi, +s, 0).getTime();
+  // Use Date.UTC to correctly interpret Tesla filenames as UTC timestamps
+  return Date.UTC(+Y, +Mo - 1, +D, +h, +mi, +s, 0);
 }
 
 // Convert video time offset (ms from collection start) to actual timestamp (epoch ms)
@@ -920,7 +921,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               size: dashboardSize,
               useMetric,
               segments,
-              cumStarts
+              cumStarts,
+              dateFormat: timestampDateFormat
             });
             tempFiles.push(assTempPath);
             useAssDashboard = true;

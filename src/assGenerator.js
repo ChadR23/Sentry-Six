@@ -111,12 +111,36 @@ function formatAssTime(ms) {
 function formatDisplayTime(timestampMs) {
   if (!timestampMs) return '--:--';
   const date = new Date(timestampMs);
-  let h = date.getHours();
-  const m = date.getMinutes();
-  const s = date.getSeconds();
+  let h = date.getUTCHours();
+  const m = date.getUTCMinutes();
+  const s = date.getUTCSeconds();
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} ${ampm}`;
+}
+
+/**
+ * Format date for display based on user's date format preference
+ * @param {number} timestampMs - Unix timestamp in milliseconds
+ * @param {string} dateFormat - Date format: 'mdy', 'dmy', or 'ymd'
+ * @returns {string} Formatted date string
+ */
+function formatDisplayDate(timestampMs, dateFormat = 'mdy') {
+  if (!timestampMs) return '--/--/--';
+  const date = new Date(timestampMs);
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  
+  switch (dateFormat) {
+    case 'dmy':
+      return `${d}/${m}/${y}`;
+    case 'ymd':
+      return `${y}-${m}-${d}`;
+    case 'mdy':
+    default:
+      return `${m}/${d}/${y}`;
+  }
 }
 
 /**
@@ -306,20 +330,26 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     size = 'medium',
     useMetric = false,
     segments = [],
-    cumStarts = []
+    cumStarts = [],
+    dateFormat = 'mdy'
   } = options;
   
   // Dashboard dimensions - scale based on video width and size option
-  // Size options: small (25%), medium (35%), large (45%)
+  // Size options: small (25%), medium (35%), large (45%), xlarge (55% - for high-res exports)
   const sizeMultipliers = {
     'small': 0.25,
     'medium': 0.35,
-    'large': 0.45
+    'large': 0.45,
+    'xlarge': 0.55
   };
   const sizeMultiplier = sizeMultipliers[size] || 0.35;
   
   // Compact style aspect ratio: 480x56 (8.57:1)
-  const dashWidth = Math.round(playResX * sizeMultiplier);
+  // Cap dashboard width to prevent it from getting too large on high-res exports
+  // Max width based on 1920px reference (standard 1080p width)
+  const maxDashWidth = Math.round(1920 * sizeMultiplier);
+  const rawDashWidth = Math.round(playResX * sizeMultiplier);
+  const dashWidth = Math.min(rawDashWidth, maxDashWidth);
   const dashHeight = Math.round(dashWidth / 8.57);
   const fontSize = Math.round(dashHeight * 0.45);
   const iconSize = Math.round(dashHeight * 0.5);
@@ -328,22 +358,22 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const events = [];
   
   // Calculate element positions - evenly distributed across dashboard width
-  // Layout: [Brake] [Gear] [<] [Speed+Unit] [Time/AP] [>] [Steering] [Accel]
-  // 8 elements, evenly spaced with extra gap between Speed and Time/AP
+  // Layout: [Brake] [Date/Time] [<] [Speed+Unit] [Gear/AP] [>] [Steering] [Accel]
+  // 8 elements, evenly spaced with extra gap between Speed and Gear/AP
   const numElements = 8;
   const padding = dashWidth * 0.05; // 5% padding on each side
   const usableWidth = dashWidth - (padding * 2);
   const spacing = usableWidth / (numElements - 1);
   const startX = pos.x - dashWidth / 2 + padding;
   
-  // Even spacing for all elements, with speed/timeAp shifted for extra gap
-  const extraGap = spacing * 0.15; // Extra gap between speed and time/AP
+  // Even spacing for all elements, with speed/gearAp shifted for extra gap
+  const extraGap = spacing * 0.15; // Extra gap between speed and gear/AP
   const positions = {
     brake: startX + spacing * 0,
-    gear: startX + spacing * 1,
+    dateTime: startX + spacing * 1,              // Date/Time (was Gear)
     leftBlinker: startX + spacing * 2,
     speed: startX + spacing * 3 - extraGap,      // Shift left slightly
-    timeAp: startX + spacing * 4 + extraGap,     // Shift right slightly
+    gearAp: startX + spacing * 4 + extraGap,     // Gear/AP (was Time/AP) - Shift right slightly
     rightBlinker: startX + spacing * 5,
     steering: startX + spacing * 6,
     accel: startX + spacing * 7
@@ -436,12 +466,13 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     const rightBlinkVisible = rightBlinkerOn && isBlinkOn;
     
     const displayTime = formatDisplayTime(actualTimestampMs);
+    const displayDate = formatDisplayDate(actualTimestampMs, dateFormat);
     
     // Create state signature for change detection
     const currentState = JSON.stringify({
       speed, gearText, leftBlinkVisible, rightBlinkVisible,
       apActive, apText, brakeActive, accelActive,
-      steeringAngle: Math.round(steeringAngle), displayTime
+      steeringAngle: Math.round(steeringAngle), displayTime, displayDate
     });
     
     // Emit events when state changes or at the end
@@ -499,11 +530,15 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         // Speed and gear font sizes (declared early as used by gear display)
         const speedNumSize = Math.round(fontSize * 1.4);
         const speedUnitSize = Math.round(fontSize * 0.55);
+        const smallTextSize = Math.round(fontSize * 0.7);
         
-        // Gear state
-        const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
+        // Date and Time display (stacked vertically) - at position 1 (where Gear was)
+        // Date on top, Time below - both same size as the old time display
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.gear},${pos.y})\\bord0\\shad0\\fs${speedNumSize}\\1c${gearColor}}${prev.gearText}`
+          `{\\an5\\pos(${positions.dateTime},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c&HA0A0A0&}${prev.displayDate}`
+        ));
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an5\\pos(${positions.dateTime},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c&HA0A0A0&}${prev.displayTime}`
         ));
         
         // Left blinker arrow - from Illustrator export, centered at (0,0)
@@ -526,13 +561,15 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           `{\\an4\\pos(${positions.speed + speedGap},${pos.y})\\bord0\\shad0\\fs${speedUnitSize}\\1c&H909090&}${speedUnit}`
         ));
         
-        // Time and Autopilot label (stacked vertically)
+        // Gear and Autopilot label (stacked vertically) - at position 4 (where Time was)
+        // Gear on top (same size as time text), AP label below
+        const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.timeAp},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${Math.round(fontSize * 0.7)}\\1c&HA0A0A0&}${prev.displayTime}`
+          `{\\an5\\pos(${positions.gearAp},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c${gearColor}}${prev.gearText}`
         ));
         const apColor = prev.apActive ? '&HFF4800&' : '&H808080&'; // Blue when active
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.timeAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${Math.round(fontSize * 0.7)}\\1c${apColor}}${prev.apText}`
+          `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c${apColor}}${prev.apText}`
         ));
         
         // Right blinker arrow - from Illustrator export, centered at (0,0)

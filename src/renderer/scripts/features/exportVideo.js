@@ -7,6 +7,7 @@ import { notify } from '../ui/notifications.js';
 import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
+import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
 
 // Export state
 export const exportState = {
@@ -1262,12 +1263,16 @@ export async function startExport() {
             }
         }
         
+        // Parse timestamp from group's timestampKey for ASS dashboard overlay
+        const timestamp = parseTimestampKeyToEpochMs(group.timestampKey) || null;
+        
         segments.push({
             index: i,
             durationSec,
             startSec: cumStarts[i] || 0,
             files,
-            groupId: group.id
+            groupId: group.id,
+            timestamp // Epoch ms for this segment's start time (UTC)
         });
     }
     

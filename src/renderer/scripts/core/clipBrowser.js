@@ -276,13 +276,14 @@ export function buildDisplayItems(eventMetaByKey = new Map()) {
 }
 
 /**
- * Parse timestamp key to epoch milliseconds.
+ * Parse timestamp key to epoch milliseconds (Tesla filenames are in UTC).
  */
 export function parseTimestampKeyToEpochMs(timestampKey) {
     const m = String(timestampKey || '').match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
     if (!m) return null;
     const [ , Y, Mo, D, h, mi, s ] = m;
-    return new Date(+Y, +Mo - 1, +D, +h, +mi, +s, 0).getTime();
+    // Use Date.UTC to correctly interpret Tesla filenames as UTC timestamps
+    return Date.UTC(+Y, +Mo - 1, +D, +h, +mi, +s, 0);
 }
 
 /**
