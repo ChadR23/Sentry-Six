@@ -1,5 +1,5 @@
 {
-  "version": "2026.1.42",
+  "version": "2026.1.43",
   "releaseDate": "2026-01-06",
-  "releaseName": "Intel QuickSync Fix"
+  "releaseName": "Bundle FFMPEG on MacOS"
 }

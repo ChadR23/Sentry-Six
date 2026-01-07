@@ -95,6 +95,27 @@ function createWindow() {
 }
 
 // FFmpeg Utilities
+/**
+ * Ensures macOS/Linux FFmpeg binaries are executable.
+ * Called before attempting to run FFmpeg to handle fresh installs or builds.
+ */
+function ensureExecutable(filePath) {
+  if (process.platform === 'win32') return; // Windows doesn't need chmod
+  
+  try {
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      // Check if executable bit is set (owner execute = 0o100)
+      if ((stats.mode & 0o100) === 0) {
+        console.log(`[CHMOD] Making executable: ${filePath}`);
+        fs.chmodSync(filePath, 0o755);
+      }
+    }
+  } catch (err) {
+    console.warn(`[CHMOD] Could not set executable permission on ${filePath}: ${err.message}`);
+  }
+}
+
 function findFFmpegPath() {
   const isMac = process.platform === 'darwin';
   const isWin = process.platform === 'win32';
@@ -103,38 +124,46 @@ function findFFmpegPath() {
   const paths = [];
   
   if (isMac) {
-    // macOS: Check common install locations
-    // Electron apps don't inherit shell PATH, so we check explicit paths
-    const macPaths = [
+    // macOS: Check bundled paths first (like Windows), then fall back to system paths
+    console.log('🍎 macOS detected, checking FFmpeg paths:');
+    
+    // For packaged builds, extraResources places files in process.resourcesPath
+    if (app.isPackaged) {
+      paths.push(
+        path.join(process.resourcesPath, 'ffmpeg_bin', 'ffmpeg')
+      );
+    }
+    // Also check standard development paths (npm start)
+    paths.push(
+      path.join(__dirname, '..', 'ffmpeg_bin', 'ffmpeg'),
+      path.join(__dirname, 'ffmpeg_bin', 'ffmpeg'),
+      path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'),
+      path.join(app.getAppPath(), 'ffmpeg_bin', 'ffmpeg'),
+      path.join(app.getAppPath(), '..', 'ffmpeg_bin', 'ffmpeg')
+    );
+    
+    // Fall back to system install locations (Homebrew, MacPorts, etc.)
+    const systemPaths = [
       '/opt/homebrew/bin/ffmpeg',  // Homebrew Apple Silicon
       '/usr/local/bin/ffmpeg',      // Homebrew Intel Mac
       '/opt/local/bin/ffmpeg',      // MacPorts
       '/usr/bin/ffmpeg',            // System
-      // Also check user's local bin
       path.join(os.homedir(), '.local', 'bin', 'ffmpeg'),
       path.join(os.homedir(), 'bin', 'ffmpeg')
     ];
+    paths.push(...systemPaths);
     
     // Log what we're checking for debugging
-    console.log('🍎 macOS detected, checking FFmpeg paths:');
-    for (const p of macPaths) {
+    for (const p of paths) {
       const exists = fs.existsSync(p);
       console.log(`   ${exists ? '✓' : '✗'} ${p}`);
-      if (exists) paths.push(p);
-    }
-    
-    // If no explicit paths found, still add them for spawn check (might be symlinked)
-    if (paths.length === 0) {
-      paths.push(...macPaths);
     }
   } else if (isWin) {
     // Windows: Check bundled paths first, then system
-    // For packaged builds, resources are in process.resourcesPath
+    // For packaged builds, extraResources places files in process.resourcesPath
     if (app.isPackaged) {
       paths.push(
-        path.join(process.resourcesPath, 'ffmpeg_bin', 'ffmpeg.exe'),
-        path.join(process.resourcesPath, 'app', 'ffmpeg_bin', 'ffmpeg.exe'),
-        path.join(process.resourcesPath, 'app.asar.unpacked', 'ffmpeg_bin', 'ffmpeg.exe')
+        path.join(process.resourcesPath, 'ffmpeg_bin', 'ffmpeg.exe')
       );
     }
     // Also check standard development paths
@@ -168,6 +197,11 @@ function findFFmpegPath() {
       console.log(`  Checking ${p}: exists=${exists}`);
       
       if (!exists) continue;
+      
+      // Ensure bundled binaries are executable on macOS/Linux
+      if (p !== 'ffmpeg' && !p.startsWith('/opt') && !p.startsWith('/usr')) {
+        ensureExecutable(p);
+      }
       
       // Don't use shell:true on Windows - it breaks paths with spaces
       // Only use shell on macOS for symlink handling

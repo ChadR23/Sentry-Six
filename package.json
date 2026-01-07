@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.1.42",
+  "version": "2026.1.43",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
@@ -46,7 +46,21 @@
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
       "certificateFile": null,
-      "certificatePassword": null
+      "certificatePassword": null,
+      "extraResources": [
+        {
+          "from": "ffmpeg_bin/ffmpeg.exe",
+          "to": "ffmpeg_bin/ffmpeg.exe"
+        },
+        {
+          "from": "ffmpeg_bin/ffprobe.exe",
+          "to": "ffmpeg_bin/ffprobe.exe"
+        },
+        {
+          "from": "ffmpeg_bin/README.md",
+          "to": "ffmpeg_bin/README.md"
+        }
+      ]
     },
     "mac": {
       "icon": "assets/Sentry_Six.icns",
@@ -64,7 +78,21 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "identity": null,
-      "artifactName": "SentrySixRevamped-${version}-macOS.${ext}"
+      "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
+      "extraResources": [
+        {
+          "from": "ffmpeg_bin/ffmpeg",
+          "to": "ffmpeg_bin/ffmpeg"
+        },
+        {
+          "from": "ffmpeg_bin/ffprobe",
+          "to": "ffmpeg_bin/ffprobe"
+        },
+        {
+          "from": "ffmpeg_bin/README.md",
+          "to": "ffmpeg_bin/README.md"
+        }
+      ]
     },
     "dmg": {
       "icon": "assets/Sentry_Six.icns",
@@ -88,11 +116,9 @@
     "linux": {
       "icon": "assets/Sentry_Six.png"
     },
-    "asarUnpack": ["ffmpeg_bin/**/*"],
     "files": [
       "src/**/*",
       "assets/**/*",
-      "ffmpeg_bin/**/*",
       "LICENSE.txt",
       "package.json",
       "version.json",

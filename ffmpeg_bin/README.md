@@ -9,9 +9,25 @@ FFmpeg binaries (`ffmpeg.exe`, `ffprobe.exe`) are bundled with the app installer
 No additional setup required.
 
 ### macOS
-FFmpeg is **NOT bundled** with the macOS app due to licensing and size constraints.
+FFmpeg binaries can be bundled with the macOS app (recommended) or installed via Homebrew as fallback.
 
-**Install via Homebrew (recommended):**
+**Option 1: Bundled (Recommended for Distribution)**
+
+Place the following files in this `ffmpeg_bin/` folder:
+- `ffmpeg` (macOS binary, no extension)
+- `ffprobe` (macOS binary, no extension)
+
+To obtain universal macOS binaries (works on both Intel and Apple Silicon):
+```bash
+# Download from https://evermeet.cx/ffmpeg/ or build universal binaries:
+# 1. Download ffmpeg and ffprobe from evermeet.cx/ffmpeg (select "universal" build)
+# 2. Extract and copy ffmpeg + ffprobe to this ffmpeg_bin/ folder
+# 3. Make executable: chmod +x ffmpeg ffprobe
+```
+
+The app checks bundled paths first, then falls back to system installations.
+
+**Option 2: Homebrew (Fallback)**
 ```bash
 # Install Homebrew if not already installed
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -20,10 +36,10 @@ FFmpeg is **NOT bundled** with the macOS app due to licensing and size constrain
 brew install ffmpeg
 ```
 
-The app automatically detects FFmpeg from these locations:
-- `/opt/homebrew/bin/ffmpeg` (Apple Silicon Macs)
-- `/usr/local/bin/ffmpeg` (Intel Macs)
-- `/opt/local/bin/ffmpeg` (MacPorts)
+The app automatically detects FFmpeg from these locations (in order):
+1. Bundled: `ffmpeg_bin/ffmpeg` (development) or `Resources/ffmpeg_bin/ffmpeg` (packaged)
+2. Homebrew: `/opt/homebrew/bin/ffmpeg` (Apple Silicon) or `/usr/local/bin/ffmpeg` (Intel)
+3. MacPorts: `/opt/local/bin/ffmpeg`
 
 ### Linux
 ```bash
