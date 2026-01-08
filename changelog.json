@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.2.6",
+      "date": "2026-01-07",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed UTC time. We Changed time to UTC No matter the place. instead of Cars Timezone."
+        }
+      ]
+    },
+    {
       "version": "2026.2.5",
       "date": "2026-01-07",
       "title": "Bug Fix Release",

@@ -111,9 +111,9 @@ function formatAssTime(ms) {
 function formatDisplayTime(timestampMs) {
   if (!timestampMs) return '--:--';
   const date = new Date(timestampMs);
-  let h = date.getUTCHours();
-  const m = date.getUTCMinutes();
-  const s = date.getUTCSeconds();
+  let h = date.getHours();
+  const m = date.getMinutes();
+  const s = date.getSeconds();
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} ${ampm}`;
@@ -128,9 +128,9 @@ function formatDisplayTime(timestampMs) {
 function formatDisplayDate(timestampMs, dateFormat = 'mdy') {
   if (!timestampMs) return '--/--/--';
   const date = new Date(timestampMs);
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
   
   switch (dateFormat) {
     case 'dmy':
