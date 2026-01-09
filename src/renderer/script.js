@@ -3654,9 +3654,9 @@ async function loadNativeSegment(segIdx) {
                     }
                 }
                 
-                // Colors: dark blue for autopilot, dark gray for manual
-                const AUTOPILOT_COLOR = '#094288ff';  // Dark blue (matches FSD text)
-                const MANUAL_COLOR = '#4a4a4a';     // Dark gray
+                // Colors: match dashboard FSD text and darker manual
+                const AUTOPILOT_COLOR = '#1e5af1ff';   // Dashboard FSD accent
+                const MANUAL_COLOR = '#4d4c4cc7';      // Darker gray for manual
                 
                 // Build segments with consistent autopilot state
                 const segments = [];
@@ -3681,7 +3681,7 @@ async function loadNativeSegment(segIdx) {
                 // Create polylines for each segment
                 const polylines = segments.map(seg => {
                     const color = seg.autopilot ? AUTOPILOT_COLOR : MANUAL_COLOR;
-                    return L.polyline(seg.coords, { color, weight: 6, opacity: 0.8 }).addTo(map);
+                    return L.polyline(seg.coords, { color, weight: 6, opacity: 1 }).addTo(map);
                 });
                 
                 mapPolyline = polylines;
