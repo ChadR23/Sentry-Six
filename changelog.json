@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.2.7",
+      "date": "2026-01-07",
+      "title": "Map Improvements & Fixes",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added the ability for the map route line to display Blue/Gray depending on Self Driving/Manual driving state."
+        },
+        {
+          "type": "feature",
+          "description": "Added the ability to zoom in/out and pan around the map. (Hold and drag using right click to pan around the map)"
+        },
+        {
+          "type": "fix",
+          "description": "Switched Map Data to OSM to resolve issues where CartoDB would not work in China."
+        },
+        {
+          "type": "improvement",
+          "description": "Adjusted the consistency of the date/time formatting throughout the application. You can set your preferred format under Settings."
+        }
+      ]
+    },
+    {
       "version": "2026.2.6",
       "date": "2026-01-07",
       "title": "Bug Fix Release",

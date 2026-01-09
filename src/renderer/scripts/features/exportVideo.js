@@ -1120,7 +1120,7 @@ export async function startExport() {
     const includeTimestampCheckbox = $('includeTimestamp');
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
     const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
-    const timestampDateFormat = $('timestampDateFormat')?.value || 'mdy';
+    const timestampDateFormat = window._dateFormat || 'ymd'; // Use global date format setting
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;

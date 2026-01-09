@@ -1262,11 +1262,69 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     width: 100%;
     background: #1a1a1a;
     border-radius: 0 0 20px 20px;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: default;
 }
 
 #map * {
+    pointer-events: auto;
+}
+
+/* Map re-center button */
+.map-recenter-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    background: rgba(30, 30, 35, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.map-vis:hover .map-recenter-btn {
+    opacity: 1;
+}
+
+.map-recenter-btn:hover {
+    background: rgba(50, 50, 60, 0.95);
+    color: rgba(255, 255, 255, 1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.map-recenter-btn:active {
+    transform: scale(0.95);
+}
+
+/* Map hover hint */
+.map-hint {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
     pointer-events: none;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+.map-vis:hover .map-hint {
+    opacity: 1;
 }
 
 .vis-header {

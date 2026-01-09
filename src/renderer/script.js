@@ -199,7 +199,11 @@ function resetDashboardAndMap() {
     // Reset map
     clearMapMarker();
     if (mapPolyline) {
-        mapPolyline.remove();
+        if (Array.isArray(mapPolyline)) {
+            mapPolyline.forEach(p => p.remove());
+        } else {
+            mapPolyline.remove();
+        }
         mapPolyline = null;
     }
     mapPath = [];
@@ -429,17 +433,160 @@ function hasValidGps(sei) {
             map = L.map('map', { 
                 zoomControl: false, 
                 attributionControl: false,
-                dragging: false,
-                touchZoom: false,
-                scrollWheelZoom: false,
-                doubleClickZoom: false,
+                dragging: false,         // Disable left-click drag (conflicts with dashboard)
+                touchZoom: true,
+                scrollWheelZoom: true,   // Enable scroll wheel zoom
+                doubleClickZoom: true,
                 boxZoom: false,
                 keyboard: false
             }).setView([0, 0], 2);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            // Use OpenStreetMap tiles - works globally including China
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                subdomains: 'abcd'
+                subdomains: 'abc'
             }).addTo(map);
+            
+            // Enable right-click drag for panning (to avoid conflict with dashboard left-click drag)
+            let mapDragStart = null;
+            let mapDragStartCenter = null;
+            let isMapDragging = false;
+            const mapEl = document.getElementById('map');
+            const mapVis = document.getElementById('mapVis');
+            
+            // Disable context menu on map
+            mapEl.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            
+            // Also prevent context menu on mapVis container
+            mapVis.addEventListener('contextmenu', e => {
+                if (e.target === mapEl || mapEl.contains(e.target)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
+            
+            mapEl.addEventListener('mousedown', e => {
+                if (e.button === 2) { // Right-click
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isMapDragging = true;
+                    mapDragStart = { x: e.clientX, y: e.clientY };
+                    mapDragStartCenter = map.getCenter();
+                    mapEl.style.cursor = 'grabbing';
+                }
+            });
+            
+            document.addEventListener('mousemove', e => {
+                if (isMapDragging && mapDragStart && mapDragStartCenter) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dx = e.clientX - mapDragStart.x;
+                    const dy = e.clientY - mapDragStart.y;
+                    // Convert pixel offset to lat/lng offset
+                    const startPoint = map.latLngToContainerPoint(mapDragStartCenter);
+                    const newPoint = L.point(startPoint.x - dx, startPoint.y - dy);
+                    const newCenter = map.containerPointToLatLng(newPoint);
+                    map.setView(newCenter, map.getZoom(), { animate: false });
+                }
+            });
+            
+            document.addEventListener('mouseup', e => {
+                if (e.button === 2 && isMapDragging) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isMapDragging = false;
+                    mapDragStart = null;
+                    mapDragStartCenter = null;
+                    mapEl.style.cursor = 'default';
+                }
+            });
+            
+            // Helper to re-center map based on current polyline or cached path
+            function recenterMap() {
+                if (!map) return;
+                
+                // Prefer existing polylines' bounds
+                if (mapPolyline) {
+                    let bounds = null;
+                    if (Array.isArray(mapPolyline) && mapPolyline.length > 0) {
+                        bounds = mapPolyline[0].getBounds();
+                        for (let i = 1; i < mapPolyline.length; i++) {
+                            bounds = bounds.extend(mapPolyline[i].getBounds());
+                        }
+                    } else if (mapPolyline.getBounds) {
+                        bounds = mapPolyline.getBounds();
+                    }
+                    if (bounds) {
+                        map.invalidateSize();
+                        map.fitBounds(bounds, { padding: [20, 20], animate: true });
+                        return;
+                    }
+                }
+                
+                // Fallback to path data
+                const path = (nativeVideo.mapPath?.length ? nativeVideo.mapPath : window._lastMapPath) || [];
+                if (path.length > 0) {
+                    const allCoords = path.map(p => [p.lat, p.lon]);
+                    const bounds = L.latLngBounds(allCoords);
+                    map.invalidateSize();
+                    map.fitBounds(bounds, { padding: [20, 20], animate: true });
+                    return;
+                }
+                
+                // Fallback to cached bounds (saved/sentry pin)
+                if (window._lastMapBounds) {
+                    map.invalidateSize();
+                    map.fitBounds(window._lastMapBounds, { padding: [20, 20], animate: true });
+                    return;
+                }
+                
+                // Last resort: center on event marker if present
+                if (eventLocationMarker) {
+                    const ll = eventLocationMarker.getLatLng();
+                    map.invalidateSize();
+                    map.setView(ll, 16);
+                }
+            }
+            
+            // Store original bounds for re-centering
+            window._mapOriginalBounds = null;
+            
+            // Re-center button - resets both zoom and position
+            const mapRecenterBtn = document.getElementById('mapRecenterBtn');
+            if (mapRecenterBtn) {
+                // Fallback click handler (in case mouseup is suppressed)
+                mapRecenterBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    recenterMap();
+                });
+
+                // Use mousedown + mouseup to avoid drag interference
+                let recenterMouseDown = false;
+                mapRecenterBtn.addEventListener('mousedown', e => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    recenterMouseDown = true;
+                }, true);
+                
+                mapRecenterBtn.addEventListener('mouseup', e => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    if (recenterMouseDown) {
+                        recenterMouseDown = false;
+                        // Perform re-center
+                        recenterMap();
+                    }
+                }, true);
+                
+                mapRecenterBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }, true);
+            }
         }
     } catch(e) { console.error('Leaflet init failed', e); }
     
@@ -448,19 +595,21 @@ function hasValidGps(sei) {
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            if (map && mapPolyline) {
+            if (map && mapPolyline && nativeVideo.mapPath?.length > 0) {
                 map.invalidateSize();
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+                const allCoords = nativeVideo.mapPath.map(p => [p.lat, p.lon]);
+                map.fitBounds(L.latLngBounds(allCoords), { padding: [20, 20] });
             }
         }, 100);
     });
     
     // Also handle fullscreen changes
     document.addEventListener('fullscreenchange', () => {
-        if (map && mapPolyline) {
+        if (map && mapPolyline && nativeVideo.mapPath?.length > 0) {
             setTimeout(() => {
                 map.invalidateSize();
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+                const allCoords = nativeVideo.mapPath.map(p => [p.lat, p.lon]);
+                map.fitBounds(L.latLngBounds(allCoords), { padding: [20, 20] });
             }, 100);
         }
     });
@@ -838,6 +987,21 @@ function hasValidGps(sei) {
 
     // Initialize native video playback system
     initNativeVideoPlayback();
+
+    // Listen for date format changes to update the clips dropdown
+    window.addEventListener('dateFormatChanged', () => {
+        if (library.allDates && library.allDates.length > 0) {
+            const currentValue = dayFilter.value;
+            dayFilter.innerHTML = '<option value="">Select Date</option>';
+            library.allDates.forEach(date => {
+                const opt = document.createElement('option');
+                opt.value = date;
+                opt.textContent = formatDateDisplay(date);
+                dayFilter.appendChild(opt);
+            });
+            if (currentValue) dayFilter.value = currentValue;
+        }
+    });
 
     // Multi focus mode (click a tile to expand)
     // Debounced to prevent rapid clicking issues
@@ -1427,7 +1591,7 @@ async function loadDateContentElectron(date) {
     previews.inFlight = 0;
     state.ui.openEventRowId = null;
 
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${date}`;
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${formatDateDisplay(date)}`;
     renderClipList();
 
     // Auto-select first item
@@ -1445,14 +1609,24 @@ async function loadDateContentElectron(date) {
     // Parse event.json in background
     ingestSentryEventJson(built.eventAssetsByKey);
     
-    notify(`Loaded ${files.length} files for ${date}`, { type: 'success' });
+    notify(`Loaded ${files.length} files for ${formatDateDisplay(date)}`, { type: 'success' });
 }
 
 function formatDateDisplay(dateStr) {
     try {
         const [year, month, day] = dateStr.split('-');
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        const dateFormat = window._dateFormat || 'ymd';
+        
+        // Format based on global date format setting
+        switch (dateFormat) {
+            case 'mdy':
+                return `${month}/${day}/${year}`;
+            case 'dmy':
+                return `${day}/${month}/${year}`;
+            case 'ymd':
+            default:
+                return `${year}-${month}-${day}`;
+        }
     } catch {
         return dateStr;
     }
@@ -1764,7 +1938,7 @@ async function handleFolderFilesForDate(files, date) {
     previews.inFlight = 0;
     state.ui.openEventRowId = null;
 
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${date}`;
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${formatDateDisplay(date)}`;
     renderClipList();
 
     // Auto-select first item
@@ -2118,7 +2292,7 @@ function updateDayFilterOptions() {
     for (const d of dates) {
         const opt = document.createElement('option');
         opt.value = d;
-        opt.textContent = d;
+        opt.textContent = formatDateDisplay(d);
         dayFilter.appendChild(opt);
     }
     
@@ -3466,17 +3640,65 @@ async function loadNativeSegment(segIdx) {
         extractSeiFromEntry(masterEntry).then(({ seiData, mapPath }) => {
             nativeVideo.seiData = seiData;
             nativeVideo.mapPath = mapPath;
-            // Draw route on map
+            if (mapPath?.length) {
+                window._lastMapPath = mapPath; // cache for re-center
+            }
+            // Draw route on map with autopilot-aware coloring
             if (map && mapPath.length > 0) {
-                if (mapPolyline) mapPolyline.remove();
-                mapPolyline = L.polyline(mapPath, { color: '#3e9cbf', weight: 3, opacity: 0.7 }).addTo(map);
+                // Remove existing polylines
+                if (mapPolyline) {
+                    if (Array.isArray(mapPolyline)) {
+                        mapPolyline.forEach(p => p.remove());
+                    } else {
+                        mapPolyline.remove();
+                    }
+                }
+                
+                // Colors: dark blue for autopilot, dark gray for manual
+                const AUTOPILOT_COLOR = '#094288ff';  // Dark blue (matches FSD text)
+                const MANUAL_COLOR = '#4a4a4a';     // Dark gray
+                
+                // Build segments with consistent autopilot state
+                const segments = [];
+                let currentSegment = [];
+                let currentAutopilot = mapPath[0].autopilot;
+                
+                for (const point of mapPath) {
+                    if (point.autopilot !== currentAutopilot && currentSegment.length > 0) {
+                        // State changed - save current segment and start new one
+                        // Include last point in new segment for continuity
+                        segments.push({ coords: currentSegment, autopilot: currentAutopilot });
+                        currentSegment = [currentSegment[currentSegment.length - 1]]; // Overlap for continuity
+                        currentAutopilot = point.autopilot;
+                    }
+                    currentSegment.push([point.lat, point.lon]);
+                }
+                // Push final segment
+                if (currentSegment.length > 0) {
+                    segments.push({ coords: currentSegment, autopilot: currentAutopilot });
+                }
+                
+                // Create polylines for each segment
+                const polylines = segments.map(seg => {
+                    const color = seg.autopilot ? AUTOPILOT_COLOR : MANUAL_COLOR;
+                    return L.polyline(seg.coords, { color, weight: 6, opacity: 0.8 }).addTo(map);
+                });
+                
+                mapPolyline = polylines;
+                
+                // Fit bounds to all points
+                const allCoords = mapPath.map(p => [p.lat, p.lon]);
+                const bounds = L.latLngBounds(allCoords);
+                window._lastMapBounds = bounds; // cache for recenter
+                window._lastMapPath = mapPath;  // ensure path cached
                 map.invalidateSize();
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+                map.fitBounds(bounds, { padding: [20, 20] });
+                
                 // Re-center map after 1 second to ensure proper centering if a glitch occurred
                 setTimeout(() => {
                     if (map && mapPolyline) {
                         map.invalidateSize();
-                        map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+                        map.fitBounds(bounds, { padding: [20, 20] });
                     }
                 }, 1000);
             }
@@ -3680,7 +3902,10 @@ function extractSeiFromBuffer(buffer) {
                 if (hasValidGps(frame.sei)) {
                     const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
                     const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
-                    mapPath.push([lat, lon]);
+                    // Include autopilot state: 1 or 2 = engaged, 0 or undefined = manual
+                    const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state ?? 0;
+                    const isAutopilot = apState === 1 || apState === 2;
+                    mapPath.push({ lat, lon, autopilot: isAutopilot });
                 }
             }
         }
@@ -3707,7 +3932,10 @@ async function extractSeiFromFile(file) {
                 if (hasValidGps(frame.sei)) {
                     const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
                     const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
-                    mapPath.push([lat, lon]);
+                    // Include autopilot state: 1 or 2 = engaged, 0 or undefined = manual
+                    const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state ?? 0;
+                    const isAutopilot = apState === 1 || apState === 2;
+                    mapPath.push({ lat, lon, autopilot: isAutopilot });
                 }
             }
         }

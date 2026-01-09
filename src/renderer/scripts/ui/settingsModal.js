@@ -252,6 +252,31 @@ export function initSettingsModal() {
         };
     }
     
+    // Date format setting
+    const settingsDateFormat = $('settingsDateFormat');
+    if (settingsDateFormat) {
+        // Load saved date format
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('dateFormat').then(savedValue => {
+                settingsDateFormat.value = savedValue || 'ymd';
+                window._dateFormat = savedValue || 'ymd';
+            });
+        } else {
+            window._dateFormat = 'ymd';
+        }
+        
+        settingsDateFormat.addEventListener('change', async function() {
+            const format = this.value;
+            window._dateFormat = format;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('dateFormat', format);
+            }
+            // Dispatch event so other components can update
+            window.dispatchEvent(new CustomEvent('dateFormatChanged', { detail: { format } }));
+            settingsDateFormat.blur();
+        });
+    }
+    
     // Layout style toggle (Modern floating vs Classic sidebar)
     const settingsLayoutStyle = $('settingsLayoutStyle');
     if (settingsLayoutStyle) {

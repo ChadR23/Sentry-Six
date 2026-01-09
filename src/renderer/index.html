@@ -149,6 +149,12 @@
                     <div class="drag-handle"></div>
                 </div>
                 <div id="map"></div>
+                <button id="mapRecenterBtn" class="map-recenter-btn" title="Re-center map">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                    </svg>
+                </button>
+                <div class="map-hint">Right-click drag to move</div>
             </div>
 
             <!-- Floating Visualization -->
@@ -554,17 +560,6 @@
                                         <option value="top-right">Top Right</option>
                                     </select>
                                 </div>
-                                <div class="select-row">
-                                    <div class="select-row-info">
-                                        <span class="select-row-label">Date Format</span>
-                                        <span class="select-row-desc">Display format</span>
-                                    </div>
-                                    <select id="timestampDateFormat" class="settings-select">
-                                        <option value="mdy" selected>MM/DD/YYYY (US)</option>
-                                        <option value="dmy">DD/MM/YYYY (International)</option>
-                                        <option value="ymd">YYYY-MM-DD (ISO)</option>
-                                    </select>
-                                </div>
                             </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
@@ -824,6 +819,17 @@
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label">Date Format</span>
+                                <span class="select-row-desc">Display format for dates</span>
+                            </div>
+                            <select id="settingsDateFormat" class="settings-select">
+                                <option value="mdy">MM/DD/YYYY (US)</option>
+                                <option value="dmy">DD/MM/YYYY (International)</option>
+                                <option value="ymd" selected>YYYY-MM-DD (ISO)</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <!-- Default Folder Section -->
@@ -1486,7 +1492,7 @@
                     <!-- Step 8: Settings -->
                     <div class="welcome-step" data-step="8">
                         <h3 class="welcome-step-title">Customize Settings</h3>
-                        <p class="welcome-step-desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, and display preferences.</p>
+                        <p class="welcome-step-desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences.</p>
                         <!-- Actual settings modal clone -->
                         <div class="welcome-preview-container">
                             <div class="modal-content welcome-preview-settings" style="position: relative; max-width: 100%; margin: 0;">
@@ -1510,21 +1516,22 @@
                                     </div>
                                     <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
                                         <div class="toggle-row-info">
-                                            <span class="toggle-row-label">Show Map</span>
-                                        </div>
-                                        <div class="toggle-switch">
-                                            <input type="checkbox" checked disabled>
-                                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                                        </div>
-                                    </div>
-                                    <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
-                                        <div class="toggle-row-info">
                                             <span class="toggle-row-label">Use Metric Units</span>
+                                            <span class="toggle-row-desc" style="font-size: 10px; opacity: 0.7;">KM/H vs MPH</span>
                                         </div>
                                         <div class="toggle-switch">
                                             <input type="checkbox" disabled>
                                             <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                                         </div>
+                                    </div>
+                                    <div class="select-row" style="pointer-events: none; margin-top: 8px;">
+                                        <div class="select-row-info">
+                                            <span class="select-row-label" style="font-size: 12px;">Date Format</span>
+                                            <span class="select-row-desc" style="font-size: 10px; opacity: 0.7;">Global setting</span>
+                                        </div>
+                                        <select class="settings-select" disabled style="font-size: 11px; padding: 4px 8px;">
+                                            <option>YYYY-MM-DD</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
