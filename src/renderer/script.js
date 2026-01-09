@@ -207,6 +207,8 @@ function resetDashboardAndMap() {
         mapPolyline = null;
     }
     mapPath = [];
+    window._lastMapBounds = null;
+    window._lastMapPath = null;
     
     // Clear event location marker (Sentry/Saved clip static pin)
     if (eventLocationMarker) {
@@ -507,6 +509,14 @@ function hasValidGps(sei) {
             function recenterMap() {
                 if (!map) return;
                 
+                // Highest priority: event marker (sentry/saved)
+                if (eventLocationMarker) {
+                    const ll = eventLocationMarker.getLatLng();
+                    map.invalidateSize();
+                    map.setView(ll, 16);
+                    return;
+                }
+                
                 // Prefer existing polylines' bounds
                 if (mapPolyline) {
                     let bounds = null;
@@ -540,13 +550,6 @@ function hasValidGps(sei) {
                     map.invalidateSize();
                     map.fitBounds(window._lastMapBounds, { padding: [20, 20], animate: true });
                     return;
-                }
-                
-                // Last resort: center on event marker if present
-                if (eventLocationMarker) {
-                    const ll = eventLocationMarker.getLatLng();
-                    map.invalidateSize();
-                    map.setView(ll, 16);
                 }
             }
             
@@ -3656,7 +3659,7 @@ async function loadNativeSegment(segIdx) {
                 
                 // Colors: match dashboard FSD text and darker manual
                 const AUTOPILOT_COLOR = '#1e5af1ff';   // Dashboard FSD accent
-                const MANUAL_COLOR = '#4d4c4cc7';      // Darker gray for manual
+                const MANUAL_COLOR = '#4d4c4cff';      // Darker gray for manual
                 
                 // Build segments with consistent autopilot state
                 const segments = [];

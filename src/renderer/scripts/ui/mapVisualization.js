@@ -88,10 +88,10 @@ export function updateMapMarker(sei, hasValidGps) {
             
             const arrowIcon = L.divIcon({
                 className: 'arrow-marker-icon',
-                html: `<img src="../../assets/arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
-                iconSize: [77, 77],
-                iconAnchor: [38, 38],
-                popupAnchor: [0, -38]
+                html: `<img src="../../assets/arrow.png" style="width: 116px; height: 116px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
+                iconSize: [116, 116],
+                iconAnchor: [58, 58],
+                popupAnchor: [0, -58]
             });
             
             mapMarker = L.marker(latlng, { icon: arrowIcon }).addTo(map);
@@ -107,10 +107,10 @@ export function updateMapMarker(sei, hasValidGps) {
                 } else {
                     const newArrowIcon = L.divIcon({
                         className: 'arrow-marker-icon',
-                        html: `<img src="../../assets/arrow.png" style="width: 77px; height: 77px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
-                        iconSize: [77, 77],
-                        iconAnchor: [38, 38],
-                        popupAnchor: [0, -38]
+                        html: `<img src="../../assets/arrow.png" style="width: 116px; height: 116px; transform: rotate(${currentMapArrowRotation}deg); transform-origin: center center; transition: transform ${transitionDuration}s ease-out; display: block;" />`,
+                        iconSize: [116, 116],
+                        iconAnchor: [58, 58],
+                        popupAnchor: [0, -58]
                     });
                     mapMarker.setIcon(newArrowIcon);
                 }
