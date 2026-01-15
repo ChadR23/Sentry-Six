@@ -912,76 +912,76 @@
                 <!-- Shortcuts Tab -->
                 <div class="modal-tab-content" data-tab="shortcuts">
                     <div class="modal-section">
-                        <div class="modal-section-title">Keyboard Shortcuts</div>
-                        <div class="modal-section-desc">Click a field and press any key</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.keyboardShortcuts">Keyboard Shortcuts</div>
+                        <div class="modal-section-desc" data-i18n="ui.settings.keyboardShortcutsDesc">Click a field and press any key</div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Play / Pause</span>
+                            <span class="keybind-label" data-i18n="ui.settings.playPause">Play / Pause</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="playPause" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" id="skipForwardLabel">Skip Forward</span>
+                            <span class="keybind-label" id="skipForwardLabel" data-i18n="ui.settings.skipForward">Skip Forward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" id="skipBackwardLabel">Skip Backward</span>
+                            <span class="keybind-label" id="skipBackwardLabel" data-i18n="ui.settings.skipBackward">Skip Backward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact" style="margin-top: 4px;">
-                            <span class="keybind-label">Skip Duration</span>
+                            <span class="keybind-label" data-i18n="ui.settings.skipDuration">Skip Duration</span>
                             <div class="keybind-input-wrapper">
                                 <select id="settingsSkipDuration" class="settings-select" style="width: 116px; padding: 4px 8px; font-size: 11px;">
-                                    <option value="1">1 second</option>
-                                    <option value="5">5 seconds</option>
-                                    <option value="15" selected>15 seconds</option>
+                                    <option value="1">1 <span data-i18n="ui.settings.second">second</span></option>
+                                    <option value="5">5 <span data-i18n="ui.settings.seconds">seconds</span></option>
+                                    <option value="15" selected>15 <span data-i18n="ui.settings.seconds">seconds</span></option>
                                 </select>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Toggle Dashboard</span>
+                            <span class="keybind-label" data-i18n="ui.settings.toggleDashboard">Toggle Dashboard</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleDash" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Toggle Map</span>
+                            <span class="keybind-label" data-i18n="ui.settings.toggleMap">Toggle Map</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMap" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Toggle MPH / KMH</span>
+                            <span class="keybind-label" data-i18n="ui.settings.toggleMphKmh">Toggle MPH / KMH</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMetric" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Toggle Clips Panel</span>
+                            <span class="keybind-label" data-i18n="ui.settings.toggleClipsPanel">Toggle Clips Panel</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Set Export Marker In</span>
+                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerIn">Set Export Marker In</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerIn" data-action="setMarkerIn" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerIn" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label">Set Export Marker Out</span>
+                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerOut">Set Export Marker Out</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerOut" data-action="setMarkerOut" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerOut" title="Clear">✕</button>
@@ -993,11 +993,11 @@
                 <!-- Advanced Tab -->
                 <div class="modal-tab-content" data-tab="advanced">
                     <div class="modal-section">
-                        <div class="modal-section-title">Updates</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.updates">Updates</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Disable Auto-Update</span>
-                                <span class="toggle-row-desc">Don't check for updates on launch</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.disableAutoUpdate">Disable Auto-Update</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.disableAutoUpdateDesc">Don't check for updates on launch</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsDisableAutoUpdate">
@@ -1006,12 +1006,12 @@
                         </label>
                         <div class="action-row">
                             <div class="action-row-info">
-                                <span class="action-row-label">Update Branch</span>
-                                <span class="action-row-desc">Main for stable, Dev-SEI for beta</span>
+                                <span class="action-row-label" data-i18n="ui.settings.updateBranch">Update Branch</span>
+                                <span class="action-row-desc" data-i18n="ui.settings.updateBranchDesc">Main for stable, Dev-SEI for beta</span>
                             </div>
                             <select id="settingsUpdateBranch" class="settings-select">
-                                <option value="main">Main (Stable)</option>
-                                <option value="Dev-SEI">Dev-SEI (Beta)</option>
+                                <option value="main" data-i18n="ui.settings.mainStable">Main (Stable)</option>
+                                <option value="Dev-SEI" data-i18n="ui.settings.devSeiBeta">Dev-SEI (Beta)</option>
                             </select>
                         </div>
                         <div id="branchInstallerNote" class="settings-note" style="display: none; margin: 8px 0 12px 0; padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border-radius: 6px; font-size: 12px; color: rgba(255, 193, 7, 0.9);">
@@ -1019,19 +1019,19 @@
                         </div>
                         <div class="action-row">
                             <div class="action-row-info">
-                                <span class="action-row-label">Check for Updates</span>
-                                <span class="action-row-desc">Manually check for new versions</span>
+                                <span class="action-row-label" data-i18n="ui.settings.checkForUpdates">Check for Updates</span>
+                                <span class="action-row-desc" data-i18n="ui.settings.checkForUpdatesDesc">Manually check for new versions</span>
                             </div>
-                            <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small">Check Now</button>
+                            <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.checkNow">Check Now</button>
                         </div>
                     </div>
                     
                     <div class="modal-section">
-                        <div class="modal-section-title">Event Highlights</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.eventHighlights">Event Highlights</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Sentry Camera Glow</span>
-                                <span class="toggle-row-desc">Red glow on triggered camera</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.sentryCameraGlow">Sentry Camera Glow</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.sentryCameraGlowDesc">Red glow on triggered camera</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsSentryCameraHighlight" checked>
@@ -1040,8 +1040,8 @@
                         </label>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Saved Camera Glow</span>
-                                <span class="toggle-row-desc">Yellow glow on triggered camera</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.savedCameraGlow">Saved Camera Glow</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.savedCameraGlowDesc">Yellow glow on triggered camera</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsSavedCameraHighlight" checked>
@@ -1051,20 +1051,20 @@
                     </div>
                     
                     <div class="modal-section">
-                        <div class="modal-section-title">Camera Layout</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.cameraLayout">Camera Layout</div>
                         <div class="action-row">
                             <div class="action-row-info">
-                                <span class="action-row-label">Reset Camera Order</span>
-                                <span class="action-row-desc">Restore default grid positions</span>
+                                <span class="action-row-label" data-i18n="ui.settings.resetCameraOrder">Reset Camera Order</span>
+                                <span class="action-row-desc" data-i18n="ui.settings.resetCameraOrderDesc">Restore default grid positions</span>
                             </div>
-                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small">Reset</button>
+                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.reset">Reset</button>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="modal-footer">
-                <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
+                <button id="closeSettingsBtn" class="btn btn-primary" data-i18n="ui.settings.done">Done</button>
             </div>
         </div>
     </div>
@@ -1317,7 +1317,7 @@
                     <!-- Step 2: Load Folder -->
                     <div class="welcome-step" data-step="2">
                         <h3 class="welcome-step-title" data-i18n="welcome.step2.title">Load Your Dashcam Folder</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step2.desc">Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step2.desc" data-i18n-html>Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
                         <!-- Actual drop overlay clone -->
                         <div class="welcome-preview-container">
                             <div class="drop-overlay welcome-preview-drop" style="position: relative; display: flex;">
@@ -1325,9 +1325,9 @@
                                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                                     </svg>
-                                    <p>Select your dashcam folder to browse clips</p>
+                                    <p data-i18n="ui.dropOverlay.message">Select your dashcam folder to browse clips</p>
                                     <div class="drop-actions">
-                                        <button class="mini-btn">Choose Folder</button>
+                                        <button class="mini-btn" data-i18n="ui.dropOverlay.chooseFolder">Choose Folder</button>
                                     </div>
                                 </div>
                             </div>
@@ -1338,16 +1338,16 @@
                     <!-- Step 3: Clip Browser -->
                     <div class="welcome-step" data-step="3">
                         <h3 class="welcome-step-title" data-i18n="welcome.step3.title">Browse Your Clips</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step3.desc">The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step3.desc" data-i18n-html>The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
                         <!-- Actual clip browser clone -->
                         <div class="welcome-preview-container">
                             <div class="clip-browser welcome-preview-clips" style="position: relative; width: 100%;">
                                 <div class="clip-browser-header">
                                     <div class="clip-browser-title">
-                                        <div class="clip-browser-title-main">Clips</div>
-                                        <div class="clip-browser-subtitle">3 events found</div>
+                                        <div class="clip-browser-title-main" data-i18n="ui.clipBrowser.title">Clips</div>
+                                        <div class="clip-browser-subtitle">3 <span data-i18n="welcome.step3.eventsFound">events found</span></div>
                                         <div class="clip-browser-dayfilter">
-                                            <label>Date</label>
+                                            <label data-i18n="ui.clipBrowser.dateLabel">Date</label>
                                             <select style="pointer-events: none;"><option>Dec 31, 2025</option></select>
                                         </div>
                                     </div>
@@ -1355,30 +1355,30 @@
                                 <div class="clip-list" style="display: flex; flex-direction: column; gap: 6px; padding: 8px;">
                                     <div class="clip-item event-item sentry-item" style="pointer-events: none;">
                                         <div class="clip-meta clip-meta-full">
-                                            <div class="clip-title">Sentry Event</div>
+                                            <div class="clip-title" data-i18n="welcome.step3.sentryEvent">Sentry Event</div>
                                             <div class="clip-badges">
-                                                <span class="badge sentry">Sentry</span>
+                                                <span class="badge sentry" data-i18n="ui.clipBrowser.sentry">Sentry</span>
                                             </div>
-                                            <div class="clip-sub"><div>3 segments · 6 cam</div></div>
+                                            <div class="clip-sub"><div>3 <span data-i18n="ui.clipBrowser.segments">segments</span> · 6 cam</div></div>
                                         </div>
                                     </div>
                                     <div class="clip-item event-item saved-item" style="pointer-events: none;">
                                         <div class="clip-meta clip-meta-full">
-                                            <div class="clip-title">Saved Clip</div>
+                                            <div class="clip-title" data-i18n="welcome.step3.savedClip">Saved Clip</div>
                                             <div class="clip-badges">
-                                                <span class="badge saved">Saved</span>
-                                                <span class="badge reason-icon warning">User Input</span>
+                                                <span class="badge saved" data-i18n="ui.clipBrowser.saved">Saved</span>
+                                                <span class="badge reason-icon warning" data-i18n="ui.eventTypes.manualSave">User Input</span>
                                             </div>
-                                            <div class="clip-sub"><div>2 segments · 6 cam</div></div>
+                                            <div class="clip-sub"><div>2 <span data-i18n="ui.clipBrowser.segments">segments</span> · 6 cam</div></div>
                                         </div>
                                     </div>
                                     <div class="clip-item event-item recent-item" style="pointer-events: none;">
                                         <div class="clip-meta clip-meta-full">
-                                            <div class="clip-title">Recent Clip</div>
+                                            <div class="clip-title" data-i18n="welcome.step3.recentClip">Recent Clip</div>
                                             <div class="clip-badges">
-                                                <span class="badge recent">Recent</span>
+                                                <span class="badge recent" data-i18n="ui.clipBrowser.recent">Recent</span>
                                             </div>
-                                            <div class="clip-sub"><div>5 segments · 6 cam</div></div>
+                                            <div class="clip-sub"><div>5 <span data-i18n="ui.clipBrowser.segments">segments</span> · 6 cam</div></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1389,27 +1389,27 @@
                     <!-- Step 4: Multi-Camera View -->
                     <div class="welcome-step" data-step="4">
                         <h3 class="welcome-step-title" data-i18n="welcome.step4.title">Multi-Camera Playback</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step4.desc">View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step4.desc" data-i18n-html>View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
                         <!-- Actual multi-cam grid clone -->
                         <div class="welcome-preview-container">
                             <div class="multi-cam-grid welcome-preview-grid" style="position: relative; display: grid; padding: 6px; aspect-ratio: 3/2;">
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Left Pillar</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.leftPillar">Left Pillar</div>
                                 </div>
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Front</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.front">Front</div>
                                 </div>
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Right Pillar</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.rightPillar">Right Pillar</div>
                                 </div>
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Left Repeater</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.leftRepeater">Left Repeater</div>
                                 </div>
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Back</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.back">Back</div>
                                 </div>
                                 <div class="multi-tile" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                                    <div class="multi-label">Right Repeater</div>
+                                    <div class="multi-label" data-i18n="ui.cameras.rightRepeater">Right Repeater</div>
                                 </div>
                             </div>
                         </div>
@@ -1435,11 +1435,11 @@
                                             </svg>
                                         </div>
                                         <div class="speed-display">
-                                            <div class="gear-state active">DRIVE</div>
+                                            <div class="gear-state active" data-i18n="ui.dashboard.drive">DRIVE</div>
                                             <div class="speed-value">45</div>
                                             <div class="speed-unit">MPH</div>
                                             <div class="autopilot-label-container">
-                                                <span class="autopilot-label active">Self Driving</span>
+                                                <span class="autopilot-label active" data-i18n="ui.dashboard.selfDriving">Self Driving</span>
                                             </div>
                                         </div>
                                         <div class="turn-signal right">
@@ -1510,16 +1510,16 @@
                     <!-- Step 7: Export -->
                     <div class="welcome-step" data-step="7">
                         <h3 class="welcome-step-title" data-i18n="welcome.step7.title">Export Your Clips</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step7.desc">Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step7.desc" data-i18n-html>Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
                         <!-- Actual export controls clone -->
                         <div class="welcome-preview-container">
                             <div class="controls welcome-preview-controls" style="position: relative; display: flex; padding: 10px; border-radius: 12px;">
                                 <div class="export-group" style="display: flex; gap: 6px; margin: 0 auto;">
                                     <button class="control-btn export-marker-btn start" style="pointer-events: none;">
-                                        <span class="marker-label">In</span>
+                                        <span class="marker-label" data-i18n="ui.export.inPoint">In</span>
                                     </button>
                                     <button class="control-btn export-marker-btn end" style="pointer-events: none;">
-                                        <span class="marker-label">Out</span>
+                                        <span class="marker-label" data-i18n="ui.export.outPoint">Out</span>
                                     </button>
                                     <button class="control-btn export-btn" style="pointer-events: none;">
                                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -1534,7 +1534,7 @@
                     <!-- Step 8: Settings -->
                     <div class="welcome-step" data-step="8">
                         <h3 class="welcome-step-title" data-i18n="welcome.step8.title">Customize Settings</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step8.desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step8.desc" data-i18n-html>Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences.</p>
                         <!-- Actual settings modal clone -->
                         <div class="welcome-preview-container">
                             <div class="modal-content welcome-preview-settings" style="position: relative; max-width: 100%; margin: 0;">
@@ -1549,7 +1549,7 @@
                                 <div style="padding: 10px 14px;">
                                     <div class="toggle-row" style="pointer-events: none;">
                                         <div class="toggle-row-info">
-                                            <span class="toggle-row-label">Show Dashboard</span>
+                                            <span class="toggle-row-label" data-i18n="ui.settings.dashboard">Show Dashboard</span>
                                         </div>
                                         <div class="toggle-switch">
                                             <input type="checkbox" checked disabled>
@@ -1558,7 +1558,7 @@
                                     </div>
                                     <div class="toggle-row" style="pointer-events: none; margin-top: 8px;">
                                         <div class="toggle-row-info">
-                                            <span class="toggle-row-label">Use Metric Units</span>
+                                            <span class="toggle-row-label" data-i18n="ui.settings.metricUnits">Use Metric Units</span>
                                             <span class="toggle-row-desc" style="font-size: 10px; opacity: 0.7;">KM/H vs MPH</span>
                                         </div>
                                         <div class="toggle-switch">
@@ -1568,7 +1568,7 @@
                                     </div>
                                     <div class="select-row" style="pointer-events: none; margin-top: 8px;">
                                         <div class="select-row-info">
-                                            <span class="select-row-label" style="font-size: 12px;">Date Format</span>
+                                            <span class="select-row-label" style="font-size: 12px;" data-i18n="ui.settings.dateFormat">Date Format</span>
                                             <span class="select-row-desc" style="font-size: 10px; opacity: 0.7;">Global setting</span>
                                         </div>
                                         <select class="settings-select" disabled style="font-size: 11px; padding: 4px 8px;">
@@ -1590,7 +1590,7 @@
                         </div>
                         <h3 class="welcome-step-title" data-i18n="welcome.step9.title">You're All Set!</h3>
                         <p class="welcome-step-desc" data-i18n="welcome.step9.desc">That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.</p>
-                        <p class="welcome-step-tip" data-i18n="welcome.step9.tip">💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
+                        <p class="welcome-step-tip" data-i18n="welcome.step9.tip" data-i18n-html>💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
                     </div>
                 </div>
                 

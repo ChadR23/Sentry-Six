@@ -152,6 +152,9 @@ export function translatePage() {
         const attrToTranslate = el.getAttribute('data-i18n-attr');
         if (attrToTranslate) {
             el.setAttribute(attrToTranslate, translation);
+        } else if (el.hasAttribute('data-i18n-html')) {
+            // Use innerHTML for elements that contain HTML tags in translations
+            el.innerHTML = translation;
         } else {
             // Default: translate text content
             el.textContent = translation;
