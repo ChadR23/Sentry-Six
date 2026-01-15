@@ -4,7 +4,7 @@
  */
 
 import { initKeybindSettings } from '../lib/keybinds.js';
-import { getCurrentLanguage, setLanguage, getAvailableLanguages } from '../lib/i18n.js';
+import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange } from '../lib/i18n.js';
 
 /**
  * Initialize modal tabs functionality

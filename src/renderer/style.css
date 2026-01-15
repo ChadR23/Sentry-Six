@@ -550,10 +550,29 @@ canvas, .video-player, .tile-video {
     color: inherit;
     padding: 2px 10px;
     font-size: 11px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.clip-browser-dayfilter select::-webkit-scrollbar {
+    width: 6px;
+}
+
+.clip-browser-dayfilter select::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.clip-browser-dayfilter select::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.clip-browser-dayfilter select::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .clip-item.event-item {
-    margin-left: 12px;
+    margin-left: 0;
     border-left: 2px solid rgba(62, 156, 191, 0.4);
     background: rgba(0, 0, 0, 0.35);
 }
@@ -684,6 +703,25 @@ canvas, .video-player, .tile-video {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.clip-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.clip-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.clip-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.clip-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .clip-item {
