@@ -8,6 +8,7 @@ import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
 import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
+import { t } from '../lib/i18n.js';
 
 // Export state
 export const exportState = {
@@ -131,7 +132,7 @@ export function setExportMarker(type) {
     const progressBar = getProgressBar?.();
     
     if (!state?.collection?.active) {
-        notify('Load a collection first to set export markers', { type: 'warn' });
+        notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
     
@@ -142,13 +143,13 @@ export function setExportMarker(type) {
         if (exportState.endMarkerPct !== null && exportState.endMarkerPct <= currentPct) {
             exportState.endMarkerPct = null;
         }
-        notify('Start marker set', { type: 'success' });
+        notify(t('ui.notifications.startMarkerSet'), { type: 'success' });
     } else {
         exportState.endMarkerPct = currentPct;
         if (exportState.startMarkerPct !== null && exportState.startMarkerPct >= currentPct) {
             exportState.startMarkerPct = null;
         }
-        notify('End marker set', { type: 'success' });
+        notify(t('ui.notifications.endMarkerSet'), { type: 'success' });
     }
     
     updateExportMarkers();

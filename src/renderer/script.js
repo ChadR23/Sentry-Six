@@ -38,6 +38,7 @@ import {
     closeEventPopout, toggleEventPopout, buildDisplayItems, parseTimestampKeyToEpochMs,
     formatCameraName, timestampLabel, setupPopoutCloseHandler
 } from './scripts/core/clipBrowser.js';
+import { initI18n, t, onLanguageChange } from './scripts/lib/i18n.js';
 
 // State
 const player = state.player;
@@ -128,7 +129,7 @@ function resetDashboardAndMap() {
     // Reset speed
     if (speedValue) speedValue.textContent = '--';
     const unitEl = $('speedUnit');
-    if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+    if (unitEl) unitEl.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
     
     // Reset gear
     if (gearState) {
@@ -147,7 +148,7 @@ function resetDashboardAndMap() {
     const autosteerIcon = $('autosteerIcon');
     if (autosteerIcon) autosteerIcon.classList.remove('active');
     if (apText) {
-        apText.textContent = 'No Data';
+        apText.textContent = t('ui.dashboard.noData');
         apText.classList.remove('active');
     }
     
@@ -164,7 +165,7 @@ function resetDashboardAndMap() {
     const speedValueCompact = $('speedValueCompact');
     if (speedValueCompact) speedValueCompact.textContent = '--';
     const unitElCompact = $('speedUnitCompact');
-    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
     const gearStateCompact = $('gearStateCompact');
     if (gearStateCompact) {
         gearStateCompact.textContent = '--';
@@ -180,7 +181,7 @@ function resetDashboardAndMap() {
     if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
     const apTextCompact = $('apTextCompact');
     if (apTextCompact) {
-        apTextCompact.textContent = 'Manual';
+        apTextCompact.textContent = t('ui.dashboard.manual');
         apTextCompact.classList.remove('active');
     }
     
@@ -249,7 +250,7 @@ function resetDashboardOnly() {
     const autosteerIcon = $('autosteerIcon');
     if (autosteerIcon) autosteerIcon.classList.remove('active');
     if (apText) {
-        apText.textContent = 'No Data';
+        apText.textContent = t('ui.dashboard.noData');
         apText.classList.remove('active');
     }
     
@@ -266,7 +267,7 @@ function resetDashboardOnly() {
     const speedValueCompact = $('speedValueCompact');
     if (speedValueCompact) speedValueCompact.textContent = '--';
     const unitElCompact = $('speedUnitCompact');
-    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
     const gearStateCompact = $('gearStateCompact');
     if (gearStateCompact) {
         gearStateCompact.textContent = '--';
@@ -282,7 +283,7 @@ function resetDashboardOnly() {
     if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
     const apTextCompact = $('apTextCompact');
     if (apTextCompact) {
-        apTextCompact.textContent = 'Manual';
+        apTextCompact.textContent = t('ui.dashboard.manual');
         apTextCompact.classList.remove('active');
     }
     
@@ -361,15 +362,15 @@ function showEventJsonLocation(coll) {
 // Format event reason for display
 function formatEventReason(reason) {
     const reasonMap = {
-        'sentry_aware_object_detection': 'Object Detected',
-        'vehicle_auto_emergency_braking': 'Automatic Emergency Braking',
-        'user_interaction_dashcam_icon_tapped': 'Manual Save',
-        'user_interaction_dashcam_panel_save': 'Manual Save',
-        'user_interaction_dashcam_launcher_action_tapped': 'Manual Save',
-        'user_interaction_honk': 'Honk Triggered',
-        'sentry_aware_accel': 'Acceleration Detected',
-        'collision': 'Collision Detected',
-        'user_interaction_dashcam': 'Manual Save'
+        'sentry_aware_object_detection': t('ui.eventTypes.objectDetected'),
+        'vehicle_auto_emergency_braking': t('ui.eventTypes.emergencyBraking'),
+        'user_interaction_dashcam_icon_tapped': t('ui.eventTypes.manualSave'),
+        'user_interaction_dashcam_panel_save': t('ui.eventTypes.manualSave'),
+        'user_interaction_dashcam_launcher_action_tapped': t('ui.eventTypes.manualSave'),
+        'user_interaction_honk': t('ui.eventTypes.honk'),
+        'sentry_aware_accel': t('ui.eventTypes.accelerationDetected'),
+        'collision': t('ui.eventTypes.collisionDetected'),
+        'user_interaction_dashcam': t('ui.eventTypes.manualSave')
     };
     return reasonMap[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -429,6 +430,37 @@ function hasValidGps(sei) {
 
 // Initialize
 (async function init() {
+    // Initialize i18n (language system)
+    await initI18n();
+    
+    // Listen for language changes and update dashboard labels
+    onLanguageChange((lang) => {
+        console.log('Language changed to:', lang);
+        
+        // Update speed unit labels
+        const unitEl = $('speedUnit');
+        if (unitEl) unitEl.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
+        const unitElCompact = $('speedUnitCompact');
+        if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
+        
+        // Update "Manual" / "No Data" text if currently displayed
+        if (apText && apText.textContent === 'Manual') {
+            apText.textContent = t('ui.dashboard.manual');
+        } else if (apText && apText.textContent === 'No Data') {
+            apText.textContent = t('ui.dashboard.noData');
+        }
+        
+        const apTextCompact = $('apTextCompact');
+        if (apTextCompact && apTextCompact.textContent === 'Manual') {
+            apTextCompact.textContent = t('ui.dashboard.manual');
+        }
+        
+        // Re-render clip list to update translated labels
+        if (window._renderClipList) {
+            window._renderClipList();
+        }
+    });
+    
     // Init Map
     try {
         if (window.L) {
@@ -747,12 +779,22 @@ function hasValidGps(sei) {
             const unitEl = $('speedUnit');
             if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
         });
+        window.electronAPI.getSetting('accelPedMode').then(saved => {
+            const mode = saved || 'iconbar';
+            if (window.updateAccelPedMode) {
+                window.updateAccelPedMode(mode);
+            }
+        });
     } else {
         // Fallback to defaults
         state.ui.dashboardEnabled = true;
         state.ui.mapEnabled = true;
         if (dashboardToggle) dashboardToggle.checked = state.ui.dashboardEnabled;
         if (mapToggle) mapToggle.checked = state.ui.mapEnabled;
+        // Apply default accel ped mode
+        if (window.updateAccelPedMode) {
+            window.updateAccelPedMode('iconbar');
+        }
     }
 
     // Load dashboard layout setting and apply
@@ -794,6 +836,25 @@ function hasValidGps(sei) {
             }
             // Update visibility based on enabled state
             updateDashboardVisibility();
+        }
+    };
+    
+    // Global function to update accelerator pedal display mode for all dashboards
+    window.updateAccelPedMode = (mode) => {
+        const accelPedal = $('accelPedal');
+        const accelPedalCompact = $('accelPedalCompact');
+        
+        // Remove all mode classes
+        const modes = ['mode-solid', 'mode-iconbar', 'mode-sidebar'];
+        
+        if (accelPedal) {
+            modes.forEach(m => accelPedal.classList.remove(m));
+            accelPedal.classList.add(`mode-${mode}`);
+        }
+        
+        if (accelPedalCompact) {
+            modes.forEach(m => accelPedalCompact.classList.remove(m));
+            accelPedalCompact.classList.add(`mode-${mode}`);
         }
     };
     
@@ -2770,7 +2831,8 @@ function previewAtSliderValue() {
 }
 
 function maybeAutoplayAfterSeek() {
-    if (!autoplayToggle?.checked) return;
+    // Only resume playback if we were playing before the scrub started
+    if (!state.ui.wasPlayingBeforeScrub) return;
     // If the user is still dragging or an async seek is in progress, don't restart yet.
     if (state.ui.isScrubbing || nativeVideo.isSeeking) return;
     setTimeout(() => play(), 0);
@@ -2812,7 +2874,11 @@ progressBar.addEventListener('change', () => {
     previewAtSliderValue();
     maybeAutoplayAfterSeek();
 });
-progressBar.addEventListener('pointerdown', () => { state.ui.isScrubbing = true; });
+progressBar.addEventListener('pointerdown', () => {
+    state.ui.isScrubbing = true;
+    // Remember if we were playing before the scrub started
+    state.ui.wasPlayingBeforeScrub = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
+});
 progressBar.addEventListener('pointerup', () => { state.ui.isScrubbing = false; maybeAutoplayAfterSeek(); });
 progressBar.addEventListener('pointercancel', () => { state.ui.isScrubbing = false; });
 
@@ -3113,10 +3179,10 @@ function updateVisualization(sei) {
     apText?.classList.toggle('active', isActive);
     gearState?.classList.toggle('active', isActive);
     
-    let apTextContent = 'Manual';
-    if (apState === 1) apTextContent = 'Self Driving';
-    else if (apState === 2) apTextContent = 'Autosteer';
-    else if (apState === 3) apTextContent = 'TACC';
+    let apTextContent = t('ui.dashboard.manual');
+    if (apState === 1) apTextContent = t('ui.dashboard.selfDriving');
+    else if (apState === 2) apTextContent = t('ui.dashboard.autosteer');
+    else if (apState === 3) apTextContent = t('ui.dashboard.tacc');
     
     if (apText) apText.textContent = apTextContent;
     
@@ -3137,26 +3203,41 @@ function updateVisualization(sei) {
     // Brake - also detect Tesla's auto-hold (gear in Drive but speed is 0)
     const brakeState = get('brakeApplied', 'brake_applied');
     const isAutoHold = gear === 1 && mps < 0.01; // Gear Drive (1) and essentially stopped
-    brakeIcon?.classList.toggle('active', !!brakeState || isAutoHold);
+    const brakeActive = !!brakeState || isAutoHold;
+    brakeIcon?.classList.toggle('active', brakeActive);
     
     // Update compact dashboard brake
     const brakeIconCompact = $('brakeIconCompact');
     if (brakeIconCompact) {
-        brakeIconCompact.classList.toggle('active', !!brakeState || isAutoHold);
+        brakeIconCompact.classList.toggle('active', brakeActive);
     }
 
-    // Accelerator pedal - lights up when pressed
+    // Accelerator pedal - lights up when pressed with pressure bar
     const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+    // Normalize to 0-100 range (SEI data can be 0-1 or 0-100 depending on version)
+    const accelPct = accelPosRaw > 1 ? Math.min(100, accelPosRaw) : Math.min(100, accelPosRaw * 100);
+    const isPressed = accelPct > 5;
+    
     const accelPedal = $('accelPedal');
-    const isPressed = accelPosRaw > 1 ? accelPosRaw > 5 : accelPosRaw > 0.05;
     if (accelPedal) {
         accelPedal.classList.toggle('active', isPressed);
+    }
+    const accelFill = $('accelFill');
+    if (accelFill) {
+        // clip-path inset: top right bottom left - reveal from bottom by reducing top inset
+        const topInset = 100 - accelPct;
+        accelFill.style.clipPath = `inset(${topInset}% 0 0 0)`;
     }
     
     // Update compact dashboard accelerator
     const accelPedalCompact = $('accelPedalCompact');
     if (accelPedalCompact) {
         accelPedalCompact.classList.toggle('active', isPressed);
+    }
+    const accelFillCompact = $('accelFillCompact');
+    if (accelFillCompact) {
+        const topInset = 100 - accelPct;
+        accelFillCompact.style.clipPath = `inset(${topInset}% 0 0 0)`;
     }
 
     // Extra Data

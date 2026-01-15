@@ -41,11 +41,11 @@
             <div id="multiCamGrid" class="multi-cam-grid hidden" aria-label="Multi-camera view">
                 <!-- Grid tiles (for standard layouts) - using video elements for GPU decode -->
                 <div class="multi-tile" data-slot="tl">
-                    <div class="multi-label">Left Pillar</div>
+                    <div class="multi-label" data-i18n="ui.cameras.leftPillar">Left Pillar</div>
                     <video id="videoTL" class="tile-video" muted playsinline></video>
                 </div>
                 <div class="multi-tile" data-slot="tc">
-                    <div class="multi-label">Front</div>
+                    <div class="multi-label" data-i18n="ui.cameras.front">Front</div>
                     <video id="videoTC" class="tile-video" muted playsinline></video>
                     <!-- Compact Dashboard positioned at bottom of front camera -->
                     <div id="dashboardVisCompact" class="dashboard-vis dashboard-vis-compact hidden">
@@ -92,24 +92,25 @@
                             <!-- Accelerator Icon -->
                             <div class="accel-pedal-container-compact" id="accelPedalCompact">
                                 <img src="../../assets/pedal_acc.png" class="accel-icon-compact" alt="Accelerator">
+                                <div class="accel-fill-compact" id="accelFillCompact"></div>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="multi-tile" data-slot="tr">
-                    <div class="multi-label">Right Pillar</div>
+                    <div class="multi-label" data-i18n="ui.cameras.rightPillar">Right Pillar</div>
                     <video id="videoTR" class="tile-video" muted playsinline></video>
                 </div>
                 <div class="multi-tile" data-slot="bl">
-                    <div class="multi-label">Left Repeater</div>
+                    <div class="multi-label" data-i18n="ui.cameras.leftRepeater">Left Repeater</div>
                     <video id="videoBL" class="tile-video" muted playsinline></video>
                 </div>
                 <div class="multi-tile" data-slot="bc">
-                    <div class="multi-label">Back</div>
+                    <div class="multi-label" data-i18n="ui.cameras.back">Back</div>
                     <video id="videoBC" class="tile-video" muted playsinline></video>
                 </div>
                 <div class="multi-tile" data-slot="br">
-                    <div class="multi-label">Right Repeater</div>
+                    <div class="multi-label" data-i18n="ui.cameras.rightRepeater">Right Repeater</div>
                     <video id="videoBR" class="tile-video" muted playsinline></video>
                 </div>
             </div>
@@ -118,12 +119,12 @@
             <div id="clipBrowser" class="clip-browser">
                 <div class="clip-browser-header">
                     <div class="clip-browser-title">
-                        <div class="clip-browser-title-main">Clips</div>
-                        <div id="clipBrowserSubtitle" class="clip-browser-subtitle">Select a dashcam folder to browse</div>
+                        <div class="clip-browser-title-main" data-i18n="ui.clipBrowser.title">Clips</div>
+                        <div id="clipBrowserSubtitle" class="clip-browser-subtitle" data-i18n="ui.clipBrowser.subtitle">Select a dashcam folder to browse</div>
                         <div class="clip-browser-dayfilter">
-                            <label for="dayFilter">Date</label>
+                            <label for="dayFilter" data-i18n="ui.clipBrowser.dateLabel">Date</label>
                             <select id="dayFilter">
-                                <option value="">Select Date</option>
+                                <option value="" data-i18n="ui.clipBrowser.selectDate">Select Date</option>
                             </select>
                         </div>
                     </div>
@@ -149,12 +150,12 @@
                     <div class="drag-handle"></div>
                 </div>
                 <div id="map"></div>
-                <button id="mapRecenterBtn" class="map-recenter-btn" title="Re-center map">
+                <button id="mapRecenterBtn" class="map-recenter-btn" data-i18n-title="ui.map.recenter" title="Re-center map">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
                     </svg>
                 </button>
-                <div class="map-hint">Right-click drag to move</div>
+                <div class="map-hint" data-i18n="ui.map.hint">Right-click drag to move</div>
             </div>
 
             <!-- Floating Visualization -->
@@ -186,7 +187,7 @@
                                 <span class="autopilot-label" id="apText">Manual</span>
                                 <div class="accel-pedal-container" id="accelPedal">
                                     <img src="../../assets/pedal_acc.png" class="accel-icon" alt="Accelerator">
-                                    <div class="accel-fill"></div>
+                                    <div class="accel-fill" id="accelFill"></div>
                                 </div>
                             </div>
                         </div>
@@ -411,7 +412,7 @@
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
-                    Export Video
+                    <span data-i18n="ui.export.title">Export Video</span>
                 </h2>
                 <button id="closeExportModal" class="modal-close">&times;</button>
             </div>
@@ -420,15 +421,15 @@
                 <div class="modal-section">
                     <div class="stat-row">
                         <div class="stat-item">
-                            <div class="stat-label">Start</div>
+                            <div class="stat-label" data-i18n="ui.export.start">Start</div>
                             <div id="exportStartTime" class="stat-value">--:--</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">End</div>
+                            <div class="stat-label" data-i18n="ui.export.end">End</div>
                             <div id="exportEndTime" class="stat-value">--:--</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Duration</div>
+                            <div class="stat-label" data-i18n="ui.export.duration">Duration</div>
                             <div id="exportDuration" class="stat-value">--:--</div>
                         </div>
                     </div>
@@ -437,7 +438,7 @@
                 <!-- Layout Lab - Collapsible -->
                 <div class="collapsible-section open" data-section="layout">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title">Layout</span>
+                        <span class="collapsible-header-title" data-i18n="ui.export.layout">Layout</span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
@@ -445,27 +446,27 @@
                             <div class="option-grid option-grid-3" style="margin-bottom: 10px;">
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="left_pillar" checked>
-                                    <span class="option-card-label">L Pillar</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.leftPillar">L Pillar</span>
                                 </label>
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="front" checked>
-                                    <span class="option-card-label">Front</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.front">Front</span>
                                 </label>
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="right_pillar" checked>
-                                    <span class="option-card-label">R Pillar</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.rightPillar">R Pillar</span>
                                 </label>
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="left_repeater" checked>
-                                    <span class="option-card-label">L Repeater</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.leftRepeater">L Repeater</span>
                                 </label>
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="back" checked>
-                                    <span class="option-card-label">Back</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.back">Back</span>
                                 </label>
                                 <label class="option-card">
                                     <input type="checkbox" data-camera="right_repeater" checked>
-                                    <span class="option-card-label">R Repeater</span>
+                                    <span class="option-card-label" data-i18n="ui.cameras.rightRepeater">R Repeater</span>
                                 </label>
                             </div>
                             <div class="layout-canvas-container">
@@ -479,7 +480,7 @@
                 <!-- Quality - Collapsible -->
                 <div class="collapsible-section open" data-section="quality">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title">Quality</span>
+                        <span class="collapsible-header-title" data-i18n="ui.export.quality">Quality</span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
@@ -488,28 +489,28 @@
                                 <label class="option-card">
                                     <input type="radio" name="exportQuality" value="mobile">
                                     <div class="option-card-info">
-                                        <span class="option-card-label">Mobile</span>
+                                        <span class="option-card-label" data-i18n="ui.export.mobile">Mobile</span>
                                         <span class="option-card-desc">484×314</span>
                                     </div>
                                 </label>
                                 <label class="option-card">
                                     <input type="radio" name="exportQuality" value="medium">
                                     <div class="option-card-info">
-                                        <span class="option-card-label">Medium</span>
+                                        <span class="option-card-label" data-i18n="ui.export.medium">Medium</span>
                                         <span class="option-card-desc">724×469</span>
                                     </div>
                                 </label>
                                 <label class="option-card">
                                     <input type="radio" name="exportQuality" value="high" checked>
                                     <div class="option-card-info">
-                                        <span class="option-card-label">High</span>
+                                        <span class="option-card-label" data-i18n="ui.export.high">High</span>
                                         <span class="option-card-desc">1086×704</span>
                                     </div>
                                 </label>
                                 <label class="option-card">
                                     <input type="radio" name="exportQuality" value="max">
                                     <div class="option-card-info">
-                                        <span class="option-card-label">Maximum</span>
+                                        <span class="option-card-label" data-i18n="ui.export.maximum">Maximum</span>
                                         <span class="option-card-desc">1448×938</span>
                                     </div>
                                 </label>
@@ -530,15 +531,15 @@
                 <!-- Overlays Section -->
                 <div class="collapsible-section open" data-section="overlays">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title">Overlays</span>
+                        <span class="collapsible-header-title" data-i18n="ui.export.overlays">Overlays</span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
                         <div class="collapsible-content">
                             <label class="toggle-row" id="timestampToggleRow">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label">Timestamp</span>
-                                    <span class="toggle-row-desc">Burn-in recording date and time</span>
+                                    <span class="toggle-row-label" data-i18n="ui.export.timestamp">Timestamp</span>
+                                    <span class="toggle-row-desc" data-i18n="ui.export.timestampDesc">Burn-in recording date and time</span>
                                 </div>
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="includeTimestamp">
@@ -563,8 +564,8 @@
                             </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label">Dashboard</span>
-                                    <span class="toggle-row-desc">Burn-in speed, gear, and telemetry</span>
+                                    <span class="toggle-row-label" data-i18n="ui.export.dashboard">Dashboard</span>
+                                    <span class="toggle-row-desc" data-i18n="ui.export.dashboardDesc">Burn-in speed, gear, and telemetry</span>
                                 </div>
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="includeDashboard">
@@ -578,8 +579,8 @@
                             <div id="dashboardOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Style</span>
-                                        <span class="select-row-desc">Dashboard visual style</span>
+                                        <span class="select-row-label" data-i18n="ui.export.style">Style</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.styleDesc">Dashboard visual style</span>
                                     </div>
                                     <select id="dashboardStyle" class="settings-select">
                                         <option value="compact" selected>Compact</option>
@@ -601,8 +602,8 @@
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Size</span>
-                                        <span class="select-row-desc">Dashboard size</span>
+                                        <span class="select-row-label" data-i18n="ui.export.size">Size</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.sizeDesc">Dashboard size</span>
                                     </div>
                                     <select id="dashboardSize" class="settings-select">
                                         <option value="small">Small (25%)</option>
@@ -624,8 +625,8 @@
                 <div class="modal-section">
                     <div class="action-row">
                         <div class="action-row-info">
-                            <span class="action-row-label">Blur Type</span>
-                            <span class="action-row-desc">Solid is faster, Transparent blends edges</span>
+                            <span class="action-row-label" data-i18n="ui.export.blurType">Blur Type</span>
+                            <span class="action-row-desc" data-i18n="ui.export.blurTypeDesc">Solid is faster, Transparent blends edges</span>
                         </div>
                         <select id="blurTypeSelect" class="settings-select" style="min-width: 140px;">
                             <option value="solid">Solid</option>
@@ -634,8 +635,8 @@
                     </div>
                     <div class="action-row">
                         <div class="action-row-info">
-                            <span class="action-row-label">Add Blur Zone</span>
-                            <span class="action-row-desc">Redact sensitive information before sharing</span>
+                            <span class="action-row-label" data-i18n="ui.export.addBlurZone">Add Blur Zone</span>
+                            <span class="action-row-desc" data-i18n="ui.export.addBlurZoneDesc">Redact sensitive information before sharing</span>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <select id="blurZoneCameraSelect" class="settings-select" style="min-width: 140px;">
@@ -646,7 +647,7 @@
                                 <option value="left_pillar">Left Pillar</option>
                                 <option value="right_pillar">Right Pillar</option>
                             </select>
-                            <button id="addBlurZoneBtn" class="btn btn-secondary btn-small">Add Zone</button>
+                            <button id="addBlurZoneBtn" class="btn btn-secondary btn-small" data-i18n="ui.export.addZone">Add Zone</button>
                         </div>
                     </div>
                     <!-- List of configured blur zones -->
@@ -684,8 +685,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="cancelExportBtn" class="btn btn-secondary">Cancel</button>
-                <button id="startExportBtn" class="btn btn-primary" disabled>Export</button>
+                <button id="cancelExportBtn" class="btn btn-secondary" data-i18n="ui.export.cancel">Cancel</button>
+                <button id="startExportBtn" class="btn btn-primary" disabled data-i18n="ui.export.exportBtn">Export</button>
             </div>
         </div>
     </div>
@@ -726,16 +727,16 @@
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                     </svg>
-                    Settings
+                    <span data-i18n="ui.settings.title">Settings</span>
                 </h2>
                 <button id="closeSettingsModal" class="modal-close">&times;</button>
             </div>
             
             <!-- Tabs -->
             <div class="modal-tabs">
-                <button class="modal-tab active" data-tab="general">General</button>
-                <button class="modal-tab" data-tab="shortcuts">Shortcuts</button>
-                <button class="modal-tab" data-tab="advanced">Advanced</button>
+                <button class="modal-tab active" data-tab="general" data-i18n="ui.settings.general">General</button>
+                <button class="modal-tab" data-tab="shortcuts" data-i18n="ui.settings.shortcuts">Shortcuts</button>
+                <button class="modal-tab" data-tab="advanced" data-i18n="ui.settings.advanced">Advanced</button>
             </div>
             
             <div class="modal-body">
@@ -743,11 +744,11 @@
                 <div class="modal-tab-content active" data-tab="general">
                     <!-- Layout Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Layout</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.layout">Layout</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Classic Sidebar</span>
-                                <span class="toggle-row-desc">Docked sidebar that doesn't overlap video</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.classicSidebar">Classic Sidebar</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.classicSidebarDesc">Docked sidebar that doesn't overlap video</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsLayoutStyle">
@@ -758,11 +759,11 @@
                     
                     <!-- Overlays Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Overlays</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.overlays">Overlays</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Dashboard</span>
-                                <span class="toggle-row-desc">Show speed, gear, and telemetry data</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.dashboard">Dashboard</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.dashboardDesc">Show speed, gear, and telemetry data</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsDashboardToggle" checked>
@@ -771,8 +772,8 @@
                         </label>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">GPS Map</span>
-                                <span class="toggle-row-desc">Show route map with vehicle position</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.gpsMap">GPS Map</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.gpsMapDesc">Show route map with vehicle position</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsMapToggle" checked>
@@ -781,18 +782,29 @@
                         </label>
                         <div class="select-row">
                             <div class="select-row-info">
-                                <span class="select-row-label">Dashboard Layout</span>
-                                <span class="select-row-desc">Default or compact style</span>
+                                <span class="select-row-label" data-i18n="ui.settings.dashboardLayout">Dashboard Layout</span>
+                                <span class="select-row-desc" data-i18n="ui.settings.dashboardLayoutDesc">Default or compact style</span>
                             </div>
                             <select id="settingsDashboardLayout" class="settings-select">
-                                <option value="default">Default</option>
-                                <option value="compact">Compact</option>
+                                <option value="default" data-i18n="ui.settings.default">Default</option>
+                                <option value="compact" data-i18n="ui.export.compact">Compact</option>
+                            </select>
+                        </div>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label" data-i18n="ui.settings.acceleratorDisplay">Accelerator Display</span>
+                                <span class="select-row-desc" data-i18n="ui.settings.acceleratorDisplayDesc">Pedal visualization style</span>
+                            </div>
+                            <select id="settingsAccelPedMode" class="settings-select">
+                                <option value="solid" data-i18n="ui.settings.solidColor">Solid Color (On/Off)</option>
+                                <option value="iconbar" selected data-i18n="ui.settings.iconBar">Icon Bar (Fill)</option>
+                                <option value="sidebar" data-i18n="ui.settings.sideBar">Bar on Side</option>
                             </select>
                         </div>
                         <label class="toggle-row hidden" id="settingsCompactDashboardFixedRow">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Fixed to Front Camera</span>
-                                <span class="toggle-row-desc">Keep compact dashboard on front camera</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.fixedToFrontCamera">Fixed to Front Camera</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.fixedToFrontCameraDesc">Keep compact dashboard on front camera</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsCompactDashboardFixed" checked>
@@ -801,8 +813,8 @@
                         </label>
                         <div class="slider-row">
                             <div class="slider-row-info">
-                                <span class="slider-row-label">Glass Blur</span>
-                                <span class="slider-row-desc">Overlay blur intensity</span>
+                                <span class="slider-row-label" data-i18n="ui.settings.glassBlur">Glass Blur</span>
+                                <span class="slider-row-desc" data-i18n="ui.settings.glassBlurDesc">Overlay blur intensity</span>
                             </div>
                             <div class="slider-row-control">
                                 <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
@@ -811,8 +823,8 @@
                         </div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label">Metric Units</span>
-                                <span class="toggle-row-desc">Use kilometers per hour (KM/H)</span>
+                                <span class="toggle-row-label" data-i18n="ui.settings.metricUnits">Metric Units</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.metricUnitsDesc">Use kilometers per hour (KM/H)</span>
                             </div>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsMetricToggle">
@@ -821,34 +833,55 @@
                         </label>
                         <div class="select-row">
                             <div class="select-row-info">
-                                <span class="select-row-label">Date Format</span>
-                                <span class="select-row-desc">Display format for dates</span>
+                                <span class="select-row-label" data-i18n="ui.settings.dateFormat">Date Format</span>
+                                <span class="select-row-desc" data-i18n="ui.settings.dateFormatDesc">Display format for dates</span>
                             </div>
                             <select id="settingsDateFormat" class="settings-select">
-                                <option value="mdy">MM/DD/YYYY (US)</option>
-                                <option value="dmy">DD/MM/YYYY (International)</option>
-                                <option value="ymd" selected>YYYY-MM-DD (ISO)</option>
+                                <option value="mdy" data-i18n="ui.settings.mdyFormat">MM/DD/YYYY (US)</option>
+                                <option value="dmy" data-i18n="ui.settings.dmyFormat">DD/MM/YYYY (International)</option>
+                                <option value="ymd" selected data-i18n="ui.settings.ymdFormat">YYYY-MM-DD (ISO)</option>
+                            </select>
+                        </div>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label" data-i18n="ui.settings.language">Language</span>
+                                <span class="select-row-desc" data-i18n="ui.settings.languageDesc">Application display language</span>
+                            </div>
+                            <select id="settingsLanguage" class="settings-select">
+                                <option value="en" selected>English</option>
+                                <option value="es">Español</option>
+                                <option value="fr">Français</option>
+                                <option value="de">Deutsch</option>
+                                <option value="zh">简体中文</option>
+                                <option value="ja">日本語</option>
+                                <option value="ko">한국어</option>
+                                <option value="pt">Português</option>
+                                <option value="ru">Русский</option>
+                                <option value="it">Italiano</option>
+                                <option value="nl">Nederlands</option>
+                                <option value="pl">Polski</option>
+                                <option value="tr">Türkçe</option>
                             </select>
                         </div>
                     </div>
                     
                     <!-- Default Folder Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Default Dashcam Folder</div>
-                        <div class="modal-section-desc">Auto-load this folder on startup</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.defaultFolder">Default Dashcam Folder</div>
+                        <div class="modal-section-desc" data-i18n="ui.settings.defaultFolderDesc">Auto-load this folder on startup</div>
                         <div class="input-row">
-                            <input type="text" id="defaultFolderPath" class="text-input" placeholder="No folder set" readonly>
-                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small">Browse</button>
-                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
+                            <input type="text" id="defaultFolderPath" class="text-input" data-i18n-placeholder="ui.settings.noFolderSet" placeholder="No folder set" readonly>
+                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.browse">Browse</button>
+                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" data-i18n-title="ui.settings.clear" title="Clear">✕</button>
                         </div>
                         <div id="defaultFolderStatus" class="folder-status"></div>
                     </div>
                     
                     <!-- About Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">About</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.about">About</div>
                         <div class="about-version-row">
-                            <span class="about-version-label">Version</span>
+                            <span class="about-version-label" data-i18n="ui.settings.version">Version</span>
                             <span id="settingsCurrentVersion" class="about-version-value">---</span>
                         </div>
                         <button id="viewChangelogBtn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
@@ -858,19 +891,19 @@
                                 <line x1="16" y1="13" x2="8" y2="13"/>
                                 <line x1="16" y1="17" x2="8" y2="17"/>
                             </svg>
-                            View Changelog
+                            <span data-i18n="ui.settings.viewChangelog">View Changelog</span>
                         </button>
                     </div>
                     
                     <!-- Support Section -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Support</div>
-                        <div class="modal-section-desc">Having issues? Use the Support Chat button in the playback bar to start a conversation with our team.</div>
+                        <div class="modal-section-title" data-i18n="ui.settings.support">Support</div>
+                        <div class="modal-section-desc" data-i18n="ui.settings.supportDesc">Having issues? Use the Support Chat button in the playback bar to start a conversation with our team.</div>
                         <button id="openSupportChatFromSettings" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                             </svg>
-                            Open Support Chat
+                            <span data-i18n="ui.settings.openSupportChat">Open Support Chat</span>
                         </button>
                     </div>
                     
@@ -1253,7 +1286,7 @@
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #00d4ff;">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
-                    Welcome to Sentry Six
+                    <span data-i18n="welcome.modalTitle">Welcome to Sentry Six</span>
                 </h2>
                 <button id="closeWelcomeGuide" class="modal-close">&times;</button>
             </div>
@@ -1268,14 +1301,23 @@
                                 <polyline points="9 22 9 12 15 12 15 22"/>
                             </svg>
                         </div>
-                        <h3 class="welcome-step-title">Welcome!</h3>
-                        <p class="welcome-step-desc">Sentry Six is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step1.title">Welcome!</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step1.desc">Sentry Six is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
+                        
+                        <!-- Language Selector -->
+                        <div class="setting-group" style="margin-top: 24px; max-width: 300px; margin-left: auto; margin-right: auto;">
+                            <label for="welcomeLanguageSelect" class="setting-label" data-i18n="welcome.step1.languageLabel">Language</label>
+                            <select id="welcomeLanguageSelect" class="setting-select">
+                                <!-- Populated by JavaScript -->
+                            </select>
+                            <p class="setting-desc" data-i18n="welcome.step1.languageDesc" style="margin-top: 8px;">Choose your preferred language</p>
+                        </div>
                     </div>
                     
                     <!-- Step 2: Load Folder -->
                     <div class="welcome-step" data-step="2">
-                        <h3 class="welcome-step-title">Load Your Dashcam Folder</h3>
-                        <p class="welcome-step-desc">Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step2.title">Load Your Dashcam Folder</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step2.desc">Click <strong>"Choose Folder"</strong> to load clips. The app will automatically organize your Sentry, SavedClips, and RecentClips.</p>
                         <!-- Actual drop overlay clone -->
                         <div class="welcome-preview-container">
                             <div class="drop-overlay welcome-preview-drop" style="position: relative; display: flex;">
@@ -1290,13 +1332,13 @@
                                 </div>
                             </div>
                         </div>
-                        <p class="welcome-step-note">You can select your folder after completing the tour.</p>
+                        <p class="welcome-step-note" data-i18n="welcome.step2.note">You can select your folder after completing the tour.</p>
                     </div>
                     
                     <!-- Step 3: Clip Browser -->
                     <div class="welcome-step" data-step="3">
-                        <h3 class="welcome-step-title">Browse Your Clips</h3>
-                        <p class="welcome-step-desc">The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step3.title">Browse Your Clips</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step3.desc">The <strong>Clips Panel</strong> on the left shows all your events. Filter by date, choose an event, and click to play.</p>
                         <!-- Actual clip browser clone -->
                         <div class="welcome-preview-container">
                             <div class="clip-browser welcome-preview-clips" style="position: relative; width: 100%;">
@@ -1346,8 +1388,8 @@
                     
                     <!-- Step 4: Multi-Camera View -->
                     <div class="welcome-step" data-step="4">
-                        <h3 class="welcome-step-title">Multi-Camera Playback</h3>
-                        <p class="welcome-step-desc">View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step4.title">Multi-Camera Playback</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step4.desc">View all 6 cameras simultaneously. <strong>Click any camera</strong> to focus, press <strong>Escape</strong> to return. Drag to rearrange.</p>
                         <!-- Actual multi-cam grid clone -->
                         <div class="welcome-preview-container">
                             <div class="multi-cam-grid welcome-preview-grid" style="position: relative; display: grid; padding: 6px; aspect-ratio: 3/2;">
@@ -1375,8 +1417,8 @@
                     
                     <!-- Step 5: Telemetry Dashboard -->
                     <div class="welcome-step" data-step="5">
-                        <h3 class="welcome-step-title">Live Telemetry Dashboard</h3>
-                        <p class="welcome-step-desc">Real-time speed, gear, steering, turn signals, G-force, and compass data. Drag to reposition.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step5.title">Live Telemetry Dashboard</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step5.desc">Real-time speed, gear, steering, turn signals, G-force, and compass data. Drag to reposition.</p>
                         <!-- Actual dashboard clone with sample data -->
                         <div class="welcome-preview-container">
                             <div class="dashboard-vis welcome-preview-dash" style="position: relative; display: block;">
@@ -1461,14 +1503,14 @@
                                 <line x1="16" y1="6" x2="16" y2="22"/>
                             </svg>
                         </div>
-                        <h3 class="welcome-step-title">GPS Map Tracking</h3>
-                        <p class="welcome-step-desc">The floating map displays your vehicle's real-time location and travel path during playback. Event locations are automatically marked on the map. You can drag it anywhere on screen and toggle its visibility in Settings.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step6.title">GPS Map Tracking</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step6.desc">The floating map displays your vehicle's real-time location and travel path during playback. Event locations are automatically marked on the map. You can drag it anywhere on screen and toggle its visibility in Settings.</p>
                     </div>
                     
                     <!-- Step 7: Export -->
                     <div class="welcome-step" data-step="7">
-                        <h3 class="welcome-step-title">Export Your Clips</h3>
-                        <p class="welcome-step-desc">Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step7.title">Export Your Clips</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step7.desc">Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
                         <!-- Actual export controls clone -->
                         <div class="welcome-preview-container">
                             <div class="controls welcome-preview-controls" style="position: relative; display: flex; padding: 10px; border-radius: 12px;">
@@ -1491,8 +1533,8 @@
                     
                     <!-- Step 8: Settings -->
                     <div class="welcome-step" data-step="8">
-                        <h3 class="welcome-step-title">Customize Settings</h3>
-                        <p class="welcome-step-desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step8.title">Customize Settings</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step8.desc">Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences.</p>
                         <!-- Actual settings modal clone -->
                         <div class="welcome-preview-container">
                             <div class="modal-content welcome-preview-settings" style="position: relative; max-width: 100%; margin: 0;">
@@ -1546,9 +1588,9 @@
                                 <polyline points="22 4 12 14.01 9 11.01"/>
                             </svg>
                         </div>
-                        <h3 class="welcome-step-title">You're All Set!</h3>
-                        <p class="welcome-step-desc">That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.</p>
-                        <p class="welcome-step-tip">💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
+                        <h3 class="welcome-step-title" data-i18n="welcome.step9.title">You're All Set!</h3>
+                        <p class="welcome-step-desc" data-i18n="welcome.step9.desc">That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.</p>
+                        <p class="welcome-step-tip" data-i18n="welcome.step9.tip">💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.</p>
                     </div>
                 </div>
                 
@@ -1566,16 +1608,16 @@
                 </div>
             </div>
             <div class="modal-footer welcome-guide-footer">
-                <button id="welcomeSkipBtn" class="btn btn-secondary">Skip Tour</button>
+                <button id="welcomeSkipBtn" class="btn btn-secondary" data-i18n="welcome.skipBtn">Skip Tour</button>
                 <div class="welcome-nav-buttons">
                     <button id="welcomePrevBtn" class="btn btn-secondary" disabled>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="15 18 9 12 15 6"/>
                         </svg>
-                        Back
+                        <span data-i18n="welcome.backBtn">Back</span>
                     </button>
                     <button id="welcomeNextBtn" class="btn btn-primary">
-                        Next
+                        <span data-i18n="welcome.nextBtn">Next</span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="9 18 15 12 9 6"/>
                         </svg>

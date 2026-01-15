@@ -5,6 +5,7 @@
 
 import { escapeHtml, cssEscape } from '../lib/utils.js';
 import { formatEventTime, populateEventPopout } from '../ui/clipListHelpers.js';
+import { t } from '../lib/i18n.js';
 
 // Dependencies injected at init
 let getState = null;
@@ -35,6 +36,9 @@ export function renderClipList() {
     const library = getLibrary?.();
     if (!clipList) return;
     
+    // Make available globally for language change updates
+    window._renderClipList = renderClipList;
+    
     clipList.innerHTML = '';
     
     const selectedDay = dayFilter?.value || '';
@@ -55,7 +59,7 @@ export function renderClipList() {
         const recentId = `recent:${selectedDay}`;
         const recentColl = library.dayCollections?.get(recentId);
         if (recentColl) {
-            const item = createClipItem(recentColl, 'Recent Clips', 'recent');
+            const item = createClipItem(recentColl, t('ui.clipBrowser.recent') + ' ' + t('ui.clipBrowser.title'), 'recent');
             clipList.appendChild(item);
         }
     }
@@ -71,7 +75,7 @@ export function renderClipList() {
         const coll = library.dayCollections?.get(collId);
         if (coll) {
             const timeStr = formatEventTime(eventId);
-            const item = createClipItem(coll, `Sentry · ${timeStr}`, 'sentry');
+            const item = createClipItem(coll, `${t('ui.clipBrowser.sentry')} · ${timeStr}`, 'sentry');
             clipList.appendChild(item);
         }
     }
@@ -87,7 +91,7 @@ export function renderClipList() {
         const coll = library.dayCollections?.get(collId);
         if (coll) {
             const timeStr = formatEventTime(eventId);
-            const item = createClipItem(coll, `Saved · ${timeStr}`, 'saved');
+            const item = createClipItem(coll, `${t('ui.clipBrowser.saved')} · ${timeStr}`, 'saved');
             clipList.appendChild(item);
         }
     }
@@ -117,7 +121,8 @@ export function createClipItem(coll, title, typeClass) {
     item.dataset.groupid = coll.id;
     item.dataset.type = 'collection';
     
-    const subline = `${groups.length} segment${groups.length !== 1 ? 's' : ''} · ${Math.max(1, cameras.length)} cam`;
+    const segmentText = groups.length === 1 ? t('ui.clipBrowser.segment') : t('ui.clipBrowser.segments');
+    const subline = `${groups.length} ${segmentText} · ${Math.max(1, cameras.length)} cam`;
     const badgeClass = typeClass;
     const badgeLabel = typeClass.charAt(0).toUpperCase() + typeClass.slice(1);
     

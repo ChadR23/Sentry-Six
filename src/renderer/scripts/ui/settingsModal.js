@@ -4,6 +4,7 @@
  */
 
 import { initKeybindSettings } from '../lib/keybinds.js';
+import { getCurrentLanguage, setLanguage, getAvailableLanguages } from '../lib/i18n.js';
 
 /**
  * Initialize modal tabs functionality
@@ -230,6 +231,30 @@ export function initSettingsModal() {
         };
     }
     
+    // Accelerator pedal display mode setting
+    const settingsAccelPedMode = $('settingsAccelPedMode');
+    if (settingsAccelPedMode && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('accelPedMode').then(savedMode => {
+            settingsAccelPedMode.value = savedMode || 'iconbar';
+            // Apply mode immediately
+            if (window.updateAccelPedMode) {
+                window.updateAccelPedMode(savedMode || 'iconbar');
+            }
+        });
+        
+        settingsAccelPedMode.onchange = async () => {
+            const mode = settingsAccelPedMode.value || 'iconbar';
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('accelPedMode', mode);
+            }
+            // Apply mode to all dashboards
+            if (window.updateAccelPedMode) {
+                window.updateAccelPedMode(mode);
+            }
+            settingsAccelPedMode.blur();
+        };
+    }
+    
     // Map toggle
     if (settingsMapToggle) {
         settingsMapToggle.onchange = () => {
@@ -274,6 +299,27 @@ export function initSettingsModal() {
             // Dispatch event so other components can update
             window.dispatchEvent(new CustomEvent('dateFormatChanged', { detail: { format } }));
             settingsDateFormat.blur();
+        });
+    }
+    
+    // Language selector
+    const settingsLanguage = $('settingsLanguage');
+    if (settingsLanguage) {
+        // Load saved language
+        const currentLang = getCurrentLanguage();
+        settingsLanguage.value = currentLang;
+        
+        settingsLanguage.addEventListener('change', async function() {
+            const newLang = this.value;
+            await setLanguage(newLang);
+            settingsLanguage.blur();
+        });
+        
+        // Listen for language changes from other sources (e.g., welcome guide)
+        onLanguageChange((newLang) => {
+            if (settingsLanguage.value !== newLang) {
+                settingsLanguage.value = newLang;
+            }
         });
     }
     

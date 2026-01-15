@@ -63,7 +63,7 @@ canvas, .video-player, .tile-video {
 .tile-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     background: #000;
     pointer-events: none; /* Prevent native video click behavior (pause/play) */
 }
@@ -153,7 +153,7 @@ canvas, .video-player, .tile-video {
 .multi-tile video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     pointer-events: none; /* Prevent native video click behavior */
 }
 .multi-label {
@@ -1047,6 +1047,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     display: flex !important;
 }
 
+/* Fix blue glow for draggable compact dashboard */
+.dashboard-vis-compact.draggable:not(.fixed-to-camera) .autosteer-icon-compact.active {
+    filter: drop-shadow(0 0 10px var(--dashboard-accent-glow)) !important;
+    opacity: 1 !important;
+}
+
 .vis-content-compact {
     display: flex;
     align-items: center;
@@ -1197,8 +1203,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Steering Wheel Compact */
 .steering-wrapper-compact {
-    width: clamp(46px, 6em, 66px);
-    height: clamp(46px, 6em, 66px);
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1209,22 +1215,23 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .autosteer-icon-compact {
-    width: clamp(42px, 5.5em, 62px);
-    height: clamp(42px, 5.5em, 62px);
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
     object-fit: contain;
     filter: grayscale(100%) brightness(0.6);
     opacity: 0.5;
     transition: filter 0.3s ease, opacity 0.3s ease;
+    transform-origin: center center;
 }
 
 .autosteer-icon-compact.active {
-    filter: none;
-    opacity: 1;
     filter: drop-shadow(0 0 10px var(--dashboard-accent-glow));
+    opacity: 1;
 }
 
 /* Accelerator Icon Compact */
 .accel-pedal-container-compact {
+    position: relative;
     width: clamp(18px, 2.5em, 28px);
     height: clamp(18px, 2.5em, 28px);
     flex-shrink: 0;
@@ -1232,17 +1239,83 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .accel-icon-compact {
-    width: clamp(18px, 2.5em, 28px);
-    height: clamp(18px, 2.5em, 28px);
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     filter: grayscale(100%) brightness(0.6);
     opacity: 0.5;
-    transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
-.accel-pedal-container-compact.active .accel-icon-compact {
+/* Accel Fill Compact - colored icon revealed from bottom via clip-path */
+.accel-fill-compact {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('../../assets/pedal_acc.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    clip-path: inset(100% 0 0 0);
+    transition: clip-path 0.1s ease-out;
+}
+
+/* Accelerator Pedal Display Modes - Compact Dashboard */
+/* Ensure consistent sizing across all modes */
+.accel-pedal-container-compact {
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
+}
+
+/* Mode: solid - Simple on/off color change */
+.accel-pedal-container-compact.mode-solid .accel-fill-compact {
+    display: none;
+}
+.accel-pedal-container-compact.mode-solid .accel-icon-compact {
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+.accel-pedal-container-compact.mode-solid.active .accel-icon-compact {
     filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
     opacity: 1;
+}
+
+/* Mode: iconbar - Icon fills from bottom (default/current behavior) */
+.accel-pedal-container-compact.mode-iconbar .accel-fill-compact {
+    display: block;
+}
+
+/* Mode: sidebar - Vertical bar on the right side of icon */
+.accel-pedal-container-compact.mode-sidebar {
+    display: flex;
+    align-items: center;
+    gap: clamp(1px, 0.2em, 2px);
+    width: auto;
+}
+.accel-pedal-container-compact.mode-sidebar .accel-icon-compact {
+    flex-shrink: 0;
+    width: clamp(18px, 2.5em, 28px);
+    height: clamp(18px, 2.5em, 28px);
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+.accel-pedal-container-compact.mode-sidebar.active .accel-icon-compact {
+    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    opacity: 1;
+}
+.accel-pedal-container-compact.mode-sidebar .accel-fill-compact {
+    position: static;
+    width: clamp(2px, 0.3em, 3px);
+    height: clamp(18px, 2.5em, 28px);
+    background-image: none;
+    background: linear-gradient(to top, 
+        rgba(62, 156, 191, 1) 0%, 
+        rgba(62, 156, 191, 0.8) 100%);
+    filter: none;
+    clip-path: inset(100% 0 0 0);
+    border-radius: 2px;
+    transition: clip-path 0.1s ease-out;
+    flex-shrink: 0;
 }
 
 .map-vis {
@@ -1570,21 +1643,22 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: center;
     /* No CSS transition - JavaScript handles smooth rotation via requestAnimationFrame */
     will-change: transform;
+    transform-origin: center center;
 }
 
 .autosteer-icon {
-    width: 130px;
-    height: 130px;
+    width: 60px;
+    height: 60px;
     object-fit: contain;
     filter: grayscale(100%) brightness(0.6);
     opacity: 0.5;
     transition: filter 0.3s ease, opacity 0.3s ease;
+    transform-origin: center center;
 }
 
 .autosteer-icon.active {
-    filter: none;
+    filter: drop-shadow(0 0 15px var(--dashboard-accent-glow)) drop-shadow(0 0 25px var(--dashboard-accent-glow));
     opacity: 1;
-    filter: drop-shadow(0 0 10px var(--dashboard-accent-glow));
 }
 
 .autopilot-label-container {
@@ -1623,29 +1697,89 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Accelerator Pedal - lights up blue when pressed */
 .accel-pedal-container {
+    position: relative;
     width: 18px;
     height: 18px;
 }
 
 .accel-icon {
-    width: 18px;
-    height: 18px;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     filter: grayscale(100%) brightness(0.6);
     opacity: 0.5;
-    transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
-/* Hide the fill element - not using gradual fill */
+/* Accel Fill - colored icon revealed from bottom via clip-path */
 .accel-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('../../assets/pedal_acc.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    clip-path: inset(100% 0 0 0);
+    transition: clip-path 0.1s ease-out;
+}
+
+/* Accelerator Pedal Display Modes */
+/* Ensure consistent sizing across all modes */
+.accel-pedal-container {
+    width: 18px;
+    height: 18px;
+}
+
+/* Mode: solid - Simple on/off color change */
+.accel-pedal-container.mode-solid .accel-fill {
     display: none;
 }
-
-/* When accelerator is pressed, light up blue */
-.accel-pedal-container.active .accel-icon {
-    /* Blue tint filter */
+.accel-pedal-container.mode-solid .accel-icon {
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+.accel-pedal-container.mode-solid.active .accel-icon {
     filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
     opacity: 1;
+}
+
+/* Mode: iconbar - Icon fills from bottom (default/current behavior) */
+.accel-pedal-container.mode-iconbar .accel-fill {
+    display: block;
+}
+
+/* Mode: sidebar - Vertical bar on the right side of icon */
+.accel-pedal-container.mode-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: auto;
+}
+.accel-pedal-container.mode-sidebar .accel-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+.accel-pedal-container.mode-sidebar.active .accel-icon {
+    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    opacity: 1;
+}
+.accel-pedal-container.mode-sidebar .accel-fill {
+    position: static;
+    width: 3px;
+    height: 18px;
+    background-image: none;
+    background: linear-gradient(to top, 
+        rgba(62, 156, 191, 1) 0%, 
+        rgba(62, 156, 191, 0.8) 100%);
+    filter: none;
+    clip-path: inset(100% 0 0 0);
+    border-radius: 2px;
+    transition: clip-path 0.1s ease-out;
+    flex-shrink: 0;
 }
 
 /* Center Cluster - Horizontal Layout */

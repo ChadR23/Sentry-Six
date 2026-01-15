@@ -3,6 +3,8 @@
  * Interactive tour for first-time users with mock UI previews
  */
 
+import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange, translatePage } from '../lib/i18n.js';
+
 const $ = id => document.getElementById(id);
 
 const TOTAL_STEPS = 9;
@@ -106,7 +108,7 @@ function prevStep() {
  * Update the UI to show the current step
  * @param {number} step - Step number (1-based)
  */
-function updateStep(step) {
+async function updateStep(step) {
     // Update step content visibility
     const steps = document.querySelectorAll('.welcome-step');
     steps.forEach(s => {
@@ -132,20 +134,19 @@ function updateStep(step) {
     }
     
     if (nextBtn) {
+        // Import t function dynamically
+        const { t } = await import('../lib/i18n.js');
+        
         if (step === TOTAL_STEPS) {
-            nextBtn.innerHTML = `
-                Get Started
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"/>
-                </svg>
-            `;
+            const btnText = nextBtn.querySelector('span');
+            if (btnText) {
+                btnText.textContent = t('welcome.getStartedBtn');
+            }
         } else {
-            nextBtn.innerHTML = `
-                Next
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
-            `;
+            const btnText = nextBtn.querySelector('span');
+            if (btnText) {
+                btnText.textContent = t('welcome.nextBtn');
+            }
         }
     }
     
@@ -164,6 +165,38 @@ export function initWelcomeGuide() {
     const skipBtn = $('welcomeSkipBtn');
     const prevBtn = $('welcomePrevBtn');
     const nextBtn = $('welcomeNextBtn');
+    
+    // Populate language dropdown
+    const languageSelect = $('welcomeLanguageSelect');
+    if (languageSelect) {
+        const languages = getAvailableLanguages();
+        const currentLang = getCurrentLanguage();
+        
+        languageSelect.innerHTML = '';
+        languages.forEach(lang => {
+            const option = document.createElement('option');
+            option.value = lang.code;
+            option.textContent = lang.nativeName;
+            if (lang.code === currentLang) {
+                option.selected = true;
+            }
+            languageSelect.appendChild(option);
+        });
+        
+        // Handle language change
+        languageSelect.addEventListener('change', async (e) => {
+            await setLanguage(e.target.value);
+            translatePage();
+            updateStep(currentStep); // Re-translate button text
+        });
+    }
+    
+    // Listen for language changes from other sources
+    onLanguageChange(() => {
+        if (isOpen) {
+            updateStep(currentStep);
+        }
+    });
     
     // Close button
     if (closeBtn) {
