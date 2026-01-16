@@ -16,9 +16,9 @@
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    <p>Select your dashcam folder to browse clips</p>
+                    <p data-i18n="ui.dropOverlay.message">Select your dashcam folder to browse clips</p>
                     <div class="drop-actions">
-                        <button id="overlayChooseFolderBtn" class="mini-btn">Choose Folder</button>
+                        <button id="overlayChooseFolderBtn" class="mini-btn" data-i18n="ui.dropOverlay.chooseFolder">Choose Folder</button>
                     </div>
                 </div>
                 <input type="file" id="folderInput" webkitdirectory multiple>
@@ -518,11 +518,11 @@
                             <div id="exportSizeEstimate" class="info-box info-blue" style="margin-top: 10px;"></div>
                             <div id="maxQualityWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
                                 <span class="info-box-icon">ℹ️</span>
-                                <span>Maximum quality uses HEVC encoding if GPU available.</span>
+                                <span data-i18n="ui.export.maxQualityWarning">Maximum quality uses HEVC encoding if GPU available.</span>
                             </div>
                             <div id="frontCamWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
                                 <span class="info-box-icon">⚠️</span>
-                                <span>Front camera will be scaled down to match other cameras.</span>
+                                <span data-i18n="ui.export.frontCamWarning">Front camera will be scaled down to match other cameras.</span>
                             </div>
                         </div>
                     </div>
@@ -549,16 +549,16 @@
                             <div id="timestampOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Position</span>
-                                        <span class="select-row-desc">Placement on video</span>
+                                        <span class="select-row-label" data-i18n="ui.export.position">Position</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.positionDesc">Placement on video</span>
                                     </div>
                                     <select id="timestampPosition" class="settings-select">
-                                        <option value="bottom-center" selected>Bottom Center</option>
-                                        <option value="bottom-left">Bottom Left</option>
-                                        <option value="bottom-right">Bottom Right</option>
-                                        <option value="top-center">Top Center</option>
-                                        <option value="top-left">Top Left</option>
-                                        <option value="top-right">Top Right</option>
+                                        <option value="bottom-center" selected data-i18n="ui.export.bottomCenter">Bottom Center</option>
+                                        <option value="bottom-left" data-i18n="ui.export.bottomLeft">Bottom Left</option>
+                                        <option value="bottom-right" data-i18n="ui.export.bottomRight">Bottom Right</option>
+                                        <option value="top-center" data-i18n="ui.export.topCenter">Top Center</option>
+                                        <option value="top-left" data-i18n="ui.export.topLeft">Top Left</option>
+                                        <option value="top-right" data-i18n="ui.export.topRight">Top Right</option>
                                     </select>
                                 </div>
                             </div>
@@ -574,7 +574,7 @@
                             </label>
                             <div id="dashboardGpuWarning" class="info-box info-red hidden">
                                 <span class="info-box-icon">⚠️</span>
-                                <span>Dashboard overlay requires GPU encoding. No compatible GPU detected.</span>
+                                <span data-i18n="ui.export.dashboardGpuWarning">Dashboard overlay requires GPU encoding. No compatible GPU detected.</span>
                             </div>
                             <div id="dashboardOptions" class="hidden">
                                 <div class="select-row">
@@ -588,16 +588,16 @@
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Position</span>
-                                        <span class="select-row-desc">Placement on video</span>
+                                        <span class="select-row-label" data-i18n="ui.export.position">Position</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.positionDesc">Placement on video</span>
                                     </div>
                                     <select id="dashboardPosition" class="settings-select">
-                                        <option value="bottom-center">Bottom Center</option>
-                                        <option value="bottom-left">Bottom Left</option>
-                                        <option value="bottom-right">Bottom Right</option>
-                                        <option value="top-center">Top Center</option>
-                                        <option value="top-left">Top Left</option>
-                                        <option value="top-right">Top Right</option>
+                                        <option value="bottom-center" data-i18n="ui.export.bottomCenter">Bottom Center</option>
+                                        <option value="bottom-left" data-i18n="ui.export.bottomLeft">Bottom Left</option>
+                                        <option value="bottom-right" data-i18n="ui.export.bottomRight">Bottom Right</option>
+                                        <option value="top-center" data-i18n="ui.export.topCenter">Top Center</option>
+                                        <option value="top-left" data-i18n="ui.export.topLeft">Top Left</option>
+                                        <option value="top-right" data-i18n="ui.export.topRight">Top Right</option>
                                     </select>
                                 </div>
                                 <div class="select-row">
@@ -614,7 +614,7 @@
                                 </div>
                                 <div class="info-box info-blue">
                                     <span class="info-box-icon">ℹ️</span>
-                                    <span>Dashboard is pre-rendered for optimal performance.</span>
+                                    <span data-i18n="ui.export.dashboardPrerendered">Dashboard is pre-rendered for optimal performance.</span>
                                 </div>
                             </div>
                         </div>
@@ -629,8 +629,8 @@
                             <span class="action-row-desc" data-i18n="ui.export.blurTypeDesc">Solid is faster, Transparent blends edges</span>
                         </div>
                         <select id="blurTypeSelect" class="settings-select" style="min-width: 140px;">
-                            <option value="solid">Solid</option>
-                            <option value="transparent">Transparent</option>
+                            <option value="solid" data-i18n="ui.export.solid">Solid</option>
+                            <option value="transparent" data-i18n="ui.export.transparent">Transparent</option>
                         </select>
                     </div>
                     <div class="action-row">
@@ -640,12 +640,12 @@
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <select id="blurZoneCameraSelect" class="settings-select" style="min-width: 140px;">
-                                <option value="back">Back</option>
-                                <option value="front">Front</option>
-                                <option value="left_repeater">Left Repeater</option>
-                                <option value="right_repeater">Right Repeater</option>
-                                <option value="left_pillar">Left Pillar</option>
-                                <option value="right_pillar">Right Pillar</option>
+                                <option value="back" data-i18n="ui.cameras.back">Back</option>
+                                <option value="front" data-i18n="ui.cameras.front">Front</option>
+                                <option value="left_repeater" data-i18n="ui.cameras.leftRepeater">Left Repeater</option>
+                                <option value="right_repeater" data-i18n="ui.cameras.rightRepeater">Right Repeater</option>
+                                <option value="left_pillar" data-i18n="ui.cameras.leftPillar">Left Pillar</option>
+                                <option value="right_pillar" data-i18n="ui.cameras.rightPillar">Right Pillar</option>
                             </select>
                             <button id="addBlurZoneBtn" class="btn btn-secondary btn-small" data-i18n="ui.export.addZone">Add Zone</button>
                         </div>
@@ -699,22 +699,22 @@
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
-                    Blur Zone Editor
+                    <span data-i18n="ui.export.blurZoneEditor">Blur Zone Editor</span>
                 </h2>
                 <button id="closeBlurZoneEditorModal" class="modal-close">&times;</button>
             </div>
             <div class="modal-body modal-body-padded">
                 <div class="info-box info-blue" style="margin-bottom: 15px;">
                     <span class="info-box-icon">ℹ️</span>
-                    <span>Click and drag the corner handles to resize. Hover over edges to add new points. Click on points to create complex shapes.</span>
+                    <span data-i18n="ui.export.blurZoneInstructions">Click and drag the corner handles to resize. Hover over edges to add new points. Click on points to create complex shapes.</span>
                 </div>
                 <div style="display: flex; justify-content: center; align-items: center; background: #000; border-radius: 8px; padding: 20px; min-height: 400px;">
                     <canvas id="blurZoneEditorCanvas" style="max-width: 100%; max-height: 70vh; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;"></canvas>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="cancelBlurZoneBtn" class="btn btn-secondary">Cancel</button>
-                <button id="saveBlurZoneBtn" class="btn btn-primary">Save Zone</button>
+                <button id="cancelBlurZoneBtn" class="btn btn-secondary" data-i18n="ui.export.cancel">Cancel</button>
+                <button id="saveBlurZoneBtn" class="btn btn-primary" data-i18n="ui.export.saveZone">Save Zone</button>
             </div>
         </div>
     </div>

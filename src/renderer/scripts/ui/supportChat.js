@@ -5,6 +5,7 @@
 
 import { collectDiagnostics } from './diagnostics.js';
 import { notify } from './notifications.js';
+import { t } from '../lib/i18n.js';
 
 const $ = id => document.getElementById(id);
 
@@ -98,22 +99,22 @@ function createSupportChatPanel() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
-                <span>Support Chat</span>
+                <span data-i18n="ui.supportChat.title">${t('ui.supportChat.title')}</span>
                 <span id="supportTicketId" class="support-ticket-id hidden"></span>
             </div>
             <div class="support-chat-actions">
-                <button id="supportCloseTicketBtn" class="support-chat-btn support-close-ticket-btn hidden" title="Close Ticket">
+                <button id="supportCloseTicketBtn" class="support-chat-btn support-close-ticket-btn hidden" title="${t('ui.supportChat.closeTicket')}">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                         <polyline points="22 4 12 14.01 9 11.01"/>
                     </svg>
                 </button>
-                <button id="supportChatMinimize" class="support-chat-btn" title="Minimize">
+                <button id="supportChatMinimize" class="support-chat-btn" title="${t('ui.supportChat.minimize')}">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
                 </button>
-                <button id="supportChatClose" class="support-chat-btn" title="Close Panel">
+                <button id="supportChatClose" class="support-chat-btn" title="${t('ui.supportChat.closePanel')}">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -130,9 +131,9 @@ function createSupportChatPanel() {
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
                     </svg>
                 </div>
-                <h3>Need Help?</h3>
-                <p>Start a support conversation with us. Describe your issue, bug, or feedback and we'll respond as soon as possible.</p>
-                <p class="welcome-note">You can attach screenshots/videos and diagnostic data to help us understand your issue better.</p>
+                <h3 data-i18n="ui.supportChat.needHelp">${t('ui.supportChat.needHelp')}</h3>
+                <p data-i18n="ui.supportChat.welcomeDesc">${t('ui.supportChat.welcomeDesc')}</p>
+                <p class="welcome-note" data-i18n="ui.supportChat.welcomeNote">${t('ui.supportChat.welcomeNote')}</p>
             </div>
         </div>
         
@@ -142,7 +143,7 @@ function createSupportChatPanel() {
             </div>
             
             <div class="composer-options">
-                <label class="composer-option" title="Include diagnostic data">
+                <label class="composer-option" title="${t('ui.supportChat.includeDiagnostics')}">
                     <input type="checkbox" id="supportIncludeDiagnostics">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -151,20 +152,20 @@ function createSupportChatPanel() {
                         <line x1="16" y1="17" x2="8" y2="17"/>
                         <polyline points="10 9 9 9 8 9"/>
                     </svg>
-                    <span>Diagnostics</span>
+                    <span data-i18n="ui.supportChat.diagnostics">${t('ui.supportChat.diagnostics')}</span>
                 </label>
-                <label class="composer-option attach-btn" title="Attach files">
+                <label class="composer-option attach-btn" title="${t('ui.supportChat.attachFiles')}">
                     <input type="file" id="supportFileInput" accept="image/*,video/*,.zip" multiple style="display: none;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
-                    <span>Attach</span>
+                    <span data-i18n="ui.supportChat.attach">${t('ui.supportChat.attach')}</span>
                 </label>
             </div>
             
             <div class="composer-input-row">
-                <textarea id="supportMessageInput" class="composer-textarea" placeholder="Describe your issue or feedback..." rows="3" maxlength="5000"></textarea>
-                <button id="supportSendBtn" class="composer-send-btn" title="Send message">
+                <textarea id="supportMessageInput" class="composer-textarea" placeholder="${t('ui.supportChat.placeholder')}" rows="3" maxlength="5000"></textarea>
+                <button id="supportSendBtn" class="composer-send-btn" title="${t('ui.supportChat.sendMessage')}">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="22" y1="2" x2="11" y2="13"/>
                         <polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -178,7 +179,7 @@ function createSupportChatPanel() {
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
                     </svg>
-                    Data auto-deletes after 3 days
+                    <span data-i18n="ui.supportChat.privacyNote">${t('ui.supportChat.privacyNote')}</span>
                 </span>
             </div>
         </div>
@@ -189,13 +190,13 @@ function createSupportChatPanel() {
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                     <polyline points="22 4 12 14.01 9 11.01"/>
                 </svg>
-                <p>This ticket has been closed.</p>
+                <p data-i18n="ui.supportChat.ticketClosed">${t('ui.supportChat.ticketClosed')}</p>
                 <button id="supportNewTicketBtn" class="new-ticket-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    Create New Support Ticket
+                    <span data-i18n="ui.supportChat.createNewTicket">${t('ui.supportChat.createNewTicket')}</span>
                 </button>
             </div>
         </div>
@@ -798,9 +799,9 @@ export function clearTicket() {
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
                 </div>
-                <h3>Need Help?</h3>
-                <p>Start a support conversation with us. Describe your issue, bug, or feedback and we'll respond as soon as possible.</p>
-                <p class="welcome-note">You can attach screenshots/videos and diagnostic data to help us understand your issue better.</p>
+                <h3 data-i18n="ui.supportChat.needHelp">${t('ui.supportChat.needHelp')}</h3>
+                <p data-i18n="ui.supportChat.welcomeDesc">${t('ui.supportChat.welcomeDesc')}</p>
+                <p class="welcome-note" data-i18n="ui.supportChat.welcomeNote">${t('ui.supportChat.welcomeNote')}</p>
             </div>
         `;
     }

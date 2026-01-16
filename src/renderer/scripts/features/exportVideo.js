@@ -630,12 +630,12 @@ function renderBlurZoneList() {
     if (!listEl) return;
     
     const cameraNames = {
-        front: 'Front',
-        back: 'Back',
-        left_repeater: 'Left Repeater',
-        right_repeater: 'Right Repeater',
-        left_pillar: 'Left Pillar',
-        right_pillar: 'Right Pillar'
+        front: t('ui.cameras.front'),
+        back: t('ui.cameras.back'),
+        left_repeater: t('ui.cameras.leftRepeater'),
+        right_repeater: t('ui.cameras.rightRepeater'),
+        left_pillar: t('ui.cameras.leftPillar'),
+        right_pillar: t('ui.cameras.rightPillar')
     };
     
     if (exportState.blurZones.length === 0) {
@@ -815,10 +815,10 @@ function updateBlurZoneStatusDisplay() {
         if (statusEl) statusEl.classList.remove('hidden');
         const cameras = [...new Set(exportState.blurZones.map(z => z.camera))];
         const cameraNames = cameras.map(c => {
-            const names = { front: 'Front', back: 'Back', left_repeater: 'Left Repeater', right_repeater: 'Right Repeater', left_pillar: 'Left Pillar', right_pillar: 'Right Pillar' };
+            const names = { front: t('ui.cameras.front'), back: t('ui.cameras.back'), left_repeater: t('ui.cameras.leftRepeater'), right_repeater: t('ui.cameras.rightRepeater'), left_pillar: t('ui.cameras.leftPillar'), right_pillar: t('ui.cameras.rightPillar') };
             return names[c] || c;
         });
-        if (statusTextEl) statusTextEl.textContent = `${exportState.blurZones.length} blur zone(s) - Dashboard overlay disabled`;
+        if (statusTextEl) statusTextEl.textContent = t('ui.export.blurZonesStatus', { count: exportState.blurZones.length });
         if (addBtn) addBtn.textContent = 'Add Zone';
         
         // Ensure dashboard is disabled when blur zones exist
@@ -928,7 +928,7 @@ export function updateExportSizeEstimate() {
     const estimatedGB = (estimatedMB / 1024).toFixed(1);
     
     let sizeText = estimatedMB > 1024 ? `~${estimatedGB} GB` : `~${estimatedMB} MB`;
-    estimateEl.textContent = `Output: ${gridW}×${gridH} • ${sizeText}`;
+    estimateEl.textContent = `${t('ui.export.output')}: ${gridW}×${gridH} • ${sizeText}`;
 }
 
 /**
@@ -981,7 +981,7 @@ export async function checkFFmpegAvailability() {
     
     if (!statusEl) return;
     
-    statusEl.innerHTML = '<span class="status-icon">⏳</span><span class="status-text">Checking FFmpeg...</span>';
+    statusEl.innerHTML = `<span class="status-icon">⏳</span><span class="status-text">${t('ui.export.checkingFfmpeg')}</span>`;
     
     try {
         if (window.electronAPI?.checkFFmpeg) {
@@ -994,14 +994,14 @@ export async function checkFFmpegAvailability() {
             
             if (result.available) {
                 // Build status text with GPU info
-                let statusText = 'FFmpeg ready';
+                let statusText = t('ui.export.ffmpegReady');
                 if (result.gpu) {
                     statusText += ` • GPU: ${result.gpu.name}`;
                     if (result.hevc) {
                         statusText += ` + HEVC`;
                     }
                 } else {
-                    statusText += ' • CPU only (no GPU encoder)';
+                    statusText += ` • ${t('ui.export.cpuOnly')}`;
                 }
                 if (result.fakeNoGpu) {
                     statusText += ' [DEV: Fake No GPU]';
@@ -1028,9 +1028,9 @@ export async function checkFFmpegAvailability() {
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
-                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg required. Run in Terminal: <code style="background:#333;padding:2px 6px;border-radius:3px;user-select:all;">brew install ffmpeg</code></span>';
+                    statusEl.innerHTML = `<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">${t('ui.export.ffmpegRequiredMac')}</span>`;
                 } else {
-                    statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">FFmpeg not found. Place ffmpeg.exe in the ffmpeg_bin folder.</span>';
+                    statusEl.innerHTML = `<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">${t('ui.export.ffmpegRequiredWin')}</span>`;
                 }
                 if (startBtn) startBtn.disabled = true;
                 if (dashboardCheckbox) {
@@ -1039,7 +1039,7 @@ export async function checkFFmpegAvailability() {
                 }
             }
         } else {
-            statusEl.innerHTML = '<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">Export not available (running in browser)</span>';
+            statusEl.innerHTML = `<span class="status-icon" style="color: #ff9800;">⚠</span><span class="status-text">${t('ui.export.notAvailable')}</span>`;
             if (startBtn) startBtn.disabled = true;
             if (dashboardCheckbox) {
                 dashboardCheckbox.disabled = true;
@@ -1047,7 +1047,7 @@ export async function checkFFmpegAvailability() {
             }
         }
     } catch (err) {
-        statusEl.innerHTML = '<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">Error checking FFmpeg</span>';
+        statusEl.innerHTML = `<span class="status-icon" style="color: #f44336;">✗</span><span class="status-text">${t('ui.export.ffmpegError')}</span>`;
         if (startBtn) startBtn.disabled = true;
     }
 }
@@ -1108,9 +1108,9 @@ export async function startExport() {
         const blurCameras = [...new Set(exportState.blurZones.map(z => z.camera))];
         const unselectedBlurCameras = blurCameras.filter(c => !cameras.includes(c));
         if (unselectedBlurCameras.length > 0) {
-            const cameraNames = { front: 'Front', back: 'Back', left_repeater: 'Left Repeater', right_repeater: 'Right Repeater', left_pillar: 'Left Pillar', right_pillar: 'Right Pillar' };
+            const cameraNames = { front: t('ui.cameras.front'), back: t('ui.cameras.back'), left_repeater: t('ui.cameras.leftRepeater'), right_repeater: t('ui.cameras.rightRepeater'), left_pillar: t('ui.cameras.leftPillar'), right_pillar: t('ui.cameras.rightPillar') };
             const names = unselectedBlurCameras.map(c => cameraNames[c] || c).join(', ');
-            notify(`Warning: Blur zones configured for unselected cameras (${names}) will not be applied`, { type: 'warn' });
+            notify(t('ui.export.blurZonesWarning', { cameras: names }), { type: 'warn' });
         }
     }
     

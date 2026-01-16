@@ -3,14 +3,20 @@
  * Implements magnet cards with snap-to-edge and snap-to-sibling functionality
  */
 
-const CAMERA_LABELS = {
-    'left_pillar': 'Left Pillar',
-    'front': 'Front',
-    'right_pillar': 'Right Pillar',
-    'left_repeater': 'Left Repeater',
-    'back': 'Back',
-    'right_repeater': 'Right Repeater'
-};
+import { t } from '../lib/i18n.js';
+
+// Get translated camera labels
+function getCameraLabel(camera) {
+    const labels = {
+        'left_pillar': t('ui.cameras.leftPillar'),
+        'front': t('ui.cameras.front'),
+        'right_pillar': t('ui.cameras.rightPillar'),
+        'left_repeater': t('ui.cameras.leftRepeater'),
+        'back': t('ui.cameras.back'),
+        'right_repeater': t('ui.cameras.rightRepeater')
+    };
+    return labels[camera] || camera;
+}
 
 // Layout state: stores position and size for each camera
 export const layoutState = {
@@ -276,7 +282,7 @@ function createCard(camera, x, y, width, height) {
     // Label
     const label = document.createElement('div');
     label.className = 'card-label';
-    label.textContent = CAMERA_LABELS[camera] || camera;
+    label.textContent = getCameraLabel(camera);
     card.appendChild(label);
     
     // Make draggable
