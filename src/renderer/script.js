@@ -433,6 +433,11 @@ function hasValidGps(sei) {
     // Initialize i18n (language system)
     await initI18n();
     
+    // Set initial subtitle text if no folder is loaded
+    if (!library.folderLabel) {
+        clipBrowserSubtitle.textContent = t('ui.clipBrowser.subtitle');
+    }
+    
     // Listen for language changes and update dashboard labels
     onLanguageChange((lang) => {
         console.log('Language changed to:', lang);
@@ -455,10 +460,18 @@ function hasValidGps(sei) {
             apTextCompact.textContent = t('ui.dashboard.manual');
         }
         
+        // Update clip browser subtitle only if no folder is loaded
+        if (!library.folderLabel) {
+            clipBrowserSubtitle.textContent = t('ui.clipBrowser.subtitle');
+        }
+        
         // Re-render clip list to update translated labels
         if (window._renderClipList) {
             window._renderClipList();
         }
+        
+        // Update camera tile labels
+        updateTileLabels();
     });
     
     // Init Map
@@ -655,7 +668,7 @@ function hasValidGps(sei) {
         enumFields = ef;
     } catch (e) {
         console.error('Failed to init protobuf:', e);
-        notify('Failed to initialize metadata parser. Make sure protobuf loads and you are not running via file://', { type: 'error' });
+        notify(t('ui.notifications.failedToInitMetadataParser'), { type: 'error' });
     }
 
     // Clip Browser buttons
@@ -1351,7 +1364,7 @@ async function openFolderPicker() {
         } catch (err) {
             hideLoading();
             console.error('Folder picker error:', err);
-            notify('Failed to open folder: ' + err.message, { type: 'error' });
+            notify(t('ui.notifications.failedToOpenFolder', { error: err.message }), { type: 'error' });
             return;
         }
     }
@@ -1367,7 +1380,7 @@ async function openFolderPicker() {
             hideLoading();
             if (err.name !== 'AbortError') {
                 console.error('Folder picker error:', err);
-                notify('Failed to open folder: ' + err.message, { type: 'error' });
+                notify(t('ui.notifications.failedToOpenFolder', { error: err.message }), { type: 'error' });
             }
         }
     } else {
@@ -1439,7 +1452,7 @@ async function traverseDirectoryElectron(dirPath) {
     hideLoading();
     
     if (!folderStructure.dates.size) {
-        notify('No dashcam clips found. Select a folder containing RecentClips, SentryClips, or SavedClips, or select one of those folders directly.', { type: 'warn' });
+        notify(t('ui.notifications.noDashcamClipsFound'), { type: 'warn' });
         return;
     }
     
@@ -1469,7 +1482,7 @@ async function traverseDirectoryElectron(dirPath) {
         await loadDateContentElectron(sortedDates[0]);
     }
     
-    notify(`Found ${sortedDates.length} dates with clips`, { type: 'success' });
+    notify(t('ui.notifications.foundDatesWithClips', { count: sortedDates.length }), { type: 'success' });
 }
 
 // Scan RecentClips using Electron fs
@@ -1540,7 +1553,7 @@ async function scanEventFolderElectron(dirPath, clipType) {
 // Load date content using Electron fs
 async function loadDateContentElectron(date) {
     if (!folderStructure?.dateHandles?.has(date)) {
-        notify(`No data for ${date}`, { type: 'warn' });
+        notify(t('ui.notifications.noDataForDate', { date: date }), { type: 'warn' });
         return;
     }
     
@@ -1618,7 +1631,7 @@ async function loadDateContentElectron(date) {
     hideLoading();
     
     if (files.length === 0) {
-        notify(`No clips found for ${date}`, { type: 'info' });
+        notify(t('ui.notifications.noClipsFoundForDate', { date: date }), { type: 'info' });
         return;
     }
     
@@ -1673,7 +1686,7 @@ async function loadDateContentElectron(date) {
     // Parse event.json in background
     ingestSentryEventJson(built.eventAssetsByKey);
     
-    notify(`Loaded ${files.length} files for ${formatDateDisplay(date)}`, { type: 'success' });
+    notify(t('ui.notifications.loadedFilesForDate', { count: files.length, date: formatDateDisplay(date) }), { type: 'success' });
 }
 
 function formatDateDisplay(dateStr) {
@@ -1760,7 +1773,7 @@ async function traverseDirectoryHandle(dirHandle) {
     hideLoading();
 
     if (!folderStructure.dates.size) {
-        notify('No dashcam clips found. Select a folder containing RecentClips, SentryClips, or SavedClips, or select one of those folders directly.', { type: 'warn' });
+        notify(t('ui.notifications.noDashcamClipsFound'), { type: 'warn' });
         return;
     }
 
@@ -1928,7 +1941,7 @@ async function loadDateContent(date) {
     hideLoading();
 
     if (!files.length) {
-        notify(`No clips found for ${date}`, { type: 'info' });
+        notify(t('ui.notifications.noClipsFoundForDate', { date: date }), { type: 'info' });
         renderClipList();
         return;
     }
@@ -1966,7 +1979,7 @@ async function loadEventFolder(eventHandle, clipType, eventId, files) {
 // Process files for a single date
 async function handleFolderFilesForDate(files, date) {
     if (!seiType) {
-        notify('Metadata parser not initialized yet—try again in a second.', { type: 'warn' });
+        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
         return;
     }
 
@@ -2143,12 +2156,12 @@ function normalizeCamera(cameraRaw) {
 }
 
 function cameraLabel(camera) {
-    if (camera === 'front') return 'Front';
-    if (camera === 'back') return 'Back';
-    if (camera === 'left_repeater') return 'Left Rep';
-    if (camera === 'right_repeater') return 'Right Rep';
-    if (camera === 'left_pillar') return 'Left Pillar';
-    if (camera === 'right_pillar') return 'Right Pillar';
+    if (camera === 'front') return t('ui.cameras.front');
+    if (camera === 'back') return t('ui.cameras.back');
+    if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
+    if (camera === 'right_repeater') return t('ui.cameras.rightRepeater');
+    if (camera === 'left_pillar') return t('ui.cameras.leftPillar');
+    if (camera === 'right_pillar') return t('ui.cameras.rightPillar');
     return camera;
 }
 
@@ -2370,7 +2383,7 @@ function updateDayFilterOptions() {
 
 async function handleFolderFiles(fileList, directoryName = null) {
     if (!seiType) {
-        notify('Metadata parser not initialized yet—try again in a second.', { type: 'warn' });
+        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
         return;
     }
 
@@ -2402,7 +2415,7 @@ async function handleFolderFiles(fileList, directoryName = null) {
 
     if (!files.length) {
         hideLoading();
-        notify('No supported files found in that folder.', { type: 'warn' });
+        notify(t('ui.notifications.noSupportedFilesFound'), { type: 'warn' });
         return;
     }
 
@@ -2705,11 +2718,11 @@ function selectDayCollection(dayKey) {
         }
     }).catch(err => {
         console.error('Failed to load native segment:', err);
-        notify('Failed to load video: ' + (err?.message || String(err)), { type: 'error' });
+        notify(t('ui.notifications.failedToLoadVideo', { error: err?.message || String(err) }), { type: 'error' });
     });
     } catch (err) {
         console.error('Error in selectDayCollection:', err);
-        notify('Error selecting day: ' + (err?.message || String(err)), { type: 'error' });
+        notify(t('ui.notifications.errorSelectingDay', { error: err?.message || String(err) }), { type: 'error' });
     }
 }
 

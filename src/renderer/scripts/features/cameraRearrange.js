@@ -5,6 +5,7 @@
 
 import { notify } from '../ui/notifications.js';
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from '../lib/multiLayouts.js';
+import { t } from '../lib/i18n.js';
 
 // Custom camera order state
 let customCameraOrder = null;
@@ -272,14 +273,30 @@ export function updateTileLabels() {
     const multiCamGrid = getMultiCamGrid?.();
     const effectiveSlots = getEffectiveSlots();
     
-    effectiveSlots.forEach(({ slot, label }) => {
+    effectiveSlots.forEach(({ slot, camera }) => {
         const tile = multiCamGrid?.querySelector(`.multi-tile[data-slot="${slot}"]`);
         if (tile) {
             const labelEl = tile.querySelector('.multi-label');
-            if (labelEl) labelEl.textContent = label;
+            if (labelEl) {
+                // Translate camera name based on camera type
+                const translatedLabel = getCameraTranslation(camera);
+                labelEl.textContent = translatedLabel;
+            }
         }
-        
     });
+}
+
+/**
+ * Get translated camera name
+ */
+function getCameraTranslation(camera) {
+    if (camera === 'front') return t('ui.cameras.front');
+    if (camera === 'back') return t('ui.cameras.back');
+    if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
+    if (camera === 'right_repeater') return t('ui.cameras.rightRepeater');
+    if (camera === 'left_pillar') return t('ui.cameras.leftPillar');
+    if (camera === 'right_pillar') return t('ui.cameras.rightPillar');
+    return camera;
 }
 
 /**

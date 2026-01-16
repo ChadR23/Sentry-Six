@@ -2,7 +2,7 @@
   "versions": [
     {
       "version": "2026.3.4",
-      "date": "2026-01-15",
+      "date": "2026-01-16",
       "title": "Minor Update",
       "changes": [
         {
@@ -12,6 +12,18 @@
         {
           "type": "fix",
           "description": "Fixed Some issues with Welcome module Not being translated and issues with HTML"
+        },
+        {
+          "type": "improvement",
+          "description": "Added Tool Tips Translation in all 13 Languages."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed A bug where Translation was braking dynamic info of the Folders in clip browser."
+        },
+        {
+          "type": "improvement",
+          "description": "Added Translations to Notifications for errors,info,etc"
         }
       ]
     },

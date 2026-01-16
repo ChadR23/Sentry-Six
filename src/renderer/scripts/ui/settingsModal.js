@@ -4,7 +4,7 @@
  */
 
 import { initKeybindSettings } from '../lib/keybinds.js';
-import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange } from '../lib/i18n.js';
+import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange, t } from '../lib/i18n.js';
 
 /**
  * Initialize modal tabs functionality
@@ -404,18 +404,18 @@ export function initSettingsModal() {
     
     function updateSkipLabels(duration) {
         // Update settings modal labels
-        if (skipForwardLabel) skipForwardLabel.textContent = `Skip Forward ${duration}s`;
-        if (skipBackwardLabel) skipBackwardLabel.textContent = `Skip Backward ${duration}s`;
+        if (skipForwardLabel) skipForwardLabel.textContent = `${t('ui.settings.skipForward')} ${duration}s`;
+        if (skipBackwardLabel) skipBackwardLabel.textContent = `${t('ui.settings.skipBackward')} ${duration}s`;
         // Update playback bar button labels and titles
         if (skipBackBtn) {
             const backLabel = skipBackBtn.querySelector('.skip-label');
             if (backLabel) backLabel.textContent = duration;
-            skipBackBtn.title = `Skip back ${duration} seconds`;
+            skipBackBtn.title = `${t('ui.settings.skipBackward')} ${duration} ${t('ui.settings.seconds')}`;
         }
         if (skipForwardBtn) {
             const fwdLabel = skipForwardBtn.querySelector('.skip-label');
             if (fwdLabel) fwdLabel.textContent = duration;
-            skipForwardBtn.title = `Skip forward ${duration} seconds`;
+            skipForwardBtn.title = `${t('ui.settings.skipForward')} ${duration} ${t('ui.settings.seconds')}`;
         }
     }
     
