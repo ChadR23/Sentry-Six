@@ -24,7 +24,8 @@ This document describes the multi-language (internationalization/i18n) system im
 
 2. **`src/renderer/scripts/data/translations.js`**
    - Translation strings for all 13 supported languages
-   - Organized by category: `ui.dropOverlay`, `ui.loading`, `ui.clipBrowser`, `ui.playback`, `ui.export`, `ui.settings`, `ui.cameras`, `ui.dashboard`, `ui.notifications`
+   - Organized by category: `ui.dropOverlay`, `ui.loading`, `ui.clipBrowser`, `ui.playback`, `ui.export`, `ui.settings`, `ui.cameras`, `ui.dashboard`, `ui.notifications`, `ui.supportChat`
+   - Export keys include: position options, blur zone editor, FFmpeg status, warnings
    - Compact format to minimize file size while maintaining readability
 
 ### Modified Files
@@ -58,15 +59,28 @@ This document describes the multi-language (internationalization/i18n) system im
      - `t('ui.notifications.loadCollectionFirst')`
      - `t('ui.notifications.startMarkerSet')`
      - `t('ui.notifications.endMarkerSet')`
+   - Updated FFmpeg status messages to use translations
+   - Updated blur zone camera names and status messages
+   - Updated output banner text
 
-5. **`src/renderer/scripts/ui/welcomeGuide.js`**
+5. **`src/renderer/scripts/ui/layoutLab.js`**
+   - Imported `t()` function for translations
+   - Added `getCameraLabel()` helper function for translated camera names
+   - Camera labels on export layout canvas now translate dynamically
+
+6. **`src/renderer/scripts/ui/supportChat.js`**
+   - Imported `t()` function for translations
+   - All Support Chat UI elements use `data-i18n` attributes and `t()` calls
+   - Includes: title, welcome message, buttons, placeholders, privacy note, ticket status
+
+7. **`src/renderer/scripts/ui/welcomeGuide.js`**
    - Imported i18n functions (`getCurrentLanguage`, `setLanguage`, `getAvailableLanguages`, `onLanguageChange`, `translatePage`)
    - Added language dropdown population in `initWelcomeGuide()`
    - Added language change handler that updates all welcome guide text instantly
    - Added `onLanguageChange` listener to update button text when language changes
    - Made `updateStep()` function async to support dynamic button text translation
 
-6. **`src/renderer/scripts/core/clipBrowser.js`**
+8. **`src/renderer/scripts/core/clipBrowser.js`**
    - Imported `t()` function
    - Updated clip titles to use translations: `t('ui.clipBrowser.recent')`, `t('ui.clipBrowser.sentry')`, `t('ui.clipBrowser.saved')`
    - Updated segment count text to use singular/plural translations
@@ -134,14 +148,19 @@ const message = t('ui.loading.filesFound', { count: 42 });
 ## Translation Coverage
 
 ### Currently Translated (95%+ Complete)
-- **Settings Modal** - All labels, descriptions, buttons, dropdown options
+- **Settings Modal** - All labels, descriptions, buttons, dropdown options (General, Shortcuts, Advanced tabs)
 - **Export Modal** - All sections, labels, buttons, descriptions, toggles
+- **Export Modal Position Dropdowns** - Bottom Center, Top Left, Top Right, etc.
+- **Export Modal Blur Zone Editor** - Title, instructions, Cancel/Save buttons, blur type options
+- **Export Modal Warnings/Banners** - FFmpeg status, GPU warning, front camera warning, dashboard prerendered
 - **Dashboard** - Speed units, autopilot states (Manual, No Data, Self Driving, Autosteer, TACC)
 - **Camera Labels** - All 6 cameras (Front, Back, Left/Right Pillar, Left/Right Repeater)
+- **Camera Layout Canvas** - Camera labels in export layout preview
 - **Clip Browser** - Event type labels (Recent, Sentry, Saved), segment counts
 - **Event Types** - Manual Save, Honk, Object Detected, Emergency Braking, Acceleration Detected, Collision Detected
 - **Map Controls** - Re-center button, hint text
 - **Welcome Guide** - All 9 steps, navigation buttons, language selector
+- **Support Chat** - Title, welcome message, buttons, placeholders, privacy note, ticket status
 - **Notification Messages** - Export markers, completion, errors
 - **Drop Overlay** - Folder selection messages
 - **Loading Indicators** - Scanning, file count messages
@@ -255,3 +274,11 @@ For translation issues or to contribute new languages:
 - ✅ Added Autopilot states translation (Self Driving, Autosteer, TACC)
 - ✅ Added language sync between Welcome Guide and Settings
 - ✅ Added dynamic clip list re-rendering on language change
+- ✅ Added Support Chat full translation
+- ✅ Added Export Modal position dropdown translations
+- ✅ Added Blur Zone Editor translations
+- ✅ Added FFmpeg status message translations
+- ✅ Added Export warning/banner translations
+- ✅ Added Camera layout canvas label translations
+- ✅ Added Drop Overlay translations
+- ✅ Added Settings Shortcuts and Advanced tabs translations

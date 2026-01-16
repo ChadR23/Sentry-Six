@@ -23,8 +23,10 @@ First-run experience with language selector!
 - All labels (Start, End, Duration, Layout, Quality, Overlays)
 - All descriptions and help text
 - All buttons (Cancel, Export)
-- All dropdown options
-- Blur zone controls
+- All dropdown options (including position dropdowns: Bottom Center, Top Left, etc.)
+- Blur zone controls (editor title, instructions, Cancel/Save buttons, blur type options)
+- FFmpeg status messages (Checking, Ready, CPU only, errors)
+- Warning banners (GPU warning, front camera warning, dashboard prerendered, max quality)
 
 ### Dashboard Labels - **FULLY DYNAMIC** ✨
 - Speed units (MPH/KM/H)
@@ -36,6 +38,18 @@ First-run experience with language selector!
 - All 6 cameras translate instantly
 - Front, Back, Left/Right Pillar, Left/Right Repeater
 - Works in all multi-cam layouts
+- Camera layout canvas in export preview
+
+### Support Chat - **FULLY DYNAMIC** ✨
+- Title and welcome message
+- All buttons (Send, Close, Minimize, Attach)
+- Input placeholders
+- Privacy note and ticket status messages
+- Diagnostic toggle labels
+
+### Drop Overlay - **FULLY DYNAMIC** ✨
+- Folder selection message
+- Choose Folder button
 
 ### Clip Browser - **FULLY DYNAMIC** ✨
 - Event type labels (Recent, Sentry, Saved)
@@ -116,14 +130,18 @@ First-run experience with language selector!
 
 ### ✅ Fully Translated (Updates Immediately - 95%+)
 - **Welcome Guide** - All 9 steps, navigation, language selector
-- **Settings Modal** - All text elements, syncs with Welcome Guide
-- **Export Modal** - All sections, labels, buttons, descriptions
+- **Settings Modal** - All text elements (General, Shortcuts, Advanced tabs), syncs with Welcome Guide
+- **Export Modal** - All sections, labels, buttons, descriptions, position dropdowns, blur zone editor, warnings
 - **Dashboard Labels** - Speed units, all autopilot states
-- **Camera Labels** - All 6 cameras in multi-cam view
+- **Camera Labels** - All 6 cameras in multi-cam view, export layout canvas
 - **Clip Browser** - Event types, segment counts, all labels
 - **Event Types** - Manual Save, Honk, Object Detected, Emergency Braking, Acceleration, Collision
 - **Map Controls** - Re-center button, hint text
+- **Support Chat** - Title, welcome message, buttons, placeholders, privacy note
+- **Drop Overlay** - Folder selection message and button
 - **Export Notifications** - All notification messages
+- **FFmpeg Status** - Checking, ready, CPU only, error messages
+- **Export Warnings** - GPU warning, front camera warning, dashboard prerendered
 
 ### ⏳ Not Yet Translated (5% Remaining)
 - **Playback Controls** - Play, Pause, Skip buttons in main controls bar
@@ -221,14 +239,17 @@ That's it! Everything else is already done!
 ## 📊 Current Status
 
 **Welcome Guide**: ✅ 100% Complete - Updates immediately  
-**Settings Modal**: ✅ 100% Complete - Updates immediately  
-**Export Modal**: ✅ 100% Complete - Updates immediately  
+**Settings Modal**: ✅ 100% Complete - Updates immediately (all tabs)  
+**Export Modal**: ✅ 100% Complete - Updates immediately (including dropdowns, blur zone editor, warnings)  
 **Dashboard**: ✅ 100% Complete - Updates immediately  
-**Camera Labels**: ✅ 100% Complete - Updates immediately  
+**Camera Labels**: ✅ 100% Complete - Updates immediately (including export canvas)  
 **Clip Browser**: ✅ 100% Complete - Updates immediately  
 **Event Types**: ✅ 100% Complete - Updates immediately  
 **Map Controls**: ✅ 100% Complete - Updates immediately  
+**Support Chat**: ✅ 100% Complete - Updates immediately  
+**Drop Overlay**: ✅ 100% Complete - Updates immediately  
 **Export Notifications**: ✅ 100% Complete - Works perfectly  
+**FFmpeg Status**: ✅ 100% Complete - Updates immediately  
 **Playback Controls**: ⏳ 0% Complete - Needs work (5% of total UI)  
 
 **Overall Progress: 95%+ Complete!**  
@@ -274,9 +295,16 @@ That's it! Everything else is already done!
 **Latest Updates (January 15, 2026):**
 - 🆕 Welcome Guide with language selector
 - 🆕 Export Modal full translation
-- 🆕 Camera labels translation
+- 🆕 Camera labels translation (including export layout canvas)
 - 🆕 Clip Browser live translation
 - 🆕 Event types translation
 - 🆕 Map controls translation
 - 🆕 Autopilot states translation
 - 🆕 Language sync between components
+- 🆕 Support Chat full translation
+- 🆕 Drop Overlay translation
+- 🆕 Export position dropdown translations
+- 🆕 Blur Zone Editor translations
+- 🆕 FFmpeg status message translations
+- 🆕 Export warning/banner translations
+- 🆕 Settings Shortcuts and Advanced tabs translations

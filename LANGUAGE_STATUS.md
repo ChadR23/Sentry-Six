@@ -11,14 +11,20 @@
 ### Dynamic Elements (Update Immediately - NO RESTART NEEDED)
 - ✅ **Settings Modal** - ALL text, labels, descriptions, buttons update instantly
 - ✅ **Export Modal** - ALL sections, labels, buttons, descriptions translate instantly
+- ✅ **Export Modal Position Dropdowns** - Timestamp/Dashboard position options (Bottom Center, Top Left, etc.)
+- ✅ **Export Modal Blur Zone Editor** - Title, instructions, Cancel/Save buttons
+- ✅ **Export Modal Banners/Warnings** - FFmpeg status, GPU warnings, front camera warning, dashboard prerendered
 - ✅ **Export notifications** - Marker set, export complete, error messages
 - ✅ **Dashboard labels** - MPH/KM/H, "Manual", "No Data", "Self Driving", "Autosteer", "TACC"
 - ✅ **Speed units** - Both main and compact dashboards show correct unit labels
 - ✅ **Camera labels** - All 6 cameras in multi-cam view translate instantly
+- ✅ **Camera Layout Canvas** - Camera labels in export layout preview
 - ✅ **Clip Browser** - "Recent", "Sentry", "Saved" labels, segment counts, event types
 - ✅ **Event Types** - "Manual Save", "Honk", "Object Detected", "Emergency Braking", etc.
 - ✅ **Map Controls** - Re-center button, hint text
 - ✅ **Welcome Guide** - All 9 steps, navigation buttons, language selector
+- ✅ **Support Chat** - Title, welcome message, buttons, placeholders, all UI elements
+- ✅ **Drop Overlay** - Initial folder selection screen message and button
 
 ### Languages Supported
 1. English (en)
@@ -77,13 +83,15 @@ Only a small number of UI elements still require restart:
 
 The translation system is now **95%+ complete** with `data-i18n` attributes added to:
 
-✅ **Settings Modal** - All elements
-✅ **Export Modal** - All sections, labels, buttons
+✅ **Settings Modal** - All elements including Shortcuts and Advanced tabs
+✅ **Export Modal** - All sections, labels, buttons, position dropdowns, blur zone editor, warnings
 ✅ **Dashboard** - All labels and states
-✅ **Camera Labels** - All 6 cameras
+✅ **Camera Labels** - All 6 cameras (including export layout canvas)
 ✅ **Clip Browser** - All labels and event types
 ✅ **Map Controls** - All buttons and hints
 ✅ **Welcome Guide** - All 9 steps and navigation
+✅ **Support Chat** - All UI elements, messages, buttons
+✅ **Drop Overlay** - Folder selection message and button
 
 The `translatePage()` function automatically updates all these elements when language changes.
 
@@ -112,3 +120,7 @@ This is a fully functional multi-language system where:
 - 🆕 Autopilot states translate ("Self Driving", "Autosteer", "TACC")
 - 🆕 Event types translate ("Manual Save", "Honk", "Object Detected", etc.)
 - 🆕 Clip browser sidebar updates live when language changes
+- 🆕 Support Chat fully translated
+- 🆕 Export Modal position dropdowns and blur zone editor translated
+- 🆕 FFmpeg status messages and export warnings translated
+- 🆕 Camera layout canvas labels translated
