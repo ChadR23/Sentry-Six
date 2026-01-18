@@ -8,7 +8,7 @@ import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
 import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
-import { t } from '../lib/i18n.js';
+import { t, getCurrentLanguage } from '../lib/i18n.js';
 
 // Export state
 export const exportState = {
@@ -1417,7 +1417,9 @@ export async function startExport() {
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
-            blurType: $('blurTypeSelect')?.value || 'solid' // 'solid' or 'transparent'
+            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' or 'transparent'
+            // Language for dashboard text translations (Gear, Autopilot states, etc.)
+            language: getCurrentLanguage()
         };
         
         await window.electronAPI.startExport(exportId, exportData);

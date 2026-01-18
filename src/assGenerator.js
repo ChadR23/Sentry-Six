@@ -27,21 +27,125 @@ const COLORS = {
   transparent: '&HFF000000'
 };
 
-// Gear state mapping
-const GEAR_TEXT = {
-  0: 'PARK',
-  1: 'DRIVE',
-  2: 'REVERSE',
-  3: 'NEUTRAL'
+// Dashboard text translations for all supported languages
+// These are kept compact to preserve layout in exported videos
+const DASHBOARD_TRANSLATIONS = {
+  en: {
+    gear: { 0: 'PARK', 1: 'DRIVE', 2: 'REVERSE', 3: 'NEUTRAL' },
+    ap: { 0: 'Manual', 1: 'Self Driving', 2: 'Autosteer', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'No Data'
+  },
+  es: {
+    gear: { 0: 'PARK', 1: 'CONDUCIR', 2: 'REVERSA', 3: 'NEUTRAL' },
+    ap: { 0: 'Manual', 1: 'Autónomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Sin Datos'
+  },
+  fr: {
+    gear: { 0: 'PARK', 1: 'MARCHE', 2: 'MARCHE AR', 3: 'NEUTRE' },
+    ap: { 0: 'Manuel', 1: 'Autonome', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Pas de Données'
+  },
+  de: {
+    gear: { 0: 'PARK', 1: 'FAHREN', 2: 'RÜCKWÄRTS', 3: 'NEUTRAL' },
+    ap: { 0: 'Manuell', 1: 'Autonom', 2: 'Autosteer', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Keine Daten'
+  },
+  zh: {
+    gear: { 0: '驻车', 1: '行驶', 2: '倒车', 3: '空档' },
+    ap: { 0: '手动', 1: '自动驾驶', 2: '自动转向', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: '无数据'
+  },
+  ja: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: '手動', 1: '自動運転', 2: 'オートステア', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'データなし'
+  },
+  ko: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: '수동', 1: '자율주행', 2: '자동조향', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: '데이터 없음'
+  },
+  pt: {
+    gear: { 0: 'PARK', 1: 'CONDUZIR', 2: 'RÉ', 3: 'NEUTRO' },
+    ap: { 0: 'Manual', 1: 'Autônomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Sem Dados'
+  },
+  ru: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Ручной', 1: 'Автопилот', 2: 'Автоулр.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Нет данных'
+  },
+  it: {
+    gear: { 0: 'PARK', 1: 'GUIDA', 2: 'RETROMARCIA', 3: 'FOLLE' },
+    ap: { 0: 'Manuale', 1: 'Autonomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Nessun Dato'
+  },
+  nl: {
+    gear: { 0: 'PARK', 1: 'RIJDEN', 2: 'ACHTERUIT', 3: 'NEUTRAAL' },
+    ap: { 0: 'Handmatig', 1: 'Zelfrijdend', 2: 'Autostuur', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Geen Data'
+  },
+  pl: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Ręczny', 1: 'Autonomiczny', 2: 'Autokier.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Brak Danych'
+  },
+  tr: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Manuel', 1: 'Otonom', 2: 'Otomatik', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Veri Yok'
+  }
 };
 
-// Autopilot state mapping
-const AP_TEXT = {
-  0: 'Manual',
-  1: 'Self Driving',
-  2: 'Autosteer',
-  3: 'TACC'
-};
+/**
+ * Get translated gear text
+ * @param {number} gearState - Gear state (0=PARK, 1=DRIVE, 2=REVERSE, 3=NEUTRAL)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated gear text
+ */
+function getGearText(gearState, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return translations.gear[gearState] || '--';
+}
+
+/**
+ * Get translated autopilot state text
+ * @param {number} apState - Autopilot state (0=Manual, 1=Self Driving, 2=Autosteer, 3=TACC)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated autopilot text
+ */
+function getApText(apState, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return translations.ap[apState] || translations.ap[0]; // Default to "Manual"
+}
+
+/**
+ * Get translated speed unit
+ * @param {boolean} useMetric - Whether to use metric (KM/H) or imperial (MPH)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated speed unit
+ */
+function getSpeedUnit(useMetric, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return useMetric ? translations.speedUnit.kmh : translations.speedUnit.mph;
+}
+
+// Legacy mappings for backward compatibility (fallback to English)
+const GEAR_TEXT = DASHBOARD_TRANSLATIONS.en.gear;
+const AP_TEXT = DASHBOARD_TRANSLATIONS.en.ap;
 
 /**
  * Generate ASS header with styles
@@ -331,7 +435,8 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     useMetric = false,
     segments = [],
     cumStarts = [],
-    dateFormat = 'mdy'
+    dateFormat = 'mdy',
+    language = 'en'
   } = options;
   
   // Dashboard dimensions - scale based on video width and size option
@@ -438,17 +543,17 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     // Extract telemetry values
     const mps = Math.abs(getSeiValue(sei, 'vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
-    const speedUnit = useMetric ? 'KM/H' : 'MPH';
+    const speedUnit = getSpeedUnit(useMetric, language);
     
     const gear = getSeiValue(sei, 'gearState', 'gear_state');
-    const gearText = GEAR_TEXT[gear] || '--';
+    const gearText = getGearText(gear, language);
     
     const leftBlinkerOn = !!getSeiValue(sei, 'blinkerOnLeft', 'blinker_on_left');
     const rightBlinkerOn = !!getSeiValue(sei, 'blinkerOnRight', 'blinker_on_right');
     
     const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state');
     const apActive = apState === 1 || apState === 2;
-    const apText = AP_TEXT[apState] || 'Manual';
+    const apText = getApText(apState, language);
     
     const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
     const isAutoHold = gear === 1 && mps < 0.01;
