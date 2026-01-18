@@ -308,7 +308,7 @@ export function updateExportButtonState() {
 export function openExportModal() {
     const state = getState?.();
     if (!state?.collection?.active) {
-        notify('Load a collection first', { type: 'warn' });
+        notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
     
@@ -353,7 +353,7 @@ export function openExportModal() {
     const progressText = $('exportProgressText');
     if (progressEl) progressEl.classList.add('hidden');
     if (progressBar) progressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Preparing...';
+    if (progressText) progressText.textContent = t('ui.export.preparing');
     
     // Generate default filename (used when saving via dialog)
     const date = new Date().toISOString().slice(0, 10);
@@ -443,15 +443,29 @@ function hideFloatingProgress() {
 }
 
 /**
+ * Translate a message that may be a string or an object with translation key
+ * @param {string|Object} message - Either a plain string or { key: string, params?: Object }
+ * @returns {string} The translated message
+ */
+function translateMessage(message) {
+    if (!message) return '';
+    if (typeof message === 'string') return message;
+    if (typeof message === 'object' && message.key) {
+        return t(message.key, message.params || {});
+    }
+    return String(message);
+}
+
+/**
  * Update the floating progress notification
- * @param {string} step - Current step text
+ * @param {string|Object} step - Current step text or translation key object
  * @param {number} percentage - Progress percentage (0-100)
  */
 function updateFloatingProgress(step, percentage) {
     const stepEl = $('exportFloatingStep');
     const barFill = $('exportFloatingBarFill');
     
-    if (stepEl) stepEl.textContent = step || 'Exporting...';
+    if (stepEl) stepEl.textContent = translateMessage(step) || t('ui.export.exporting');
     if (barFill) barFill.style.width = `${percentage || 0}%`;
 }
 
@@ -515,7 +529,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
     const nativeVideo = getNativeVideo?.();
     
     if (!state?.collection?.active) {
-        notify('Load a collection first', { type: 'warn' });
+        notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
     
@@ -530,7 +544,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
     const snapshotSec = Math.max(0, Math.min(totalSec, currentPlaybackSec));
     
     try {
-        notify('Capturing snapshot...');
+        notify(t('ui.notifications.capturingSnapshot'));
         
         // Find the video file for the snapshot camera at the current playback position
         const groups = state.collection.active.groups || [];
@@ -551,7 +565,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         const entry = group?.filesByCamera?.get(snapshotCamera);
         
         if (!entry?.file) {
-            notify(`Could not find video file for ${snapshotCamera} camera`, { type: 'error' });
+            notify(t('ui.notifications.couldNotFindVideoFile', { camera: snapshotCamera }), { type: 'error' });
             return;
         }
         
@@ -573,7 +587,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         } else if (entry.file instanceof File) {
             videoUrl = URL.createObjectURL(entry.file);
         } else {
-            notify('Unsupported file type for snapshot', { type: 'error' });
+            notify(t('ui.notifications.unsupportedFileType'), { type: 'error' });
             return;
         }
         
@@ -619,7 +633,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         
     } catch (err) {
         console.error('Failed to capture snapshot:', err);
-        notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
+        notify(t('ui.notifications.failedToCaptureSnapshot', { error: err.message }), { type: 'error' });
     }
 }
 
@@ -728,28 +742,28 @@ function initBlurZoneEditorModal() {
                 const coords = getNormalizedCoordinates();
                 
                 if (!coords || coords.length < 3) {
-                    notify('Please create a valid blur zone with at least 3 points', { type: 'warn' });
+                    notify(t('ui.notifications.blurZoneMinPoints'), { type: 'warn' });
                     return;
                 }
                 
                 // Generate mask image
                 const maskImageDataUrl = await generateMaskImage();
                 if (!maskImageDataUrl) {
-                    notify('Failed to generate mask image', { type: 'error' });
+                    notify(t('ui.notifications.failedToGenerateMask'), { type: 'error' });
                     return;
                 }
                 
                 // Extract base64 data
                 const base64Data = maskImageDataUrl.split(',')[1];
                 if (!base64Data) {
-                    notify('Failed to extract mask image data', { type: 'error' });
+                    notify(t('ui.notifications.failedToExtractMaskData'), { type: 'error' });
                     return;
                 }
                 
                 // Get canvas dimensions
                 const canvasDims = getCanvasDimensions();
                 if (!canvasDims) {
-                    notify('Failed to get canvas dimensions', { type: 'error' });
+                    notify(t('ui.notifications.failedToGetCanvasDimensions'), { type: 'error' });
                     return;
                 }
                 
@@ -789,11 +803,11 @@ function initBlurZoneEditorModal() {
                 }
                 
                 updateBlurZoneStatusDisplay();
-                notify('Blur zone saved successfully', { type: 'success' });
+                notify(t('ui.notifications.blurZoneSaved'), { type: 'success' });
                 closeEditor();
             } catch (err) {
                 console.error('[BLUR ZONE] Save error:', err);
-                notify(`Failed to save blur zone: ${err.message}`, { type: 'error' });
+                notify(t('ui.notifications.failedToSaveBlurZone', { error: err.message }), { type: 'error' });
             }
         });
     }
@@ -1062,12 +1076,12 @@ export async function startExport() {
     const baseFolderPath = getBaseFolderPath?.();
     
     if (!state?.collection?.active || !window.electronAPI?.startExport) {
-        notify('Export not available', { type: 'error' });
+        notify(t('ui.notifications.exportNotAvailable'), { type: 'error' });
         return;
     }
     
     if (!baseFolderPath) {
-        notify('Export requires selecting a folder via the folder picker. Please re-select your dashcam folder.', { type: 'warn' });
+        notify(t('ui.notifications.exportRequiresFolder'), { type: 'warn' });
         return;
     }
     
@@ -1075,7 +1089,7 @@ export async function startExport() {
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
-        notify('Please select at least one camera', { type: 'warn' });
+        notify(t('ui.notifications.selectAtLeastOneCamera'), { type: 'warn' });
         return;
     }
     
@@ -1138,7 +1152,7 @@ export async function startExport() {
     });
     
     if (!outputPath) {
-        notify('Export cancelled', { type: 'info' });
+        notify(t('ui.notifications.exportCancelled'), { type: 'info' });
         return;
     }
     
@@ -1148,7 +1162,7 @@ export async function startExport() {
     let seiData = null;
     if (includeDashboard) {
         try {
-            notify('Extracting telemetry data...', { type: 'info' });
+            notify(t('ui.notifications.extractingTelemetry'), { type: 'info' });
             
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
@@ -1232,11 +1246,11 @@ export async function startExport() {
             if (allSeiData.length > 0) {
                 seiData = allSeiData;
             } else {
-                notify('No telemetry data available for dashboard overlay. Dashboard will be disabled.', { type: 'warn' });
+                notify(t('ui.notifications.noTelemetryData'), { type: 'warn' });
                 seiData = null; // Clear SEI data if extraction failed
             }
         } catch (err) {
-            notify('Failed to extract telemetry data. Dashboard will be disabled.', { type: 'warn' });
+            notify(t('ui.notifications.failedToExtractTelemetry'), { type: 'warn' });
             seiData = null; // Clear SEI data if extraction failed
         }
     }
@@ -1280,7 +1294,7 @@ export async function startExport() {
     
     const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
     if (!hasFiles) {
-        notify('No video files found for export. Please ensure the folder was selected correctly.', { type: 'error' });
+        notify(t('ui.notifications.noVideoFilesForExport'), { type: 'error' });
         return;
     }
     
@@ -1291,7 +1305,7 @@ export async function startExport() {
     
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Starting export...';
+    if (progressText) progressText.textContent = t('ui.export.preparing');
     
     if (startBtn) startBtn.disabled = true;
     
@@ -1309,16 +1323,17 @@ export async function startExport() {
             if (receivedExportId !== exportId) return;
             
             if (progress.type === 'progress') {
+                const translatedMessage = translateMessage(progress.message);
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
-                if (progressText) progressText.textContent = progress.message;
+                if (progressText) progressText.textContent = translatedMessage;
                 
                 // Track progress for floating notification
-                exportState.currentStep = progress.message;
+                exportState.currentStep = translatedMessage;
                 exportState.currentProgress = progress.percentage;
                 
                 // Update floating notification if modal is minimized
                 if (exportState.modalMinimized) {
-                    updateFloatingProgress(progress.message, progress.percentage);
+                    updateFloatingProgress(translatedMessage, progress.percentage);
                 }
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
@@ -1335,10 +1350,12 @@ export async function startExport() {
                 const minHint = $('exportMinimizeHint');
                 if (minHint) minHint.classList.add('hidden');
                 
+                const translatedMessage = translateMessage(progress.message);
+                
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'success' });
+                    if (progressText) progressText.textContent = translatedMessage;
+                    notify(translatedMessage, { type: 'success' });
                     
                     // Show modal if it was minimized so user sees completion
                     const modal = $('exportModal');
@@ -1347,14 +1364,14 @@ export async function startExport() {
                     }
                     
                     setTimeout(() => {
-                        if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
+                        if (confirm(`${translatedMessage}\n\n${t('ui.export.openFileLocation')}`)) {
                             window.electronAPI.showItemInFolder(outputPath);
                         }
                         closeExportModal();
                     }, 500);
                 } else {
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'error' });
+                    if (progressText) progressText.textContent = translatedMessage;
+                    notify(translatedMessage, { type: 'error' });
                     if (startBtn) startBtn.disabled = false;
                     
                     // Show modal on error so user sees what happened
@@ -1406,7 +1423,7 @@ export async function startExport() {
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {
         console.error('Export error:', err);
-        notify(`Export failed: ${err.message}`, { type: 'error' });
+        notify(t('ui.notifications.exportFailedWithError', { error: err.message }), { type: 'error' });
         exportState.isExporting = false;
         exportState.currentExportId = null;
         exportState.cancelled = false; // Reset cancellation flag
@@ -1423,7 +1440,7 @@ export async function cancelExport() {
     
     if (exportState.currentExportId && window.electronAPI?.cancelExport) {
         await window.electronAPI.cancelExport(exportState.currentExportId);
-        notify('Export cancelled', { type: 'info' });
+        notify(t('ui.notifications.exportCancelled'), { type: 'info' });
     }
     
     exportState.isExporting = false;

@@ -606,10 +606,10 @@
                                         <span class="select-row-desc" data-i18n="ui.export.sizeDesc">Dashboard size</span>
                                     </div>
                                     <select id="dashboardSize" class="settings-select">
-                                        <option value="small">Small (25%)</option>
-                                        <option value="medium" selected>Medium (35%)</option>
-                                        <option value="large">Large (45%)</option>
-                                        <option value="xlarge">X-Large (55%)</option>
+                                        <option value="small" data-i18n="ui.export.sizeSmall">Small (25%)</option>
+                                        <option value="medium" selected data-i18n="ui.export.sizeMedium">Medium (35%)</option>
+                                        <option value="large" data-i18n="ui.export.sizeLarge">Large (45%)</option>
+                                        <option value="xlarge" data-i18n="ui.export.sizeXLarge">X-Large (55%)</option>
                                     </select>
                                 </div>
                                 <div class="info-box info-blue">
@@ -680,7 +680,7 @@
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
                         </svg>
-                        <span>You can minimize this window to continue watching footage. Export will continue in the background.</span>
+                        <span data-i18n="ui.export.minimizeHint">You can minimize this window to continue watching footage. Export will continue in the background.</span>
                     </div>
                 </div>
             </div>
@@ -1193,7 +1193,7 @@
                     <line x1="16" y1="13" x2="8" y2="13"/>
                     <line x1="16" y1="17" x2="8" y2="17"/>
                 </svg>
-                <h2>Changelog</h2>
+                <h2 data-i18n="ui.changelog.title">Changelog</h2>
                 <button id="closeChangelogModal" class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -1204,7 +1204,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="closeChangelogBtn" class="btn btn-primary">Close</button>
+                <button id="closeChangelogBtn" class="btn btn-primary" data-i18n="ui.changelog.close">Close</button>
             </div>
         </div>
     </div>
@@ -1569,10 +1569,10 @@
                                     <div class="select-row" style="pointer-events: none; margin-top: 8px;">
                                         <div class="select-row-info">
                                             <span class="select-row-label" style="font-size: 12px;" data-i18n="ui.settings.dateFormat">Date Format</span>
-                                            <span class="select-row-desc" style="font-size: 10px; opacity: 0.7;">Global setting</span>
+                                            <span class="select-row-desc" style="font-size: 10px; opacity: 0.7;" data-i18n="ui.settings.globalSetting">Global setting</span>
                                         </div>
                                         <select class="settings-select" disabled style="font-size: 11px; padding: 4px 8px;">
-                                            <option>YYYY-MM-DD</option>
+                                            <option data-i18n="ui.settings.ymdFormat">YYYY-MM-DD (ISO)</option>
                                         </select>
                                     </div>
                                 </div>

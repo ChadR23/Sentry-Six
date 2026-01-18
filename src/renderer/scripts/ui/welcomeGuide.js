@@ -191,8 +191,12 @@ export function initWelcomeGuide() {
         });
     }
     
-    // Listen for language changes from other sources
-    onLanguageChange(() => {
+    // Listen for language changes from other sources (including auto-detection on startup)
+    onLanguageChange((newLang) => {
+        // Sync the dropdown with the actual language
+        if (languageSelect && languageSelect.value !== newLang) {
+            languageSelect.value = newLang;
+        }
         if (isOpen) {
             updateStep(currentStep);
         }

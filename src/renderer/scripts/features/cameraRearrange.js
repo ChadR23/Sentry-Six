@@ -92,7 +92,7 @@ export function resetCameraOrder() {
     if (state?.collection?.active && nativeVideo?.currentSegmentIdx >= 0) {
         loadNativeSegment?.(nativeVideo.currentSegmentIdx);
     }
-    notify('Camera order reset to default', { type: 'info' });
+    notify(t('ui.notifications.cameraOrderReset'), { type: 'info' });
 }
 
 /**

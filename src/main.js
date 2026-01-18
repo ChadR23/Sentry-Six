@@ -697,7 +697,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   try {
     console.log('[EXPORT] Starting video export...');
-    sendProgress(2, 'Analyzing segments...');
+    sendProgress(2, { key: 'ui.export.analyzingSegments' });
 
     const durationSec = (endTimeMs - startTimeMs) / 1000;
     const selectedCameras = new Set(cameras || CAMERA_ORDER);
@@ -758,7 +758,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     if (!inputs.length) throw new Error('No valid camera files found for export');
 
-    sendProgress(5, 'Building export...');
+    sendProgress(5, { key: 'ui.export.buildingExport' });
 
     // Quality settings based on quality option (per-camera resolution)
     // Tesla cameras: Front=2896×1876, Others=1448×938 (both ~1.54:1 aspect ratio)
@@ -1442,7 +1442,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       throw new Error('Export cancelled');
     }
     
-    sendProgress(8, useGpu ? `Exporting with ${activeEncoder.name}...` : 'Exporting with CPU...');
+    sendProgress(8, useGpu ? { key: 'ui.export.exportingWithEncoder', params: { encoder: activeEncoder.name } } : { key: 'ui.export.exportingWithCpu' });
 
     // Execute FFmpeg - no pipe needed since dashboard is pre-rendered to file
     return new Promise(async (resolve, reject) => {
@@ -1467,7 +1467,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const pct = Math.min(95, Math.floor((sec / durationSec) * 100));
           if (pct > lastPct) {
             lastPct = pct;
-            sendProgress(pct, `Exporting... ${pct}%`);
+            sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: pct } });
           }
         }
       });
@@ -1479,11 +1479,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
         if (code === 0) {
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
-          sendComplete(true, `Export complete! (${sizeMB} MB)`);
+          sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } });
           resolve(true);
         } else {
           console.error('FFmpeg error:', stderr.slice(-500));
-          sendComplete(false, `Export failed (code ${code})`);
+          sendComplete(false, { key: 'ui.export.exportFailedCode', params: { code: code } });
           reject(new Error(`Export failed with code ${code}`));
         }
       });
@@ -1772,7 +1772,7 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
     event.sender.send('export:progress', exportId, {
       type: 'complete',
       success: false,
-      message: 'Export cancelled'
+      message: { key: 'ui.notifications.exportCancelled' }
     });
     return false;
   }

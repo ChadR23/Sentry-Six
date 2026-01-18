@@ -460,9 +460,18 @@ function hasValidGps(sei) {
             apTextCompact.textContent = t('ui.dashboard.manual');
         }
         
-        // Update clip browser subtitle only if no folder is loaded
+        // Update clip browser subtitle with proper translation
         if (!library.folderLabel) {
             clipBrowserSubtitle.textContent = t('ui.clipBrowser.subtitle');
+        } else if (dayFilter && dayFilter.value && library.clipGroups) {
+            // A date is selected - show "FolderName: X clips on Date"
+            clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(dayFilter.value)}`;
+        } else if (library.allDates && library.allDates.length > 0) {
+            // Folder loaded but no date selected - show "FolderName: X dates available"
+            clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.allDates.length} ${t('ui.clipBrowser.datesAvailable')}`;
+        } else {
+            // Just the folder name
+            clipBrowserSubtitle.textContent = library.folderLabel;
         }
         
         // Re-render clip list to update translated labels
@@ -1069,7 +1078,7 @@ function hasValidGps(sei) {
     window.addEventListener('dateFormatChanged', () => {
         if (library.allDates && library.allDates.length > 0) {
             const currentValue = dayFilter.value;
-            dayFilter.innerHTML = '<option value="">Select Date</option>';
+            dayFilter.innerHTML = `<option value="">${t('ui.clipBrowser.selectDate')}</option>`;
             library.allDates.forEach(date => {
                 const opt = document.createElement('option');
                 opt.value = date;
@@ -1466,7 +1475,7 @@ async function traverseDirectoryElectron(dirPath) {
     library.dayData = new Map();
     
     clipBrowserSubtitle.textContent = folderName;
-    dayFilter.innerHTML = '<option value="">Select Date</option>';
+    dayFilter.innerHTML = `<option value="">${t('ui.clipBrowser.selectDate')}</option>`;
     sortedDates.forEach(date => {
         const opt = document.createElement('option');
         opt.value = date;
@@ -1668,7 +1677,7 @@ async function loadDateContentElectron(date) {
     previews.inFlight = 0;
     state.ui.openEventRowId = null;
 
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${formatDateDisplay(date)}`;
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
 
     // Auto-select first item
@@ -1787,7 +1796,7 @@ async function traverseDirectoryHandle(dirHandle) {
     library.dayData = new Map();
 
     // Update UI
-    clipBrowserSubtitle.textContent = `${dirHandle.name}: ${sortedDates.length} date${sortedDates.length === 1 ? '' : 's'} available`;
+    clipBrowserSubtitle.textContent = `${dirHandle.name}: ${sortedDates.length} ${t('ui.clipBrowser.datesAvailable')}`;
     updateDayFilterOptions();
     
     // Hide drop overlay
@@ -2015,7 +2024,7 @@ async function handleFolderFilesForDate(files, date) {
     previews.inFlight = 0;
     state.ui.openEventRowId = null;
 
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip${library.clipGroups.length === 1 ? '' : 's'} on ${formatDateDisplay(date)}`;
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
 
     // Auto-select first item
@@ -2365,7 +2374,7 @@ function updateDayFilterOptions() {
     const dates = library.allDates;
     
     // Rebuild day filter dropdown
-    dayFilter.innerHTML = '<option value="">Select Date</option>';
+    dayFilter.innerHTML = `<option value="">${t('ui.clipBrowser.selectDate')}</option>`;
     for (const d of dates) {
         const opt = document.createElement('option');
         opt.value = d;
@@ -2473,7 +2482,7 @@ async function handleFolderFiles(fileList, directoryName = null) {
     }
 
     // Update UI
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} clip group${library.clipGroups.length === 1 ? '' : 's'}`;
+    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.allDates?.length || 0} ${t('ui.clipBrowser.datesAvailable')}`;
     
     // Update day filter options and render clip list
     updateDayFilterOptions();

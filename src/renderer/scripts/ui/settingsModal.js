@@ -558,31 +558,31 @@ export function initSettingsModal() {
         checkForUpdatesBtn.onclick = async () => {
             if (window.electronAPI?.checkForUpdates) {
                 checkForUpdatesBtn.disabled = true;
-                checkForUpdatesBtn.textContent = 'Checking...';
+                checkForUpdatesBtn.textContent = t('ui.settings.checking');
                 try {
                     const result = await window.electronAPI.checkForUpdates();
                     if (result?.updateAvailable) {
                         // Update modal will be shown by the update:available event
-                        checkForUpdatesBtn.textContent = 'Update Found!';
+                        checkForUpdatesBtn.textContent = t('ui.settings.updateFound');
                         checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
                     } else if (result?.error) {
-                        checkForUpdatesBtn.textContent = 'Check Failed';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
                         checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
                     } else {
-                        checkForUpdatesBtn.textContent = 'Up to Date ✓';
+                        checkForUpdatesBtn.textContent = t('ui.settings.upToDate') + ' ✓';
                         checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
                     }
                     // Reset button after 3 seconds
                     setTimeout(() => {
-                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
                         checkForUpdatesBtn.style.background = '';
                         checkForUpdatesBtn.disabled = false;
                     }, 3000);
                 } catch (err) {
-                    checkForUpdatesBtn.textContent = 'Check Failed';
+                    checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
                     checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
                     setTimeout(() => {
-                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
                         checkForUpdatesBtn.style.background = '';
                         checkForUpdatesBtn.disabled = false;
                     }, 3000);
