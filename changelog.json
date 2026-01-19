@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.4.2",
+      "date": "2026-01-19",
+      "title": "Minor Update",
+      "changes": [
+        {
+          "type": "Removed Optimized Blur",
+          "description": "Removed Optimized Blur Due to Issue with it not working well with High contrast things. (Red text License plates)"
+        }
+      ]
+    },
+    {
       "version": "2026.4.1",
       "date": "2026-01-19",
       "title": "Feature Release",

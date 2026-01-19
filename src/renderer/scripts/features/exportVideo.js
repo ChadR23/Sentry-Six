@@ -46,7 +46,7 @@ const $ = id => document.getElementById(id);
 function shouldDisableDashboard() {
     const hasBlurZones = exportState.blurZones.length > 0;
     const blurType = $('blurTypeSelect')?.value || 'solid';
-    // Only disable dashboard for 'optimized' and 'trueBlur' - not for 'solid'
+    // Only disable dashboard for 'trueBlur' - not for 'solid'
     return hasBlurZones && blurType !== 'solid';
 }
 
@@ -1116,7 +1116,7 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
-    // Blur zone disables dashboard ONLY for 'optimized' and 'trueBlur' types
+    // Blur zone disables dashboard ONLY for 'trueBlur' type
     // 'solid' blur type uses ASS overlay which can be layered with dashboard
     const hasBlurZones = exportState.blurZones.length > 0;
     const blurType = $('blurTypeSelect')?.value || 'solid';
@@ -1428,7 +1428,7 @@ export async function startExport() {
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
-            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'optimized' (FFmpeg direct), 'trueBlur' (mask-based)
+            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
             // Language for dashboard text translations (Gear, Autopilot states, etc.)
             language: getCurrentLanguage()
         };
