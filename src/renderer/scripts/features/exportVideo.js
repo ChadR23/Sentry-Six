@@ -37,6 +37,57 @@ let blurZoneModalInitialized = false;
 // DOM helper
 const $ = id => document.getElementById(id);
 
+/**
+ * Check if dashboard should be disabled based on blur zones and blur type
+ * Dashboard is only disabled when blur zones exist AND blur type is NOT 'solid'
+ * (Solid uses ASS overlay which can be layered with dashboard ASS)
+ * @returns {boolean} True if dashboard should be disabled
+ */
+function shouldDisableDashboard() {
+    const hasBlurZones = exportState.blurZones.length > 0;
+    const blurType = $('blurTypeSelect')?.value || 'solid';
+    // Only disable dashboard for 'optimized' and 'trueBlur' - not for 'solid'
+    return hasBlurZones && blurType !== 'solid';
+}
+
+/**
+ * Update dashboard checkbox state based on blur zones and blur type
+ */
+function updateDashboardAvailability() {
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
+    const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
+    const timestampCheckbox = $('includeTimestamp');
+    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+    const timestampOptions = $('timestampOptions');
+    
+    if (!dashboardCheckbox) return;
+    
+    const shouldDisable = shouldDisableDashboard();
+    const hasGpu = exportState.gpuAvailable;
+    
+    if (shouldDisable || !hasGpu) {
+        // Disable dashboard
+        dashboardCheckbox.checked = false;
+        dashboardCheckbox.disabled = true;
+        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+        if (dashboardOptions) dashboardOptions.classList.add('hidden');
+        
+        // Re-enable timestamp toggle since dashboard is disabled
+        if (timestampCheckbox) {
+            timestampCheckbox.disabled = false;
+            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+        }
+    } else {
+        // Enable dashboard (if GPU available and no conflicting blur)
+        dashboardCheckbox.disabled = false;
+        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+        
+        // If dashboard was enabled before, keep its state
+        // Otherwise, the user can now enable it
+    }
+}
+
 // Dependencies set via init
 let getState = null;
 let getNativeVideo = null;
@@ -687,17 +738,7 @@ function renderBlurZoneList() {
             const index = parseInt(btn.dataset.index, 10);
             exportState.blurZones.splice(index, 1);
             renderBlurZoneList();
-            updateBlurZoneStatusDisplay();
-            
-            // Re-enable dashboard if no more blur zones
-            if (exportState.blurZones.length === 0) {
-                const dashboardCheckbox = $('includeDashboard');
-                if (dashboardCheckbox) {
-                    dashboardCheckbox.disabled = false;
-                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-                    if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-                }
-            }
+            updateBlurZoneStatusDisplay(); // This handles dashboard availability
         });
     });
 }
@@ -783,24 +824,8 @@ function initBlurZoneEditorModal() {
                     exportState.blurZones.push(newZone);
                 }
                 
-                // Disable dashboard checkbox when blur zones exist
-                const dashboardCheckbox = $('includeDashboard');
-                const dashboardOptions = $('dashboardOptions');
-                if (dashboardCheckbox && exportState.blurZones.length > 0) {
-                    dashboardCheckbox.checked = false;
-                    dashboardCheckbox.disabled = true;
-                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-                    if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-                    if (dashboardOptions) dashboardOptions.classList.add('hidden');
-                    
-                    // Re-enable timestamp toggle since dashboard is now disabled
-                    const timestampCheckbox = $('includeTimestamp');
-                    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-                    if (timestampCheckbox) {
-                        timestampCheckbox.disabled = false;
-                        if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
-                    }
-                }
+                // Update dashboard availability based on blur zones and blur type
+                updateDashboardAvailability();
                 
                 updateBlurZoneStatusDisplay();
                 notify(t('ui.notifications.blurZoneSaved'), { type: 'success' });
@@ -820,8 +845,6 @@ function updateBlurZoneStatusDisplay() {
     const statusEl = $('blurZoneStatus');
     const statusTextEl = $('blurZoneStatusText');
     const addBtn = $('addBlurZoneBtn');
-    const dashboardCheckbox = $('includeDashboard');
-    const dashboardOptions = $('dashboardOptions');
     
     // Render the blur zone list
     renderBlurZoneList();
@@ -833,36 +856,18 @@ function updateBlurZoneStatusDisplay() {
             const names = { front: t('ui.cameras.front'), back: t('ui.cameras.back'), left_repeater: t('ui.cameras.leftRepeater'), right_repeater: t('ui.cameras.rightRepeater'), left_pillar: t('ui.cameras.leftPillar'), right_pillar: t('ui.cameras.rightPillar') };
             return names[c] || c;
         });
-        if (statusTextEl) statusTextEl.textContent = t('ui.export.blurZonesStatus', { count: exportState.blurZones.length });
+        // Show blur zone count - dashboard status depends on blur type, handled separately
+        if (statusTextEl) {
+            statusTextEl.textContent = t('ui.export.blurZoneCount', { count: exportState.blurZones.length });
+        }
         if (addBtn) addBtn.textContent = 'Add Zone';
-        
-        // Ensure dashboard is disabled when blur zones exist
-        if (dashboardCheckbox) {
-            dashboardCheckbox.checked = false;
-            dashboardCheckbox.disabled = true;
-            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-            if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-        }
-        if (dashboardOptions) dashboardOptions.classList.add('hidden');
-        
-        // Re-enable timestamp toggle since dashboard is disabled
-        const timestampCheckbox = $('includeTimestamp');
-        const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-        if (timestampCheckbox) {
-            timestampCheckbox.disabled = false;
-            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
-        }
     } else {
         if (statusEl) statusEl.classList.add('hidden');
         if (addBtn) addBtn.textContent = 'Add Zone';
-        
-        // Re-enable dashboard when no blur zones
-        if (dashboardCheckbox) {
-            dashboardCheckbox.disabled = false;
-            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-            if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-        }
     }
+    
+    // Update dashboard availability based on blur zones and blur type
+    updateDashboardAvailability();
 }
 
 /**
@@ -994,6 +999,15 @@ export async function checkFFmpegAvailability() {
         });
     }
     
+    // Set up blur type dropdown listener to update dashboard availability
+    // When user changes blur type, dashboard availability may change
+    const blurTypeSelect = $('blurTypeSelect');
+    if (blurTypeSelect) {
+        blurTypeSelect.addEventListener('change', () => {
+            updateDashboardAvailability();
+        });
+    }
+    
     if (!statusEl) return;
     
     statusEl.innerHTML = `<span class="status-icon">⏳</span><span class="status-text">${t('ui.export.checkingFfmpeg')}</span>`;
@@ -1025,21 +1039,15 @@ export async function checkFFmpegAvailability() {
                 statusEl.innerHTML = `<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">${statusText}</span>`;
                 if (startBtn) startBtn.disabled = false;
                 
-                // Dashboard overlay requires GPU - disable checkbox if no GPU
-                // Also keep disabled if blur zones exist
-                if (dashboardCheckbox) {
-                    const hasBlurZones = exportState.blurZones.length > 0;
-                    if (!result.gpu || hasBlurZones) {
-                        dashboardCheckbox.disabled = true;
-                        dashboardCheckbox.checked = false;
-                        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-                        if (!result.gpu && dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
-                    } else {
-                        dashboardCheckbox.disabled = false;
-                        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-                        if (dashboardGpuWarning) dashboardGpuWarning.classList.add('hidden');
-                    }
+                // Dashboard overlay requires GPU - show warning if no GPU
+                if (!result.gpu && dashboardGpuWarning) {
+                    dashboardGpuWarning.classList.remove('hidden');
+                } else if (dashboardGpuWarning) {
+                    dashboardGpuWarning.classList.add('hidden');
                 }
+                
+                // Update dashboard availability based on GPU and blur zones/type
+                updateDashboardAvailability();
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -1108,13 +1116,15 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
-    // Blur zone disables dashboard (per requirements)
+    // Blur zone disables dashboard ONLY for 'optimized' and 'trueBlur' types
+    // 'solid' blur type uses ASS overlay which can be layered with dashboard
     const hasBlurZones = exportState.blurZones.length > 0;
+    const blurType = $('blurTypeSelect')?.value || 'solid';
     const includeDashboardCheckbox = $('includeDashboard');
     let includeDashboard = includeDashboardCheckbox?.checked ?? false;
     
-    // Disable dashboard if blur zones are active
-    if (hasBlurZones) {
+    // Disable dashboard if blur zones are active AND blur type is not 'solid'
+    if (hasBlurZones && blurType !== 'solid') {
         includeDashboard = false;
     }
     
@@ -1402,8 +1412,9 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zones
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZones,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
+            // Dashboard is allowed with blur zones if blur type is 'solid' (both use ASS, can be layered)
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && (blurType === 'solid' || !hasBlurZones),
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
@@ -1417,7 +1428,7 @@ export async function startExport() {
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
-            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' or 'transparent'
+            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'optimized' (FFmpeg direct), 'trueBlur' (mask-based)
             // Language for dashboard text translations (Gear, Autopilot states, etc.)
             language: getCurrentLanguage()
         };

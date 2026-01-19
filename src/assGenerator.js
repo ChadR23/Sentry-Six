@@ -790,10 +790,149 @@ async function cleanupAssFile(assPath) {
   }
 }
 
+/**
+ * Generate ASS header for solid cover overlay
+ * @param {number} playResX - Coordinate space width
+ * @param {number} playResY - Coordinate space height
+ * @returns {string} ASS header section
+ */
+function generateSolidCoverHeader(playResX, playResY) {
+  return `[Script Info]
+Title: Blur Zone Solid Cover
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: SolidCover,Arial,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+}
+
+/**
+ * Generate ASS drawing commands for a polygon
+ * @param {Array} coordinates - Array of {x, y} normalized coordinates (0-1)
+ * @param {number} width - Video width
+ * @param {number} height - Video height
+ * @returns {string} ASS vector drawing commands
+ */
+function generatePolygonPath(coordinates, width, height) {
+  if (!coordinates || coordinates.length < 3) return '';
+  
+  // Convert normalized coordinates to absolute pixels
+  const points = coordinates.map(c => ({
+    x: Math.round(c.x * width),
+    y: Math.round(c.y * height)
+  }));
+  
+  // Build ASS path: m x y l x y l x y ... (move to first, line to rest)
+  let path = `m ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    path += ` l ${points[i].x} ${points[i].y}`;
+  }
+  
+  return path;
+}
+
+/**
+ * Generate ASS events for solid cover overlays on blur zones
+ * @param {Array} blurZones - Array of blur zone objects {coordinates, camera}
+ * @param {number} durationMs - Total video duration in milliseconds
+ * @param {Object} cameraDimensions - Object mapping camera names to {width, height}
+ * @param {Object} cameraPositions - Object mapping camera names to {x, y} positions in the grid
+ * @returns {string} ASS events section
+ */
+function generateSolidCoverEvents(blurZones, durationMs, cameraDimensions, cameraPositions) {
+  const events = [];
+  const startTime = formatAssTime(0);
+  const endTime = formatAssTime(durationMs);
+  
+  for (const zone of blurZones) {
+    if (!zone || !zone.coordinates || zone.coordinates.length < 3 || !zone.camera) continue;
+    
+    const camDims = cameraDimensions[zone.camera];
+    const camPos = cameraPositions[zone.camera];
+    
+    if (!camDims || !camPos) {
+      console.warn(`[ASS] Unknown camera or position for blur zone: ${zone.camera}`);
+      continue;
+    }
+    
+    // Convert normalized coordinates to absolute pixels within the camera's region
+    const points = zone.coordinates.map(c => ({
+      x: Math.round(camPos.x + c.x * camDims.width),
+      y: Math.round(camPos.y + c.y * camDims.height)
+    }));
+    
+    // Build ASS path
+    let path = `m ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      path += ` l ${points[i].x} ${points[i].y}`;
+    }
+    
+    // Create dialogue line with solid black polygon
+    // Using \an7 (top-left alignment) + \pos(0,0) for absolute positioning
+    // \1c&H000000& = solid black fill
+    // \bord0 = no border
+    // \shad0 = no shadow
+    // \p1 = enable drawing mode
+    events.push(`Dialogue: 10,${startTime},${endTime},SolidCover,,0,0,0,,{\\an7\\pos(0,0)\\1c&H000000&\\bord0\\shad0\\p1}${path}{\\p0}`);
+  }
+  
+  return events.join('\n');
+}
+
+/**
+ * Generate complete ASS file for solid cover overlays
+ * @param {Array} blurZones - Array of blur zone objects
+ * @param {number} durationMs - Total video duration in milliseconds
+ * @param {number} gridWidth - Total grid width in pixels
+ * @param {number} gridHeight - Total grid height in pixels
+ * @param {Object} cameraDimensions - Object mapping camera names to {width, height}
+ * @param {Object} cameraPositions - Object mapping camera names to {x, y} positions
+ * @returns {string} Complete ASS file content
+ */
+function generateSolidCoverAss(blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions) {
+  const header = generateSolidCoverHeader(gridWidth, gridHeight);
+  const events = generateSolidCoverEvents(blurZones, durationMs, cameraDimensions, cameraPositions);
+  
+  return header + events;
+}
+
+/**
+ * Write solid cover ASS file to temp directory
+ * @param {string} exportId - Export ID for unique filename
+ * @param {Array} blurZones - Blur zone data
+ * @param {number} durationMs - Video duration in milliseconds
+ * @param {number} gridWidth - Grid width in pixels
+ * @param {number} gridHeight - Grid height in pixels
+ * @param {Object} cameraDimensions - Camera dimensions
+ * @param {Object} cameraPositions - Camera positions
+ * @returns {Promise<string>} Path to generated ASS file
+ */
+async function writeSolidCoverAss(exportId, blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions) {
+  const assContent = generateSolidCoverAss(blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions);
+  const tempPath = path.join(os.tmpdir(), `solidcover_${exportId}_${Date.now()}.ass`);
+  
+  await fs.promises.writeFile(tempPath, assContent, 'utf8');
+  console.log(`[ASS] Generated solid cover overlay: ${tempPath}`);
+  
+  return tempPath;
+}
+
 module.exports = {
   generateCompactDashboardAss,
   writeCompactDashboardAss,
   cleanupAssFile,
   formatAssTime,
-  COLORS
+  COLORS,
+  // Solid cover exports
+  generateSolidCoverAss,
+  writeSolidCoverAss
 };

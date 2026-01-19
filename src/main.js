@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
-const { writeCompactDashboardAss, cleanupAssFile } = require('./assGenerator');
+const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss } = require('./assGenerator');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
@@ -984,6 +984,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     const filters = [];
     const streamTags = [];
+    
+    // Camera position tracking for ASS-based solid cover overlay (scope shared across layout types)
+    let gridCameraPositions = null;
+    let gridCameraDimensions = null;
+    let singleCameraPositions = null;
+    let singleCameraDimensions = null;
 
     if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
       // Custom layout using overlay filters (base canvas already added as input)
@@ -1045,93 +1051,107 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition
-      // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-      const zonesByCamera = {};
-      for (const zone of blurZones) {
-        if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-        if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
-        zonesByCamera[zone.camera].push(zone);
+      // Track camera positions for ASS-based solid cover overlay (single camera layout)
+      singleCameraPositions = {};
+      singleCameraDimensions = {};
+      for (const stream of cameraStreams) {
+        singleCameraPositions[stream.camera] = { x: stream.x, y: stream.y };
+        singleCameraDimensions[stream.camera] = { width: w + (w % 2), height: h + (h % 2) };
       }
       
-      let maskInputOffset = 0;
-      for (const [cam, zones] of Object.entries(zonesByCamera)) {
-        const blurStream = cameraStreams.find(s => s.camera === cam);
-        if (!blurStream) continue;
-        
-        const blurCameraStreamTag = blurStream.tag;
-        console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam}`);
-        
-        try {
-          // Combine multiple masks for same camera into one composite mask using canvas
-          const firstZone = zones[0];
-          const maskW = firstZone.maskWidth || 1448;
-          const maskH = firstZone.maskHeight || 938;
-          
-          // Create composite mask by combining all zone masks
-          const { createCanvas, loadImage } = require('canvas');
-          const compositeCanvas = createCanvas(maskW, maskH);
-          const compositeCtx = compositeCanvas.getContext('2d');
-          compositeCtx.fillStyle = 'black';
-          compositeCtx.fillRect(0, 0, maskW, maskH);
-          
-          // Draw each mask (white areas are blur regions)
-          for (const zone of zones) {
-            const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-            const maskImg = await loadImage(maskBuffer);
-            compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-          }
-          
-          // Save composite mask
-          const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-          const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-          fs.writeFileSync(maskPath, compositeMaskBuffer);
-          tempFiles.push(maskPath);
-          
-          let maskInputIdx = inputs.length + 1;
-          if (baseInputIdx !== null) maskInputIdx++;
-          maskInputIdx += maskInputOffset;
-          maskInputOffset++;
-          
-          cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-          
-          const cameraW = w + (w % 2);
-          const cameraH = h + (h % 2);
-          
-          const blurredStreamTag = `[blurred_${cam}]`;
-          
-          if (blurType === 'transparent') {
-            // Transparent blur: uses alpha channel for smooth edge blending (slower)
-            // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            
-            // Scale mask and convert to alpha format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-            
-            // Apply blur to one copy, then apply alpha mask
-            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-            
-            // Overlay the blurred+masked region onto the original base
-            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-          } else {
-            // Solid blur (default): direct mask overlay without alpha channel (faster)
-            // Split the camera stream into two copies
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            
-            // Scale mask to grayscale for masking, then convert to yuv420p to match video format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuv420p[mask_gray_${cam}]`);
-            
-            // Apply strong blur to one copy
-            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
-            
-            // Use blend filter with mask: where mask is white, use blurred; where black, use original
-            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
-          }
-          
-          blurStream.tag = blurredStreamTag;
-        } catch (err) {
-          console.error('[BLUR] Failed to apply blur zone:', err);
+      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
+      // For 'optimized' and 'trueBlur', we use mask-based FFmpeg filters
+      if (blurType !== 'solid') {
+        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
+        const zonesByCamera = {};
+        for (const zone of blurZones) {
+          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
+          if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
+          zonesByCamera[zone.camera].push(zone);
         }
+        
+        let maskInputOffset = 0;
+        for (const [cam, zones] of Object.entries(zonesByCamera)) {
+          const blurStream = cameraStreams.find(s => s.camera === cam);
+          if (!blurStream) continue;
+          
+          const blurCameraStreamTag = blurStream.tag;
+          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
+          
+          try {
+            // Combine multiple masks for same camera into one composite mask using canvas
+            const firstZone = zones[0];
+            const maskW = firstZone.maskWidth || 1448;
+            const maskH = firstZone.maskHeight || 938;
+            
+            // Create composite mask by combining all zone masks
+            const { createCanvas, loadImage } = require('canvas');
+            const compositeCanvas = createCanvas(maskW, maskH);
+            const compositeCtx = compositeCanvas.getContext('2d');
+            compositeCtx.fillStyle = 'black';
+            compositeCtx.fillRect(0, 0, maskW, maskH);
+            
+            // Draw each mask (white areas are blur regions)
+            for (const zone of zones) {
+              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
+              const maskImg = await loadImage(maskBuffer);
+              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
+            }
+            
+            // Save composite mask
+            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
+            fs.writeFileSync(maskPath, compositeMaskBuffer);
+            tempFiles.push(maskPath);
+            
+            let maskInputIdx = inputs.length + 1;
+            if (baseInputIdx !== null) maskInputIdx++;
+            maskInputIdx += maskInputOffset;
+            maskInputOffset++;
+            
+            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
+            
+            const cameraW = w + (w % 2);
+            const cameraH = h + (h % 2);
+            
+            const blurredStreamTag = `[blurred_${cam}]`;
+            
+            if (blurType === 'trueBlur') {
+              // True Blur (Slow): uses alpha channel for smooth edge blending
+              // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
+              filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+              
+              // Scale mask and convert to alpha format
+              filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
+              
+              // Apply blur to one copy, then apply alpha mask
+              filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+              filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+              
+              // Overlay the blurred+masked region onto the original base
+              filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+            } else {
+              // Blur (Optimized): direct mask overlay without alpha channel (faster)
+              // Split the camera stream into two copies
+              filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+              
+              // Scale mask to grayscale for masking, then convert to yuv420p to match video format
+              filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuv420p[mask_gray_${cam}]`);
+              
+              // Apply strong blur to one copy
+              filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
+              
+              // Use blend filter with mask: where mask is white, use blurred; where black, use original
+              filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+            }
+            
+            blurStream.tag = blurredStreamTag;
+          } catch (err) {
+            console.error('[BLUR] Failed to apply blur zone:', err);
+          }
+        }
+      } else if (blurZones.length > 0) {
+        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s) (single camera layout)`);
       }
       
       // Chain overlays: start with base, overlay each camera in order
@@ -1172,79 +1192,97 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
-      // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-      const gridZonesByCamera = {};
-      for (const zone of blurZones) {
-        if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-        if (!gridZonesByCamera[zone.camera]) gridZonesByCamera[zone.camera] = [];
-        gridZonesByCamera[zone.camera].push(zone);
+      // Track camera positions for ASS-based solid cover overlay
+      gridCameraPositions = {};
+      gridCameraDimensions = {};
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const cam = activeCamerasForGrid[i];
+        gridCameraPositions[cam] = {
+          x: (i % cols) * w,
+          y: Math.floor(i / cols) * h
+        };
+        gridCameraDimensions[cam] = { width: w, height: h };
       }
       
-      let gridMaskInputOffset = 0;
-      for (const [cam, zones] of Object.entries(gridZonesByCamera)) {
-        const blurStream = gridStreams.find(s => s.camera === cam);
-        if (!blurStream) continue;
-        
-        const blurCameraStreamTag = blurStream.tag;
-        console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam}`);
-        
-        try {
-          // Combine multiple masks for same camera into one composite mask
-          const firstZone = zones[0];
-          const maskW = firstZone.maskWidth || 1448;
-          const maskH = firstZone.maskHeight || 938;
-          
-          const { createCanvas, loadImage } = require('canvas');
-          const compositeCanvas = createCanvas(maskW, maskH);
-          const compositeCtx = compositeCanvas.getContext('2d');
-          compositeCtx.fillStyle = 'black';
-          compositeCtx.fillRect(0, 0, maskW, maskH);
-          
-          for (const zone of zones) {
-            const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-            const maskImg = await loadImage(maskBuffer);
-            compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-          }
-          
-          const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-          const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-          fs.writeFileSync(maskPath, compositeMaskBuffer);
-          tempFiles.push(maskPath);
-          
-          let maskInputIdx = inputs.length + 1;
-          maskInputIdx += gridMaskInputOffset;
-          gridMaskInputOffset++;
-          
-          cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-          
-          const cameraW = w + (w % 2);
-          const cameraH = h + (h % 2);
-          
-          const blurredStreamTag = `[blurred_${cam}]`;
-          
-          if (blurType === 'transparent') {
-            // Transparent blur: uses alpha channel for smooth edge blending (slower)
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-          } else {
-            // Solid blur (default): direct mask overlay without alpha channel (faster)
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
-            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
-            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
-          }
-          
-          blurStream.tag = blurredStreamTag;
-          const streamIndex = streamTags.indexOf(blurCameraStreamTag);
-          if (streamIndex !== -1) {
-            streamTags[streamIndex] = blurredStreamTag;
-          }
-        } catch (err) {
-          console.error('[BLUR] Failed to apply blur zone:', err);
+      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
+      // For 'optimized' and 'trueBlur', we use mask-based FFmpeg filters
+      if (blurType !== 'solid') {
+        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
+        const gridZonesByCamera = {};
+        for (const zone of blurZones) {
+          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
+          if (!gridZonesByCamera[zone.camera]) gridZonesByCamera[zone.camera] = [];
+          gridZonesByCamera[zone.camera].push(zone);
         }
+        
+        let gridMaskInputOffset = 0;
+        for (const [cam, zones] of Object.entries(gridZonesByCamera)) {
+          const blurStream = gridStreams.find(s => s.camera === cam);
+          if (!blurStream) continue;
+          
+          const blurCameraStreamTag = blurStream.tag;
+          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
+          
+          try {
+            // Combine multiple masks for same camera into one composite mask
+            const firstZone = zones[0];
+            const maskW = firstZone.maskWidth || 1448;
+            const maskH = firstZone.maskHeight || 938;
+            
+            const { createCanvas, loadImage } = require('canvas');
+            const compositeCanvas = createCanvas(maskW, maskH);
+            const compositeCtx = compositeCanvas.getContext('2d');
+            compositeCtx.fillStyle = 'black';
+            compositeCtx.fillRect(0, 0, maskW, maskH);
+            
+            for (const zone of zones) {
+              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
+              const maskImg = await loadImage(maskBuffer);
+              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
+            }
+            
+            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
+            fs.writeFileSync(maskPath, compositeMaskBuffer);
+            tempFiles.push(maskPath);
+            
+            let maskInputIdx = inputs.length + 1;
+            maskInputIdx += gridMaskInputOffset;
+            gridMaskInputOffset++;
+            
+            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
+            
+            const cameraW = w + (w % 2);
+            const cameraH = h + (h % 2);
+            
+            const blurredStreamTag = `[blurred_${cam}]`;
+            
+            if (blurType === 'trueBlur') {
+              // True Blur (Slow): uses alpha channel for smooth edge blending
+              filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+              filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
+              filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+              filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+              filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+            } else {
+              // Blur (Optimized): direct mask overlay without alpha channel (faster)
+              filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+              filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
+              filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
+              filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+            }
+            
+            blurStream.tag = blurredStreamTag;
+            const streamIndex = streamTags.indexOf(blurCameraStreamTag);
+            if (streamIndex !== -1) {
+              streamTags[streamIndex] = blurredStreamTag;
+            }
+          } catch (err) {
+            console.error('[BLUR] Failed to apply blur zone:', err);
+          }
+        }
+      } else if (blurZones.length > 0) {
+        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s)`);
       }
       
       const numStreams = activeCamerasForGrid.length;
@@ -1286,6 +1324,67 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
     }
 
+    // Generate ASS solid cover overlay for 'solid' blur type
+    let solidCoverAssPath = null;
+    let currentStreamTag = '[grid]'; // Track the current stream tag for chaining filters
+    
+    if (blurType === 'solid' && blurZones.length > 0) {
+      try {
+        // Determine camera positions based on layout type
+        // Use grid positions if available, otherwise fall back to single camera positions
+        let cameraPositions = {};
+        let cameraDimensions = {};
+        
+        if (gridCameraPositions && Object.keys(gridCameraPositions).length > 0) {
+          // Grid layout - use grid positions
+          cameraPositions = gridCameraPositions;
+          cameraDimensions = gridCameraDimensions;
+        } else if (singleCameraPositions && Object.keys(singleCameraPositions).length > 0) {
+          // Single camera or custom layout
+          cameraPositions = singleCameraPositions;
+          cameraDimensions = singleCameraDimensions;
+        } else {
+          // Fallback - use full video dimensions for single camera
+          const singleCam = activeCamerasForGrid[0] || blurZones[0]?.camera;
+          if (singleCam) {
+            cameraPositions[singleCam] = { x: 0, y: 0 };
+            cameraDimensions[singleCam] = { width: totalW, height: totalH };
+          }
+        }
+        
+        // Filter blur zones to only those with selected cameras
+        const selectedBlurZones = blurZones.filter(z => 
+          z && z.coordinates && z.coordinates.length >= 3 && cameraPositions[z.camera]
+        );
+        
+        if (selectedBlurZones.length > 0) {
+          const durationMs = endTimeMs - startTimeMs;
+          solidCoverAssPath = await writeSolidCoverAss(
+            exportId,
+            selectedBlurZones,
+            durationMs,
+            totalW,
+            totalH,
+            cameraDimensions,
+            cameraPositions
+          );
+          tempFiles.push(solidCoverAssPath);
+          
+          // Apply solid cover ASS filter
+          const escapedSolidCoverPath = solidCoverAssPath
+            .replace(/\\/g, '/')
+            .replace(/:/g, '\\:');
+          
+          filters.push(`[grid]ass='${escapedSolidCoverPath}'[grid_cover]`);
+          currentStreamTag = '[grid_cover]';
+          console.log(`[ASS] Using ASS solid cover for ${selectedBlurZones.length} blur zone(s): ${solidCoverAssPath}`);
+        }
+      } catch (err) {
+        console.error('[BLUR] Failed to generate solid cover ASS:', err);
+        // Fall through to continue without solid cover
+      }
+    }
+    
     // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
     const padding = 20; // Padding from edges
     const positionExprs = {
@@ -1306,7 +1405,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         .replace(/\\/g, '/')           // Convert backslashes to forward slashes
         .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
       
-      filters.push(`[grid]ass='${escapedAssPath}'[out]`);
+      filters.push(`${currentStreamTag}ass='${escapedAssPath}'[out]`);
       console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
     } else if (useTimestamp && timestampBasetimeUs) {
       // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
@@ -1344,10 +1443,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         drawtextPos
       ].join(':');
       
-      filters.push(`[grid]${drawtextFilter}[out]`);
+      filters.push(`${currentStreamTag}${drawtextFilter}[out]`);
       console.log(`[TIMESTAMP] Using drawtext filter at position: ${timestampPosition}, format: ${timestampDateFormat}`);
     } else {
-      filters.push(`[grid]format=yuv420p[out]`);
+      filters.push(`${currentStreamTag}format=yuv420p[out]`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));

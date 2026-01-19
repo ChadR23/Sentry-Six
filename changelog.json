@@ -1,6 +1,25 @@
 {
   "versions": [
     {
+      "version": "2026.4.1",
+      "date": "2026-01-19",
+      "title": "Feature Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added New Blur Zone Options. Solid (Fast), Blur (Optimized But has issues with Red text/plates can be seen), True Blur (Slow)."
+        },
+        {
+          "type": "feature",
+          "description": "Added Option for Solid Blur to Work with SEI Dashboard. (Blur, True Blur DO NOT WORK with Dashboard.)"
+        },
+        {
+          "type": "improvement",
+          "description": "Program Will now Auto select Language Based Screen Language OS is using."
+        }
+      ]
+    },
+    {
       "version": "2026.3.4",
       "date": "2026-01-16",
       "title": "Minor Update",
