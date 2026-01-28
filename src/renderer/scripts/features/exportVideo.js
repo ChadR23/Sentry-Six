@@ -8,7 +8,7 @@ import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
 import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
-import { t } from '../lib/i18n.js';
+import { t, getCurrentLanguage } from '../lib/i18n.js';
 
 // Export state
 export const exportState = {
@@ -36,6 +36,57 @@ let blurZoneModalInitialized = false;
 
 // DOM helper
 const $ = id => document.getElementById(id);
+
+/**
+ * Check if dashboard should be disabled based on blur zones and blur type
+ * Dashboard is only disabled when blur zones exist AND blur type is NOT 'solid'
+ * (Solid uses ASS overlay which can be layered with dashboard ASS)
+ * @returns {boolean} True if dashboard should be disabled
+ */
+function shouldDisableDashboard() {
+    const hasBlurZones = exportState.blurZones.length > 0;
+    const blurType = $('blurTypeSelect')?.value || 'solid';
+    // Only disable dashboard for 'trueBlur' - not for 'solid'
+    return hasBlurZones && blurType !== 'solid';
+}
+
+/**
+ * Update dashboard checkbox state based on blur zones and blur type
+ */
+function updateDashboardAvailability() {
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
+    const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
+    const timestampCheckbox = $('includeTimestamp');
+    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+    const timestampOptions = $('timestampOptions');
+    
+    if (!dashboardCheckbox) return;
+    
+    const shouldDisable = shouldDisableDashboard();
+    const hasGpu = exportState.gpuAvailable;
+    
+    if (shouldDisable || !hasGpu) {
+        // Disable dashboard
+        dashboardCheckbox.checked = false;
+        dashboardCheckbox.disabled = true;
+        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
+        if (dashboardOptions) dashboardOptions.classList.add('hidden');
+        
+        // Re-enable timestamp toggle since dashboard is disabled
+        if (timestampCheckbox) {
+            timestampCheckbox.disabled = false;
+            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
+        }
+    } else {
+        // Enable dashboard (if GPU available and no conflicting blur)
+        dashboardCheckbox.disabled = false;
+        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
+        
+        // If dashboard was enabled before, keep its state
+        // Otherwise, the user can now enable it
+    }
+}
 
 // Dependencies set via init
 let getState = null;
@@ -212,12 +263,13 @@ export function updateExportMarkers() {
 function createMarkerElement(type) {
     const marker = document.createElement('div');
     marker.className = `export-marker ${type}`;
-    marker.title = `Export ${type} point (drag to adjust)`;
+    const markerType = type === 'start' ? t('ui.export.start') : t('ui.export.end');
+    marker.title = `${t('ui.export.exportBtn')} ${markerType} point (drag to adjust)`;
     
     // Add remove button (X)
     const removeBtn = document.createElement('div');
     removeBtn.className = 'marker-remove';
-    removeBtn.title = `Remove ${type} marker`;
+    removeBtn.title = `Remove ${markerType} marker`;
     removeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
     removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -307,7 +359,7 @@ export function updateExportButtonState() {
 export function openExportModal() {
     const state = getState?.();
     if (!state?.collection?.active) {
-        notify('Load a collection first', { type: 'warn' });
+        notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
     
@@ -352,7 +404,7 @@ export function openExportModal() {
     const progressText = $('exportProgressText');
     if (progressEl) progressEl.classList.add('hidden');
     if (progressBar) progressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Preparing...';
+    if (progressText) progressText.textContent = t('ui.export.preparing');
     
     // Generate default filename (used when saving via dialog)
     const date = new Date().toISOString().slice(0, 10);
@@ -385,6 +437,36 @@ export function openExportModal() {
     
     // Update blur zone status display
     updateBlurZoneStatusDisplay();
+    
+    // Initialize minimap toggle and options
+    const minimapCheckbox = $('includeMinimap');
+    const minimapOptions = $('minimapOptions');
+    const minimapNoGpsWarning = $('minimapNoGpsWarning');
+    
+    if (minimapCheckbox) {
+        // Enable minimap checkbox - GPS availability is checked during export
+        minimapCheckbox.checked = false;
+        minimapCheckbox.disabled = false;
+        
+        // Hide warning by default
+        if (minimapNoGpsWarning) minimapNoGpsWarning.classList.add('hidden');
+        
+        // Toggle minimap options visibility
+        minimapCheckbox.onchange = () => {
+            if (minimapOptions) {
+                if (minimapCheckbox.checked) {
+                    minimapOptions.classList.remove('hidden');
+                } else {
+                    minimapOptions.classList.add('hidden');
+                }
+            }
+        };
+        
+        // Initialize options visibility
+        if (minimapOptions) {
+            minimapOptions.classList.add('hidden');
+        }
+    }
 }
 
 /**
@@ -442,15 +524,29 @@ function hideFloatingProgress() {
 }
 
 /**
+ * Translate a message that may be a string or an object with translation key
+ * @param {string|Object} message - Either a plain string or { key: string, params?: Object }
+ * @returns {string} The translated message
+ */
+function translateMessage(message) {
+    if (!message) return '';
+    if (typeof message === 'string') return message;
+    if (typeof message === 'object' && message.key) {
+        return t(message.key, message.params || {});
+    }
+    return String(message);
+}
+
+/**
  * Update the floating progress notification
- * @param {string} step - Current step text
+ * @param {string|Object} step - Current step text or translation key object
  * @param {number} percentage - Progress percentage (0-100)
  */
 function updateFloatingProgress(step, percentage) {
     const stepEl = $('exportFloatingStep');
     const barFill = $('exportFloatingBarFill');
     
-    if (stepEl) stepEl.textContent = step || 'Exporting...';
+    if (stepEl) stepEl.textContent = translateMessage(step) || t('ui.export.exporting');
     if (barFill) barFill.style.width = `${percentage || 0}%`;
 }
 
@@ -514,7 +610,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
     const nativeVideo = getNativeVideo?.();
     
     if (!state?.collection?.active) {
-        notify('Load a collection first', { type: 'warn' });
+        notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
     
@@ -529,7 +625,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
     const snapshotSec = Math.max(0, Math.min(totalSec, currentPlaybackSec));
     
     try {
-        notify('Capturing snapshot...');
+        notify(t('ui.notifications.capturingSnapshot'));
         
         // Find the video file for the snapshot camera at the current playback position
         const groups = state.collection.active.groups || [];
@@ -550,7 +646,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         const entry = group?.filesByCamera?.get(snapshotCamera);
         
         if (!entry?.file) {
-            notify(`Could not find video file for ${snapshotCamera} camera`, { type: 'error' });
+            notify(t('ui.notifications.couldNotFindVideoFile', { camera: snapshotCamera }), { type: 'error' });
             return;
         }
         
@@ -572,7 +668,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         } else if (entry.file instanceof File) {
             videoUrl = URL.createObjectURL(entry.file);
         } else {
-            notify('Unsupported file type for snapshot', { type: 'error' });
+            notify(t('ui.notifications.unsupportedFileType'), { type: 'error' });
             return;
         }
         
@@ -618,7 +714,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         
     } catch (err) {
         console.error('Failed to capture snapshot:', err);
-        notify('Failed to capture snapshot: ' + err.message, { type: 'error' });
+        notify(t('ui.notifications.failedToCaptureSnapshot', { error: err.message }), { type: 'error' });
     }
 }
 
@@ -672,17 +768,7 @@ function renderBlurZoneList() {
             const index = parseInt(btn.dataset.index, 10);
             exportState.blurZones.splice(index, 1);
             renderBlurZoneList();
-            updateBlurZoneStatusDisplay();
-            
-            // Re-enable dashboard if no more blur zones
-            if (exportState.blurZones.length === 0) {
-                const dashboardCheckbox = $('includeDashboard');
-                if (dashboardCheckbox) {
-                    dashboardCheckbox.disabled = false;
-                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-                    if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-                }
-            }
+            updateBlurZoneStatusDisplay(); // This handles dashboard availability
         });
     });
 }
@@ -727,28 +813,28 @@ function initBlurZoneEditorModal() {
                 const coords = getNormalizedCoordinates();
                 
                 if (!coords || coords.length < 3) {
-                    notify('Please create a valid blur zone with at least 3 points', { type: 'warn' });
+                    notify(t('ui.notifications.blurZoneMinPoints'), { type: 'warn' });
                     return;
                 }
                 
                 // Generate mask image
                 const maskImageDataUrl = await generateMaskImage();
                 if (!maskImageDataUrl) {
-                    notify('Failed to generate mask image', { type: 'error' });
+                    notify(t('ui.notifications.failedToGenerateMask'), { type: 'error' });
                     return;
                 }
                 
                 // Extract base64 data
                 const base64Data = maskImageDataUrl.split(',')[1];
                 if (!base64Data) {
-                    notify('Failed to extract mask image data', { type: 'error' });
+                    notify(t('ui.notifications.failedToExtractMaskData'), { type: 'error' });
                     return;
                 }
                 
                 // Get canvas dimensions
                 const canvasDims = getCanvasDimensions();
                 if (!canvasDims) {
-                    notify('Failed to get canvas dimensions', { type: 'error' });
+                    notify(t('ui.notifications.failedToGetCanvasDimensions'), { type: 'error' });
                     return;
                 }
                 
@@ -768,31 +854,15 @@ function initBlurZoneEditorModal() {
                     exportState.blurZones.push(newZone);
                 }
                 
-                // Disable dashboard checkbox when blur zones exist
-                const dashboardCheckbox = $('includeDashboard');
-                const dashboardOptions = $('dashboardOptions');
-                if (dashboardCheckbox && exportState.blurZones.length > 0) {
-                    dashboardCheckbox.checked = false;
-                    dashboardCheckbox.disabled = true;
-                    const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-                    if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-                    if (dashboardOptions) dashboardOptions.classList.add('hidden');
-                    
-                    // Re-enable timestamp toggle since dashboard is now disabled
-                    const timestampCheckbox = $('includeTimestamp');
-                    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-                    if (timestampCheckbox) {
-                        timestampCheckbox.disabled = false;
-                        if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
-                    }
-                }
+                // Update dashboard availability based on blur zones and blur type
+                updateDashboardAvailability();
                 
                 updateBlurZoneStatusDisplay();
-                notify('Blur zone saved successfully', { type: 'success' });
+                notify(t('ui.notifications.blurZoneSaved'), { type: 'success' });
                 closeEditor();
             } catch (err) {
                 console.error('[BLUR ZONE] Save error:', err);
-                notify(`Failed to save blur zone: ${err.message}`, { type: 'error' });
+                notify(t('ui.notifications.failedToSaveBlurZone', { error: err.message }), { type: 'error' });
             }
         });
     }
@@ -805,8 +875,6 @@ function updateBlurZoneStatusDisplay() {
     const statusEl = $('blurZoneStatus');
     const statusTextEl = $('blurZoneStatusText');
     const addBtn = $('addBlurZoneBtn');
-    const dashboardCheckbox = $('includeDashboard');
-    const dashboardOptions = $('dashboardOptions');
     
     // Render the blur zone list
     renderBlurZoneList();
@@ -818,36 +886,18 @@ function updateBlurZoneStatusDisplay() {
             const names = { front: t('ui.cameras.front'), back: t('ui.cameras.back'), left_repeater: t('ui.cameras.leftRepeater'), right_repeater: t('ui.cameras.rightRepeater'), left_pillar: t('ui.cameras.leftPillar'), right_pillar: t('ui.cameras.rightPillar') };
             return names[c] || c;
         });
-        if (statusTextEl) statusTextEl.textContent = t('ui.export.blurZonesStatus', { count: exportState.blurZones.length });
+        // Show blur zone count - dashboard status depends on blur type, handled separately
+        if (statusTextEl) {
+            statusTextEl.textContent = t('ui.export.blurZoneCount', { count: exportState.blurZones.length });
+        }
         if (addBtn) addBtn.textContent = 'Add Zone';
-        
-        // Ensure dashboard is disabled when blur zones exist
-        if (dashboardCheckbox) {
-            dashboardCheckbox.checked = false;
-            dashboardCheckbox.disabled = true;
-            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-            if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-        }
-        if (dashboardOptions) dashboardOptions.classList.add('hidden');
-        
-        // Re-enable timestamp toggle since dashboard is disabled
-        const timestampCheckbox = $('includeTimestamp');
-        const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-        if (timestampCheckbox) {
-            timestampCheckbox.disabled = false;
-            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
-        }
     } else {
         if (statusEl) statusEl.classList.add('hidden');
         if (addBtn) addBtn.textContent = 'Add Zone';
-        
-        // Re-enable dashboard when no blur zones
-        if (dashboardCheckbox) {
-            dashboardCheckbox.disabled = false;
-            const dashboardToggleRow = dashboardCheckbox.closest('.toggle-row');
-            if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-        }
     }
+    
+    // Update dashboard availability based on blur zones and blur type
+    updateDashboardAvailability();
 }
 
 /**
@@ -979,6 +1029,15 @@ export async function checkFFmpegAvailability() {
         });
     }
     
+    // Set up blur type dropdown listener to update dashboard availability
+    // When user changes blur type, dashboard availability may change
+    const blurTypeSelect = $('blurTypeSelect');
+    if (blurTypeSelect) {
+        blurTypeSelect.addEventListener('change', () => {
+            updateDashboardAvailability();
+        });
+    }
+    
     if (!statusEl) return;
     
     statusEl.innerHTML = `<span class="status-icon">⏳</span><span class="status-text">${t('ui.export.checkingFfmpeg')}</span>`;
@@ -1010,21 +1069,15 @@ export async function checkFFmpegAvailability() {
                 statusEl.innerHTML = `<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">${statusText}</span>`;
                 if (startBtn) startBtn.disabled = false;
                 
-                // Dashboard overlay requires GPU - disable checkbox if no GPU
-                // Also keep disabled if blur zones exist
-                if (dashboardCheckbox) {
-                    const hasBlurZones = exportState.blurZones.length > 0;
-                    if (!result.gpu || hasBlurZones) {
-                        dashboardCheckbox.disabled = true;
-                        dashboardCheckbox.checked = false;
-                        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-                        if (!result.gpu && dashboardGpuWarning) dashboardGpuWarning.classList.remove('hidden');
-                    } else {
-                        dashboardCheckbox.disabled = false;
-                        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-                        if (dashboardGpuWarning) dashboardGpuWarning.classList.add('hidden');
-                    }
+                // Dashboard overlay requires GPU - show warning if no GPU
+                if (!result.gpu && dashboardGpuWarning) {
+                    dashboardGpuWarning.classList.remove('hidden');
+                } else if (dashboardGpuWarning) {
+                    dashboardGpuWarning.classList.add('hidden');
                 }
+                
+                // Update dashboard availability based on GPU and blur zones/type
+                updateDashboardAvailability();
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -1061,12 +1114,12 @@ export async function startExport() {
     const baseFolderPath = getBaseFolderPath?.();
     
     if (!state?.collection?.active || !window.electronAPI?.startExport) {
-        notify('Export not available', { type: 'error' });
+        notify(t('ui.notifications.exportNotAvailable'), { type: 'error' });
         return;
     }
     
     if (!baseFolderPath) {
-        notify('Export requires selecting a folder via the folder picker. Please re-select your dashcam folder.', { type: 'warn' });
+        notify(t('ui.notifications.exportRequiresFolder'), { type: 'warn' });
         return;
     }
     
@@ -1074,7 +1127,7 @@ export async function startExport() {
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
     
     if (cameras.length === 0) {
-        notify('Please select at least one camera', { type: 'warn' });
+        notify(t('ui.notifications.selectAtLeastOneCamera'), { type: 'warn' });
         return;
     }
     
@@ -1093,13 +1146,15 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
-    // Blur zone disables dashboard (per requirements)
+    // Blur zone disables dashboard ONLY for 'trueBlur' type
+    // 'solid' blur type uses ASS overlay which can be layered with dashboard
     const hasBlurZones = exportState.blurZones.length > 0;
+    const blurType = $('blurTypeSelect')?.value || 'solid';
     const includeDashboardCheckbox = $('includeDashboard');
     let includeDashboard = includeDashboardCheckbox?.checked ?? false;
     
-    // Disable dashboard if blur zones are active
-    if (hasBlurZones) {
+    // Disable dashboard if blur zones are active AND blur type is not 'solid'
+    if (hasBlurZones && blurType !== 'solid') {
         includeDashboard = false;
     }
     
@@ -1117,6 +1172,15 @@ export async function startExport() {
     const dashboardStyle = $('dashboardStyle')?.value || 'standard';
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
+    
+    // Minimap settings
+    const includeMinimapCheckbox = $('includeMinimap');
+    const includeMinimap = includeMinimapCheckbox?.checked ?? false;
+    const minimapPosition = $('minimapPosition')?.value || 'top-right';
+    const minimapSize = $('minimapSize')?.value || 'small';
+    
+    console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
+    console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}`);
     
     const includeTimestampCheckbox = $('includeTimestamp');
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
@@ -1137,21 +1201,24 @@ export async function startExport() {
     });
     
     if (!outputPath) {
-        notify('Export cancelled', { type: 'info' });
+        notify(t('ui.notifications.exportCancelled'), { type: 'info' });
         return;
     }
     
-    // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
+    // Only extract SEI data if dashboard or minimap is enabled - skip entirely if both disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
     // This happens AFTER file dialog so user gets instant feedback
     let seiData = null;
-    if (includeDashboard) {
+    let mapPath = []; // GPS path for minimap
+    
+    if (includeDashboard || includeMinimap) {
         try {
-            notify('Extracting telemetry data...', { type: 'info' });
+            notify(t('ui.notifications.extractingTelemetry'), { type: 'info' });
             
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
+            const allMapPath = []; // Collect GPS coordinates
             
             if (!window.DashcamMP4 || !window.DashcamHelpers) {
                 throw new Error('Dashcam parser not available');
@@ -1160,12 +1227,23 @@ export async function startExport() {
             const DashcamMP4 = window.DashcamMP4;
             const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
             
+            // Helper to check for valid GPS coordinates
+            // SEI uses latitude_deg/longitude_deg field names
+            const hasValidGps = (sei) => {
+                const lat = sei?.latitude_deg;
+                const lon = sei?.longitude_deg;
+                return lat !== undefined && lon !== undefined && 
+                       Number.isFinite(lat) && Number.isFinite(lon) &&
+                       !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
+            };
+            
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
                 // Check for cancellation before processing each segment
                 if (exportState.cancelled) {
                     console.log('SEI extraction cancelled by user');
                     seiData = null;
+                    mapPath = [];
                     break;
                 }
                 
@@ -1211,6 +1289,11 @@ export async function startExport() {
                                             timestampMs: segStartMs + frame.timestamp,
                                             sei: frame.sei
                                         });
+                                        
+                                        // Extract GPS coordinates for minimap path
+                                        if (includeMinimap && hasValidGps(frame.sei)) {
+                                            allMapPath.push([frame.sei.latitude_deg, frame.sei.longitude_deg]);
+                                        }
                                     }
                                 }
                                 
@@ -1228,18 +1311,34 @@ export async function startExport() {
             // Sort by timestamp for efficient lookup during rendering
             allSeiData.sort((a, b) => a.timestampMs - b.timestampMs);
             
+            console.log(`[MINIMAP] SEI extraction complete: ${allSeiData.length} SEI frames, ${allMapPath.length} GPS points`);
+            
             if (allSeiData.length > 0) {
                 seiData = allSeiData;
+                mapPath = allMapPath;
+                console.log(`[MINIMAP] GPS data available: ${mapPath.length} points`);
             } else {
-                notify('No telemetry data available for dashboard overlay. Dashboard will be disabled.', { type: 'warn' });
-                seiData = null; // Clear SEI data if extraction failed
+                if (includeDashboard) {
+                    notify(t('ui.notifications.noTelemetryData'), { type: 'warn' });
+                }
+                if (includeMinimap && allMapPath.length === 0) {
+                    notify('No GPS data available for minimap overlay. Minimap will be disabled.', { type: 'warn' });
+                }
+                seiData = null;
+                mapPath = [];
             }
         } catch (err) {
-            notify('Failed to extract telemetry data. Dashboard will be disabled.', { type: 'warn' });
-            seiData = null; // Clear SEI data if extraction failed
+            if (includeDashboard) {
+                notify(t('ui.notifications.failedToExtractTelemetry'), { type: 'warn' });
+            }
+            if (includeMinimap) {
+                notify('Failed to extract GPS data. Minimap will be disabled.', { type: 'warn' });
+            }
+            seiData = null;
+            mapPath = [];
         }
     }
-    // If dashboard is disabled, seiData remains null and no files are loaded into memory
+    // If dashboard and minimap are both disabled, seiData remains null and no files are loaded into memory
     
     const segments = [];
     const groups = state.collection.active.groups || [];
@@ -1279,7 +1378,7 @@ export async function startExport() {
     
     const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
     if (!hasFiles) {
-        notify('No video files found for export. Please ensure the folder was selected correctly.', { type: 'error' });
+        notify(t('ui.notifications.noVideoFilesForExport'), { type: 'error' });
         return;
     }
     
@@ -1290,7 +1389,7 @@ export async function startExport() {
     
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
-    if (progressText) progressText.textContent = 'Starting export...';
+    if (progressText) progressText.textContent = t('ui.export.preparing');
     
     if (startBtn) startBtn.disabled = true;
     
@@ -1303,19 +1402,50 @@ export async function startExport() {
     exportState.isExporting = true;
     exportState.cancelled = false; // Reset cancellation flag
     
+    // Get dashboard and minimap progress elements
+    const dashboardProgressEl = $('dashboardProgress');
+    const dashboardProgressBar = $('dashboardProgressBar');
+    const dashboardProgressText = $('dashboardProgressText');
+    const minimapProgressEl = $('minimapProgress');
+    const minimapProgressBar = $('minimapProgressBar');
+    const minimapProgressText = $('minimapProgressText');
+    
+    // Hide dashboard and minimap progress bars initially
+    if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+    if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
+    
     if (window.electronAPI?.on) {
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
             if (receivedExportId !== exportId) return;
             
             if (progress.type === 'progress') {
+                const translatedMessage = translateMessage(progress.message);
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
-                if (progressText) progressText.textContent = progress.message;
+                if (progressText) progressText.textContent = translatedMessage;
                 
                 // Track progress for floating notification
-                exportState.currentStep = progress.message;
+                exportState.currentStep = translatedMessage;
                 exportState.currentProgress = progress.percentage;
                 
                 // Update floating notification if modal is minimized
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(translatedMessage, progress.percentage);
+                }
+            } else if (progress.type === 'dashboard-progress') {
+                // Show dashboard progress bar
+                if (dashboardProgressEl) dashboardProgressEl.classList.remove('hidden');
+                if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
+                if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
+                
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(progress.message, progress.percentage);
+                }
+            } else if (progress.type === 'minimap-progress') {
+                // Show minimap progress bar
+                if (minimapProgressEl) minimapProgressEl.classList.remove('hidden');
+                if (minimapProgressBar) minimapProgressBar.style.width = `${progress.percentage}%`;
+                if (minimapProgressText) minimapProgressText.textContent = progress.message;
+                
                 if (exportState.modalMinimized) {
                     updateFloatingProgress(progress.message, progress.percentage);
                 }
@@ -1330,14 +1460,18 @@ export async function startExport() {
                 // Hide floating notification on complete
                 hideFloatingProgress();
                 
-                // Hide hint
+                // Hide hint and overlay progress bars
                 const minHint = $('exportMinimizeHint');
                 if (minHint) minHint.classList.add('hidden');
+                if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+                if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
+                
+                const translatedMessage = translateMessage(progress.message);
                 
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'success' });
+                    if (progressText) progressText.textContent = translatedMessage;
+                    notify(translatedMessage, { type: 'success' });
                     
                     // Show modal if it was minimized so user sees completion
                     const modal = $('exportModal');
@@ -1346,14 +1480,14 @@ export async function startExport() {
                     }
                     
                     setTimeout(() => {
-                        if (confirm(`${progress.message}\n\nWould you like to open the file location?`)) {
+                        if (confirm(`${translatedMessage}\n\n${t('ui.export.openFileLocation')}`)) {
                             window.electronAPI.showItemInFolder(outputPath);
                         }
                         closeExportModal();
                     }, 500);
                 } else {
-                    if (progressText) progressText.textContent = progress.message;
-                    notify(progress.message, { type: 'error' });
+                    if (progressText) progressText.textContent = translatedMessage;
+                    notify(translatedMessage, { type: 'error' });
                     if (startBtn) startBtn.disabled = false;
                     
                     // Show modal on error so user sees what happened
@@ -1384,8 +1518,9 @@ export async function startExport() {
             cameras,
             baseFolderPath,
             quality,
-            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data AND no blur zones
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && !hasBlurZones,
+            // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
+            // Dashboard is allowed with blur zones if blur type is 'solid' (both use ASS, can be layered)
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && (blurType === 'solid' || !hasBlurZones),
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
@@ -1399,13 +1534,22 @@ export async function startExport() {
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
-            blurType: $('blurTypeSelect')?.value || 'solid' // 'solid' or 'transparent'
+            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
+            // Language for dashboard text translations (Gear, Autopilot states, etc.)
+            language: getCurrentLanguage(),
+            // Minimap settings
+            includeMinimap: includeMinimap && mapPath.length > 0,
+            minimapPosition,
+            minimapSize,
+            mapPath
         };
+        
+        console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}`);
         
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {
         console.error('Export error:', err);
-        notify(`Export failed: ${err.message}`, { type: 'error' });
+        notify(t('ui.notifications.exportFailedWithError', { error: err.message }), { type: 'error' });
         exportState.isExporting = false;
         exportState.currentExportId = null;
         exportState.cancelled = false; // Reset cancellation flag
@@ -1422,7 +1566,7 @@ export async function cancelExport() {
     
     if (exportState.currentExportId && window.electronAPI?.cancelExport) {
         await window.electronAPI.cancelExport(exportState.currentExportId);
-        notify('Export cancelled', { type: 'info' });
+        notify(t('ui.notifications.exportCancelled'), { type: 'info' });
     }
     
     exportState.isExporting = false;

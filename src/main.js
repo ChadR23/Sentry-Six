@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
-const { writeCompactDashboardAss, cleanupAssFile } = require('./assGenerator');
+const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss } = require('./assGenerator');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
@@ -664,9 +664,221 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
 }
 
+// Calculate minimap size based on output resolution (square aspect ratio)
+function calculateMinimapSize(outputWidth, outputHeight, sizeOption = 'medium') {
+  const sizeMultipliers = {
+    'small': 0.25,
+    'medium': 0.35,
+    'large': 0.45,
+    'xlarge': 0.55
+  };
+  const multiplier = sizeMultipliers[sizeOption] || 0.25;
+  
+  // Use the smaller dimension to calculate size (square minimap)
+  const baseSize = Math.min(outputWidth, outputHeight);
+  const targetSize = Math.round(baseSize * multiplier);
+  // Ensure even dimensions
+  const evenSize = targetSize + (targetSize % 2);
+  
+  return {
+    width: evenSize,
+    height: evenSize
+  };
+}
+
+// Minimap renderer callbacks (for async frame capture)
+const minimapReadyCallbacks = new Map();
+
+// IPC handler for minimap ready signals
+ipcMain.on('minimap:ready', (event) => {
+  const webContentsId = event.sender.id;
+  const callback = minimapReadyCallbacks.get(webContentsId);
+  if (callback) {
+    minimapReadyCallbacks.delete(webContentsId);
+    callback();
+  }
+});
+
+// Create a hidden BrowserWindow for minimap rendering
+async function createMinimapRenderer(minimapWidth, minimapHeight) {
+  return new Promise((resolve, reject) => {
+    const minimapWindow = new BrowserWindow({
+      width: minimapWidth,
+      height: minimapHeight,
+      show: false,
+      frame: false,
+      transparent: true,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        offscreen: true
+      }
+    });
+    
+    const timeout = setTimeout(() => {
+      console.error('[MINIMAP] Renderer load timeout');
+      reject(new Error('Minimap renderer load timeout'));
+    }, 15000);
+    
+    minimapWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
+      clearTimeout(timeout);
+      console.error(`[MINIMAP] Renderer failed to load: ${errorDescription}`);
+      reject(new Error(`Minimap renderer failed to load: ${errorDescription}`));
+    });
+    
+    minimapWindow.webContents.once('did-finish-load', () => {
+      clearTimeout(timeout);
+      console.log('[MINIMAP] Renderer loaded successfully');
+      setTimeout(() => resolve(minimapWindow), 500);
+    });
+    
+    // Load minimap renderer HTML
+    const rendererPath = path.join(__dirname, 'renderer', 'minimap-renderer.html');
+    console.log(`[MINIMAP] Loading renderer from: ${rendererPath}`);
+    
+    if (!fs.existsSync(rendererPath)) {
+      clearTimeout(timeout);
+      reject(new Error(`Minimap renderer not found at: ${rendererPath}`));
+      return;
+    }
+    
+    minimapWindow.loadFile(rendererPath);
+  });
+}
+
+// Render a single minimap frame and capture it
+async function renderMinimapFrame(minimapWindow, lat, lon, heading, width, height) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      minimapReadyCallbacks.delete(minimapWindow.webContents.id);
+      reject(new Error('Minimap render timeout'));
+    }, 5000);
+    
+    minimapReadyCallbacks.set(minimapWindow.webContents.id, async () => {
+      clearTimeout(timeout);
+      try {
+        const image = await minimapWindow.webContents.capturePage();
+        const pngBuffer = image.toPNG();
+        resolve(pngBuffer);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    
+    minimapWindow.webContents.send('minimap:update', lat, lon, heading);
+  });
+}
+
+// Pre-render minimap overlay to a temp video file
+async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress) {
+  const FPS = 36;
+  const durationSec = (endTimeMs - startTimeMs) / 1000;
+  const totalFrames = Math.ceil(durationSec * FPS);
+  
+  const tempPath = path.join(os.tmpdir(), `minimap_${exportId}_${Date.now()}.mov`);
+  
+  console.log(`[MINIMAP] Creating renderer window ${minimapWidth}x${minimapHeight}`);
+  const minimapWindow = await createMinimapRenderer(minimapWidth, minimapHeight);
+  
+  // Send the map path data for the polyline
+  minimapWindow.webContents.send('minimap:init', mapPath);
+  console.log(`[MINIMAP] Sent ${mapPath.length} GPS points to renderer`);
+  
+  // Wait for map tiles to load
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  const ffmpegArgs = [
+    '-y',
+    '-f', 'image2pipe',
+    '-framerate', FPS.toString(),
+    '-i', 'pipe:0',
+    '-c:v', 'qtrle',
+    '-pix_fmt', 'argb',
+    '-r', FPS.toString(),
+    tempPath
+  ];
+  
+  console.log(`[MINIMAP] Starting FFmpeg: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
+  
+  const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+  
+  let ffmpegError = null;
+  ffmpegProcess.stderr.on('data', (data) => {
+    const msg = data.toString();
+    if (msg.includes('error') || msg.includes('Error')) {
+      ffmpegError = msg;
+    }
+  });
+  
+  try {
+    for (let frame = 0; frame < totalFrames; frame++) {
+      if (cancelledExports.has(exportId)) {
+        ffmpegProcess.stdin.end();
+        minimapWindow.destroy();
+        try { fs.unlinkSync(tempPath); } catch {}
+        throw new Error('Export cancelled');
+      }
+      
+      const frameTimeMs = startTimeMs + (frame / FPS) * 1000;
+      
+      let lat = 0, lon = 0, heading = 0;
+      for (let i = seiData.length - 1; i >= 0; i--) {
+        if (seiData[i].timestampMs <= frameTimeMs) {
+          const sei = seiData[i].sei;
+          // SEI uses latitude_deg/longitude_deg/heading_deg field names
+          if (sei.latitude_deg !== undefined && sei.longitude_deg !== undefined) {
+            lat = sei.latitude_deg;
+            lon = sei.longitude_deg;
+            heading = sei.heading_deg || 0;
+          }
+          break;
+        }
+      }
+      
+      if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) {
+        const transparentPng = await minimapWindow.webContents.capturePage();
+        ffmpegProcess.stdin.write(transparentPng.toPNG());
+      } else {
+        const pngBuffer = await renderMinimapFrame(minimapWindow, lat, lon, heading, minimapWidth, minimapHeight);
+        ffmpegProcess.stdin.write(pngBuffer);
+      }
+      
+      if (frame % 10 === 0 || frame === totalFrames - 1) {
+        const pct = Math.round((frame / totalFrames) * 100);
+        sendProgress(pct, `Pre-rendering minimap... ${pct}%`);
+      }
+    }
+    
+    ffmpegProcess.stdin.end();
+    
+    await new Promise((resolve, reject) => {
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg minimap encoding failed with code ${code}: ${ffmpegError || 'Unknown error'}`));
+        }
+      });
+      ffmpegProcess.on('error', reject);
+    });
+    
+    minimapWindow.destroy();
+    return tempPath;
+  } catch (err) {
+    minimapWindow.destroy();
+    try { fs.unlinkSync(tempPath); } catch {}
+    throw err;
+  }
+}
+
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid' } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', mapPath = [] } = exportData;
+  
+  console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}`);
+  
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -678,6 +890,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const sendDashboardProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'dashboard-progress', percentage, message });
   };
+  
+  const sendMinimapProgress = (percentage, message) => {
+    event.sender.send('export:progress', exportId, { type: 'minimap-progress', percentage, message });
+  };
 
   const sendComplete = (success, message) => {
     event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
@@ -687,6 +903,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   // Dashboard temp file path (set during pre-render)
   let dashboardTempPath = null;
+  
+  // Minimap temp file path (set during pre-render)
+  let minimapTempPath = null;
 
   // Check if export was cancelled before starting
   if (cancelledExports.has(exportId)) {
@@ -697,7 +916,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   try {
     console.log('[EXPORT] Starting video export...');
-    sendProgress(2, 'Analyzing segments...');
+    sendProgress(2, { key: 'ui.export.analyzingSegments' });
 
     const durationSec = (endTimeMs - startTimeMs) / 1000;
     const selectedCameras = new Set(cameras || CAMERA_ORDER);
@@ -758,7 +977,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     if (!inputs.length) throw new Error('No valid camera files found for export');
 
-    sendProgress(5, 'Building export...');
+    sendProgress(5, { key: 'ui.export.buildingExport' });
 
     // Quality settings based on quality option (per-camera resolution)
     // Tesla cameras: Front=2896×1876, Others=1448×938 (both ~1.54:1 aspect ratio)
@@ -921,7 +1140,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               useMetric,
               segments,
               cumStarts,
-              dateFormat: timestampDateFormat
+              dateFormat: timestampDateFormat,
+              language
             });
             tempFiles.push(assTempPath);
             useAssDashboard = true;
@@ -936,6 +1156,52 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             sendDashboardProgress(0, `Dashboard generation failed: ${err.message}. Continuing without overlay...`);
             useAssDashboard = false;
           }
+        }
+        
+        // Minimap pre-rendering (if enabled and we have GPS data)
+        let useMinimap = false;
+        console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}`);
+        
+        if (includeMinimap && mapPath && mapPath.length > 0 && seiData && seiData.length > 0) {
+          if (cancelledExports.has(exportId)) {
+            console.log('Export cancelled before minimap pre-render');
+            throw new Error('Export cancelled');
+          }
+          
+          try {
+            const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
+            const minimapWidth = minimapDims.width;
+            const minimapHeight = minimapDims.height;
+            console.log(`[MINIMAP] Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
+            
+            sendMinimapProgress(0, 'Pre-rendering minimap overlay...');
+            
+            minimapTempPath = await preRenderMinimap(
+              exportId,
+              seiData,
+              mapPath,
+              startTimeMs,
+              endTimeMs,
+              minimapWidth,
+              minimapHeight,
+              ffmpegPath,
+              sendMinimapProgress
+            );
+            
+            tempFiles.push(minimapTempPath);
+            useMinimap = true;
+            sendMinimapProgress(100, 'Minimap overlay ready');
+            console.log(`[MINIMAP] Pre-rendered minimap: ${minimapTempPath}`);
+          } catch (err) {
+            if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+              throw err;
+            }
+            console.error('[MINIMAP] Failed to pre-render minimap:', err);
+            sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
+            useMinimap = false;
+          }
+        } else {
+          console.log('[MINIMAP] Skipping - conditions not met');
         }
         
         let useTimestamp = includeTimestamp && !useAssDashboard;
@@ -983,6 +1249,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     const filters = [];
     const streamTags = [];
+    
+    // Camera position tracking for ASS-based solid cover overlay (scope shared across layout types)
+    let gridCameraPositions = null;
+    let gridCameraDimensions = null;
+    let singleCameraPositions = null;
+    let singleCameraDimensions = null;
 
     if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
       // Custom layout using overlay filters (base canvas already added as input)
@@ -1044,62 +1316,72 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition
-      // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-      const zonesByCamera = {};
-      for (const zone of blurZones) {
-        if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-        if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
-        zonesByCamera[zone.camera].push(zone);
+      // Track camera positions for ASS-based solid cover overlay (single camera layout)
+      singleCameraPositions = {};
+      singleCameraDimensions = {};
+      for (const stream of cameraStreams) {
+        singleCameraPositions[stream.camera] = { x: stream.x, y: stream.y };
+        singleCameraDimensions[stream.camera] = { width: w + (w % 2), height: h + (h % 2) };
       }
       
-      let maskInputOffset = 0;
-      for (const [cam, zones] of Object.entries(zonesByCamera)) {
-        const blurStream = cameraStreams.find(s => s.camera === cam);
-        if (!blurStream) continue;
+      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
+      // For 'trueBlur', we use mask-based FFmpeg filters with alpha channel blending
+      if (blurType !== 'solid') {
+        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
+        const zonesByCamera = {};
+        for (const zone of blurZones) {
+          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
+          if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
+          zonesByCamera[zone.camera].push(zone);
+        }
         
-        const blurCameraStreamTag = blurStream.tag;
-        console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam}`);
-        
-        try {
-          // Combine multiple masks for same camera into one composite mask using canvas
-          const firstZone = zones[0];
-          const maskW = firstZone.maskWidth || 1448;
-          const maskH = firstZone.maskHeight || 938;
+        let maskInputOffset = 0;
+        for (const [cam, zones] of Object.entries(zonesByCamera)) {
+          const blurStream = cameraStreams.find(s => s.camera === cam);
+          if (!blurStream) continue;
           
-          // Create composite mask by combining all zone masks
-          const { createCanvas, loadImage } = require('canvas');
-          const compositeCanvas = createCanvas(maskW, maskH);
-          const compositeCtx = compositeCanvas.getContext('2d');
-          compositeCtx.fillStyle = 'black';
-          compositeCtx.fillRect(0, 0, maskW, maskH);
+          const blurCameraStreamTag = blurStream.tag;
+          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
           
-          // Draw each mask (white areas are blur regions)
-          for (const zone of zones) {
-            const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-            const maskImg = await loadImage(maskBuffer);
-            compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-          }
-          
-          // Save composite mask
-          const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-          const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-          fs.writeFileSync(maskPath, compositeMaskBuffer);
-          tempFiles.push(maskPath);
-          
-          let maskInputIdx = inputs.length + 1;
-          if (baseInputIdx !== null) maskInputIdx++;
-          maskInputIdx += maskInputOffset;
-          maskInputOffset++;
-          
-          cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-          
-          const cameraW = w + (w % 2);
-          const cameraH = h + (h % 2);
-          
-          const blurredStreamTag = `[blurred_${cam}]`;
-          
-          if (blurType === 'transparent') {
-            // Transparent blur: uses alpha channel for smooth edge blending (slower)
+          try {
+            // Combine multiple masks for same camera into one composite mask using canvas
+            const firstZone = zones[0];
+            const maskW = firstZone.maskWidth || 1448;
+            const maskH = firstZone.maskHeight || 938;
+            
+            // Create composite mask by combining all zone masks
+            const { createCanvas, loadImage } = require('canvas');
+            const compositeCanvas = createCanvas(maskW, maskH);
+            const compositeCtx = compositeCanvas.getContext('2d');
+            compositeCtx.fillStyle = 'black';
+            compositeCtx.fillRect(0, 0, maskW, maskH);
+            
+            // Draw each mask (white areas are blur regions)
+            for (const zone of zones) {
+              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
+              const maskImg = await loadImage(maskBuffer);
+              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
+            }
+            
+            // Save composite mask
+            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
+            fs.writeFileSync(maskPath, compositeMaskBuffer);
+            tempFiles.push(maskPath);
+            
+            let maskInputIdx = inputs.length + 1;
+            if (baseInputIdx !== null) maskInputIdx++;
+            maskInputIdx += maskInputOffset;
+            maskInputOffset++;
+            
+            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
+            
+            const cameraW = w + (w % 2);
+            const cameraH = h + (h % 2);
+            
+            const blurredStreamTag = `[blurred_${cam}]`;
+            
+            // True Blur: uses alpha channel for smooth edge blending
             // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
             filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             
@@ -1112,25 +1394,14 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             
             // Overlay the blurred+masked region onto the original base
             filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-          } else {
-            // Solid blur (default): direct mask overlay without alpha channel (faster)
-            // Split the camera stream into two copies
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             
-            // Scale mask to grayscale for masking, then convert to yuv420p to match video format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuv420p[mask_gray_${cam}]`);
-            
-            // Apply strong blur to one copy
-            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
-            
-            // Use blend filter with mask: where mask is white, use blurred; where black, use original
-            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+            blurStream.tag = blurredStreamTag;
+          } catch (err) {
+            console.error('[BLUR] Failed to apply blur zone:', err);
           }
-          
-          blurStream.tag = blurredStreamTag;
-        } catch (err) {
-          console.error('[BLUR] Failed to apply blur zone:', err);
         }
+      } else if (blurZones.length > 0) {
+        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s) (single camera layout)`);
       }
       
       // Chain overlays: start with base, overlay each camera in order
@@ -1171,79 +1442,89 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
-      // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-      const gridZonesByCamera = {};
-      for (const zone of blurZones) {
-        if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-        if (!gridZonesByCamera[zone.camera]) gridZonesByCamera[zone.camera] = [];
-        gridZonesByCamera[zone.camera].push(zone);
+      // Track camera positions for ASS-based solid cover overlay
+      gridCameraPositions = {};
+      gridCameraDimensions = {};
+      for (let i = 0; i < activeCamerasForGrid.length; i++) {
+        const cam = activeCamerasForGrid[i];
+        gridCameraPositions[cam] = {
+          x: (i % cols) * w,
+          y: Math.floor(i / cols) * h
+        };
+        gridCameraDimensions[cam] = { width: w, height: h };
       }
       
-      let gridMaskInputOffset = 0;
-      for (const [cam, zones] of Object.entries(gridZonesByCamera)) {
-        const blurStream = gridStreams.find(s => s.camera === cam);
-        if (!blurStream) continue;
+      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
+      // For 'trueBlur', we use mask-based FFmpeg filters with alpha channel blending
+      if (blurType !== 'solid') {
+        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
+        const gridZonesByCamera = {};
+        for (const zone of blurZones) {
+          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
+          if (!gridZonesByCamera[zone.camera]) gridZonesByCamera[zone.camera] = [];
+          gridZonesByCamera[zone.camera].push(zone);
+        }
         
-        const blurCameraStreamTag = blurStream.tag;
-        console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam}`);
-        
-        try {
-          // Combine multiple masks for same camera into one composite mask
-          const firstZone = zones[0];
-          const maskW = firstZone.maskWidth || 1448;
-          const maskH = firstZone.maskHeight || 938;
+        let gridMaskInputOffset = 0;
+        for (const [cam, zones] of Object.entries(gridZonesByCamera)) {
+          const blurStream = gridStreams.find(s => s.camera === cam);
+          if (!blurStream) continue;
           
-          const { createCanvas, loadImage } = require('canvas');
-          const compositeCanvas = createCanvas(maskW, maskH);
-          const compositeCtx = compositeCanvas.getContext('2d');
-          compositeCtx.fillStyle = 'black';
-          compositeCtx.fillRect(0, 0, maskW, maskH);
+          const blurCameraStreamTag = blurStream.tag;
+          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
           
-          for (const zone of zones) {
-            const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-            const maskImg = await loadImage(maskBuffer);
-            compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-          }
-          
-          const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-          const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-          fs.writeFileSync(maskPath, compositeMaskBuffer);
-          tempFiles.push(maskPath);
-          
-          let maskInputIdx = inputs.length + 1;
-          maskInputIdx += gridMaskInputOffset;
-          gridMaskInputOffset++;
-          
-          cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-          
-          const cameraW = w + (w % 2);
-          const cameraH = h + (h % 2);
-          
-          const blurredStreamTag = `[blurred_${cam}]`;
-          
-          if (blurType === 'transparent') {
-            // Transparent blur: uses alpha channel for smooth edge blending (slower)
+          try {
+            // Combine multiple masks for same camera into one composite mask
+            const firstZone = zones[0];
+            const maskW = firstZone.maskWidth || 1448;
+            const maskH = firstZone.maskHeight || 938;
+            
+            const { createCanvas, loadImage } = require('canvas');
+            const compositeCanvas = createCanvas(maskW, maskH);
+            const compositeCtx = compositeCanvas.getContext('2d');
+            compositeCtx.fillStyle = 'black';
+            compositeCtx.fillRect(0, 0, maskW, maskH);
+            
+            for (const zone of zones) {
+              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
+              const maskImg = await loadImage(maskBuffer);
+              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
+            }
+            
+            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
+            fs.writeFileSync(maskPath, compositeMaskBuffer);
+            tempFiles.push(maskPath);
+            
+            let maskInputIdx = inputs.length + 1;
+            maskInputIdx += gridMaskInputOffset;
+            gridMaskInputOffset++;
+            
+            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
+            
+            const cameraW = w + (w % 2);
+            const cameraH = h + (h % 2);
+            
+            const blurredStreamTag = `[blurred_${cam}]`;
+            
+            // True Blur: uses alpha channel for smooth edge blending
             filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
             filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
             filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
             filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
             filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-          } else {
-            // Solid blur (default): direct mask overlay without alpha channel (faster)
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray[mask_gray_${cam}]`);
-            filters.push(`[blur_orig_${cam}]boxblur=15:15[blurred_temp_${cam}]`);
-            filters.push(`[blur_base_${cam}][blurred_temp_${cam}][mask_gray_${cam}]maskedmerge${blurredStreamTag}`);
+            
+            blurStream.tag = blurredStreamTag;
+            const streamIndex = streamTags.indexOf(blurCameraStreamTag);
+            if (streamIndex !== -1) {
+              streamTags[streamIndex] = blurredStreamTag;
+            }
+          } catch (err) {
+            console.error('[BLUR] Failed to apply blur zone:', err);
           }
-          
-          blurStream.tag = blurredStreamTag;
-          const streamIndex = streamTags.indexOf(blurCameraStreamTag);
-          if (streamIndex !== -1) {
-            streamTags[streamIndex] = blurredStreamTag;
-          }
-        } catch (err) {
-          console.error('[BLUR] Failed to apply blur zone:', err);
         }
+      } else if (blurZones.length > 0) {
+        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s)`);
       }
       
       const numStreams = activeCamerasForGrid.length;
@@ -1285,6 +1566,67 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
     }
 
+    // Generate ASS solid cover overlay for 'solid' blur type
+    let solidCoverAssPath = null;
+    let currentStreamTag = '[grid]'; // Track the current stream tag for chaining filters
+    
+    if (blurType === 'solid' && blurZones.length > 0) {
+      try {
+        // Determine camera positions based on layout type
+        // Use grid positions if available, otherwise fall back to single camera positions
+        let cameraPositions = {};
+        let cameraDimensions = {};
+        
+        if (gridCameraPositions && Object.keys(gridCameraPositions).length > 0) {
+          // Grid layout - use grid positions
+          cameraPositions = gridCameraPositions;
+          cameraDimensions = gridCameraDimensions;
+        } else if (singleCameraPositions && Object.keys(singleCameraPositions).length > 0) {
+          // Single camera or custom layout
+          cameraPositions = singleCameraPositions;
+          cameraDimensions = singleCameraDimensions;
+        } else {
+          // Fallback - use full video dimensions for single camera
+          const singleCam = activeCamerasForGrid[0] || blurZones[0]?.camera;
+          if (singleCam) {
+            cameraPositions[singleCam] = { x: 0, y: 0 };
+            cameraDimensions[singleCam] = { width: totalW, height: totalH };
+          }
+        }
+        
+        // Filter blur zones to only those with selected cameras
+        const selectedBlurZones = blurZones.filter(z => 
+          z && z.coordinates && z.coordinates.length >= 3 && cameraPositions[z.camera]
+        );
+        
+        if (selectedBlurZones.length > 0) {
+          const durationMs = endTimeMs - startTimeMs;
+          solidCoverAssPath = await writeSolidCoverAss(
+            exportId,
+            selectedBlurZones,
+            durationMs,
+            totalW,
+            totalH,
+            cameraDimensions,
+            cameraPositions
+          );
+          tempFiles.push(solidCoverAssPath);
+          
+          // Apply solid cover ASS filter
+          const escapedSolidCoverPath = solidCoverAssPath
+            .replace(/\\/g, '/')
+            .replace(/:/g, '\\:');
+          
+          filters.push(`[grid]ass='${escapedSolidCoverPath}'[grid_cover]`);
+          currentStreamTag = '[grid_cover]';
+          console.log(`[ASS] Using ASS solid cover for ${selectedBlurZones.length} blur zone(s): ${solidCoverAssPath}`);
+        }
+      } catch (err) {
+        console.error('[BLUR] Failed to generate solid cover ASS:', err);
+        // Fall through to continue without solid cover
+      }
+    }
+    
     // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
     const padding = 20; // Padding from edges
     const positionExprs = {
@@ -1296,6 +1638,22 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'top-right': `W-w-${padding}:${padding}`
     };
     
+    // Minimap position expressions (corner positions only)
+    const minimapPosExprs = {
+      'top-left': `${padding}:${padding}`,
+      'top-right': `W-w-${padding}:${padding}`,
+      'bottom-left': `${padding}:H-h-${padding}`,
+      'bottom-right': `W-w-${padding}:H-h-${padding}`
+    };
+    
+    // Add minimap video as input if enabled
+    let minimapInputIdx = -1;
+    if (useMinimap && minimapTempPath) {
+      minimapInputIdx = cmd.filter(arg => arg === '-i').length;
+      cmd.push('-stream_loop', '-1', '-i', minimapTempPath);
+      console.log(`[MINIMAP] Added minimap input at index ${minimapInputIdx}: ${minimapTempPath}`);
+    }
+    
     if (useAssDashboard && assTempPath) {
       // ASS SUBTITLE DASHBOARD (compact style) - High-speed GPU-accelerated rendering
       // The ASS filter burns subtitles directly into the video at GPU encoder speed
@@ -1305,8 +1663,22 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         .replace(/\\/g, '/')           // Convert backslashes to forward slashes
         .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
       
-      filters.push(`[grid]ass='${escapedAssPath}'[out]`);
-      console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
+      if (useMinimap && minimapInputIdx >= 0) {
+        // Dashboard + Minimap: Apply ASS first, then overlay minimap
+        const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
+        filters.push(`${currentStreamTag}ass='${escapedAssPath}'[with_dash]`);
+        filters.push(`[with_dash][${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
+        console.log(`[ASS+MINIMAP] Dashboard + Minimap overlay at ${minimapPosition}`);
+      } else {
+        // Dashboard only
+        filters.push(`${currentStreamTag}ass='${escapedAssPath}'[out]`);
+        console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
+      }
+    } else if (useMinimap && minimapInputIdx >= 0) {
+      // Minimap only (no dashboard)
+      const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
+      filters.push(`${currentStreamTag}[${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
+      console.log(`[MINIMAP] Minimap overlay at ${minimapPosition}`);
     } else if (useTimestamp && timestampBasetimeUs) {
       // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
       // Position expressions for drawtext (x/y coordinates)
@@ -1343,10 +1715,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         drawtextPos
       ].join(':');
       
-      filters.push(`[grid]${drawtextFilter}[out]`);
+      filters.push(`${currentStreamTag}${drawtextFilter}[out]`);
       console.log(`[TIMESTAMP] Using drawtext filter at position: ${timestampPosition}, format: ${timestampDateFormat}`);
     } else {
-      filters.push(`[grid]format=yuv420p[out]`);
+      filters.push(`${currentStreamTag}format=yuv420p[out]`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));
@@ -1442,7 +1814,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       throw new Error('Export cancelled');
     }
     
-    sendProgress(8, useGpu ? `Exporting with ${activeEncoder.name}...` : 'Exporting with CPU...');
+    sendProgress(8, useGpu ? { key: 'ui.export.exportingWithEncoder', params: { encoder: activeEncoder.name } } : { key: 'ui.export.exportingWithCpu' });
 
     // Execute FFmpeg - no pipe needed since dashboard is pre-rendered to file
     return new Promise(async (resolve, reject) => {
@@ -1467,7 +1839,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const pct = Math.min(95, Math.floor((sec / durationSec) * 100));
           if (pct > lastPct) {
             lastPct = pct;
-            sendProgress(pct, `Exporting... ${pct}%`);
+            sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: pct } });
           }
         }
       });
@@ -1479,11 +1851,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
         if (code === 0) {
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
-          sendComplete(true, `Export complete! (${sizeMB} MB)`);
+          sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } });
           resolve(true);
         } else {
           console.error('FFmpeg error:', stderr.slice(-500));
-          sendComplete(false, `Export failed (code ${code})`);
+          sendComplete(false, { key: 'ui.export.exportFailedCode', params: { code: code } });
           reject(new Error(`Export failed with code ${code}`));
         }
       });
@@ -1772,7 +2144,7 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
     event.sender.send('export:progress', exportId, {
       type: 'complete',
       success: false,
-      message: 'Export cancelled'
+      message: { key: 'ui.notifications.exportCancelled' }
     });
     return false;
   }

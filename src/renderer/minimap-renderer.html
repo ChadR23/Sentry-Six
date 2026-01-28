@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Minimap Renderer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+        }
+        #minimapContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, 
+                rgb(45, 45, 50) 0%, 
+                rgb(35, 35, 40) 50%,
+                rgb(28, 28, 32) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                0 2px 8px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        #minimap {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            background: #1a1a1a;
+        }
+        /* Leaflet customizations for dark theme */
+        .leaflet-container {
+            background: #1a1a1a !important;
+        }
+        .leaflet-tile-pane {
+            filter: invert(100%) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+        }
+        .leaflet-marker-icon {
+            filter: none !important;
+        }
+        .arrow-marker-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="minimapContainer">
+        <div id="minimap"></div>
+    </div>
+    
+    <script>
+        let map = null;
+        let mapMarker = null;
+        let mapPolyline = null;
+        let currentRotation = 0;
+        
+        // IPC setup
+        let ipcRenderer;
+        try {
+            if (typeof require !== 'undefined') {
+                ipcRenderer = require('electron').ipcRenderer;
+            } else {
+                ipcRenderer = {
+                    send: () => {},
+                    on: () => {}
+                };
+            }
+        } catch (err) {
+            ipcRenderer = {
+                send: () => {},
+                on: () => {}
+            };
+        }
+        
+        // Initialize the map
+        function initMap() {
+            if (map) return;
+            
+            map = L.map('minimap', {
+                zoomControl: false,
+                attributionControl: false,
+                dragging: false,
+                touchZoom: false,
+                scrollWheelZoom: false,
+                doubleClickZoom: false,
+                boxZoom: false,
+                keyboard: false
+            }).setView([0, 0], 18);
+            
+            // Use OpenStreetMap tiles with dark filter
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+        }
+        
+        // Initialize map path (polyline showing route)
+        function initMapPath(pathData) {
+            if (!map || !pathData || !pathData.length) return;
+            
+            // Filter out invalid coordinates
+            const validPath = pathData.filter(coord => {
+                const [lat, lon] = coord;
+                return lat !== undefined && lon !== undefined &&
+                       Number.isFinite(lat) && Number.isFinite(lon) &&
+                       !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
+            });
+            
+            if (validPath.length < 2) return;
+            
+            // Create polyline
+            mapPolyline = L.polyline(validPath, {
+                color: '#0072ff',
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+            
+            // Fit map to show entire path
+            const bounds = mapPolyline.getBounds();
+            map.fitBounds(bounds, { padding: [20, 20] });
+        }
+        
+        // Update marker position and heading
+        function updateMarker(lat, lon, heading) {
+            if (!map) {
+                initMap();
+            }
+            
+            const latlng = L.latLng(lat, lon);
+            
+            // Calculate smooth rotation
+            const targetHeading = heading || 0;
+            let delta = targetHeading - (currentRotation % 360);
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            currentRotation += delta;
+            
+            // Create or update marker
+            if (!mapMarker) {
+                currentRotation = targetHeading;
+                
+                const arrowIcon = L.divIcon({
+                    className: 'arrow-marker-icon',
+                    html: `<img src="../../assets/arrow.png" style="width: 40px; height: 40px; transform: rotate(${currentRotation}deg); transform-origin: center center; display: block;" />`,
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+                
+                mapMarker = L.marker(latlng, { icon: arrowIcon }).addTo(map);
+            } else {
+                mapMarker.setLatLng(latlng);
+                
+                const iconElement = mapMarker._icon;
+                if (iconElement) {
+                    const imgElement = iconElement.querySelector('img');
+                    if (imgElement) {
+                        imgElement.style.transform = `rotate(${currentRotation}deg)`;
+                    }
+                }
+            }
+            
+            // Center map on marker
+            map.setView(latlng, 18, { animate: false });
+        }
+        
+        let isReady = false;
+        
+        // Signal ready when loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            isReady = true;
+            
+            // Signal ready after map tiles load
+            setTimeout(() => {
+                if (ipcRenderer?.send) {
+                    ipcRenderer.send('minimap:ready');
+                }
+            }, 500);
+        });
+        
+        // Listen for minimap initialization (path data)
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('minimap:init', (event, pathData) => {
+                console.log('Minimap received path data:', pathData?.length || 0, 'points');
+                initMapPath(pathData);
+                
+                // Re-signal ready after path is drawn
+                setTimeout(() => {
+                    if (ipcRenderer?.send) {
+                        ipcRenderer.send('minimap:ready');
+                    }
+                }, 300);
+            });
+            
+            // Listen for position updates
+            ipcRenderer.on('minimap:update', (event, lat, lon, heading) => {
+                updateMarker(lat, lon, heading);
+                
+                // Force a reflow to ensure DOM updates are rendered
+                void document.body.offsetHeight;
+                
+                // Use requestAnimationFrame to ensure browser has painted the changes
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (isReady && ipcRenderer && ipcRenderer.send) {
+                            ipcRenderer.send('minimap:ready');
+                        }
+                    });
+                });
+            });
+        }
+    </script>
+</body>
+</html>
