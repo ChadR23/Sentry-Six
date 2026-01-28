@@ -617,6 +617,50 @@
                                     <span data-i18n="ui.export.dashboardPrerendered">Dashboard is pre-rendered for optimal performance.</span>
                                 </div>
                             </div>
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">GPS Minimap</span>
+                                    <span class="toggle-row-desc">Show route and position on map</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="includeMinimap">
+                                    <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                </div>
+                            </label>
+                            <div id="minimapNoGpsWarning" class="info-box info-yellow hidden">
+                                <span class="info-box-icon">⚠️</span>
+                                <span>No GPS data found in selected clips.</span>
+                            </div>
+                            <div id="minimapOptions" class="hidden">
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Position</span>
+                                        <span class="select-row-desc">Corner placement</span>
+                                    </div>
+                                    <select id="minimapPosition" class="settings-select">
+                                        <option value="top-right" selected>Top Right</option>
+                                        <option value="top-left">Top Left</option>
+                                        <option value="bottom-right">Bottom Right</option>
+                                        <option value="bottom-left">Bottom Left</option>
+                                    </select>
+                                </div>
+                                <div class="select-row">
+                                    <div class="select-row-info">
+                                        <span class="select-row-label">Size</span>
+                                        <span class="select-row-desc">Minimap size</span>
+                                    </div>
+                                    <select id="minimapSize" class="settings-select">
+                                        <option value="small" selected>Small (25%)</option>
+                                        <option value="medium">Medium (35%)</option>
+                                        <option value="large">Large (45%)</option>
+                                        <option value="xlarge">X-Large (55%)</option>
+                                    </select>
+                                </div>
+                                <div class="info-box info-blue">
+                                    <span class="info-box-icon">ℹ️</span>
+                                    <span>Minimap is pre-rendered for optimal performance.</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -673,6 +717,20 @@
                             <div id="exportProgressBar" class="progress-bar-fill"></div>
                         </div>
                         <div id="exportProgressText" class="progress-text">Preparing...</div>
+                    </div>
+                    
+                    <div id="dashboardProgress" class="export-progress hidden">
+                        <div class="progress-bar-container">
+                            <div id="dashboardProgressBar" class="progress-bar-fill"></div>
+                        </div>
+                        <div id="dashboardProgressText" class="progress-text">Rendering dashboard...</div>
+                    </div>
+                    
+                    <div id="minimapProgress" class="export-progress hidden">
+                        <div class="progress-bar-container">
+                            <div id="minimapProgressBar" class="progress-bar-fill"></div>
+                        </div>
+                        <div id="minimapProgressText" class="progress-text">Rendering minimap...</div>
                     </div>
                     
                     <!-- Minimize hint shown during export -->
