@@ -4,6 +4,7 @@
  */
 
 import { getEffectiveSlots } from '../features/cameraRearrange.js';
+import { t } from '../lib/i18n.js';
 
 // DOM helper
 const $ = id => document.getElementById(id);
@@ -87,10 +88,10 @@ export function updateEventTimelineMarker() {
     // Add icon based on event type
     if (eventType === 'sentry') {
         marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L19.5 19h-15L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>`;
-        marker.title = `Sentry Event: ${eventMeta.reason || 'Unknown'}\n${eventMeta.timestamp}`;
+        marker.title = `${t('ui.clipBrowser.sentry')} Event: ${eventMeta.reason || 'Unknown'}\n${eventMeta.timestamp}`;
     } else {
         marker.innerHTML = `<svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>`;
-        marker.title = `Saved Event: ${eventMeta.reason || 'User saved'}\n${eventMeta.timestamp}`;
+        marker.title = `${t('ui.clipBrowser.saved')} Event: ${eventMeta.reason || 'User saved'}\n${eventMeta.timestamp}`;
     }
     
     // Click to seek to event time

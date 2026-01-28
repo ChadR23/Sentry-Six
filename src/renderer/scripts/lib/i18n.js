@@ -13,13 +13,25 @@ const languageChangeListeners = [];
 
 /**
  * Initialize i18n system
- * Loads saved language preference
+ * Loads saved language preference or auto-detects from system
  */
 export async function initI18n() {
+    let savedLang = null;
+    
     if (window.electronAPI?.getSetting) {
-        const savedLang = await window.electronAPI.getSetting('language');
-        if (savedLang && translations[savedLang]) {
-            currentLanguage = savedLang;
+        savedLang = await window.electronAPI.getSetting('language');
+    }
+    
+    if (savedLang && translations[savedLang]) {
+        // Use saved language preference
+        currentLanguage = savedLang;
+    } else {
+        // First launch or no saved preference - detect system language
+        currentLanguage = detectSystemLanguage();
+        
+        // Save the detected language so it persists
+        if (window.electronAPI?.setSetting) {
+            await window.electronAPI.setSetting('language', currentLanguage);
         }
     }
     
@@ -28,6 +40,43 @@ export async function initI18n() {
     
     // Translate all elements with data-i18n attribute
     translatePage();
+    
+    // Also translate option elements inside selects
+    translateSelectOptions();
+    
+    // Notify listeners so dropdowns can sync with detected language
+    languageChangeListeners.forEach(listener => listener(currentLanguage));
+}
+
+/**
+ * Detect the system/browser language and match to supported languages
+ * Works cross-platform: Windows, macOS, Linux via navigator.language
+ * @returns {string} Language code (defaults to 'en' if no match)
+ */
+function detectSystemLanguage() {
+    // navigator.language returns the browser's UI language (follows OS settings)
+    // navigator.languages returns a list of preferred languages in order
+    // This works cross-platform: Windows, macOS, Linux
+    const languages = navigator.languages || [navigator.language || 'en'];
+    
+    // Get list of our supported language codes
+    const supportedLanguages = Object.keys(translations);
+    
+    // Try to find a match from the user's preferred languages
+    for (const browserLang of languages) {
+        // Extract the base language code (e.g., "en-US" -> "en", "zh-CN" -> "zh")
+        const baseLang = browserLang.split('-')[0].toLowerCase();
+        
+        // Check for exact match with our supported languages
+        if (supportedLanguages.includes(baseLang)) {
+            console.log(`Auto-detected language: ${baseLang} (from ${browserLang})`);
+            return baseLang;
+        }
+    }
+    
+    // Default to English if no match found
+    console.log('No matching language found, defaulting to English');
+    return 'en';
 }
 
 /**

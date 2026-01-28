@@ -26,6 +26,19 @@
 - ✅ **Support Chat** - Title, welcome message, buttons, placeholders, all UI elements
 - ✅ **Drop Overlay** - Initial folder selection screen message and button
 
+### Export Dashboard Overlay (Burned into Exported Videos)
+- ✅ **Gear indicator** - PARK, DRIVE, REVERSE, NEUTRAL translated for all 13 languages
+- ✅ **Autopilot states** - Manual, Self Driving, Autosteer, TACC translated for all 13 languages
+- ✅ **Speed units** - MPH/KM/H (kept as standard abbreviations across all languages)
+- ✅ **Layout preserved** - Compact translations used to prevent text overflow/overlap
+
+**Note:** Translations in the exported video match the app's current language setting at export time.
+
+**Translation Strategy for Export:**
+- CJK languages (Chinese, Japanese, Korean) use short forms (P/D/R/N for gears)
+- European languages with long translations use abbreviations (e.g., "Autodir." for Autosteer)
+- All translations tested to fit within the compact dashboard layout
+
 ### Languages Supported
 1. English (en)
 2. Spanish (es) - Español

@@ -27,21 +27,125 @@ const COLORS = {
   transparent: '&HFF000000'
 };
 
-// Gear state mapping
-const GEAR_TEXT = {
-  0: 'PARK',
-  1: 'DRIVE',
-  2: 'REVERSE',
-  3: 'NEUTRAL'
+// Dashboard text translations for all supported languages
+// These are kept compact to preserve layout in exported videos
+const DASHBOARD_TRANSLATIONS = {
+  en: {
+    gear: { 0: 'PARK', 1: 'DRIVE', 2: 'REVERSE', 3: 'NEUTRAL' },
+    ap: { 0: 'Manual', 1: 'Self Driving', 2: 'Autosteer', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'No Data'
+  },
+  es: {
+    gear: { 0: 'PARK', 1: 'CONDUCIR', 2: 'REVERSA', 3: 'NEUTRAL' },
+    ap: { 0: 'Manual', 1: 'Autónomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Sin Datos'
+  },
+  fr: {
+    gear: { 0: 'PARK', 1: 'MARCHE', 2: 'MARCHE AR', 3: 'NEUTRE' },
+    ap: { 0: 'Manuel', 1: 'Autonome', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Pas de Données'
+  },
+  de: {
+    gear: { 0: 'PARK', 1: 'FAHREN', 2: 'RÜCKWÄRTS', 3: 'NEUTRAL' },
+    ap: { 0: 'Manuell', 1: 'Autonom', 2: 'Autosteer', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Keine Daten'
+  },
+  zh: {
+    gear: { 0: '驻车', 1: '行驶', 2: '倒车', 3: '空档' },
+    ap: { 0: '手动', 1: '自动驾驶', 2: '自动转向', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: '无数据'
+  },
+  ja: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: '手動', 1: '自動運転', 2: 'オートステア', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'データなし'
+  },
+  ko: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: '수동', 1: '자율주행', 2: '자동조향', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: '데이터 없음'
+  },
+  pt: {
+    gear: { 0: 'PARK', 1: 'CONDUZIR', 2: 'RÉ', 3: 'NEUTRO' },
+    ap: { 0: 'Manual', 1: 'Autônomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Sem Dados'
+  },
+  ru: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Ручной', 1: 'Автопилот', 2: 'Автоулр.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Нет данных'
+  },
+  it: {
+    gear: { 0: 'PARK', 1: 'GUIDA', 2: 'RETROMARCIA', 3: 'FOLLE' },
+    ap: { 0: 'Manuale', 1: 'Autonomo', 2: 'Autodir.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Nessun Dato'
+  },
+  nl: {
+    gear: { 0: 'PARK', 1: 'RIJDEN', 2: 'ACHTERUIT', 3: 'NEUTRAAL' },
+    ap: { 0: 'Handmatig', 1: 'Zelfrijdend', 2: 'Autostuur', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Geen Data'
+  },
+  pl: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Ręczny', 1: 'Autonomiczny', 2: 'Autokier.', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Brak Danych'
+  },
+  tr: {
+    gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
+    ap: { 0: 'Manuel', 1: 'Otonom', 2: 'Otomatik', 3: 'TACC' },
+    speedUnit: { mph: 'MPH', kmh: 'KM/H' },
+    noData: 'Veri Yok'
+  }
 };
 
-// Autopilot state mapping
-const AP_TEXT = {
-  0: 'Manual',
-  1: 'Self Driving',
-  2: 'Autosteer',
-  3: 'TACC'
-};
+/**
+ * Get translated gear text
+ * @param {number} gearState - Gear state (0=PARK, 1=DRIVE, 2=REVERSE, 3=NEUTRAL)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated gear text
+ */
+function getGearText(gearState, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return translations.gear[gearState] || '--';
+}
+
+/**
+ * Get translated autopilot state text
+ * @param {number} apState - Autopilot state (0=Manual, 1=Self Driving, 2=Autosteer, 3=TACC)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated autopilot text
+ */
+function getApText(apState, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return translations.ap[apState] || translations.ap[0]; // Default to "Manual"
+}
+
+/**
+ * Get translated speed unit
+ * @param {boolean} useMetric - Whether to use metric (KM/H) or imperial (MPH)
+ * @param {string} language - Language code (e.g., 'en', 'es', 'fr')
+ * @returns {string} Translated speed unit
+ */
+function getSpeedUnit(useMetric, language = 'en') {
+  const translations = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  return useMetric ? translations.speedUnit.kmh : translations.speedUnit.mph;
+}
+
+// Legacy mappings for backward compatibility (fallback to English)
+const GEAR_TEXT = DASHBOARD_TRANSLATIONS.en.gear;
+const AP_TEXT = DASHBOARD_TRANSLATIONS.en.ap;
 
 /**
  * Generate ASS header with styles
@@ -331,7 +435,8 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     useMetric = false,
     segments = [],
     cumStarts = [],
-    dateFormat = 'mdy'
+    dateFormat = 'mdy',
+    language = 'en'
   } = options;
   
   // Dashboard dimensions - scale based on video width and size option
@@ -438,17 +543,17 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     // Extract telemetry values
     const mps = Math.abs(getSeiValue(sei, 'vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
-    const speedUnit = useMetric ? 'KM/H' : 'MPH';
+    const speedUnit = getSpeedUnit(useMetric, language);
     
     const gear = getSeiValue(sei, 'gearState', 'gear_state');
-    const gearText = GEAR_TEXT[gear] || '--';
+    const gearText = getGearText(gear, language);
     
     const leftBlinkerOn = !!getSeiValue(sei, 'blinkerOnLeft', 'blinker_on_left');
     const rightBlinkerOn = !!getSeiValue(sei, 'blinkerOnRight', 'blinker_on_right');
     
     const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state');
     const apActive = apState === 1 || apState === 2;
-    const apText = AP_TEXT[apState] || 'Manual';
+    const apText = getApText(apState, language);
     
     const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
     const isAutoHold = gear === 1 && mps < 0.01;
@@ -685,10 +790,149 @@ async function cleanupAssFile(assPath) {
   }
 }
 
+/**
+ * Generate ASS header for solid cover overlay
+ * @param {number} playResX - Coordinate space width
+ * @param {number} playResY - Coordinate space height
+ * @returns {string} ASS header section
+ */
+function generateSolidCoverHeader(playResX, playResY) {
+  return `[Script Info]
+Title: Blur Zone Solid Cover
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: SolidCover,Arial,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+}
+
+/**
+ * Generate ASS drawing commands for a polygon
+ * @param {Array} coordinates - Array of {x, y} normalized coordinates (0-1)
+ * @param {number} width - Video width
+ * @param {number} height - Video height
+ * @returns {string} ASS vector drawing commands
+ */
+function generatePolygonPath(coordinates, width, height) {
+  if (!coordinates || coordinates.length < 3) return '';
+  
+  // Convert normalized coordinates to absolute pixels
+  const points = coordinates.map(c => ({
+    x: Math.round(c.x * width),
+    y: Math.round(c.y * height)
+  }));
+  
+  // Build ASS path: m x y l x y l x y ... (move to first, line to rest)
+  let path = `m ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    path += ` l ${points[i].x} ${points[i].y}`;
+  }
+  
+  return path;
+}
+
+/**
+ * Generate ASS events for solid cover overlays on blur zones
+ * @param {Array} blurZones - Array of blur zone objects {coordinates, camera}
+ * @param {number} durationMs - Total video duration in milliseconds
+ * @param {Object} cameraDimensions - Object mapping camera names to {width, height}
+ * @param {Object} cameraPositions - Object mapping camera names to {x, y} positions in the grid
+ * @returns {string} ASS events section
+ */
+function generateSolidCoverEvents(blurZones, durationMs, cameraDimensions, cameraPositions) {
+  const events = [];
+  const startTime = formatAssTime(0);
+  const endTime = formatAssTime(durationMs);
+  
+  for (const zone of blurZones) {
+    if (!zone || !zone.coordinates || zone.coordinates.length < 3 || !zone.camera) continue;
+    
+    const camDims = cameraDimensions[zone.camera];
+    const camPos = cameraPositions[zone.camera];
+    
+    if (!camDims || !camPos) {
+      console.warn(`[ASS] Unknown camera or position for blur zone: ${zone.camera}`);
+      continue;
+    }
+    
+    // Convert normalized coordinates to absolute pixels within the camera's region
+    const points = zone.coordinates.map(c => ({
+      x: Math.round(camPos.x + c.x * camDims.width),
+      y: Math.round(camPos.y + c.y * camDims.height)
+    }));
+    
+    // Build ASS path
+    let path = `m ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      path += ` l ${points[i].x} ${points[i].y}`;
+    }
+    
+    // Create dialogue line with solid black polygon
+    // Using \an7 (top-left alignment) + \pos(0,0) for absolute positioning
+    // \1c&H000000& = solid black fill
+    // \bord0 = no border
+    // \shad0 = no shadow
+    // \p1 = enable drawing mode
+    events.push(`Dialogue: 10,${startTime},${endTime},SolidCover,,0,0,0,,{\\an7\\pos(0,0)\\1c&H000000&\\bord0\\shad0\\p1}${path}{\\p0}`);
+  }
+  
+  return events.join('\n');
+}
+
+/**
+ * Generate complete ASS file for solid cover overlays
+ * @param {Array} blurZones - Array of blur zone objects
+ * @param {number} durationMs - Total video duration in milliseconds
+ * @param {number} gridWidth - Total grid width in pixels
+ * @param {number} gridHeight - Total grid height in pixels
+ * @param {Object} cameraDimensions - Object mapping camera names to {width, height}
+ * @param {Object} cameraPositions - Object mapping camera names to {x, y} positions
+ * @returns {string} Complete ASS file content
+ */
+function generateSolidCoverAss(blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions) {
+  const header = generateSolidCoverHeader(gridWidth, gridHeight);
+  const events = generateSolidCoverEvents(blurZones, durationMs, cameraDimensions, cameraPositions);
+  
+  return header + events;
+}
+
+/**
+ * Write solid cover ASS file to temp directory
+ * @param {string} exportId - Export ID for unique filename
+ * @param {Array} blurZones - Blur zone data
+ * @param {number} durationMs - Video duration in milliseconds
+ * @param {number} gridWidth - Grid width in pixels
+ * @param {number} gridHeight - Grid height in pixels
+ * @param {Object} cameraDimensions - Camera dimensions
+ * @param {Object} cameraPositions - Camera positions
+ * @returns {Promise<string>} Path to generated ASS file
+ */
+async function writeSolidCoverAss(exportId, blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions) {
+  const assContent = generateSolidCoverAss(blurZones, durationMs, gridWidth, gridHeight, cameraDimensions, cameraPositions);
+  const tempPath = path.join(os.tmpdir(), `solidcover_${exportId}_${Date.now()}.ass`);
+  
+  await fs.promises.writeFile(tempPath, assContent, 'utf8');
+  console.log(`[ASS] Generated solid cover overlay: ${tempPath}`);
+  
+  return tempPath;
+}
+
 module.exports = {
   generateCompactDashboardAss,
   writeCompactDashboardAss,
   cleanupAssFile,
   formatAssTime,
-  COLORS
+  COLORS,
+  // Solid cover exports
+  generateSolidCoverAss,
+  writeSolidCoverAss
 };

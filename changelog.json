@@ -1,8 +1,38 @@
 {
   "versions": [
     {
+      "version": "2026.4.2",
+      "date": "2026-01-19",
+      "title": "Minor Update",
+      "changes": [
+        {
+          "type": "Removed Optimized Blur",
+          "description": "Removed Optimized Blur Due to Issue with it not working well with High contrast things. (Red text License plates)"
+        }
+      ]
+    },
+    {
+      "version": "2026.4.1",
+      "date": "2026-01-19",
+      "title": "Feature Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added New Blur Zone Options. Solid (Fast), Blur (Optimized But has issues with Red text/plates can be seen), True Blur (Slow)."
+        },
+        {
+          "type": "feature",
+          "description": "Added Option for Solid Blur to Work with SEI Dashboard. (Blur, True Blur DO NOT WORK with Dashboard.)"
+        },
+        {
+          "type": "improvement",
+          "description": "Program Will now Auto select Language Based Screen Language OS is using."
+        }
+      ]
+    },
+    {
       "version": "2026.3.4",
-      "date": "2026-01-15",
+      "date": "2026-01-16",
       "title": "Minor Update",
       "changes": [
         {
@@ -12,6 +42,18 @@
         {
           "type": "fix",
           "description": "Fixed Some issues with Welcome module Not being translated and issues with HTML"
+        },
+        {
+          "type": "improvement",
+          "description": "Added Tool Tips Translation in all 13 Languages."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed A bug where Translation was braking dynamic info of the Folders in clip browser."
+        },
+        {
+          "type": "improvement",
+          "description": "Added Translations to Notifications for errors,info,etc"
         }
       ]
     },

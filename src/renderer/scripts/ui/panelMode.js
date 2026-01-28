@@ -1,4 +1,5 @@
 import { CLIPS_MODE_KEY } from '../lib/storageKeys.js';
+import { t } from '../lib/i18n.js';
 
 const DEFAULT_SIDEBAR_WIDTH = 360;
 const MIN_SIDEBAR_WIDTH = 280;
@@ -45,11 +46,13 @@ export function createClipsPanelMode({ map, clipsCollapseBtn } = {}) {
     if (clipsCollapseBtn) {
       const isCollapsed = (m === 'collapsed' || m === 'hidden');
       if (layoutStyle === 'classic') {
-        clipsCollapseBtn.title = isCollapsed ? 'Show sidebar' : 'Hide sidebar';
-        clipsCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Show sidebar' : 'Hide sidebar');
+        const titleText = isCollapsed ? t('ui.clipBrowser.showSidebar') : t('ui.clipBrowser.hideSidebar');
+        clipsCollapseBtn.title = titleText;
+        clipsCollapseBtn.setAttribute('aria-label', titleText);
       } else {
-        clipsCollapseBtn.title = isCollapsed ? 'Expand panel' : 'Collapse panel';
-        clipsCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand panel' : 'Collapse panel');
+        const titleText = isCollapsed ? t('ui.clipBrowser.expandPanel') : t('ui.clipBrowser.collapsePanel');
+        clipsCollapseBtn.title = titleText;
+        clipsCollapseBtn.setAttribute('aria-label', titleText);
       }
     }
 

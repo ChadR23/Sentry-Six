@@ -4877,6 +4877,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .welcome-preview-clips .clip-item {
     cursor: default;
+    /* Override the thumbnail grid - welcome preview has no thumbnails */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .welcome-preview-clips .clip-thumbnail {
@@ -4889,14 +4893,19 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .welcome-preview-clips .clip-meta {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 2px;
     min-width: 0;
+    width: 100%;
 }
 
 .welcome-preview-clips .clip-title {
     font-size: 12px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .welcome-preview-clips .clip-time {
@@ -4919,6 +4928,16 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .welcome-preview-grid .multi-tile {
     min-height: 50px;
+}
+
+/* Ensure camera labels don't wrap in welcome preview - handle long translations */
+.welcome-preview-grid .multi-label {
+    white-space: nowrap;
+    font-size: 9px;
+    padding: 3px 6px;
+    max-width: calc(100% - 16px);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Dashboard preview - match actual dashboard size */
@@ -5971,6 +5990,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .new-ticket-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 10px 20px;
     background: #5865f2;
@@ -5981,6 +6001,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
+    line-height: 1;
 }
 
 .new-ticket-btn:hover {
@@ -5988,5 +6009,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .new-ticket-btn svg {
+    flex-shrink: 0;
     color: white;
+}
+
+.new-ticket-btn span {
+    white-space: nowrap;
 }

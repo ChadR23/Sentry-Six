@@ -260,7 +260,7 @@ function handleFileSelection(e) {
     
     // Only allow 1 attachment per message
     if (selectedFiles.length > 0) {
-        notify('Only 1 attachment allowed per message', { type: 'warning' });
+        notify(t('ui.notifications.onlyOneAttachment'), { type: 'warning' });
         e.target.value = '';
         return;
     }
@@ -269,7 +269,7 @@ function handleFileSelection(e) {
     
     // Check file size
     if (file.size > MAX_ATTACHMENT_SIZE) {
-        notify(`File "${file.name}" is too large (max 500MB)`, { type: 'error' });
+        notify(t('ui.notifications.fileTooLarge', { filename: file.name }), { type: 'error' });
         e.target.value = '';
         return;
     }
@@ -322,7 +322,7 @@ async function handleSendMessage() {
     const message = messageInput.value.trim();
     
     if (!message && selectedFiles.length === 0) {
-        notify('Please enter a message or attach a file', { type: 'warning' });
+        notify(t('ui.notifications.enterMessageOrAttach'), { type: 'warning' });
         return;
     }
     
@@ -488,7 +488,7 @@ async function handleCloseTicket() {
         showClosedTicketUI();
         
         hideChatStatus();
-        notify('Support ticket closed', { type: 'success' });
+        notify(t('ui.notifications.supportTicketClosed'), { type: 'success' });
         
     } catch (err) {
         console.error('[SupportChat] Close ticket error:', err);
@@ -718,7 +718,7 @@ function showNewMessageNotification(count) {
     dismissSupportNotification();
     
     // Create persistent notification with X button
-    supportNotificationId = notify(`📩 ${count} new support message${count > 1 ? 's' : ''} received`, { 
+    supportNotificationId = notify(`📩 ${t('ui.notifications.newSupportMessages', { count })}`, { 
         type: 'info', 
         timeoutMs: 0, // Persistent - no auto-dismiss
         dismissible: true, // Shows X button

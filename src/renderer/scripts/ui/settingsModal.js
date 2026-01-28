@@ -4,7 +4,7 @@
  */
 
 import { initKeybindSettings } from '../lib/keybinds.js';
-import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange } from '../lib/i18n.js';
+import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange, t } from '../lib/i18n.js';
 
 /**
  * Initialize modal tabs functionality
@@ -404,18 +404,18 @@ export function initSettingsModal() {
     
     function updateSkipLabels(duration) {
         // Update settings modal labels
-        if (skipForwardLabel) skipForwardLabel.textContent = `Skip Forward ${duration}s`;
-        if (skipBackwardLabel) skipBackwardLabel.textContent = `Skip Backward ${duration}s`;
+        if (skipForwardLabel) skipForwardLabel.textContent = `${t('ui.settings.skipForward')} ${duration}s`;
+        if (skipBackwardLabel) skipBackwardLabel.textContent = `${t('ui.settings.skipBackward')} ${duration}s`;
         // Update playback bar button labels and titles
         if (skipBackBtn) {
             const backLabel = skipBackBtn.querySelector('.skip-label');
             if (backLabel) backLabel.textContent = duration;
-            skipBackBtn.title = `Skip back ${duration} seconds`;
+            skipBackBtn.title = `${t('ui.settings.skipBackward')} ${duration} ${t('ui.settings.seconds')}`;
         }
         if (skipForwardBtn) {
             const fwdLabel = skipForwardBtn.querySelector('.skip-label');
             if (fwdLabel) fwdLabel.textContent = duration;
-            skipForwardBtn.title = `Skip forward ${duration} seconds`;
+            skipForwardBtn.title = `${t('ui.settings.skipForward')} ${duration} ${t('ui.settings.seconds')}`;
         }
     }
     
@@ -558,31 +558,31 @@ export function initSettingsModal() {
         checkForUpdatesBtn.onclick = async () => {
             if (window.electronAPI?.checkForUpdates) {
                 checkForUpdatesBtn.disabled = true;
-                checkForUpdatesBtn.textContent = 'Checking...';
+                checkForUpdatesBtn.textContent = t('ui.settings.checking');
                 try {
                     const result = await window.electronAPI.checkForUpdates();
                     if (result?.updateAvailable) {
                         // Update modal will be shown by the update:available event
-                        checkForUpdatesBtn.textContent = 'Update Found!';
+                        checkForUpdatesBtn.textContent = t('ui.settings.updateFound');
                         checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
                     } else if (result?.error) {
-                        checkForUpdatesBtn.textContent = 'Check Failed';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
                         checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
                     } else {
-                        checkForUpdatesBtn.textContent = 'Up to Date ✓';
+                        checkForUpdatesBtn.textContent = t('ui.settings.upToDate') + ' ✓';
                         checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
                     }
                     // Reset button after 3 seconds
                     setTimeout(() => {
-                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
                         checkForUpdatesBtn.style.background = '';
                         checkForUpdatesBtn.disabled = false;
                     }, 3000);
                 } catch (err) {
-                    checkForUpdatesBtn.textContent = 'Check Failed';
+                    checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
                     checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
                     setTimeout(() => {
-                        checkForUpdatesBtn.textContent = 'Check Now';
+                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
                         checkForUpdatesBtn.style.background = '';
                         checkForUpdatesBtn.disabled = false;
                     }, 3000);

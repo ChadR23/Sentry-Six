@@ -45,7 +45,7 @@ export function renderClipList() {
     if (!selectedDay || !library?.dayData) {
         const placeholder = document.createElement('div');
         placeholder.className = 'clip-list-placeholder';
-        placeholder.textContent = 'Select a date to view clips';
+        placeholder.textContent = t('ui.clipBrowser.subtitle');
         placeholder.style.cssText = 'padding: 16px; text-align: center; color: rgba(255,255,255,0.5); font-size: 12px;';
         clipList.appendChild(placeholder);
         return;
@@ -294,12 +294,12 @@ export function parseTimestampKeyToEpochMs(timestampKey) {
  * Format camera name for display.
  */
 export function formatCameraName(camera) {
-    if (camera === 'front') return 'Front';
-    if (camera === 'back') return 'Back';
-    if (camera === 'left_repeater') return 'Left Rep';
-    if (camera === 'right_repeater') return 'Right Rep';
-    if (camera === 'left_pillar') return 'Left Pillar';
-    if (camera === 'right_pillar') return 'Right Pillar';
+    if (camera === 'front') return t('ui.cameras.front');
+    if (camera === 'back') return t('ui.cameras.back');
+    if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
+    if (camera === 'right_repeater') return t('ui.cameras.rightRepeater');
+    if (camera === 'left_pillar') return t('ui.cameras.leftPillar');
+    if (camera === 'right_pillar') return t('ui.cameras.rightPillar');
     return camera;
 }
 

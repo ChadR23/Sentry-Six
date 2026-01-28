@@ -4,6 +4,7 @@
  */
 
 import { notify } from './notifications.js';
+import { t } from '../lib/i18n.js';
 
 // In-memory log storage (no limits - VPS has sufficient bandwidth/storage)
 const logBuffer = {
@@ -281,18 +282,18 @@ export async function uploadDiagnostics(diagnostics) {
  */
 export async function generateSupportId() {
     try {
-        notify('Collecting diagnostic data...', { type: 'info' });
+        notify(t('ui.notifications.collectingDiagnostics'), { type: 'info' });
         const diagnostics = await collectDiagnostics();
         
-        notify('Uploading diagnostics...', { type: 'info' });
+        notify(t('ui.notifications.uploadingDiagnostics'), { type: 'info' });
         const supportId = await uploadDiagnostics(diagnostics);
         
         await navigator.clipboard.writeText(supportId);
-        notify(`Support ID: ${supportId} - Copied to clipboard!`, { type: 'success', timeoutMs: 5000 });
+        notify(t('ui.notifications.supportIdCopied', { supportId }), { type: 'success', timeoutMs: 5000 });
         
         return supportId;
     } catch (e) {
-        notify('Failed to upload diagnostics: ' + e.message, { type: 'error' });
+        notify(t('ui.notifications.failedToUploadDiagnostics', { error: e.message }), { type: 'error' });
         throw e;
     }
 }
@@ -306,14 +307,14 @@ export async function showSupportIdDialog() {
     let uploadError = null;
     
     try {
-        notify('Collecting diagnostic data...', { type: 'info' });
+        notify(t('ui.notifications.collectingDiagnostics'), { type: 'info' });
         diagnostics = await collectDiagnostics();
         
-        notify('Uploading diagnostics...', { type: 'info' });
+        notify(t('ui.notifications.uploadingDiagnostics'), { type: 'info' });
         supportId = await uploadDiagnostics(diagnostics);
     } catch (e) {
         uploadError = e.message;
-        notify('Upload failed: ' + e.message, { type: 'error' });
+        notify(t('ui.notifications.uploadFailed', { error: e.message }), { type: 'error' });
         return; // Can't show dialog without a valid Support ID
     }
     
@@ -388,9 +389,9 @@ export async function showSupportIdDialog() {
                 const idText = modal.querySelector('#supportIdValue').textContent;
                 try {
                     await navigator.clipboard.writeText(idText);
-                    notify('Support ID copied to clipboard!', { type: 'success' });
+                    notify(t('ui.notifications.supportIdCopiedSimple'), { type: 'success' });
                 } catch (e) {
-                    notify('Failed to copy: ' + e.message, { type: 'error' });
+                    notify(t('ui.notifications.failedToCopy', { error: e.message }), { type: 'error' });
                 }
             };
         }
@@ -418,7 +419,7 @@ export async function showSupportIdDialog() {
         return supportId;
     } catch (e) {
         console.error('Failed to show Support ID dialog:', e);
-        notify('Failed to generate Support ID: ' + e.message, { type: 'error' });
+        notify(t('ui.notifications.failedToGenerateSupportId', { error: e.message }), { type: 'error' });
         throw e;
     }
 }
