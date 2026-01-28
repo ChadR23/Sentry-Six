@@ -664,221 +664,9 @@ function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium'
   };
 }
 
-// Calculate minimap size based on output resolution (square aspect ratio)
-function calculateMinimapSize(outputWidth, outputHeight, sizeOption = 'medium') {
-  const sizeMultipliers = {
-    'small': 0.25,
-    'medium': 0.35,
-    'large': 0.45,
-    'xlarge': 0.55
-  };
-  const multiplier = sizeMultipliers[sizeOption] || 0.25;
-  
-  // Use the smaller dimension to calculate size (square minimap)
-  const baseSize = Math.min(outputWidth, outputHeight);
-  const targetSize = Math.round(baseSize * multiplier);
-  // Ensure even dimensions
-  const evenSize = targetSize + (targetSize % 2);
-  
-  return {
-    width: evenSize,
-    height: evenSize
-  };
-}
-
-// Minimap renderer callbacks (for async frame capture)
-const minimapReadyCallbacks = new Map();
-
-// IPC handler for minimap ready signals
-ipcMain.on('minimap:ready', (event) => {
-  const webContentsId = event.sender.id;
-  const callback = minimapReadyCallbacks.get(webContentsId);
-  if (callback) {
-    minimapReadyCallbacks.delete(webContentsId);
-    callback();
-  }
-});
-
-// Create a hidden BrowserWindow for minimap rendering
-async function createMinimapRenderer(minimapWidth, minimapHeight) {
-  return new Promise((resolve, reject) => {
-    const minimapWindow = new BrowserWindow({
-      width: minimapWidth,
-      height: minimapHeight,
-      show: false,
-      frame: false,
-      transparent: true,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        offscreen: true
-      }
-    });
-    
-    const timeout = setTimeout(() => {
-      console.error('[MINIMAP] Renderer load timeout');
-      reject(new Error('Minimap renderer load timeout'));
-    }, 15000);
-    
-    minimapWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
-      clearTimeout(timeout);
-      console.error(`[MINIMAP] Renderer failed to load: ${errorDescription}`);
-      reject(new Error(`Minimap renderer failed to load: ${errorDescription}`));
-    });
-    
-    minimapWindow.webContents.once('did-finish-load', () => {
-      clearTimeout(timeout);
-      console.log('[MINIMAP] Renderer loaded successfully');
-      setTimeout(() => resolve(minimapWindow), 500);
-    });
-    
-    // Load minimap renderer HTML
-    const rendererPath = path.join(__dirname, 'renderer', 'minimap-renderer.html');
-    console.log(`[MINIMAP] Loading renderer from: ${rendererPath}`);
-    
-    if (!fs.existsSync(rendererPath)) {
-      clearTimeout(timeout);
-      reject(new Error(`Minimap renderer not found at: ${rendererPath}`));
-      return;
-    }
-    
-    minimapWindow.loadFile(rendererPath);
-  });
-}
-
-// Render a single minimap frame and capture it
-async function renderMinimapFrame(minimapWindow, lat, lon, heading, width, height) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      minimapReadyCallbacks.delete(minimapWindow.webContents.id);
-      reject(new Error('Minimap render timeout'));
-    }, 5000);
-    
-    minimapReadyCallbacks.set(minimapWindow.webContents.id, async () => {
-      clearTimeout(timeout);
-      try {
-        const image = await minimapWindow.webContents.capturePage();
-        const pngBuffer = image.toPNG();
-        resolve(pngBuffer);
-      } catch (err) {
-        reject(err);
-      }
-    });
-    
-    minimapWindow.webContents.send('minimap:update', lat, lon, heading);
-  });
-}
-
-// Pre-render minimap overlay to a temp video file
-async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress) {
-  const FPS = 36;
-  const durationSec = (endTimeMs - startTimeMs) / 1000;
-  const totalFrames = Math.ceil(durationSec * FPS);
-  
-  const tempPath = path.join(os.tmpdir(), `minimap_${exportId}_${Date.now()}.mov`);
-  
-  console.log(`[MINIMAP] Creating renderer window ${minimapWidth}x${minimapHeight}`);
-  const minimapWindow = await createMinimapRenderer(minimapWidth, minimapHeight);
-  
-  // Send the map path data for the polyline
-  minimapWindow.webContents.send('minimap:init', mapPath);
-  console.log(`[MINIMAP] Sent ${mapPath.length} GPS points to renderer`);
-  
-  // Wait for map tiles to load
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  const ffmpegArgs = [
-    '-y',
-    '-f', 'image2pipe',
-    '-framerate', FPS.toString(),
-    '-i', 'pipe:0',
-    '-c:v', 'qtrle',
-    '-pix_fmt', 'argb',
-    '-r', FPS.toString(),
-    tempPath
-  ];
-  
-  console.log(`[MINIMAP] Starting FFmpeg: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
-  
-  const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-  
-  let ffmpegError = null;
-  ffmpegProcess.stderr.on('data', (data) => {
-    const msg = data.toString();
-    if (msg.includes('error') || msg.includes('Error')) {
-      ffmpegError = msg;
-    }
-  });
-  
-  try {
-    for (let frame = 0; frame < totalFrames; frame++) {
-      if (cancelledExports.has(exportId)) {
-        ffmpegProcess.stdin.end();
-        minimapWindow.destroy();
-        try { fs.unlinkSync(tempPath); } catch {}
-        throw new Error('Export cancelled');
-      }
-      
-      const frameTimeMs = startTimeMs + (frame / FPS) * 1000;
-      
-      let lat = 0, lon = 0, heading = 0;
-      for (let i = seiData.length - 1; i >= 0; i--) {
-        if (seiData[i].timestampMs <= frameTimeMs) {
-          const sei = seiData[i].sei;
-          // SEI uses latitude_deg/longitude_deg/heading_deg field names
-          if (sei.latitude_deg !== undefined && sei.longitude_deg !== undefined) {
-            lat = sei.latitude_deg;
-            lon = sei.longitude_deg;
-            heading = sei.heading_deg || 0;
-          }
-          break;
-        }
-      }
-      
-      if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) {
-        const transparentPng = await minimapWindow.webContents.capturePage();
-        ffmpegProcess.stdin.write(transparentPng.toPNG());
-      } else {
-        const pngBuffer = await renderMinimapFrame(minimapWindow, lat, lon, heading, minimapWidth, minimapHeight);
-        ffmpegProcess.stdin.write(pngBuffer);
-      }
-      
-      if (frame % 10 === 0 || frame === totalFrames - 1) {
-        const pct = Math.round((frame / totalFrames) * 100);
-        sendProgress(pct, `Pre-rendering minimap... ${pct}%`);
-      }
-    }
-    
-    ffmpegProcess.stdin.end();
-    
-    await new Promise((resolve, reject) => {
-      ffmpegProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`FFmpeg minimap encoding failed with code ${code}: ${ffmpegError || 'Unknown error'}`));
-        }
-      });
-      ffmpegProcess.on('error', reject);
-    });
-    
-    minimapWindow.destroy();
-    return tempPath;
-  } catch (err) {
-    minimapWindow.destroy();
-    try { fs.unlinkSync(tempPath); } catch {}
-    throw err;
-  }
-}
-
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', mapPath = [] } = exportData;
-  
-  console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}`);
-  
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en' } = exportData;
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -890,10 +678,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const sendDashboardProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'dashboard-progress', percentage, message });
   };
-  
-  const sendMinimapProgress = (percentage, message) => {
-    event.sender.send('export:progress', exportId, { type: 'minimap-progress', percentage, message });
-  };
 
   const sendComplete = (success, message) => {
     event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
@@ -903,9 +687,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   // Dashboard temp file path (set during pre-render)
   let dashboardTempPath = null;
-  
-  // Minimap temp file path (set during pre-render)
-  let minimapTempPath = null;
 
   // Check if export was cancelled before starting
   if (cancelledExports.has(exportId)) {
@@ -1156,52 +937,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             sendDashboardProgress(0, `Dashboard generation failed: ${err.message}. Continuing without overlay...`);
             useAssDashboard = false;
           }
-        }
-        
-        // Minimap pre-rendering (if enabled and we have GPS data)
-        let useMinimap = false;
-        console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}`);
-        
-        if (includeMinimap && mapPath && mapPath.length > 0 && seiData && seiData.length > 0) {
-          if (cancelledExports.has(exportId)) {
-            console.log('Export cancelled before minimap pre-render');
-            throw new Error('Export cancelled');
-          }
-          
-          try {
-            const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
-            const minimapWidth = minimapDims.width;
-            const minimapHeight = minimapDims.height;
-            console.log(`[MINIMAP] Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
-            
-            sendMinimapProgress(0, 'Pre-rendering minimap overlay...');
-            
-            minimapTempPath = await preRenderMinimap(
-              exportId,
-              seiData,
-              mapPath,
-              startTimeMs,
-              endTimeMs,
-              minimapWidth,
-              minimapHeight,
-              ffmpegPath,
-              sendMinimapProgress
-            );
-            
-            tempFiles.push(minimapTempPath);
-            useMinimap = true;
-            sendMinimapProgress(100, 'Minimap overlay ready');
-            console.log(`[MINIMAP] Pre-rendered minimap: ${minimapTempPath}`);
-          } catch (err) {
-            if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
-              throw err;
-            }
-            console.error('[MINIMAP] Failed to pre-render minimap:', err);
-            sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
-            useMinimap = false;
-          }
-        } else {
-          console.log('[MINIMAP] Skipping - conditions not met');
         }
         
         let useTimestamp = includeTimestamp && !useAssDashboard;
@@ -1638,22 +1373,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'top-right': `W-w-${padding}:${padding}`
     };
     
-    // Minimap position expressions (corner positions only)
-    const minimapPosExprs = {
-      'top-left': `${padding}:${padding}`,
-      'top-right': `W-w-${padding}:${padding}`,
-      'bottom-left': `${padding}:H-h-${padding}`,
-      'bottom-right': `W-w-${padding}:H-h-${padding}`
-    };
-    
-    // Add minimap video as input if enabled
-    let minimapInputIdx = -1;
-    if (useMinimap && minimapTempPath) {
-      minimapInputIdx = cmd.filter(arg => arg === '-i').length;
-      cmd.push('-stream_loop', '-1', '-i', minimapTempPath);
-      console.log(`[MINIMAP] Added minimap input at index ${minimapInputIdx}: ${minimapTempPath}`);
-    }
-    
     if (useAssDashboard && assTempPath) {
       // ASS SUBTITLE DASHBOARD (compact style) - High-speed GPU-accelerated rendering
       // The ASS filter burns subtitles directly into the video at GPU encoder speed
@@ -1663,22 +1382,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         .replace(/\\/g, '/')           // Convert backslashes to forward slashes
         .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
       
-      if (useMinimap && minimapInputIdx >= 0) {
-        // Dashboard + Minimap: Apply ASS first, then overlay minimap
-        const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
-        filters.push(`${currentStreamTag}ass='${escapedAssPath}'[with_dash]`);
-        filters.push(`[with_dash][${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
-        console.log(`[ASS+MINIMAP] Dashboard + Minimap overlay at ${minimapPosition}`);
-      } else {
-        // Dashboard only
-        filters.push(`${currentStreamTag}ass='${escapedAssPath}'[out]`);
-        console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
-      }
-    } else if (useMinimap && minimapInputIdx >= 0) {
-      // Minimap only (no dashboard)
-      const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
-      filters.push(`${currentStreamTag}[${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
-      console.log(`[MINIMAP] Minimap overlay at ${minimapPosition}`);
+      filters.push(`${currentStreamTag}ass='${escapedAssPath}'[out]`);
+      console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
     } else if (useTimestamp && timestampBasetimeUs) {
       // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
       // Position expressions for drawtext (x/y coordinates)
