@@ -437,6 +437,36 @@ export function openExportModal() {
     
     // Update blur zone status display
     updateBlurZoneStatusDisplay();
+    
+    // Initialize minimap toggle and options
+    const minimapCheckbox = $('includeMinimap');
+    const minimapOptions = $('minimapOptions');
+    const minimapNoGpsWarning = $('minimapNoGpsWarning');
+    
+    if (minimapCheckbox) {
+        // Enable minimap checkbox - GPS availability is checked during export
+        minimapCheckbox.checked = false;
+        minimapCheckbox.disabled = false;
+        
+        // Hide warning by default
+        if (minimapNoGpsWarning) minimapNoGpsWarning.classList.add('hidden');
+        
+        // Toggle minimap options visibility
+        minimapCheckbox.onchange = () => {
+            if (minimapOptions) {
+                if (minimapCheckbox.checked) {
+                    minimapOptions.classList.remove('hidden');
+                } else {
+                    minimapOptions.classList.add('hidden');
+                }
+            }
+        };
+        
+        // Initialize options visibility
+        if (minimapOptions) {
+            minimapOptions.classList.add('hidden');
+        }
+    }
 }
 
 /**
@@ -1143,6 +1173,15 @@ export async function startExport() {
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
     
+    // Minimap settings
+    const includeMinimapCheckbox = $('includeMinimap');
+    const includeMinimap = includeMinimapCheckbox?.checked ?? false;
+    const minimapPosition = $('minimapPosition')?.value || 'top-right';
+    const minimapSize = $('minimapSize')?.value || 'small';
+    
+    console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
+    console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}`);
+    
     const includeTimestampCheckbox = $('includeTimestamp');
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
     const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
@@ -1166,17 +1205,20 @@ export async function startExport() {
         return;
     }
     
-    // Only extract SEI data if dashboard is enabled - skip entirely if disabled to save RAM
+    // Only extract SEI data if dashboard or minimap is enabled - skip entirely if both disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
     // This happens AFTER file dialog so user gets instant feedback
     let seiData = null;
-    if (includeDashboard) {
+    let mapPath = []; // GPS path for minimap
+    
+    if (includeDashboard || includeMinimap) {
         try {
             notify(t('ui.notifications.extractingTelemetry'), { type: 'info' });
             
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
+            const allMapPath = []; // Collect GPS coordinates
             
             if (!window.DashcamMP4 || !window.DashcamHelpers) {
                 throw new Error('Dashcam parser not available');
@@ -1185,12 +1227,23 @@ export async function startExport() {
             const DashcamMP4 = window.DashcamMP4;
             const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
             
+            // Helper to check for valid GPS coordinates
+            // SEI uses latitude_deg/longitude_deg field names
+            const hasValidGps = (sei) => {
+                const lat = sei?.latitude_deg;
+                const lon = sei?.longitude_deg;
+                return lat !== undefined && lon !== undefined && 
+                       Number.isFinite(lat) && Number.isFinite(lon) &&
+                       !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
+            };
+            
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
                 // Check for cancellation before processing each segment
                 if (exportState.cancelled) {
                     console.log('SEI extraction cancelled by user');
                     seiData = null;
+                    mapPath = [];
                     break;
                 }
                 
@@ -1236,6 +1289,11 @@ export async function startExport() {
                                             timestampMs: segStartMs + frame.timestamp,
                                             sei: frame.sei
                                         });
+                                        
+                                        // Extract GPS coordinates for minimap path
+                                        if (includeMinimap && hasValidGps(frame.sei)) {
+                                            allMapPath.push([frame.sei.latitude_deg, frame.sei.longitude_deg]);
+                                        }
                                     }
                                 }
                                 
@@ -1253,18 +1311,34 @@ export async function startExport() {
             // Sort by timestamp for efficient lookup during rendering
             allSeiData.sort((a, b) => a.timestampMs - b.timestampMs);
             
+            console.log(`[MINIMAP] SEI extraction complete: ${allSeiData.length} SEI frames, ${allMapPath.length} GPS points`);
+            
             if (allSeiData.length > 0) {
                 seiData = allSeiData;
+                mapPath = allMapPath;
+                console.log(`[MINIMAP] GPS data available: ${mapPath.length} points`);
             } else {
-                notify(t('ui.notifications.noTelemetryData'), { type: 'warn' });
-                seiData = null; // Clear SEI data if extraction failed
+                if (includeDashboard) {
+                    notify(t('ui.notifications.noTelemetryData'), { type: 'warn' });
+                }
+                if (includeMinimap && allMapPath.length === 0) {
+                    notify('No GPS data available for minimap overlay. Minimap will be disabled.', { type: 'warn' });
+                }
+                seiData = null;
+                mapPath = [];
             }
         } catch (err) {
-            notify(t('ui.notifications.failedToExtractTelemetry'), { type: 'warn' });
-            seiData = null; // Clear SEI data if extraction failed
+            if (includeDashboard) {
+                notify(t('ui.notifications.failedToExtractTelemetry'), { type: 'warn' });
+            }
+            if (includeMinimap) {
+                notify('Failed to extract GPS data. Minimap will be disabled.', { type: 'warn' });
+            }
+            seiData = null;
+            mapPath = [];
         }
     }
-    // If dashboard is disabled, seiData remains null and no files are loaded into memory
+    // If dashboard and minimap are both disabled, seiData remains null and no files are loaded into memory
     
     const segments = [];
     const groups = state.collection.active.groups || [];
@@ -1328,6 +1402,18 @@ export async function startExport() {
     exportState.isExporting = true;
     exportState.cancelled = false; // Reset cancellation flag
     
+    // Get dashboard and minimap progress elements
+    const dashboardProgressEl = $('dashboardProgress');
+    const dashboardProgressBar = $('dashboardProgressBar');
+    const dashboardProgressText = $('dashboardProgressText');
+    const minimapProgressEl = $('minimapProgress');
+    const minimapProgressBar = $('minimapProgressBar');
+    const minimapProgressText = $('minimapProgressText');
+    
+    // Hide dashboard and minimap progress bars initially
+    if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+    if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
+    
     if (window.electronAPI?.on) {
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
             if (receivedExportId !== exportId) return;
@@ -1345,6 +1431,24 @@ export async function startExport() {
                 if (exportState.modalMinimized) {
                     updateFloatingProgress(translatedMessage, progress.percentage);
                 }
+            } else if (progress.type === 'dashboard-progress') {
+                // Show dashboard progress bar
+                if (dashboardProgressEl) dashboardProgressEl.classList.remove('hidden');
+                if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
+                if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
+                
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(progress.message, progress.percentage);
+                }
+            } else if (progress.type === 'minimap-progress') {
+                // Show minimap progress bar
+                if (minimapProgressEl) minimapProgressEl.classList.remove('hidden');
+                if (minimapProgressBar) minimapProgressBar.style.width = `${progress.percentage}%`;
+                if (minimapProgressText) minimapProgressText.textContent = progress.message;
+                
+                if (exportState.modalMinimized) {
+                    updateFloatingProgress(progress.message, progress.percentage);
+                }
             } else if (progress.type === 'complete') {
                 exportState.isExporting = false;
                 exportState.currentExportId = null;
@@ -1356,9 +1460,11 @@ export async function startExport() {
                 // Hide floating notification on complete
                 hideFloatingProgress();
                 
-                // Hide hint
+                // Hide hint and overlay progress bars
                 const minHint = $('exportMinimizeHint');
                 if (minHint) minHint.classList.add('hidden');
+                if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
+                if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
                 
                 const translatedMessage = translateMessage(progress.message);
                 
@@ -1430,8 +1536,15 @@ export async function startExport() {
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
             blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
             // Language for dashboard text translations (Gear, Autopilot states, etc.)
-            language: getCurrentLanguage()
+            language: getCurrentLanguage(),
+            // Minimap settings
+            includeMinimap: includeMinimap && mapPath.length > 0,
+            minimapPosition,
+            minimapSize,
+            mapPath
         };
+        
+        console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}`);
         
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {
