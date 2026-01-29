@@ -634,6 +634,16 @@
                             <div id="minimapOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
+                                        <span class="select-row-label">Render Mode</span>
+                                        <span class="select-row-desc">Both use map tiles, speed differs</span>
+                                    </div>
+                                    <select id="minimapRenderMode" class="settings-select">
+                                        <option value="ass" selected>Static Map (Fast)</option>
+                                        <option value="leaflet">Live Map (Slow)</option>
+                                    </select>
+                                </div>
+                                <div class="select-row">
+                                    <div class="select-row-info">
                                         <span class="select-row-label">Position</span>
                                         <span class="select-row-desc">Corner placement</span>
                                     </div>
@@ -656,9 +666,9 @@
                                         <option value="xlarge">X-Large (55%)</option>
                                     </select>
                                 </div>
-                                <div class="info-box info-blue">
-                                    <span class="info-box-icon">ℹ️</span>
-                                    <span>Minimap is pre-rendered for optimal performance.</span>
+                                <div id="minimapModeInfo" class="info-box info-blue">
+                                    <span class="info-box-icon">⚡</span>
+                                    <span id="minimapModeDesc">Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.</span>
                                 </div>
                             </div>
                         </div>

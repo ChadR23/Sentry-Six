@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
-const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss } = require('./assGenerator');
+const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss, writeMinimapAss } = require('./assGenerator');
 const https = require('https');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
@@ -686,6 +686,277 @@ function calculateMinimapSize(outputWidth, outputHeight, sizeOption = 'medium') 
   };
 }
 
+// ============================================
+// STATIC MAP TILE DOWNLOADING FOR ASS MINIMAP
+// Downloads OpenStreetMap tiles and creates a composite background image
+// ============================================
+
+/**
+ * Convert lat/lon to tile coordinates at a given zoom level
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude  
+ * @param {number} zoom - Zoom level (0-19)
+ * @returns {{x: number, y: number}} Tile coordinates
+ */
+function latLonToTile(lat, lon, zoom) {
+  const n = Math.pow(2, zoom);
+  const x = Math.floor((lon + 180) / 360 * n);
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
+}
+
+/**
+ * Convert tile coordinates back to lat/lon (top-left corner of tile)
+ * @param {number} x - Tile X
+ * @param {number} y - Tile Y
+ * @param {number} zoom - Zoom level
+ * @returns {{lat: number, lon: number}}
+ */
+function tileToLatLon(x, y, zoom) {
+  const n = Math.pow(2, zoom);
+  const lon = x / n * 360 - 180;
+  const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+  const lat = latRad * 180 / Math.PI;
+  return { lat, lon };
+}
+
+/**
+ * Calculate optimal zoom level for GPS bounds to fit in target size
+ * @param {Object} bounds - GPS bounds {minLat, maxLat, minLon, maxLon}
+ * @param {number} targetSize - Target image size in pixels
+ * @returns {number} Optimal zoom level
+ */
+function calculateOptimalZoom(bounds, targetSize) {
+  const { minLat, maxLat, minLon, maxLon } = bounds;
+  
+  // Try zoom levels from high to low, find one where bounds fit in ~2-4 tiles
+  for (let zoom = 18; zoom >= 10; zoom--) {
+    const topLeft = latLonToTile(maxLat, minLon, zoom);
+    const bottomRight = latLonToTile(minLat, maxLon, zoom);
+    
+    const tilesX = bottomRight.x - topLeft.x + 1;
+    const tilesY = bottomRight.y - topLeft.y + 1;
+    
+    // We want 2-4 tiles in each dimension for good detail
+    if (tilesX <= 4 && tilesY <= 4 && tilesX >= 1 && tilesY >= 1) {
+      return zoom;
+    }
+  }
+  
+  return 14; // Default fallback
+}
+
+/**
+ * Download a single map tile from OpenStreetMap
+ * @param {number} x - Tile X coordinate
+ * @param {number} y - Tile Y coordinate
+ * @param {number} zoom - Zoom level
+ * @param {string} outputPath - Path to save the tile
+ * @returns {Promise<string>} Path to downloaded tile
+ */
+async function downloadMapTile(x, y, zoom, outputPath) {
+  return new Promise((resolve, reject) => {
+    const url = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+    
+    const file = createWriteStream(outputPath);
+    
+    const request = https.get(url, {
+      headers: {
+        'User-Agent': 'Sentry-Six-App/1.0 (Tesla Dashcam Viewer)'
+      }
+    }, (response) => {
+      if (response.statusCode === 200) {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve(outputPath);
+        });
+      } else {
+        file.close();
+        fs.unlinkSync(outputPath);
+        reject(new Error(`Failed to download tile: HTTP ${response.statusCode}`));
+      }
+    });
+    
+    request.on('error', (err) => {
+      file.close();
+      try { fs.unlinkSync(outputPath); } catch {}
+      reject(err);
+    });
+    
+    // Timeout after 10 seconds
+    request.setTimeout(10000, () => {
+      request.destroy();
+      reject(new Error('Tile download timeout'));
+    });
+  });
+}
+
+/**
+ * Download and stitch map tiles into a single background image for minimap
+ * Uses FFmpeg to combine tiles and apply dark theme filter
+ * @param {string} exportId - Export ID for temp file naming
+ * @param {Array} mapPath - Array of [lat, lon] GPS coordinates
+ * @param {number} targetSize - Target output size in pixels (square)
+ * @param {string} ffmpegPath - Path to FFmpeg executable
+ * @returns {Promise<{imagePath: string, bounds: Object, zoom: number}>}
+ */
+async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpegPath) {
+  if (!mapPath || mapPath.length === 0) {
+    throw new Error('No GPS data for map background');
+  }
+  
+  // Calculate bounds with padding
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  
+  for (const [lat, lon] of mapPath) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+  }
+  
+  // Add 15% padding
+  const latRange = maxLat - minLat || 0.001;
+  const lonRange = maxLon - minLon || 0.001;
+  const latPad = latRange * 0.15;
+  const lonPad = lonRange * 0.15;
+  
+  const bounds = {
+    minLat: minLat - latPad,
+    maxLat: maxLat + latPad,
+    minLon: minLon - lonPad,
+    maxLon: maxLon + lonPad
+  };
+  
+  // Calculate optimal zoom
+  const zoom = calculateOptimalZoom(bounds, targetSize);
+  console.log(`[MAP] Calculated zoom level: ${zoom} for bounds`);
+  
+  // Get tile range
+  const topLeftTile = latLonToTile(bounds.maxLat, bounds.minLon, zoom);
+  const bottomRightTile = latLonToTile(bounds.minLat, bounds.maxLon, zoom);
+  
+  const tilesX = bottomRightTile.x - topLeftTile.x + 1;
+  const tilesY = bottomRightTile.y - topLeftTile.y + 1;
+  
+  console.log(`[MAP] Downloading ${tilesX}x${tilesY} tiles (${tilesX * tilesY} total)`);
+  
+  // Create temp directory for tiles
+  const tempDir = path.join(os.tmpdir(), `map_tiles_${exportId}_${Date.now()}`);
+  mkdirSync(tempDir, { recursive: true });
+  
+  const tilePaths = [];
+  const tileSize = 256; // OSM tiles are 256x256
+  
+  try {
+    // Download all tiles
+    for (let ty = topLeftTile.y; ty <= bottomRightTile.y; ty++) {
+      for (let tx = topLeftTile.x; tx <= bottomRightTile.x; tx++) {
+        const tilePath = path.join(tempDir, `tile_${tx}_${ty}.png`);
+        await downloadMapTile(tx, ty, zoom, tilePath);
+        tilePaths.push({
+          path: tilePath,
+          gridX: tx - topLeftTile.x,
+          gridY: ty - topLeftTile.y
+        });
+        
+        // Small delay to be nice to OSM servers
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    
+    console.log(`[MAP] Downloaded ${tilePaths.length} tiles`);
+    
+    // Use FFmpeg to stitch tiles together and apply dark theme
+    const stitchedWidth = tilesX * tileSize;
+    const stitchedHeight = tilesY * tileSize;
+    const outputPath = path.join(os.tmpdir(), `map_bg_${exportId}_${Date.now()}.png`);
+    
+    // Build FFmpeg filter to tile the images together
+    let inputs = [];
+    let filterParts = [];
+    
+    // Add each tile as input
+    for (const tile of tilePaths) {
+      inputs.push('-i', tile.path);
+    }
+    
+    // Create filter to position each tile
+    if (tilePaths.length === 1) {
+      // Single tile - just apply dark filter and scale
+      filterParts.push(`[0:v]hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1,scale=${targetSize}:${targetSize}[out]`);
+    } else {
+      // Multiple tiles - create canvas and overlay each
+      // First, create a black canvas
+      filterParts.push(`color=c=black:s=${stitchedWidth}x${stitchedHeight}:d=1[canvas]`);
+      
+      let currentLayer = '[canvas]';
+      for (let i = 0; i < tilePaths.length; i++) {
+        const tile = tilePaths[i];
+        const x = tile.gridX * tileSize;
+        const y = tile.gridY * tileSize;
+        const nextLayer = i === tilePaths.length - 1 ? '[stitched]' : `[tmp${i}]`;
+        filterParts.push(`${currentLayer}[${i}:v]overlay=${x}:${y}${nextLayer}`);
+        currentLayer = nextLayer;
+      }
+      
+      // Apply dark theme filter and scale to target size
+      filterParts.push(`[stitched]hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1,scale=${targetSize}:${targetSize}[out]`);
+    }
+    
+    const ffmpegArgs = [
+      '-y',
+      ...inputs,
+      '-filter_complex', filterParts.join(';'),
+      '-map', '[out]',
+      '-frames:v', '1',
+      outputPath
+    ];
+    
+    console.log(`[MAP] Stitching tiles with FFmpeg...`);
+    
+    await new Promise((resolve, reject) => {
+      const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stderr = '';
+      proc.stderr.on('data', d => stderr += d.toString());
+      proc.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`FFmpeg stitch failed: ${stderr}`));
+      });
+      proc.on('error', reject);
+    });
+    
+    // Cleanup tile temp files
+    rmSync(tempDir, { recursive: true, force: true });
+    
+    // Calculate the actual geo bounds of the stitched image (tile edges)
+    const actualTopLeft = tileToLatLon(topLeftTile.x, topLeftTile.y, zoom);
+    const actualBottomRight = tileToLatLon(bottomRightTile.x + 1, bottomRightTile.y + 1, zoom);
+    
+    const actualBounds = {
+      minLat: actualBottomRight.lat,
+      maxLat: actualTopLeft.lat,
+      minLon: actualTopLeft.lon,
+      maxLon: actualBottomRight.lon
+    };
+    
+    console.log(`[MAP] Created map background: ${outputPath}`);
+    
+    return {
+      imagePath: outputPath,
+      bounds: actualBounds,
+      zoom
+    };
+  } catch (err) {
+    // Cleanup on error
+    try { rmSync(tempDir, { recursive: true, force: true }); } catch {}
+    throw err;
+  }
+}
+
 // Minimap renderer callbacks (for async frame capture)
 const minimapReadyCallbacks = new Map();
 
@@ -875,9 +1146,9 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', mapPath = [] } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [] } = exportData;
   
-  console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}`);
+  console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
@@ -1158,47 +1429,188 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           }
         }
         
-        // Minimap pre-rendering (if enabled and we have GPS data)
-        let useMinimap = false;
-        console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}`);
+        // Minimap rendering (if enabled and we have GPS data)
+        // Two modes: 'ass' (fast, vector-based) or 'leaflet' (slow, map tiles)
+        let useAssMinimap = false;
+        let useLeafletMinimap = false;
+        let minimapAssTempPath = null;
+        console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}, renderMode=${minimapRenderMode}`);
         
         if (includeMinimap && mapPath && mapPath.length > 0 && seiData && seiData.length > 0) {
           if (cancelledExports.has(exportId)) {
-            console.log('Export cancelled before minimap pre-render');
+            console.log('Export cancelled before minimap render');
             throw new Error('Export cancelled');
           }
           
-          try {
-            const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
-            const minimapWidth = minimapDims.width;
-            const minimapHeight = minimapDims.height;
-            console.log(`[MINIMAP] Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
-            
-            sendMinimapProgress(0, 'Pre-rendering minimap overlay...');
-            
-            minimapTempPath = await preRenderMinimap(
-              exportId,
-              seiData,
-              mapPath,
-              startTimeMs,
-              endTimeMs,
-              minimapWidth,
-              minimapHeight,
-              ffmpegPath,
-              sendMinimapProgress
-            );
-            
-            tempFiles.push(minimapTempPath);
-            useMinimap = true;
-            sendMinimapProgress(100, 'Minimap overlay ready');
-            console.log(`[MINIMAP] Pre-rendered minimap: ${minimapTempPath}`);
-          } catch (err) {
-            if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
-              throw err;
+          if (minimapRenderMode === 'ass') {
+            // ASS Mode: Download map tiles + overlay ASS route/markers
+            try {
+              const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
+              const minimapTargetSize = minimapDims.width; // Square minimap
+              
+              sendMinimapProgress(0, 'Downloading map tiles...');
+              
+              // Step 1: Download static map background image
+              let mapBgPath = null;
+              let mapBounds = null;
+              
+              try {
+                const mapResult = await downloadStaticMapBackground(
+                  exportId,
+                  mapPath,
+                  minimapTargetSize,
+                  ffmpegPath
+                );
+                mapBgPath = mapResult.imagePath;
+                mapBounds = mapResult.bounds;
+                tempFiles.push(mapBgPath);
+                console.log(`[MINIMAP] Downloaded map background: ${mapBgPath}`);
+              } catch (mapErr) {
+                console.warn(`[MINIMAP] Failed to download map tiles: ${mapErr.message}. Using dark background.`);
+                // Continue without map background - will use dark bg from ASS
+              }
+              
+              sendMinimapProgress(30, 'Generating route overlay...');
+              
+              // Step 2: Generate ASS with route path and markers
+              // If we have a map background, use standalone mode with map bounds
+              // Otherwise, use normal mode with dark background
+              if (mapBgPath && mapBounds) {
+                // Standalone mode: ASS coordinates are 0,0 to minimapTargetSize
+                minimapAssTempPath = await writeMinimapAss(
+                  exportId,
+                  seiData,
+                  mapPath,
+                  startTimeMs,
+                  endTimeMs,
+                  {
+                    standaloneMode: true,
+                    standaloneSize: minimapTargetSize,
+                    customBounds: mapBounds,
+                    includeBackground: false // Map image is the background
+                  }
+                );
+              } else {
+                // Normal mode: ASS includes dark background
+                minimapAssTempPath = await writeMinimapAss(
+                  exportId,
+                  seiData,
+                  mapPath,
+                  startTimeMs,
+                  endTimeMs,
+                  {
+                    standaloneMode: true,
+                    standaloneSize: minimapTargetSize,
+                    includeBackground: true // Use ASS dark background
+                  }
+                );
+              }
+              tempFiles.push(minimapAssTempPath);
+              
+              sendMinimapProgress(50, 'Creating minimap video...');
+              
+              // Step 3: Create composite minimap video (map bg + ASS overlay)
+              // This pre-renders the minimap so FFmpeg can just overlay it on the main video
+              const minimapVideoPath = path.join(os.tmpdir(), `minimap_video_${exportId}_${Date.now()}.mov`);
+              const durationSec = (endTimeMs - startTimeMs) / 1000;
+              
+              const escapedAssPath = minimapAssTempPath
+                .replace(/\\/g, '/')
+                .replace(/:/g, '\\:');
+              
+              let minimapFfmpegArgs;
+              if (mapBgPath) {
+                // Use map image as background, loop it for video duration
+                const escapedMapPath = mapBgPath.replace(/\\/g, '/');
+                minimapFfmpegArgs = [
+                  '-y',
+                  '-loop', '1',
+                  '-i', mapBgPath,
+                  '-t', durationSec.toString(),
+                  '-vf', `scale=${minimapTargetSize}:${minimapTargetSize},ass='${escapedAssPath}'`,
+                  '-c:v', 'qtrle',
+                  '-pix_fmt', 'argb',
+                  '-r', '36',
+                  minimapVideoPath
+                ];
+              } else {
+                // Use black background with ASS (includes dark panel)
+                minimapFfmpegArgs = [
+                  '-y',
+                  '-f', 'lavfi',
+                  '-i', `color=c=black@0:s=${minimapTargetSize}x${minimapTargetSize}:d=${durationSec}:r=36,format=rgba`,
+                  '-vf', `ass='${escapedAssPath}'`,
+                  '-c:v', 'qtrle',
+                  '-pix_fmt', 'argb',
+                  '-r', '36',
+                  minimapVideoPath
+                ];
+              }
+              
+              console.log(`[MINIMAP] Creating composite video: ${ffmpegPath} ${minimapFfmpegArgs.join(' ')}`);
+              
+              await new Promise((resolve, reject) => {
+                const proc = spawn(ffmpegPath, minimapFfmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+                let stderr = '';
+                proc.stderr.on('data', d => stderr += d.toString());
+                proc.on('close', code => {
+                  if (code === 0) resolve();
+                  else reject(new Error(`FFmpeg minimap composite failed: ${stderr.slice(-500)}`));
+                });
+                proc.on('error', reject);
+              });
+              
+              // Use the composite video as the minimap (same as Leaflet mode)
+              minimapTempPath = minimapVideoPath;
+              tempFiles.push(minimapVideoPath);
+              useLeafletMinimap = true; // Use video overlay mode
+              useAssMinimap = false; // Not using direct ASS mode
+              
+              sendMinimapProgress(100, 'Minimap ready');
+              console.log(`[MINIMAP] Created ASS minimap with map background: ${minimapVideoPath}`);
+            } catch (err) {
+              if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+                throw err;
+              }
+              console.error('[MINIMAP] Failed to generate ASS minimap:', err);
+              sendMinimapProgress(0, `Minimap generation failed: ${err.message}. Continuing without minimap...`);
+              useAssMinimap = false;
+              useLeafletMinimap = false;
             }
-            console.error('[MINIMAP] Failed to pre-render minimap:', err);
-            sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
-            useMinimap = false;
+          } else {
+            // Leaflet Mode: Slow BrowserWindow pre-rendering with map tiles
+            try {
+              const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
+              const minimapWidth = minimapDims.width;
+              const minimapHeight = minimapDims.height;
+              console.log(`[MINIMAP] Leaflet mode - Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
+              
+              sendMinimapProgress(0, 'Pre-rendering minimap overlay (Leaflet)...');
+              
+              minimapTempPath = await preRenderMinimap(
+                exportId,
+                seiData,
+                mapPath,
+                startTimeMs,
+                endTimeMs,
+                minimapWidth,
+                minimapHeight,
+                ffmpegPath,
+                sendMinimapProgress
+              );
+              
+              tempFiles.push(minimapTempPath);
+              useLeafletMinimap = true;
+              sendMinimapProgress(100, 'Minimap overlay ready (Leaflet)');
+              console.log(`[MINIMAP] Pre-rendered Leaflet minimap: ${minimapTempPath}`);
+            } catch (err) {
+              if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+                throw err;
+              }
+              console.error('[MINIMAP] Failed to pre-render Leaflet minimap:', err);
+              sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
+              useLeafletMinimap = false;
+            }
           }
         } else {
           console.log('[MINIMAP] Skipping - conditions not met');
@@ -1646,13 +2058,16 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'bottom-right': `W-w-${padding}:H-h-${padding}`
     };
     
-    // Add minimap video as input if enabled
+    // Add Leaflet minimap video as input if enabled (Leaflet mode only)
     let minimapInputIdx = -1;
-    if (useMinimap && minimapTempPath) {
+    if (useLeafletMinimap && minimapTempPath) {
       minimapInputIdx = cmd.filter(arg => arg === '-i').length;
       cmd.push('-stream_loop', '-1', '-i', minimapTempPath);
-      console.log(`[MINIMAP] Added minimap input at index ${minimapInputIdx}: ${minimapTempPath}`);
+      console.log(`[MINIMAP] Added Leaflet minimap input at index ${minimapInputIdx}: ${minimapTempPath}`);
     }
+    
+    // Build overlay pipeline based on enabled features
+    // Order: Base video -> Dashboard ASS -> Minimap ASS -> Leaflet Minimap overlay
     
     if (useAssDashboard && assTempPath) {
       // ASS SUBTITLE DASHBOARD (compact style) - High-speed GPU-accelerated rendering
@@ -1663,22 +2078,36 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         .replace(/\\/g, '/')           // Convert backslashes to forward slashes
         .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
       
-      if (useMinimap && minimapInputIdx >= 0) {
-        // Dashboard + Minimap: Apply ASS first, then overlay minimap
+      if (useAssMinimap && minimapAssTempPath) {
+        // Dashboard ASS + Minimap ASS: Chain both ASS filters
+        const escapedMinimapAssPath = minimapAssTempPath
+          .replace(/\\/g, '/')
+          .replace(/:/g, '\\:');
+        filters.push(`${currentStreamTag}ass='${escapedAssPath}',ass='${escapedMinimapAssPath}'[out]`);
+        console.log(`[ASS] Dashboard + ASS Minimap overlay`);
+      } else if (useLeafletMinimap && minimapInputIdx >= 0) {
+        // Dashboard ASS + Leaflet Minimap video overlay
         const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
         filters.push(`${currentStreamTag}ass='${escapedAssPath}'[with_dash]`);
         filters.push(`[with_dash][${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
-        console.log(`[ASS+MINIMAP] Dashboard + Minimap overlay at ${minimapPosition}`);
+        console.log(`[ASS+MINIMAP] Dashboard + Leaflet Minimap overlay at ${minimapPosition}`);
       } else {
         // Dashboard only
         filters.push(`${currentStreamTag}ass='${escapedAssPath}'[out]`);
         console.log(`[ASS] Using ASS subtitle filter for compact dashboard: ${assTempPath}`);
       }
-    } else if (useMinimap && minimapInputIdx >= 0) {
-      // Minimap only (no dashboard)
+    } else if (useAssMinimap && minimapAssTempPath) {
+      // ASS Minimap only (no dashboard)
+      const escapedMinimapAssPath = minimapAssTempPath
+        .replace(/\\/g, '/')
+        .replace(/:/g, '\\:');
+      filters.push(`${currentStreamTag}ass='${escapedMinimapAssPath}'[out]`);
+      console.log(`[ASS] Using ASS minimap filter: ${minimapAssTempPath}`);
+    } else if (useLeafletMinimap && minimapInputIdx >= 0) {
+      // Leaflet Minimap only (no dashboard)
       const mapPos = minimapPosExprs[minimapPosition] || minimapPosExprs['top-right'];
       filters.push(`${currentStreamTag}[${minimapInputIdx}:v]overlay=${mapPos}:format=auto[out]`);
-      console.log(`[MINIMAP] Minimap overlay at ${minimapPosition}`);
+      console.log(`[MINIMAP] Leaflet Minimap overlay at ${minimapPosition}`);
     } else if (useTimestamp && timestampBasetimeUs) {
       // Timestamp-only overlay using FFmpeg drawtext filter (simpler, smaller like old version)
       // Position expressions for drawtext (x/y coordinates)

@@ -442,6 +442,9 @@ export function openExportModal() {
     const minimapCheckbox = $('includeMinimap');
     const minimapOptions = $('minimapOptions');
     const minimapNoGpsWarning = $('minimapNoGpsWarning');
+    const minimapRenderMode = $('minimapRenderMode');
+    const minimapModeDesc = $('minimapModeDesc');
+    const minimapModeInfo = $('minimapModeInfo');
     
     if (minimapCheckbox) {
         // Enable minimap checkbox - GPS availability is checked during export
@@ -466,6 +469,27 @@ export function openExportModal() {
         if (minimapOptions) {
             minimapOptions.classList.add('hidden');
         }
+    }
+    
+    // Handle minimap render mode change
+    if (minimapRenderMode && minimapModeDesc && minimapModeInfo) {
+        const updateMinimapModeInfo = () => {
+            const mode = minimapRenderMode.value;
+            if (mode === 'ass') {
+                minimapModeDesc.textContent = 'Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.';
+                minimapModeInfo.classList.remove('info-yellow');
+                minimapModeInfo.classList.add('info-blue');
+                minimapModeInfo.querySelector('.info-box-icon').textContent = '⚡';
+            } else {
+                minimapModeDesc.textContent = 'Live map: Renders each frame with Leaflet. Shows real-time map updates but much slower export.';
+                minimapModeInfo.classList.remove('info-blue');
+                minimapModeInfo.classList.add('info-yellow');
+                minimapModeInfo.querySelector('.info-box-icon').textContent = '🗺️';
+            }
+        };
+        
+        minimapRenderMode.onchange = updateMinimapModeInfo;
+        updateMinimapModeInfo(); // Set initial state
     }
 }
 
@@ -1178,9 +1202,10 @@ export async function startExport() {
     const includeMinimap = includeMinimapCheckbox?.checked ?? false;
     const minimapPosition = $('minimapPosition')?.value || 'top-right';
     const minimapSize = $('minimapSize')?.value || 'small';
+    const minimapRenderMode = $('minimapRenderMode')?.value || 'ass'; // 'ass' or 'leaflet'
     
     console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
-    console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}`);
+    console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}, RenderMode=${minimapRenderMode}`);
     
     const includeTimestampCheckbox = $('includeTimestamp');
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
@@ -1541,10 +1566,11 @@ export async function startExport() {
             includeMinimap: includeMinimap && mapPath.length > 0,
             minimapPosition,
             minimapSize,
+            minimapRenderMode, // 'ass' (fast, vector) or 'leaflet' (slow, map tiles)
             mapPath
         };
         
-        console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}`);
+        console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}, renderMode=${minimapRenderMode}`);
         
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {

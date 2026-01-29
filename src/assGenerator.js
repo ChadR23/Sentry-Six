@@ -926,6 +926,485 @@ async function writeSolidCoverAss(exportId, blurZones, durationMs, gridWidth, gr
   return tempPath;
 }
 
+// ============================================
+// ASS MINIMAP GENERATION
+// Vector-based minimap using ASS drawings for GPU-accelerated rendering
+// ============================================
+
+/**
+ * Calculate bounding box from GPS coordinates with padding
+ * @param {Array} gpsPath - Array of [lat, lon] coordinates
+ * @param {number} padding - Padding factor (0.1 = 10% padding)
+ * @returns {{minLat, maxLat, minLon, maxLon, centerLat, centerLon}}
+ */
+function calculateGpsBounds(gpsPath, padding = 0.15) {
+  if (!gpsPath || gpsPath.length === 0) {
+    return { minLat: 0, maxLat: 1, minLon: 0, maxLon: 1, centerLat: 0.5, centerLon: 0.5 };
+  }
+  
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  
+  for (const [lat, lon] of gpsPath) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+  }
+  
+  // Add padding
+  const latRange = maxLat - minLat || 0.001;
+  const lonRange = maxLon - minLon || 0.001;
+  const latPad = latRange * padding;
+  const lonPad = lonRange * padding;
+  
+  minLat -= latPad;
+  maxLat += latPad;
+  minLon -= lonPad;
+  maxLon += lonPad;
+  
+  return {
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    centerLat: (minLat + maxLat) / 2,
+    centerLon: (minLon + maxLon) / 2
+  };
+}
+
+/**
+ * Convert GPS coordinate to pixel position within minimap
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude
+ * @param {Object} bounds - GPS bounds from calculateGpsBounds
+ * @param {number} mapSize - Minimap size in pixels (square)
+ * @param {number} mapX - Minimap X offset in video
+ * @param {number} mapY - Minimap Y offset in video
+ * @returns {{x: number, y: number}}
+ */
+function gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY) {
+  const { minLat, maxLat, minLon, maxLon } = bounds;
+  
+  // Normalize to 0-1 range
+  const normalX = (lon - minLon) / (maxLon - minLon || 1);
+  const normalY = 1 - (lat - minLat) / (maxLat - minLat || 1); // Flip Y (lat increases north)
+  
+  // Apply margin inside the minimap (10% on each side)
+  const margin = mapSize * 0.1;
+  const usableSize = mapSize - margin * 2;
+  
+  return {
+    x: Math.round(mapX + margin + normalX * usableSize),
+    y: Math.round(mapY + margin + normalY * usableSize)
+  };
+}
+
+/**
+ * Generate ASS header for minimap overlay
+ * @param {number} playResX - Video width
+ * @param {number} playResY - Video height
+ * @returns {string} ASS header
+ */
+function generateMinimapAssHeader(playResX, playResY) {
+  return `[Script Info]
+Title: GPS Minimap Overlay
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: MinimapBg,Arial,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: MinimapPath,Arial,20,&H00FF7200,&H00FF7200,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: MinimapMarker,Arial,20,&H000048FF,&H000048FF,&H00FFFFFF,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+}
+
+/**
+ * Calculate minimap position and size based on options
+ * @param {number} playResX - Video width
+ * @param {number} playResY - Video height
+ * @param {string} position - Position: 'top-right', 'top-left', 'bottom-right', 'bottom-left'
+ * @param {string} sizeOption - Size: 'small', 'medium', 'large', 'xlarge'
+ * @returns {{mapX, mapY, mapSize, margin}}
+ */
+function calculateMinimapLayout(playResX, playResY, position, sizeOption) {
+  const sizeMultipliers = {
+    'small': 0.20,
+    'medium': 0.28,
+    'large': 0.35,
+    'xlarge': 0.42
+  };
+  const multiplier = sizeMultipliers[sizeOption] || 0.20;
+  
+  // Square minimap based on smaller dimension
+  const baseSize = Math.min(playResX, playResY);
+  const mapSize = Math.round(baseSize * multiplier);
+  const margin = Math.round(Math.min(playResX, playResY) * 0.02); // 2% margin from edge
+  
+  let mapX, mapY;
+  
+  switch (position) {
+    case 'top-left':
+      mapX = margin;
+      mapY = margin;
+      break;
+    case 'top-right':
+      mapX = playResX - mapSize - margin;
+      mapY = margin;
+      break;
+    case 'bottom-left':
+      mapX = margin;
+      mapY = playResY - mapSize - margin;
+      break;
+    case 'bottom-right':
+      mapX = playResX - mapSize - margin;
+      mapY = playResY - mapSize - margin;
+      break;
+    default:
+      mapX = playResX - mapSize - margin;
+      mapY = margin;
+  }
+  
+  return { mapX, mapY, mapSize, margin };
+}
+
+/**
+ * Generate ASS events for minimap background panel with grid
+ * @param {number} mapX - Minimap X position
+ * @param {number} mapY - Minimap Y position
+ * @param {number} mapSize - Minimap size
+ * @param {number} durationMs - Total duration in ms
+ * @returns {string} ASS dialogue lines for background and grid
+ */
+function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
+  const startTime = formatAssTime(0);
+  const endTime = formatAssTime(durationMs);
+  const cornerRadius = Math.round(mapSize * 0.05);
+  
+  const r = cornerRadius;
+  const left = mapX;
+  const top = mapY;
+  const right = mapX + mapSize;
+  const bottom = mapY + mapSize;
+  
+  // Rounded rectangle with semi-transparent dark fill
+  const bgPath = 
+    `m ${left + r} ${top} ` +
+    `l ${right - r} ${top} ` +
+    `b ${right} ${top} ${right} ${top + r} ${right} ${top + r} ` +
+    `l ${right} ${bottom - r} ` +
+    `b ${right} ${bottom} ${right - r} ${bottom} ${right - r} ${bottom} ` +
+    `l ${left + r} ${bottom} ` +
+    `b ${left} ${bottom} ${left} ${bottom - r} ${left} ${bottom - r} ` +
+    `l ${left} ${top + r} ` +
+    `b ${left} ${top} ${left + r} ${top} ${left + r} ${top}`;
+  
+  const events = [];
+  
+  // Main background
+  events.push(`Dialogue: 0,${startTime},${endTime},MinimapBg,,0,0,0,,{\\an7\\pos(0,0)\\bord1\\shad0\\1c&H282828&\\3c&H404040&\\1a&H20&\\p1}${bgPath}{\\p0}`);
+  
+  // Add subtle grid lines for schematic appearance
+  const gridSpacing = Math.round(mapSize / 5);
+  const gridLineWidth = 1;
+  let gridPath = '';
+  
+  // Vertical grid lines
+  for (let x = left + gridSpacing; x < right; x += gridSpacing) {
+    gridPath += `m ${x} ${top + r} l ${x} ${bottom - r} `;
+  }
+  
+  // Horizontal grid lines  
+  for (let y = top + gridSpacing; y < bottom; y += gridSpacing) {
+    gridPath += `m ${left + r} ${y} l ${right - r} ${y} `;
+  }
+  
+  // Draw grid as thin lines (using small rectangles for visibility)
+  if (gridPath) {
+    // Convert line paths to thin rectangles for ASS
+    let gridRects = '';
+    for (let x = left + gridSpacing; x < right; x += gridSpacing) {
+      gridRects += `m ${x} ${top + r} l ${x + gridLineWidth} ${top + r} l ${x + gridLineWidth} ${bottom - r} l ${x} ${bottom - r} `;
+    }
+    for (let y = top + gridSpacing; y < bottom; y += gridSpacing) {
+      gridRects += `m ${left + r} ${y} l ${right - r} ${y} l ${right - r} ${y + gridLineWidth} l ${left + r} ${y + gridLineWidth} `;
+    }
+    events.push(`Dialogue: 0,${startTime},${endTime},MinimapBg,,0,0,0,,{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H383838&\\1a&H60&\\p1}${gridRects}{\\p0}`);
+  }
+  
+  return events.join('\n');
+}
+
+/**
+ * Generate ASS drawing for route path as proper stroked line segments
+ * ASS fills shapes, so we draw thin rectangles for each line segment to simulate a stroke
+ * @param {Array} gpsPath - Array of [lat, lon] coordinates
+ * @param {Object} bounds - GPS bounds
+ * @param {number} mapSize - Minimap size
+ * @param {number} mapX - Minimap X offset
+ * @param {number} mapY - Minimap Y offset
+ * @param {number} durationMs - Total duration in ms
+ * @returns {string} ASS dialogue lines for route path segments
+ */
+function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs) {
+  if (!gpsPath || gpsPath.length < 2) return '';
+  
+  const startTime = formatAssTime(0);
+  const endTime = formatAssTime(durationMs);
+  
+  // Convert all GPS points to pixel coordinates
+  const points = gpsPath.map(([lat, lon]) => gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY));
+  
+  // Downsample points to reduce complexity (keep every Nth point)
+  const maxPoints = 200;
+  let sampledPoints = points;
+  if (points.length > maxPoints) {
+    const step = Math.ceil(points.length / maxPoints);
+    sampledPoints = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  }
+  
+  // Line thickness based on map size
+  const strokeWidth = Math.max(2, Math.round(mapSize / 100));
+  
+  // Build path as a series of thin filled rectangles (stroke segments)
+  // For each segment, create a quadrilateral perpendicular to the line direction
+  let pathStr = '';
+  
+  for (let i = 0; i < sampledPoints.length - 1; i++) {
+    const p1 = sampledPoints[i];
+    const p2 = sampledPoints[i + 1];
+    
+    // Calculate direction vector
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    
+    if (len < 0.5) continue; // Skip tiny segments
+    
+    // Perpendicular unit vector for stroke width
+    const px = (-dy / len) * strokeWidth / 2;
+    const py = (dx / len) * strokeWidth / 2;
+    
+    // Four corners of the line segment rectangle
+    const x1 = Math.round(p1.x + px);
+    const y1 = Math.round(p1.y + py);
+    const x2 = Math.round(p1.x - px);
+    const y2 = Math.round(p1.y - py);
+    const x3 = Math.round(p2.x - px);
+    const y3 = Math.round(p2.y - py);
+    const x4 = Math.round(p2.x + px);
+    const y4 = Math.round(p2.y + py);
+    
+    // Draw as filled quadrilateral
+    pathStr += `m ${x1} ${y1} l ${x2} ${y2} l ${x3} ${y3} l ${x4} ${y4} `;
+  }
+  
+  // Add circles at start and end points for rounded caps
+  const capRadius = strokeWidth;
+  const startPt = sampledPoints[0];
+  const endPt = sampledPoints[sampledPoints.length - 1];
+  
+  // Simple circle approximation using bezier curves
+  const circleAt = (cx, cy, r) => {
+    const k = 0.552284749831; // Bezier circle constant
+    return `m ${cx} ${cy - r} ` +
+           `b ${cx + r*k} ${cy - r} ${cx + r} ${cy - r*k} ${cx + r} ${cy} ` +
+           `b ${cx + r} ${cy + r*k} ${cx + r*k} ${cy + r} ${cx} ${cy + r} ` +
+           `b ${cx - r*k} ${cy + r} ${cx - r} ${cy + r*k} ${cx - r} ${cy} ` +
+           `b ${cx - r} ${cy - r*k} ${cx - r*k} ${cy - r} ${cx} ${cy - r} `;
+  };
+  
+  pathStr += circleAt(startPt.x, startPt.y, capRadius);
+  pathStr += circleAt(endPt.x, endPt.y, capRadius);
+  
+  // Route line with blue color
+  return `Dialogue: 1,${startTime},${endTime},MinimapPath,,0,0,0,,{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF7200&\\p1}${pathStr}{\\p0}`;
+}
+
+/**
+ * Generate ASS arrow marker path (direction indicator)
+ * Creates a small, clean navigation arrow pointing up, centered at (0,0)
+ * @param {number} scale - Scale factor
+ * @returns {string} ASS drawing path for arrow
+ */
+function generateArrowPath(scale = 1) {
+  const s = scale;
+  // Simple triangular navigation arrow (like Google Maps)
+  // Smaller and cleaner design
+  return `m 0 ${Math.round(-8*s)} l ${Math.round(5*s)} ${Math.round(8*s)} l ${Math.round(-5*s)} ${Math.round(4*s)} l ${Math.round(-5*s)} ${Math.round(-4*s)} l ${Math.round(5*s)} ${Math.round(-8*s)}`;
+}
+
+/**
+ * Generate ASS events for position markers throughout the video
+ * @param {Array} seiData - Array of {timestampMs, sei} objects with GPS data
+ * @param {Array} gpsPath - Array of [lat, lon] for bounds calculation
+ * @param {Object} bounds - GPS bounds
+ * @param {number} mapSize - Minimap size
+ * @param {number} mapX - Minimap X offset
+ * @param {number} mapY - Minimap Y offset
+ * @param {number} startTimeMs - Start time in ms
+ * @param {number} endTimeMs - End time in ms
+ * @returns {string} ASS dialogue lines for position markers
+ */
+function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs) {
+  if (!seiData || seiData.length === 0) return '';
+  
+  const events = [];
+  // Smaller scale for the arrow marker
+  const markerScale = Math.max(0.8, mapSize / 250);
+  
+  // Group consecutive frames with same position to reduce ASS events
+  let prevState = null;
+  let eventStartMs = 0; // Start from 0 (relative to export start)
+  
+  for (let i = 0; i < seiData.length; i++) {
+    const { timestampMs, sei } = seiData[i];
+    
+    // Get GPS coordinates
+    const lat = sei?.latitude_deg ?? sei?.latitudeDeg ?? 0;
+    const lon = sei?.longitude_deg ?? sei?.longitudeDeg ?? 0;
+    const heading = sei?.heading_deg ?? sei?.headingDeg ?? 0;
+    
+    // Skip invalid coordinates
+    if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) continue;
+    
+    // Convert to pixel position
+    const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY);
+    
+    // Round heading to reduce event count (5 degree increments)
+    const roundedHeading = Math.round(heading / 5) * 5;
+    
+    // Create state signature
+    const currentState = `${pos.x},${pos.y},${roundedHeading}`;
+    
+    // Calculate relative time from export start
+    const relativeTimeMs = timestampMs - startTimeMs;
+    
+    if (currentState !== prevState) {
+      // Emit previous event if exists
+      if (prevState !== null && eventStartMs < relativeTimeMs) {
+        const [px, py, ph] = prevState.split(',').map(Number);
+        const startAssTime = formatAssTime(Math.max(0, eventStartMs));
+        const endAssTime = formatAssTime(Math.max(0, relativeTimeMs));
+        
+        // Red arrow with white border, rotated to heading direction
+        // Color: &H0000FF& = pure red in BGR format
+        events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
+      }
+      
+      prevState = currentState;
+      eventStartMs = relativeTimeMs;
+    }
+  }
+  
+  // Emit final event
+  if (prevState !== null) {
+    const [px, py, ph] = prevState.split(',').map(Number);
+    const startAssTime = formatAssTime(Math.max(0, eventStartMs));
+    const endAssTime = formatAssTime(Math.max(0, endTimeMs - startTimeMs));
+    
+    // Red arrow with white border
+    events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
+  }
+  
+  return events.join('\n');
+}
+
+/**
+ * Generate complete ASS file for minimap overlay
+ * @param {Array} seiData - Array of {timestampMs, sei} objects with GPS data
+ * @param {Array} mapPath - Array of [lat, lon] coordinates for route display
+ * @param {number} startTimeMs - Export start time in ms
+ * @param {number} endTimeMs - Export end time in ms
+ * @param {Object} options - Options including playResX, playResY, position, size
+ * @returns {string} Complete ASS file content
+ */
+function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
+  const {
+    playResX = 1920,
+    playResY = 1080,
+    position = 'top-right',
+    size = 'small',
+    // For standalone mode (overlaying on map image), set these:
+    standaloneMode = false,  // If true, generates ASS for a standalone minimap image
+    standaloneSize = 256,    // Size of the standalone minimap
+    customBounds = null,     // Custom GPS bounds (e.g., from map tiles)
+    includeBackground = true // Whether to include the dark background
+  } = options;
+  
+  const durationMs = endTimeMs - startTimeMs;
+  
+  let mapX, mapY, mapSize;
+  
+  if (standaloneMode) {
+    // Standalone mode: ASS coordinates are 0,0 to standaloneSize,standaloneSize
+    mapX = 0;
+    mapY = 0;
+    mapSize = standaloneSize;
+  } else {
+    // Normal mode: Calculate position within video frame
+    const layout = calculateMinimapLayout(playResX, playResY, position, size);
+    mapX = layout.mapX;
+    mapY = layout.mapY;
+    mapSize = layout.mapSize;
+  }
+  
+  // Use custom bounds if provided (e.g., from map tile boundaries), otherwise calculate from path
+  const bounds = customBounds || calculateGpsBounds(mapPath);
+  
+  // Generate header with appropriate resolution
+  const headerResX = standaloneMode ? standaloneSize : playResX;
+  const headerResY = standaloneMode ? standaloneSize : playResY;
+  let assContent = generateMinimapAssHeader(headerResX, headerResY);
+  
+  // Generate background panel (skip in standalone mode if we have a map image background)
+  if (includeBackground) {
+    assContent += generateMinimapBackground(mapX, mapY, mapSize, durationMs) + '\n';
+  }
+  
+  // Generate route path
+  const routePath = generateMinimapRoutePath(mapPath, bounds, mapSize, mapX, mapY, durationMs);
+  if (routePath) {
+    assContent += routePath + '\n';
+  }
+  
+  // Generate position markers
+  const markers = generateMinimapMarkers(seiData, mapPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs);
+  if (markers) {
+    assContent += markers + '\n';
+  }
+  
+  return assContent;
+}
+
+/**
+ * Write minimap ASS file to temp directory
+ * @param {string} exportId - Export ID for unique filename
+ * @param {Array} seiData - SEI telemetry data with GPS
+ * @param {Array} mapPath - GPS path coordinates
+ * @param {number} startTimeMs - Start time in ms
+ * @param {number} endTimeMs - End time in ms
+ * @param {Object} options - Export options
+ * @returns {Promise<string>} Path to generated ASS file
+ */
+async function writeMinimapAss(exportId, seiData, mapPath, startTimeMs, endTimeMs, options) {
+  const assContent = generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options);
+  const tempPath = path.join(os.tmpdir(), `minimap_${exportId}_${Date.now()}.ass`);
+  
+  await fs.promises.writeFile(tempPath, assContent, 'utf8');
+  console.log(`[ASS] Generated minimap overlay: ${tempPath} (${mapPath?.length || 0} GPS points)`);
+  
+  return tempPath;
+}
+
 module.exports = {
   generateCompactDashboardAss,
   writeCompactDashboardAss,
@@ -934,5 +1413,8 @@ module.exports = {
   COLORS,
   // Solid cover exports
   generateSolidCoverAss,
-  writeSolidCoverAss
+  writeSolidCoverAss,
+  // Minimap exports (ASS-based)
+  generateMinimapAss,
+  writeMinimapAss
 };
