@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.5.1",
+      "date": "2026-01-29",
+      "title": "Feature Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Added 12 hrs and 24 hrs settings to change format for Exported and UI Dashboards."
+        },
+        {
+          "type": "feature",
+          "description": "Added Map UI option to export clips (Beta)"
+        },
+        {
+          "type": "improvement",
+          "description": "Added option to  Load clips from a folder. No Tesla USB structure needed."
+        },
+        {
+          "type": "improvement",
+          "description": "Added option to disable Mirrored cameras (L/R Repeaters, and Back camera) so they show Raw Orientation."
+        }
+      ]
+    },
+    {
       "version": "2026.4.2",
       "date": "2026-01-19",
       "title": "Minor Update",

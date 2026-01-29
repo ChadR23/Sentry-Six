@@ -327,6 +327,32 @@ export function initSettingsModal() {
         });
     }
     
+    // Mirror cameras setting
+    const settingsMirrorCameras = $('settingsMirrorCameras');
+    if (settingsMirrorCameras) {
+        // Load saved mirror setting (default true for backwards compatibility)
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('mirrorCameras').then(savedValue => {
+                const mirrorEnabled = savedValue !== false; // Default to true
+                settingsMirrorCameras.checked = mirrorEnabled;
+                window._mirrorCameras = mirrorEnabled;
+            });
+        } else {
+            window._mirrorCameras = true;
+        }
+        
+        settingsMirrorCameras.addEventListener('change', async function() {
+            const mirrorEnabled = this.checked;
+            window._mirrorCameras = mirrorEnabled;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('mirrorCameras', mirrorEnabled);
+            }
+            // Dispatch event so other components can update
+            window.dispatchEvent(new CustomEvent('mirrorCamerasChanged', { detail: { enabled: mirrorEnabled } }));
+            settingsMirrorCameras.blur();
+        });
+    }
+    
     // Language selector
     const settingsLanguage = $('settingsLanguage');
     if (settingsLanguage) {

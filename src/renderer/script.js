@@ -1074,6 +1074,11 @@ function hasValidGps(sei) {
     // Initialize native video playback system
     initNativeVideoPlayback();
 
+    // Listen for mirror cameras setting changes to re-apply transforms
+    window.addEventListener('mirrorCamerasChanged', () => {
+        applyMirrorTransforms();
+    });
+
     // Listen for date format changes to update the clips dropdown
     window.addEventListener('dateFormatChanged', () => {
         if (library.allDates && library.allDates.length > 0) {
@@ -1438,6 +1443,7 @@ async function traverseDirectoryElectron(dirPath) {
             // Scan for clip subfolders
             const entries = await window.electronAPI.readDir(dirPath);
             
+            let foundClipFolders = false;
             for (const entry of entries) {
                 if (!entry.isDirectory) continue;
                 const name = entry.name.toLowerCase();
@@ -1445,13 +1451,21 @@ async function traverseDirectoryElectron(dirPath) {
                 if (name === 'recentclips') {
                     folderStructure.recentClips = entry;
                     await scanRecentClipsElectron(entry.path);
+                    foundClipFolders = true;
                 } else if (name === 'sentryclips') {
                     folderStructure.sentryClips = entry;
                     await scanEventFolderElectron(entry.path, 'sentry');
+                    foundClipFolders = true;
                 } else if (name === 'savedclips') {
                     folderStructure.savedClips = entry;
                     await scanEventFolderElectron(entry.path, 'saved');
+                    foundClipFolders = true;
                 }
+            }
+            
+            // If no Tesla folder structure found, check for loose video clips directly in the folder
+            if (!foundClipFolders) {
+                await scanLooseClipsElectron(dirPath);
             }
         }
     } catch (err) {
@@ -1559,6 +1573,55 @@ async function scanEventFolderElectron(dirPath, clipType) {
     }
 }
 
+// Scan for loose video clips directly in a folder (no Tesla folder structure)
+async function scanLooseClipsElectron(dirPath) {
+    try {
+        const entries = await window.electronAPI.readDir(dirPath);
+        
+        for (const entry of entries) {
+            if (!entry.isFile) continue;
+            const nameLower = entry.name.toLowerCase();
+            
+            // Check for video files
+            if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
+                // Try to extract date from Tesla-style filename: YYYY-MM-DD_HH-MM-SS-camera.mp4
+                let date = null;
+                const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                if (teslaMatch) {
+                    date = teslaMatch[1];
+                } else {
+                    // Try other common date formats in filenames
+                    // YYYYMMDD format
+                    const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                    if (compactMatch) {
+                        date = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+                    } else {
+                        // Use file modification date as fallback - group all undated files under "Unknown"
+                        date = 'Unknown';
+                    }
+                }
+                
+                folderStructure.dates.add(date);
+                if (!folderStructure.dateHandles.has(date)) {
+                    folderStructure.dateHandles.set(date, { 
+                        recent: null, 
+                        sentry: new Map(), 
+                        saved: new Map(),
+                        loose: { path: dirPath, isLoose: true }
+                    });
+                } else {
+                    const dateData = folderStructure.dateHandles.get(date);
+                    if (!dateData.loose) {
+                        dateData.loose = { path: dirPath, isLoose: true };
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Error scanning loose clips:', err);
+    }
+}
+
 // Load date content using Electron fs
 async function loadDateContentElectron(date) {
     if (!folderStructure?.dateHandles?.has(date)) {
@@ -1634,6 +1697,49 @@ async function loadDateContentElectron(date) {
             }
         } catch (err) {
             console.warn(`Error loading Saved event ${eventId}:`, err);
+        }
+    }
+    
+    // Load loose clips (folder with just video files, no Tesla structure)
+    if (dateData.loose) {
+        updateLoading('Loading clips...', 'Loading video clips...');
+        try {
+            const entries = await window.electronAPI.readDir(dateData.loose.path);
+            for (const entry of entries) {
+                if (!entry.isFile) continue;
+                const nameLower = entry.name.toLowerCase();
+                
+                // Check for video files
+                if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
+                    // Filter by date if not "Unknown"
+                    if (date !== 'Unknown') {
+                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                        let fileDate = null;
+                        if (teslaMatch) {
+                            fileDate = teslaMatch[1];
+                        } else if (compactMatch) {
+                            fileDate = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+                        }
+                        if (fileDate && fileDate !== date) continue;
+                    } else {
+                        // For "Unknown" date, only include files without recognizable dates
+                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                        if (teslaMatch || compactMatch) continue;
+                    }
+                    
+                    files.push({
+                        name: entry.name,
+                        path: entry.path,
+                        webkitRelativePath: `${folderStructure.root.name}/${entry.name}`,
+                        isElectronFile: true,
+                        isLooseClip: true
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('Error loading loose clips:', err);
         }
     }
     
@@ -1760,19 +1866,28 @@ async function traverseDirectoryHandle(dirHandle) {
         } else {
             // User selected a parent folder (e.g., TeslaCam, teslausb, or any custom name)
             // Scan for clip subfolders
+            let foundClipFolders = false;
             for await (const entry of dirHandle.values()) {
                 if (entry.kind !== 'directory') continue;
                 const name = entry.name.toLowerCase();
                 if (name === 'recentclips') {
                     folderStructure.recentClips = entry;
                     await scanRecentClipsForDates(entry);
+                    foundClipFolders = true;
                 } else if (name === 'sentryclips') {
                     folderStructure.sentryClips = entry;
                     await scanEventFolderForDates(entry, 'sentry');
+                    foundClipFolders = true;
                 } else if (name === 'savedclips') {
                     folderStructure.savedClips = entry;
                     await scanEventFolderForDates(entry, 'saved');
+                    foundClipFolders = true;
                 }
+            }
+            
+            // If no Tesla folder structure found, check for loose video clips directly in the folder
+            if (!foundClipFolders) {
+                await scanLooseClipsForDates(dirHandle);
             }
         }
     } catch (err) {
@@ -1877,6 +1992,53 @@ async function scanEventFolderForDates(handle, clipType) {
     }
 }
 
+// Scan for loose video clips directly in a folder (no Tesla folder structure) - File System Access API
+async function scanLooseClipsForDates(dirHandle) {
+    try {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind !== 'file') continue;
+            const nameLower = entry.name.toLowerCase();
+            
+            // Check for video files
+            if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
+                // Try to extract date from Tesla-style filename: YYYY-MM-DD_HH-MM-SS-camera.mp4
+                let date = null;
+                const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                if (teslaMatch) {
+                    date = teslaMatch[1];
+                } else {
+                    // Try other common date formats in filenames
+                    // YYYYMMDD format
+                    const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                    if (compactMatch) {
+                        date = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+                    } else {
+                        // Group all undated files under "Unknown"
+                        date = 'Unknown';
+                    }
+                }
+                
+                folderStructure.dates.add(date);
+                if (!folderStructure.dateHandles.has(date)) {
+                    folderStructure.dateHandles.set(date, { 
+                        recent: null, 
+                        sentry: new Map(), 
+                        saved: new Map(),
+                        loose: dirHandle
+                    });
+                } else {
+                    const dateData = folderStructure.dateHandles.get(date);
+                    if (!dateData.loose) {
+                        dateData.loose = dirHandle;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Error scanning loose clips:', err);
+    }
+}
+
 // Load content for a specific date (called when user selects a date)
 async function loadDateContent(date) {
     if (!folderStructure?.dateHandles?.has(date)) {
@@ -1889,7 +2051,8 @@ async function loadDateContent(date) {
     // Check if we're using Electron (objects with path property) or browser File System API (directory handles)
     const isElectron = dateData.recent?.path || 
                        (dateData.sentry.size > 0 && dateData.sentry.values().next().value?.path) ||
-                       (dateData.saved.size > 0 && dateData.saved.values().next().value?.path);
+                       (dateData.saved.size > 0 && dateData.saved.values().next().value?.path) ||
+                       dateData.loose?.isLoose;
     
     if (isElectron) {
         await loadDateContentElectron(date);
@@ -1945,6 +2108,51 @@ async function loadDateContent(date) {
         updateLoading('Loading clips...', `Loading Saved event ${eventCount}/${totalEvents}...`);
         await yieldToUI();
         await loadEventFolder(eventHandle, 'SavedClips', eventId, files);
+    }
+    
+    // Load loose clips (folder with just video files, no Tesla structure)
+    if (dateData.loose && typeof dateData.loose.values === 'function') {
+        updateLoading('Loading clips...', 'Loading video clips...');
+        await yieldToUI();
+        try {
+            for await (const entry of dateData.loose.values()) {
+                if (entry.kind !== 'file') continue;
+                const nameLower = entry.name.toLowerCase();
+                
+                // Check for video files
+                if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
+                    // Filter by date if not "Unknown"
+                    if (date !== 'Unknown') {
+                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                        let fileDate = null;
+                        if (teslaMatch) {
+                            fileDate = teslaMatch[1];
+                        } else if (compactMatch) {
+                            fileDate = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+                        }
+                        if (fileDate && fileDate !== date) continue;
+                    } else {
+                        // For "Unknown" date, only include files without recognizable dates
+                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
+                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
+                        if (teslaMatch || compactMatch) continue;
+                    }
+                    
+                    try {
+                        const file = await entry.getFile();
+                        Object.defineProperty(file, 'webkitRelativePath', {
+                            value: `${folderStructure.root.name}/${entry.name}`,
+                            writable: false
+                        });
+                        file.isLooseClip = true;
+                        files.push(file);
+                    } catch { /* skip inaccessible files */ }
+                }
+            }
+        } catch (err) {
+            console.warn('Error loading loose clips:', err);
+        }
     }
 
     hideLoading();

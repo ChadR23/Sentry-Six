@@ -25,8 +25,11 @@ let getState = null;
 
 /**
  * Check if a camera should be mirrored (Back, Left/Right Repeater cameras)
+ * Respects the global mirrorCameras setting
  */
 function shouldMirrorCamera(camera) {
+    // Check if mirror cameras setting is enabled (default true)
+    if (window._mirrorCameras === false) return false;
     return camera === 'back' || camera === 'left_repeater' || camera === 'right_repeater';
 }
 

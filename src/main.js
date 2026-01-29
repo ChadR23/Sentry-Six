@@ -1146,7 +1146,7 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [] } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -1705,7 +1705,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const inputIdx = cameraInputMap.get(camera);
         const hasVideo = inputIdx !== undefined;
         const srcIdx = hasVideo ? inputIdx : blackInputIdx;
-        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+        const isMirrored = mirrorCameras && ['back', 'left_repeater', 'right_repeater'].includes(camera);
         
         // Scale camera to native size (w x h) - exactly like old grid code
         // Ensure even dimensions
@@ -1839,7 +1839,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const inputIdx = cameraInputMap.get(camera);
         const hasVideo = inputIdx !== undefined;
         const srcIdx = hasVideo ? inputIdx : blackInputIdx;
-        const isMirrored = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+        const isMirrored = mirrorCameras && ['back', 'left_repeater', 'right_repeater'].includes(camera);
 
         // Use minterpolate for smoother frame rate conversion to avoid pulsing
         // fps filter can cause frame drops/duplicates, minterpolate is smoother

@@ -730,7 +730,8 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         const savedCoords = editIndex !== null ? exportState.blurZones[editIndex]?.coordinates : null;
         
         // Mirror the snapshot for cameras that are mirrored in viewer/export (back and repeaters only)
-        const shouldMirror = ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
+        // Respect the global mirrorCameras setting
+        const shouldMirror = window._mirrorCameras !== false && ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
         
         // Initialize editor with snapshot
         editorModal.classList.remove('hidden');
@@ -1564,6 +1565,8 @@ export async function startExport() {
             blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
             // Language for dashboard text translations (Gear, Autopilot states, etc.)
             language: getCurrentLanguage(),
+            // Mirror cameras setting (back and repeaters)
+            mirrorCameras: window._mirrorCameras !== false,
             // Minimap settings
             includeMinimap: includeMinimap && mapPath.length > 0,
             minimapPosition,
