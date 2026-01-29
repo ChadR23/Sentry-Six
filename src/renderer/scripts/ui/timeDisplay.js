@@ -41,6 +41,28 @@ export function updateTimeDisplayNew(currentSec, totalSec) {
 }
 
 /**
+ * Format time based on user's time format preference (12h or 24h)
+ * @param {number} hours - Hours (0-23)
+ * @param {number} minutes - Minutes (0-59)
+ * @param {number} seconds - Seconds (0-59)
+ * @param {string} timeFormat - '12h' or '24h'
+ * @returns {string} Formatted time string
+ */
+export function formatTimeWithPreference(hours, minutes, seconds, timeFormat) {
+    const m = String(minutes).padStart(2, '0');
+    const s = String(seconds).padStart(2, '0');
+    
+    if (timeFormat === '24h') {
+        const h = String(hours).padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    } else {
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const h12 = hours % 12 || 12;
+        return `${h12}:${m}:${s} ${ampm}`;
+    }
+}
+
+/**
  * Update the recording time display from segment timestamp
  * @param {Object} opts - Options
  * @param {Object} opts.collection - Active collection
@@ -80,9 +102,9 @@ export function updateRecordingTime(opts) {
             const m = Math.floor((totalSeconds % 3600) / 60);
             const s = totalSeconds % 60;
             
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const h12 = h % 12 || 12;
-            const formattedTime = `${h12}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} ${ampm}`;
+            // Use user's time format preference (default to 12h)
+            const timeFormat = window._timeFormat || '12h';
+            const formattedTime = formatTimeWithPreference(h, m, s, timeFormat);
             if (timeText) timeText.textContent = formattedTime;
             if (timeTextCompact) timeTextCompact.textContent = formattedTime;
         }

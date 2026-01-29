@@ -208,19 +208,25 @@ function formatAssTime(ms) {
 }
 
 /**
- * Format timestamp for display (12-hour format)
+ * Format timestamp for display based on user's time format preference
  * @param {number} timestampMs - Unix timestamp in milliseconds
+ * @param {string} timeFormat - Time format: '12h' or '24h'
  * @returns {string} Formatted time string
  */
-function formatDisplayTime(timestampMs) {
+function formatDisplayTime(timestampMs, timeFormat = '12h') {
   if (!timestampMs) return '--:--';
   const date = new Date(timestampMs);
   let h = date.getHours();
   const m = date.getMinutes();
   const s = date.getSeconds();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} ${ampm}`;
+  
+  if (timeFormat === '24h') {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  } else {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} ${ampm}`;
+  }
 }
 
 /**
@@ -436,6 +442,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     segments = [],
     cumStarts = [],
     dateFormat = 'mdy',
+    timeFormat = '12h',
     language = 'en'
   } = options;
   
@@ -570,7 +577,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     const leftBlinkVisible = leftBlinkerOn && isBlinkOn;
     const rightBlinkVisible = rightBlinkerOn && isBlinkOn;
     
-    const displayTime = formatDisplayTime(actualTimestampMs);
+    const displayTime = formatDisplayTime(actualTimestampMs, timeFormat);
     const displayDate = formatDisplayDate(actualTimestampMs, dateFormat);
     
     // Create state signature for change detection

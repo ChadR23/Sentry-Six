@@ -302,6 +302,31 @@ export function initSettingsModal() {
         });
     }
     
+    // Time format setting (12h/24h)
+    const settingsTimeFormat = $('settingsTimeFormat');
+    if (settingsTimeFormat) {
+        // Load saved time format
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('timeFormat').then(savedValue => {
+                settingsTimeFormat.value = savedValue || '12h';
+                window._timeFormat = savedValue || '12h';
+            });
+        } else {
+            window._timeFormat = '12h';
+        }
+        
+        settingsTimeFormat.addEventListener('change', async function() {
+            const format = this.value;
+            window._timeFormat = format;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('timeFormat', format);
+            }
+            // Dispatch event so other components can update
+            window.dispatchEvent(new CustomEvent('timeFormatChanged', { detail: { format } }));
+            settingsTimeFormat.blur();
+        });
+    }
+    
     // Language selector
     const settingsLanguage = $('settingsLanguage');
     if (settingsLanguage) {

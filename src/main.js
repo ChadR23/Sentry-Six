@@ -1146,7 +1146,7 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [] } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [] } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -1412,6 +1412,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               segments,
               cumStarts,
               dateFormat: timestampDateFormat,
+              timeFormat: timestampTimeFormat,
               language
             });
             tempFiles.push(assTempPath);
@@ -2128,7 +2129,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         'ymd': '%Y-%m-%d'   // ISO: YYYY-MM-DD
       };
       const dateFormat = dateFormats[timestampDateFormat] || dateFormats['mdy'];
-      const timestampText = `${dateFormat} %I\\:%M\\:%S %p`;
+      // Time format: 12h uses %I (12-hour) with %p (AM/PM), 24h uses %H (24-hour)
+      const timeFormat = timestampTimeFormat === '24h' ? '%H\\:%M\\:%S' : '%I\\:%M\\:%S %p';
+      const timestampText = `${dateFormat} ${timeFormat}`;
       
       // Build drawtext filter with timestamp (similar to old version)
       const drawtextFilter = [

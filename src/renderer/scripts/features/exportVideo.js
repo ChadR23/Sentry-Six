@@ -1211,6 +1211,7 @@ export async function startExport() {
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
     const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
     const timestampDateFormat = window._dateFormat || 'ymd'; // Use global date format setting
+    const timestampTimeFormat = window._timeFormat || '12h'; // Use global time format setting (12h/24h)
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -1557,6 +1558,7 @@ export async function startExport() {
             includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
             timestampPosition, // Position: bottom-center, bottom-left, etc.
             timestampDateFormat, // Date format: mdy (US), dmy (International), ymd (ISO)
+            timestampTimeFormat, // Time format: 12h (AM/PM), 24h
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
             blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
