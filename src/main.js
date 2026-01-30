@@ -2530,7 +2530,15 @@ function loadSettings() {
 
 function saveSettings(settings) {
   try {
+    // Ensure the directory exists
+    const settingsDir = path.dirname(settingsPath);
+    if (!fs.existsSync(settingsDir)) {
+      fs.mkdirSync(settingsDir, { recursive: true });
+      console.log('[SETTINGS] Created settings directory:', settingsDir);
+    }
+    
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    console.log('[SETTINGS] Settings saved successfully to:', settingsPath);
     return true;
   } catch (err) {
     console.error('Failed to save settings:', err);
@@ -2833,7 +2841,9 @@ ipcMain.handle('update:check', async () => {
   try {
     // Step 1: Check with telemetry API first (for killswitch and analytics)
     console.log('[UPDATE] Checking with telemetry API...');
-    const apiResponse = await checkUpdateWithTelemetry();
+    const settings = loadSettings();
+    const analyticsEnabled = settings.anonymousAnalytics !== false; // Default to true
+    const apiResponse = await checkUpdateWithTelemetry(analyticsEnabled);
     const processedResult = processApiResponse(apiResponse);
     
     // Handle force_manual (killswitch) - stop all auto-update and show critical alert

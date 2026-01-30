@@ -569,6 +569,23 @@ export function initSettingsModal() {
         });
     }
     
+    // Anonymous analytics toggle
+    const settingsAnonymousAnalytics = $('settingsAnonymousAnalytics');
+    if (settingsAnonymousAnalytics) {
+        if (window.electronAPI?.getSetting) {
+            window.electronAPI.getSetting('anonymousAnalytics').then(savedValue => {
+                settingsAnonymousAnalytics.checked = savedValue !== false; // Default to true
+            });
+        }
+        
+        settingsAnonymousAnalytics.addEventListener('change', async function() {
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('anonymousAnalytics', this.checked);
+            }
+            settingsAnonymousAnalytics.blur();
+        });
+    }
+    
     // Update branch selector
     const settingsUpdateBranch = $('settingsUpdateBranch');
     const branchNote = $('branchInstallerNote');

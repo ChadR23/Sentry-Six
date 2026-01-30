@@ -18,6 +18,7 @@ import {
 } from './scripts/features/exportVideo.js';
 import { initLayoutLab } from './scripts/ui/layoutLab.js';
 import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
+import { initWelcomeScreen } from './scripts/features/welcomeScreen.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal } from './scripts/ui/settingsModal.js';
 import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
@@ -1339,13 +1340,32 @@ async function checkForUpdatesOnStartup() {
     let autoUpdateDisabled = false;
     
     // Load from file-based settings
-    if (window.electronAPI?.getSetting) {
-        const savedValue = await window.electronAPI.getSetting('disableAutoUpdate');
+    try {
+        const savedValue = await window.electronAPI.getSetting('autoUpdateDisabled');
         autoUpdateDisabled = savedValue === true;
+    } catch (err) {
+        console.log('[SETTINGS] Could not load autoUpdateDisabled setting:', err);
     }
     
-    if (!autoUpdateDisabled && window.electronAPI?.checkForUpdates) {
+    // Check if first run is complete and analytics setting exists - don't auto-update if welcome screen is needed
+    let firstRunComplete = false;
+    let hasAnalyticsSetting = false;
+    try {
+        firstRunComplete = await window.electronAPI.getSetting('firstRunComplete');
+        hasAnalyticsSetting = await window.electronAPI.getSetting('anonymousAnalytics');
+    } catch (err) {
+        console.log('[SETTINGS] Could not load settings:', err);
+    }
+    
+    // Only check for updates if auto-update is enabled AND first run is complete AND analytics setting exists
+    // This matches the welcome screen logic: firstRunComplete !== true || hasAnalyticsSetting === undefined
+    const shouldSkipUpdate = firstRunComplete !== true || hasAnalyticsSetting === undefined;
+    
+    if (!autoUpdateDisabled && !shouldSkipUpdate && window.electronAPI?.checkForUpdates) {
+        console.log('[UPDATE] Auto-checking for updates on startup');
         window.electronAPI.checkForUpdates();
+    } else if (!autoUpdateDisabled && shouldSkipUpdate) {
+        console.log('[UPDATE] Skipping auto-update check - waiting for welcome screen acceptance');
     }
 }
 
@@ -4384,6 +4404,10 @@ window.selectDayCollectionWrapper = function(dayKey) {
 
 // Call updateExportButtonState initially
 setTimeout(updateExportButtonState, 500);
+
+// Welcome Screen System (must run before auto-update)
+console.log('[SCRIPT] Initializing welcome screen...');
+initWelcomeScreen();
 
 // Auto-Update System
 initAutoUpdate();

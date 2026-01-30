@@ -68,6 +68,12 @@ export const translations = {
             step7: { title: "Export Your Clips", desc: "Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay." },
             step8: { title: "Customize Settings", desc: "Click the <strong>gear icon</strong> for settings. Configure default folder, shortcuts, <strong>metric units</strong>, and <strong>date format</strong> preferences." },
             step9: { title: "You're All Set!", desc: "That's everything you need to get started. Load a TeslaCam folder and start exploring your footage. You can always access help from the Settings menu.", tip: "💡 <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek." }
+        },
+        welcomeScreen: {
+            title: "Welcome to Sentry-Six",
+            privacyTitle: "Privacy & Updates",
+            privacyMessage: "To keep Sentry-Six running smoothly, the app automatically checks for updates and the latest features. We also use a randomly generated ID to see which versions are most popular. This helps us fix bugs faster, and no personal info is ever sent to our servers.",
+            acceptButton: "Accept & Continue"
         }
     },
     es: {
@@ -134,6 +140,12 @@ export const translations = {
             step7: { title: "Exporta tus Clips", desc: "Establece <strong>puntos de entrada/salida</strong>, luego haz clic en <strong>Exportar</strong>. Elige cámaras, calidad y agrega superposición de telemetría." },
             step8: { title: "Personaliza la Configuración", desc: "Haz clic en el <strong>ícono de engranaje</strong> para configuración. Configura carpeta predeterminada, atajos, <strong>unidades métricas</strong> y preferencias de <strong>formato de fecha</strong>." },
             step9: { title: "¡Todo Listo!", desc: "Eso es todo lo que necesitas para comenzar. Carga una carpeta de TeslaCam y comienza a explorar tu grabación. Siempre puedes acceder a la ayuda desde el menú de Configuración.", tip: "💡 <strong>Consejo:</strong> Presiona <strong>Espacio</strong> para reproducir/pausar y usa las teclas de flecha para buscar." }
+        },
+        welcomeScreen: {
+            title: "Bienvenido a Sentry-Six",
+            privacyTitle: "Privacidad y Actualizaciones",
+            privacyMessage: "Para mantener Sentry-Six funcionando sin problemas, la aplicación comprueba automáticamente actualizaciones y las últimas funciones. También usamos un ID generado aleatoriamente para ver qué versiones son más populares. Esto nos ayuda a corregir errores más rápido, y nunca se envía información personal a nuestros servidores.",
+            acceptButton: "Aceptar y Continuar"
         }
     },
     fr: {
@@ -155,6 +167,12 @@ export const translations = {
             step7: { title: "Exportez vos Clips", desc: "Définissez les <strong>points d'entrée/sortie</strong>, puis cliquez sur <strong>Exporter</strong>. Choisissez les caméras, la qualité et ajoutez une superposition de télémétrie." },
             step8: { title: "Personnalisez les Paramètres", desc: "Cliquez sur l'<strong>icône d'engrenage</strong> pour les paramètres. Configurez le dossier par défaut, les raccourcis, les <strong>unités métriques</strong> et les préférences de <strong>format de date</strong>." },
             step9: { title: "Vous êtes Prêt !", desc: "C'est tout ce dont vous avez besoin pour commencer. Chargez un dossier TeslaCam et commencez à explorer vos enregistrements. Vous pouvez toujours accéder à l'aide depuis le menu Paramètres.", tip: "💡 <strong>Astuce :</strong> Appuyez sur <strong>Espace</strong> pour lire/pause et utilisez les touches fléchées pour rechercher." }
+        },
+        welcomeScreen: {
+            title: "Bienvenue dans Sentry-Six",
+            privacyTitle: "Confidentialité et Mises à Jour",
+            privacyMessage: "Pour garder Sentry-Six fonctionnant parfaitement, l'application vérifie automatiquement les mises à jour et les dernières fonctionnalités. Nous utilisons également un ID généré aléatoirement pour voir quelles versions sont les plus populaires. Cela nous aide à corriger les bugs plus rapidement, et aucune information personnelle n'est jamais envoyée à nos serveurs.",
+            acceptButton: "Accepter et Continuer"
         }
     },
     de: {
@@ -188,6 +206,12 @@ export const translations = {
             step7: { title: "Exportieren Sie Ihre Clips", desc: "Setzen Sie <strong>Ein-/Ausstiegspunkte</strong> und klicken Sie dann auf <strong>Exportieren</strong>. Wählen Sie Kameras, Qualität und fügen Sie Telemetrie-Overlay hinzu." },
             step8: { title: "Einstellungen Anpassen", desc: "Klicken Sie auf das <strong>Zahnradsymbol</strong> für Einstellungen. Konfigurieren Sie Standardordner, Tastenkombinationen, <strong>metrische Einheiten</strong> und <strong>Datumsformat</strong>-Präferenzen." },
             step9: { title: "Sie sind Bereit!", desc: "Das ist alles, was Sie zum Starten benötigen. Laden Sie einen TeslaCam-Ordner und beginnen Sie, Ihre Aufnahmen zu erkunden. Sie können jederzeit über das Einstellungsmenü auf die Hilfe zugreifen.", tip: "💡 <strong>Tipp:</strong> Drücken Sie <strong>Leertaste</strong> zum Abspielen/Pausieren und verwenden Sie die Pfeiltasten zum Suchen." }
+        },
+        welcomeScreen: {
+            title: "Willkommen bei Sentry-Six",
+            privacyTitle: "Datenschutz und Updates",
+            privacyMessage: "Um Sentry-Six reibungslos am Laufen zu halten, überprüft die App automatisch Updates und die neuesten Funktionen. Wir verwenden auch eine zufällig generierte ID, um zu sehen, welche Versionen am beliebtesten sind. Dies hilft uns, Fehler schneller zu beheben, und es werden niemals persönliche Informationen an unsere Server gesendet.",
+            acceptButton: "Akzeptieren und Fortfahren"
         }
     },
     zh: {
@@ -221,6 +245,12 @@ export const translations = {
             step7: { title: "导出您的片段", desc: "设置<strong>入点/出点</strong>，然后点击<strong>导出</strong>。选择摄像头、质量并添加遥测叠加层。" },
             step8: { title: "自定义设置", desc: "点击<strong>齿轮图标</strong>进入设置。配置默认文件夹、快捷键、<strong>公制单位</strong>和<strong>日期格式</strong>首选项。" },
             step9: { title: "一切就绪！", desc: "这就是您开始所需的一切。加载 TeslaCam 文件夹并开始探索您的录像。您始终可以从设置菜单访问帮助。", tip: "💡 <strong>提示：</strong>按<strong>空格键</strong>播放/暂停，使用箭头键搜索。" }
+        },
+        welcomeScreen: {
+            title: "欢迎使用 Sentry-Six",
+            privacyTitle: "隐私与更新",
+            privacyMessage: "为了保持 Sentry-Six 平稳运行，应用程序会自动检查更新和最新功能。我们还使用随机生成的 ID 来查看哪些版本最受欢迎。这有助于我们更快地修复错误，并且不会有任何个人信息发送到我们的服务器。",
+            acceptButton: "接受并继续"
         }
     },
     ja: {
@@ -254,6 +284,12 @@ export const translations = {
             step7: { title: "クリップをエクスポート", desc: "<strong>イン/アウトポイント</strong>を設定し、<strong>エクスポート</strong>をクリックします。カメラ、品質を選択し、テレメトリオーバーレイを追加します。" },
             step8: { title: "設定をカスタマイズ", desc: "設定の<strong>歯車アイコン</strong>をクリックします。デフォルトフォルダ、ショートカット、<strong>メートル単位</strong>、<strong>日付形式</strong>の設定を構成します。" },
             step9: { title: "準備完了！", desc: "これで始めるために必要なすべてです。TeslaCam フォルダを読み込んで、映像の探索を開始してください。設定メニューからいつでもヘルプにアクセスできます。", tip: "💡 <strong>ヒント：</strong><strong>スペース</strong>を押して再生/一時停止し、矢印キーを使用してシークします。" }
+        },
+        welcomeScreen: {
+            title: "Sentry-Six へようこそ",
+            privacyTitle: "プライバシーと更新",
+            privacyMessage: "Sentry-Six をスムーズに動作させるため、アプリは自動的に更新と最新機能をチェックします。また、どのバージョンが人気かを確認するためにランダムに生成された ID も使用します。これによりバグをより速く修正でき、個人情報が当社のサーバーに送信されることはありません。",
+            acceptButton: "承諾して続行"
         }
     },
     ko: {
@@ -287,6 +323,12 @@ export const translations = {
             step7: { title: "클립 내보내기", desc: "<strong>인/아웃 포인트</strong>를 설정한 다음 <strong>내보내기</strong>를 클릭합니다. 카메라, 품질을 선택하고 원격 측정 오버레이를 추가합니다." },
             step8: { title: "설정 사용자 지정", desc: "설정의 <strong>톱니바퀴 아이콘</strong>을 클릭합니다. 기본 폴더, 단축키, <strong>미터법 단위</strong> 및 <strong>날짜 형식</strong> 기본 설정을 구성합니다." },
             step9: { title: "모두 준비되었습니다!", desc: "시작하는 데 필요한 모든 것입니다. TeslaCam 폴더를 로드하고 영상 탐색을 시작하세요. 설정 메뉴에서 언제든지 도움말에 액세스할 수 있습니다.", tip: "💡 <strong>팁:</strong> <strong>스페이스</strong>를 눌러 재생/일시정지하고 화살표 키를 사용하여 탐색합니다." }
+        },
+        welcomeScreen: {
+            title: "Sentry-Six에 오신 것을 환영합니다",
+            privacyTitle: "개인정보 보호 및 업데이트",
+            privacyMessage: "Sentry-Six가 원활하게 실행되도록 앱이 자동으로 업데이트와 최신 기능을 확인합니다. 또한 어떤 버전이 가장 인기 있는지 보기 위해 무작위로 생성된 ID도 사용합니다. 이는 버그를 더 빨리 수정하는 데 도움이 되며, 개인 정보는 절대로 당사 서버로 전송되지 않습니다.",
+            acceptButton: "동의하고 계속하기"
         }
     },
     pt: {
@@ -320,6 +362,12 @@ export const translations = {
             step7: { title: "Exporte seus Clipes", desc: "Defina <strong>pontos de entrada/saída</strong>, depois clique em <strong>Exportar</strong>. Escolha câmeras, qualidade e adicione sobreposição de telemetria." },
             step8: { title: "Personalize as Configurações", desc: "Clique no <strong>ícone de engrenagem</strong> para configurações. Configure pasta padrão, atalhos, <strong>unidades métricas</strong> e preferências de <strong>formato de data</strong>." },
             step9: { title: "Tudo Pronto!", desc: "Isso é tudo que você precisa para começar. Carregue uma pasta TeslaCam e comece a explorar suas gravações. Você sempre pode acessar a ajuda no menu Configurações.", tip: "💡 <strong>Dica:</strong> Pressione <strong>Espaço</strong> para reproduzir/pausar e use as teclas de seta para buscar." }
+        },
+        welcomeScreen: {
+            title: "Bem-vindo ao Sentry-Six",
+            privacyTitle: "Privacidade e Atualizações",
+            privacyMessage: "Para manter o Sentry-Six funcionando suavemente, o aplicativo verifica automaticamente atualizações e os recursos mais recentes. Também usamos um ID gerado aleatoriamente para ver quais versões são mais populares. Isso nos ajuda a corrigir bugs mais rapidamente, e nenhuma informação pessoal é enviada aos nossos servidores.",
+            acceptButton: "Aceitar e Continuar"
         }
     },
     ru: {
@@ -341,6 +389,12 @@ export const translations = {
             step7: { title: "Экспорт Клипов", desc: "Установите <strong>точки входа/выхода</strong>, затем нажмите <strong>Экспорт</strong>. Выберите камеры, качество и добавьте наложение телеметрии." },
             step8: { title: "Настройка Параметров", desc: "Нажмите на <strong>значок шестеренки</strong> для настроек. Настройте папку по умолчанию, горячие клавиши, <strong>метрические единицы</strong> и предпочтения <strong>формата даты</strong>." },
             step9: { title: "Все Готово!", desc: "Это все, что вам нужно для начала. Загрузите папку TeslaCam и начните исследовать свои записи. Вы всегда можете получить доступ к справке из меню Настройки.", tip: "💡 <strong>Совет:</strong> Нажмите <strong>Пробел</strong> для воспроизведения/паузы и используйте клавиши со стрелками для поиска." }
+        },
+        welcomeScreen: {
+            title: "Добро пожаловать в Sentry-Six",
+            privacyTitle: "Конфиденциальность и Обновления",
+            privacyMessage: "Чтобы поддерживать Sentry-Six в рабочем состоянии, приложение автоматически проверяет обновления и последние функции. Мы также используем случайно сгенерированный ID, чтобы увидеть, какие версии наиболее популярны. Это помогает нам исправлять ошибки быстрее, и никакая личная информация никогда не отправляется на наши серверы.",
+            acceptButton: "Принять и Продолжить"
         }
     },
     it: {
@@ -374,6 +428,12 @@ export const translations = {
             step7: { title: "Esporta i tuoi Clip", desc: "Imposta <strong>punti di entrata/uscita</strong>, quindi fai clic su <strong>Esporta</strong>. Scegli telecamere, qualità e aggiungi sovrapposizione telemetria." },
             step8: { title: "Personalizza le Impostazioni", desc: "Fai clic sull'<strong>icona dell'ingranaggio</strong> per le impostazioni. Configura cartella predefinita, scorciatoie, <strong>unità metriche</strong> e preferenze di <strong>formato data</strong>." },
             step9: { title: "Sei Pronto!", desc: "Questo è tutto ciò di cui hai bisogno per iniziare. Carica una cartella TeslaCam e inizia a esplorare le tue registrazioni. Puoi sempre accedere all'aiuto dal menu Impostazioni.", tip: "💡 <strong>Suggerimento:</strong> Premi <strong>Spazio</strong> per riprodurre/mettere in pausa e usa i tasti freccia per cercare." }
+        },
+        welcomeScreen: {
+            title: "Benvenuto in Sentry-Six",
+            privacyTitle: "Privacy e Aggiornamenti",
+            privacyMessage: "Per mantenere Sentry-Six funzionante in modo fluido, l'applicazione controlla automaticamente aggiornamenti e le ultime funzionalità. Utilizziamo anche un ID generato casualmente per vedere quali versioni sono più popolari. Questo ci aiuta a correggere i bug più velocemente e nessuna informazione personale viene mai inviata ai nostri server.",
+            acceptButton: "Accetta e Continua"
         }
     },
     nl: {
@@ -407,6 +467,12 @@ export const translations = {
             step7: { title: "Exporteer je Clips", desc: "Stel <strong>in-/uitpunten</strong> in en klik vervolgens op <strong>Exporteren</strong>. Kies camera's, kwaliteit en voeg telemetrie-overlay toe." },
             step8: { title: "Pas Instellingen Aan", desc: "Klik op het <strong>tandwielpictogram</strong> voor instellingen. Configureer standaardmap, sneltoetsen, <strong>metrische eenheden</strong> en voorkeuren voor <strong>datumformaat</strong>." },
             step9: { title: "Je bent Klaar!", desc: "Dat is alles wat je nodig hebt om te beginnen. Laad een TeslaCam-map en begin je opnames te verkennen. Je kunt altijd hulp openen vanuit het menu Instellingen.", tip: "💡 <strong>Tip:</strong> Druk op <strong>Spatie</strong> om af te spelen/pauzeren en gebruik de pijltoetsen om te zoeken." }
+        },
+        welcomeScreen: {
+            title: "Welkom bij Sentry-Six",
+            privacyTitle: "Privacy en Updates",
+            privacyMessage: "Om Sentry-Six soepel te laten draaien, controleert de app automatisch op updates en de nieuwste functies. We gebruiken ook een willekeurig gegenereerde ID om te zien welke versies het populairst zijn. Dit helpt ons om bugs sneller op te lossen, en er worden nooit persoonlijke gegevens naar onze servers gestuurd.",
+            acceptButton: "Accepteren en Doorgaan"
         }
     },
     pl: {
@@ -440,6 +506,12 @@ export const translations = {
             step7: { title: "Eksportuj Swoje Klipy", desc: "Ustaw <strong>punkty wejścia/wyjścia</strong>, a następnie kliknij <strong>Eksportuj</strong>. Wybierz kamery, jakość i dodaj nakładkę telemetrii." },
             step8: { title: "Dostosuj Ustawienia", desc: "Kliknij <strong>ikonę koła zębatego</strong>, aby uzyskać dostęp do ustawień. Skonfiguruj domyślny folder, skróty, <strong>jednostki metryczne</strong> i preferencje <strong>formatu daty</strong>." },
             step9: { title: "Gotowe!", desc: "To wszystko, czego potrzebujesz, aby zacząć. Załaduj folder TeslaCam i zacznij eksplorować swoje nagrania. Zawsze możesz uzyskać dostęp do pomocy z menu Ustawienia.", tip: "💡 <strong>Wskazówka:</strong> Naciśnij <strong>Spację</strong>, aby odtworzyć/wstrzymać i użyj klawiszy strzałek do wyszukiwania." }
+        },
+        welcomeScreen: {
+            title: "Witamy w Sentry-Six",
+            privacyTitle: "Prywatność i Aktualizacje",
+            privacyMessage: "Aby utrzymać Sentry-Six w dobrym stanie, aplikacja automatycznie sprawdza aktualizacje i najnowsze funkcje. Używamy również losowo wygenerowanego ID, aby zobaczyć, które wersje są najpopularniejsze. Pomaga nam to szybciej naprawiać błędy, a żadne dane osobowe nigdy nie są wysyłane na nasze serwery.",
+            acceptButton: "Akceptuj i Kontynuuj"
         }
     },
     tr: {
@@ -473,6 +545,12 @@ export const translations = {
             step7: { title: "Kliplerinizi Dışa Aktarın", desc: "<strong>Giriş/Çıkış noktalarını</strong> ayarlayın, ardından <strong>Dışa Aktar</strong>'a tıklayın. Kameraları, kaliteyi seçin ve telemetri katmanı ekleyin." },
             step8: { title: "Ayarları Özelleştirin", desc: "Ayarlar için <strong>dişli simgesine</strong> tıklayın. Varsayılan klasörü, kısayolları, <strong>metrik birimleri</strong> ve <strong>tarih formatı</strong> tercihlerini yapılandırın." },
             step9: { title: "Hazırsınız!", desc: "Başlamak için ihtiyacınız olan her şey bu kadar. Bir TeslaCam klasörü yükleyin ve kayıtlarınızı keşfetmeye başlayın. Ayarlar menüsünden her zaman yardıma erişebilirsiniz.", tip: "💡 <strong>İpucu:</strong> Oynatmak/duraklatmak için <strong>Boşluk</strong> tuşuna basın ve aramak için ok tuşlarını kullanın." }
+        },
+        welcomeScreen: {
+            title: "Sentry-Six'e Hoş Geldiniz",
+            privacyTitle: "Gizlilik ve Güncellemeler",
+            privacyMessage: "Sentry-Six'in sorunsuz çalışmasını sağlamak için uygulama otomatik olarak güncellemeleri ve en son özellikleri kontrol eder. Ayrıca hangi sürümlerin daha popüler olduğunu görmek için rastgele oluşturulmuş bir ID kullanırız. Bu, hataları daha hızlı düzeltmemize yardımcı olur ve hiçbir kişisel bilgi sunucularımıza gönderilmez.",
+            acceptButton: "Kabul Et ve Devam Et"
         }
     }
 };

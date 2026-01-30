@@ -4590,6 +4590,85 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     }
 }
 
+/* Soft T&C Welcome Modal */
+.soft-tc-modal {
+    max-width: 500px;
+}
+
+.soft-tc-modal .modal-header {
+    justify-content: center;
+    text-align: center;
+    padding: 20px 20px; /* Increased padding to accommodate larger icon */
+}
+
+.soft-tc-modal .modal-header h2 {
+    font-size: 18px;
+    gap: 12px;
+    align-items: center;
+}
+
+.soft-tc-modal .modal-header-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.soft-tc-modal .modal-header-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.soft-tc-body {
+    padding: 30px 20px;
+}
+
+.soft-tc-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.soft-tc-icon {
+    margin-bottom: 10px;
+}
+
+.soft-tc-text h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #00d4ff;
+    margin-bottom: 12px;
+}
+
+.soft-tc-text p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.soft-tc-footer {
+    padding: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.soft-tc-footer .btn-primary {
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    font-size: 16px;
+    padding: 12px 24px;
+    min-width: 180px;
+}
+
+.soft-tc-footer .btn-primary:hover {
+    background: linear-gradient(135deg, #1ae0ff, #00a8dd);
+}
+
 /* Restart Message */
 .restart-message {
     font-size: 13px;

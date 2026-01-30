@@ -1092,6 +1092,16 @@
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label">Anonymous Analytics</span>
+                                <span class="toggle-row-desc">Help improve Sentry-Six with anonymized usage data</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsAnonymousAnalytics" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
                         <div class="action-row">
                             <div class="action-row-info">
                                 <span class="action-row-label" data-i18n="ui.settings.updateBranch">Update Branch</span>
@@ -1361,6 +1371,36 @@
                         <line x1="12" y1="15" x2="12" y2="3"/>
                     </svg>
                     Update Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Soft T&C Welcome Modal -->
+    <div id="softTcModal" class="modal hidden">
+        <div class="modal-content soft-tc-modal">
+            <div class="modal-header">
+                <h2 data-i18n="welcomeScreen.title">Welcome to Sentry-Six</h2>
+            </div>
+            <div class="modal-body soft-tc-body">
+                <div class="soft-tc-content">
+                    <div class="soft-tc-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" style="color: #00d4ff;">
+                            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                        </svg>
+                    </div>
+                    <div class="soft-tc-text">
+                        <h3 data-i18n="welcomeScreen.privacyTitle">Privacy & Updates</h3>
+                        <p data-i18n="welcomeScreen.privacyMessage">To keep Sentry-Six running smoothly, the app automatically checks for updates and the latest features. We also use a randomly generated ID to see which versions are most popular. This helps us fix bugs faster, and no personal info is ever sent to our servers.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer soft-tc-footer">
+                <button id="softTcAcceptBtn" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12l5 5L20 7"/>
+                    </svg>
+                    <span data-i18n="welcomeScreen.acceptButton">Accept & Continue</span>
                 </button>
             </div>
         </div>

@@ -138,6 +138,7 @@ function httpsPost(host, path, data, timeoutMs) {
  * Check for updates via the telemetry API
  * This is the main entry point for update checks with killswitch support
  * 
+ * @param {boolean} analyticsEnabled - Whether analytics is enabled (default: true)
  * @returns {Promise<Object>} API response with update info and killswitch status
  * Response format:
  * {
@@ -149,9 +150,9 @@ function httpsPost(host, path, data, timeoutMs) {
  *   api_error: boolean (only if API failed)
  * }
  */
-async function checkUpdateWithTelemetry() {
+async function checkUpdateWithTelemetry(analyticsEnabled = true) {
   const payload = {
-    fingerprint: getAnonymizedFingerprint(),
+    fingerprint: analyticsEnabled ? getAnonymizedFingerprint() : null,
     current_version: `v${app.getVersion()}`,
     platform: getPlatform(),
     arch: getArch()
@@ -159,7 +160,7 @@ async function checkUpdateWithTelemetry() {
   
   console.log('[TELEMETRY] Sending update check:', {
     ...payload,
-    fingerprint: payload.fingerprint.substring(0, 8) + '...'
+    fingerprint: payload.fingerprint ? payload.fingerprint.substring(0, 8) + '...' : 'disabled'
   });
   
   try {
