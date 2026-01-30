@@ -24,11 +24,12 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^39.2.7",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^26.6.0"
   },
   "dependencies": {
     "canvas": "^3.2.0",
     "electron-updater": "^6.1.7",
+    "node-machine-id": "^1.1.12",
     "protobufjs": "^7.5.4"
   },
   "build": {
@@ -39,7 +40,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "sign": null,
@@ -67,11 +70,15 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "category": "public.app-category.utilities",

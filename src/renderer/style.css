@@ -4540,6 +4540,56 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: linear-gradient(135deg, #66bb6a, #43a047);
 }
 
+/* Force Manual Update (Killswitch) Styles */
+.update-modal.critical-update .modal-header h2 {
+    color: #ff5252;
+}
+
+.update-modal.critical-update .modal-header svg {
+    color: #ff5252 !important;
+}
+
+.force-manual-alert {
+    text-align: center;
+    padding: 20px 10px;
+}
+
+.force-manual-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.force-manual-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ff5252;
+    margin-bottom: 10px;
+}
+
+.force-manual-message {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+}
+
+.btn-critical {
+    background: linear-gradient(135deg, #ff5252, #d32f2f) !important;
+    animation: pulse-critical 2s infinite;
+}
+
+.btn-critical:hover {
+    background: linear-gradient(135deg, #ff6b6b, #e53935) !important;
+}
+
+@keyframes pulse-critical {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(255, 82, 82, 0);
+    }
+}
+
 /* Restart Message */
 .restart-message {
     font-size: 13px;

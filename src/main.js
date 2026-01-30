@@ -5,6 +5,7 @@ const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
 const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss, writeMinimapAss } = require('./assGenerator');
 const https = require('https');
+const { checkUpdateWithTelemetry, processApiResponse, getAnonymizedFingerprint } = require('./updateTelemetry');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
 
 // ============================================
@@ -2830,6 +2831,67 @@ async function checkForUpdatesManual() {
 // Update IPC handlers
 ipcMain.handle('update:check', async () => {
   try {
+    // Step 1: Check with telemetry API first (for killswitch and analytics)
+    console.log('[UPDATE] Checking with telemetry API...');
+    const apiResponse = await checkUpdateWithTelemetry();
+    const processedResult = processApiResponse(apiResponse);
+    
+    // Handle force_manual (killswitch) - stop all auto-update and show critical alert
+    if (processedResult.action === 'force_manual') {
+      console.log('[UPDATE] Force manual update required (killswitch activated)');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:forceManual', {
+          message: processedResult.message,
+          download_url: processedResult.download_url,
+          new_version: processedResult.new_version,
+          currentVersion: app.getVersion()
+        });
+      }
+      return {
+        checked: true,
+        updateAvailable: true,
+        forceManual: true,
+        message: processedResult.message,
+        download_url: processedResult.download_url,
+        currentVersion: app.getVersion(),
+        latestVersion: processedResult.new_version
+      };
+    }
+    
+    // Handle update available from API (with optional message)
+    if (processedResult.action === 'update_available') {
+      console.log('[UPDATE] Update available from API:', processedResult.new_version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update:available', {
+          currentVersion: app.getVersion(),
+          latestVersion: processedResult.new_version,
+          releaseName: 'New Update',
+          serverMessage: processedResult.message
+        });
+      }
+      return {
+        checked: true,
+        updateAvailable: true,
+        currentVersion: app.getVersion(),
+        latestVersion: processedResult.new_version,
+        serverMessage: processedResult.message
+      };
+    }
+    
+    // Handle up_to_date from API
+    if (processedResult.action === 'up_to_date') {
+      console.log('[UPDATE] App is up to date (from API)');
+      return {
+        checked: true,
+        updateAvailable: false,
+        currentVersion: app.getVersion(),
+        latestVersion: app.getVersion(),
+        serverMessage: processedResult.message
+      };
+    }
+    
+    // Step 2: Fallback to direct GitHub/electron-updater check if API failed
+    console.log('[UPDATE] API unavailable, falling back to direct check...');
     if (app.isPackaged && autoUpdater) {
       // NSIS install - use electron-updater
       const result = await autoUpdater.checkForUpdates();

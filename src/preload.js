@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Event listeners
   on: (channel, callback) => {
-    const allowedChannels = ['export:progress', 'update:available', 'update:progress', 'update:downloaded'];
+    const allowedChannels = ['export:progress', 'update:available', 'update:progress', 'update:downloaded', 'update:forceManual'];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
     }
