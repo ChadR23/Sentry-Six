@@ -1041,35 +1041,8 @@ async function renderMinimapFrame(minimapWindow, lat, lon, heading, width, heigh
   });
 }
 
-// Render minimap frame by timestamp (uses client-side interpolation)
-async function renderMinimapFrameByTime(minimapWindow, timestampMs, width, height) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      minimapReadyCallbacks.delete(minimapWindow.webContents.id);
-      reject(new Error('Minimap render timeout'));
-    }, 3000); // Shorter timeout since we're just moving marker
-    
-    minimapReadyCallbacks.set(minimapWindow.webContents.id, async () => {
-      clearTimeout(timeout);
-      try {
-        const image = await minimapWindow.webContents.capturePage();
-        const pngBuffer = image.toPNG();
-        resolve(pngBuffer);
-      } catch (err) {
-        reject(err);
-      }
-    });
-    
-    minimapWindow.webContents.send('minimap:updateByTime', timestampMs);
-  });
-}
-
 // Pre-render minimap overlay to a temp video file
 async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress) {
-  // Full 36fps for smooth output - but optimized with:
-  // 1. Locked map view (no tile updates after initial load)
-  // 2. Interpolated GPS positions for smooth movement
-  // 3. Only marker CSS transforms (GPU accelerated)
   const FPS = 36;
   const durationSec = (endTimeMs - startTimeMs) / 1000;
   const totalFrames = Math.ceil(durationSec * FPS);
@@ -1077,28 +1050,13 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   const tempPath = path.join(os.tmpdir(), `minimap_${exportId}_${Date.now()}.mov`);
   
   console.log(`[MINIMAP] Creating renderer window ${minimapWidth}x${minimapHeight}`);
-  console.log(`[MINIMAP] Smooth mode: ${totalFrames} frames at ${FPS}fps with interpolation`);
   const minimapWindow = await createMinimapRenderer(minimapWidth, minimapHeight);
   
-  // Send the map path data for the polyline (this also locks the view)
+  // Send the map path data for the polyline
   minimapWindow.webContents.send('minimap:init', mapPath);
   console.log(`[MINIMAP] Sent ${mapPath.length} GPS points to renderer`);
   
-  // Prepare GPS data for interpolation
-  const gpsInterpolationData = seiData
-    .filter(d => d.sei && d.sei.latitude_deg !== undefined && d.sei.longitude_deg !== undefined)
-    .map(d => ({
-      t: d.timestampMs,
-      lat: d.sei.latitude_deg,
-      lon: d.sei.longitude_deg,
-      heading: d.sei.heading_deg || 0
-    }));
-  
-  // Send GPS data for client-side interpolation
-  minimapWindow.webContents.send('minimap:setGpsData', gpsInterpolationData);
-  console.log(`[MINIMAP] Sent ${gpsInterpolationData.length} GPS points for interpolation`);
-  
-  // Wait for map tiles to load (only happens once!)
+  // Wait for map tiles to load
   await new Promise(resolve => setTimeout(resolve, 2000));
   
   const ffmpegArgs = [
@@ -1137,11 +1095,29 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
       
       const frameTimeMs = startTimeMs + (frame / FPS) * 1000;
       
-      // Use timestamp-based update (renderer handles interpolation)
-      const pngBuffer = await renderMinimapFrameByTime(minimapWindow, frameTimeMs, minimapWidth, minimapHeight);
-      ffmpegProcess.stdin.write(pngBuffer);
+      let lat = 0, lon = 0, heading = 0;
+      for (let i = seiData.length - 1; i >= 0; i--) {
+        if (seiData[i].timestampMs <= frameTimeMs) {
+          const sei = seiData[i].sei;
+          // SEI uses latitude_deg/longitude_deg/heading_deg field names
+          if (sei.latitude_deg !== undefined && sei.longitude_deg !== undefined) {
+            lat = sei.latitude_deg;
+            lon = sei.longitude_deg;
+            heading = sei.heading_deg || 0;
+          }
+          break;
+        }
+      }
       
-      if (frame % 36 === 0 || frame === totalFrames - 1) {
+      if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) {
+        const transparentPng = await minimapWindow.webContents.capturePage();
+        ffmpegProcess.stdin.write(transparentPng.toPNG());
+      } else {
+        const pngBuffer = await renderMinimapFrame(minimapWindow, lat, lon, heading, minimapWidth, minimapHeight);
+        ffmpegProcess.stdin.write(pngBuffer);
+      }
+      
+      if (frame % 10 === 0 || frame === totalFrames - 1) {
         const pct = Math.round((frame / totalFrames) * 100);
         sendProgress(pct, `Pre-rendering minimap... ${pct}%`);
       }

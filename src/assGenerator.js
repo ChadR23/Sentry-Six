@@ -1044,12 +1044,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
  */
 function calculateMinimapLayout(playResX, playResY, position, sizeOption) {
   const sizeMultipliers = {
-    'small': 0.25,
-    'medium': 0.35,
-    'large': 0.45,
-    'xlarge': 0.55
+    'small': 0.20,
+    'medium': 0.28,
+    'large': 0.35,
+    'xlarge': 0.42
   };
-  const multiplier = sizeMultipliers[sizeOption] || 0.25;
+  const multiplier = sizeMultipliers[sizeOption] || 0.20;
   
   // Square minimap based on smaller dimension
   const baseSize = Math.min(playResX, playResY);

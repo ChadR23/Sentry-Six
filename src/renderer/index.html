@@ -634,6 +634,16 @@
                             <div id="minimapOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
+                                        <span class="select-row-label">Render Mode</span>
+                                        <span class="select-row-desc">Both use map tiles, speed differs</span>
+                                    </div>
+                                    <select id="minimapRenderMode" class="settings-select">
+                                        <option value="ass" selected>Static Map (Fast)</option>
+                                        <option value="leaflet">Live Map (Slow)</option>
+                                    </select>
+                                </div>
+                                <div class="select-row">
+                                    <div class="select-row-info">
                                         <span class="select-row-label">Position</span>
                                         <span class="select-row-desc">Corner placement</span>
                                     </div>
@@ -654,16 +664,6 @@
                                         <option value="medium">Medium (35%)</option>
                                         <option value="large">Large (45%)</option>
                                         <option value="xlarge">X-Large (55%)</option>
-                                    </select>
-                                </div>
-                                <div class="select-row">
-                                    <div class="select-row-info">
-                                        <span class="select-row-label">Render Mode</span>
-                                        <span class="select-row-desc">Speed vs quality</span>
-                                    </div>
-                                    <select id="minimapRenderMode" class="settings-select">
-                                        <option value="ass" selected>Static Map (Fast)</option>
-                                        <option value="leaflet">Live Map (Slow)</option>
                                     </select>
                                 </div>
                                 <div id="minimapModeInfo" class="info-box info-blue">
@@ -879,6 +879,16 @@
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
+                        <label class="toggle-row">
+                            <div class="toggle-row-info">
+                                <span class="toggle-row-label" data-i18n="ui.settings.mirrorCameras">Mirror Cameras</span>
+                                <span class="toggle-row-desc" data-i18n="ui.settings.mirrorCamerasDesc">Mirror back and repeater cameras (as seen in mirrors)</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMirrorCameras" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
                         <div class="slider-row">
                             <div class="slider-row-info">
                                 <span class="slider-row-label" data-i18n="ui.settings.glassBlur">Glass Blur</span>
@@ -908,6 +918,16 @@
                                 <option value="mdy" data-i18n="ui.settings.mdyFormat">MM/DD/YYYY (US)</option>
                                 <option value="dmy" data-i18n="ui.settings.dmyFormat">DD/MM/YYYY (International)</option>
                                 <option value="ymd" selected data-i18n="ui.settings.ymdFormat">YYYY-MM-DD (ISO)</option>
+                            </select>
+                        </div>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label" data-i18n="ui.settings.timeFormat">Time Format</span>
+                                <span class="select-row-desc" data-i18n="ui.settings.timeFormatDesc">12-hour or 24-hour clock</span>
+                            </div>
+                            <select id="settingsTimeFormat" class="settings-select">
+                                <option value="12h" selected data-i18n="ui.settings.time12h">12-hour (AM/PM)</option>
+                                <option value="24h" data-i18n="ui.settings.time24h">24-hour</option>
                             </select>
                         </div>
                         <div class="select-row">
