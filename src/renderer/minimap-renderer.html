@@ -40,7 +40,6 @@
             border-radius: 12px;
             background: #1a1a1a;
         }
-        /* Leaflet customizations for dark theme */
         .leaflet-container {
             background: #1a1a1a !important;
         }
@@ -53,6 +52,10 @@
         .arrow-marker-icon {
             background: transparent !important;
             border: none !important;
+            will-change: transform;
+        }
+        .arrow-marker-icon img {
+            will-change: transform;
         }
     </style>
 </head>
@@ -67,25 +70,66 @@
         let mapPolyline = null;
         let currentRotation = 0;
         
+        // Interpolation data
+        let gpsData = [];
+        const mapZoom = 17;
+        
         // IPC setup
         let ipcRenderer;
         try {
             if (typeof require !== 'undefined') {
                 ipcRenderer = require('electron').ipcRenderer;
             } else {
-                ipcRenderer = {
-                    send: () => {},
-                    on: () => {}
-                };
+                ipcRenderer = { send: () => {}, on: () => {} };
             }
         } catch (err) {
-            ipcRenderer = {
-                send: () => {},
-                on: () => {}
+            ipcRenderer = { send: () => {}, on: () => {} };
+        }
+        
+        // Linear interpolation
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+        
+        // Interpolate heading with wrap-around
+        function lerpAngle(a, b, t) {
+            let delta = b - a;
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            return a + delta * t;
+        }
+        
+        // Get interpolated position for timestamp
+        function getInterpolatedPosition(timestampMs) {
+            if (gpsData.length === 0) return null;
+            
+            let before = null;
+            let after = null;
+            
+            for (let i = 0; i < gpsData.length; i++) {
+                if (gpsData[i].t <= timestampMs) {
+                    before = gpsData[i];
+                }
+                if (gpsData[i].t >= timestampMs && !after) {
+                    after = gpsData[i];
+                    break;
+                }
+            }
+            
+            if (!before && !after) return null;
+            if (!before) return { lat: after.lat, lon: after.lon, heading: after.heading };
+            if (!after) return { lat: before.lat, lon: before.lon, heading: before.heading };
+            if (before.t === after.t) return { lat: before.lat, lon: before.lon, heading: before.heading };
+            
+            const t = (timestampMs - before.t) / (after.t - before.t);
+            return {
+                lat: lerp(before.lat, after.lat, t),
+                lon: lerp(before.lon, after.lon, t),
+                heading: lerpAngle(before.heading, after.heading, t)
             };
         }
         
-        // Initialize the map
+        // Initialize map
         function initMap() {
             if (map) return;
             
@@ -97,20 +141,24 @@
                 scrollWheelZoom: false,
                 doubleClickZoom: false,
                 boxZoom: false,
-                keyboard: false
-            }).setView([0, 0], 18);
+                keyboard: false,
+                fadeAnimation: false,
+                zoomAnimation: false,
+                markerZoomAnimation: false
+            }).setView([0, 0], mapZoom);
             
-            // Use OpenStreetMap tiles with dark filter
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19
+                maxZoom: 19,
+                updateWhenIdle: false,
+                updateWhenZooming: false,
+                keepBuffer: 8  // Keep more tiles in memory
             }).addTo(map);
         }
         
-        // Initialize map path (polyline showing route)
+        // Initialize route polyline
         function initMapPath(pathData) {
             if (!map || !pathData || !pathData.length) return;
             
-            // Filter out invalid coordinates
             const validPath = pathData.filter(coord => {
                 const [lat, lon] = coord;
                 return lat !== undefined && lon !== undefined &&
@@ -120,40 +168,45 @@
             
             if (validPath.length < 2) return;
             
-            // Create polyline
             mapPolyline = L.polyline(validPath, {
                 color: '#0072ff',
                 weight: 3,
                 opacity: 0.8
             }).addTo(map);
             
-            // Fit map to show entire path
-            const bounds = mapPolyline.getBounds();
-            map.fitBounds(bounds, { padding: [20, 20] });
+            // Start centered on first point
+            map.setView(validPath[0], mapZoom, { animate: false });
         }
         
-        // Update marker position and heading
+        // Store GPS data for interpolation
+        function setGpsData(data) {
+            gpsData = data.filter(d => 
+                d.lat !== undefined && d.lon !== undefined &&
+                Number.isFinite(d.lat) && Number.isFinite(d.lon) &&
+                !(Math.abs(d.lat) < 0.001 && Math.abs(d.lon) < 0.001)
+            );
+            console.log('[MINIMAP] Loaded', gpsData.length, 'GPS points for interpolation');
+        }
+        
+        // Update marker and pan map (DYNAMIC)
         function updateMarker(lat, lon, heading) {
-            if (!map) {
-                initMap();
-            }
+            if (!map) initMap();
             
             const latlng = L.latLng(lat, lon);
             
-            // Calculate smooth rotation
+            // Smooth rotation
             const targetHeading = heading || 0;
             let delta = targetHeading - (currentRotation % 360);
             if (delta > 180) delta -= 360;
             if (delta < -180) delta += 360;
             currentRotation += delta;
             
-            // Create or update marker
             if (!mapMarker) {
                 currentRotation = targetHeading;
                 
                 const arrowIcon = L.divIcon({
                     className: 'arrow-marker-icon',
-                    html: `<img src="../../assets/arrow.png" style="width: 40px; height: 40px; transform: rotate(${currentRotation}deg); transform-origin: center center; display: block;" />`,
+                    html: '<img src="../../assets/arrow.png" style="width: 40px; height: 40px; transform: rotate(' + currentRotation + 'deg); transform-origin: center center; display: block;" />',
                     iconSize: [40, 40],
                     iconAnchor: [20, 20]
                 });
@@ -166,58 +219,59 @@
                 if (iconElement) {
                     const imgElement = iconElement.querySelector('img');
                     if (imgElement) {
-                        imgElement.style.transform = `rotate(${currentRotation}deg)`;
+                        imgElement.style.transform = 'rotate(' + currentRotation + 'deg)';
                     }
                 }
             }
             
-            // Center map on marker
-            map.setView(latlng, 18, { animate: false });
+            // DYNAMIC: Pan map to follow marker
+            map.setView(latlng, mapZoom, { animate: false });
+        }
+        
+        // Update by timestamp (interpolated)
+        function updateMarkerByTime(timestampMs) {
+            const pos = getInterpolatedPosition(timestampMs);
+            if (pos) {
+                updateMarker(pos.lat, pos.lon, pos.heading);
+            }
         }
         
         let isReady = false;
         
-        // Signal ready when loaded
         window.addEventListener('DOMContentLoaded', () => {
             initMap();
             isReady = true;
             
-            // Signal ready after map tiles load
             setTimeout(() => {
-                if (ipcRenderer?.send) {
-                    ipcRenderer.send('minimap:ready');
-                }
+                if (ipcRenderer?.send) ipcRenderer.send('minimap:ready');
             }, 500);
         });
         
-        // Listen for minimap initialization (path data)
         if (ipcRenderer && ipcRenderer.on) {
             ipcRenderer.on('minimap:init', (event, pathData) => {
-                console.log('Minimap received path data:', pathData?.length || 0, 'points');
+                console.log('Minimap received path:', pathData?.length || 0, 'points');
                 initMapPath(pathData);
-                
-                // Re-signal ready after path is drawn
                 setTimeout(() => {
-                    if (ipcRenderer?.send) {
-                        ipcRenderer.send('minimap:ready');
-                    }
+                    if (ipcRenderer?.send) ipcRenderer.send('minimap:ready');
                 }, 300);
             });
             
-            // Listen for position updates
+            ipcRenderer.on('minimap:setGpsData', (event, data) => {
+                setGpsData(data);
+                if (ipcRenderer?.send) ipcRenderer.send('minimap:ready');
+            });
+            
+            ipcRenderer.on('minimap:updateByTime', (event, timestampMs) => {
+                updateMarkerByTime(timestampMs);
+                requestAnimationFrame(() => {
+                    if (isReady && ipcRenderer?.send) ipcRenderer.send('minimap:ready');
+                });
+            });
+            
             ipcRenderer.on('minimap:update', (event, lat, lon, heading) => {
                 updateMarker(lat, lon, heading);
-                
-                // Force a reflow to ensure DOM updates are rendered
-                void document.body.offsetHeight;
-                
-                // Use requestAnimationFrame to ensure browser has painted the changes
                 requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (isReady && ipcRenderer && ipcRenderer.send) {
-                            ipcRenderer.send('minimap:ready');
-                        }
-                    });
+                    if (isReady && ipcRenderer?.send) ipcRenderer.send('minimap:ready');
                 });
             });
         }
