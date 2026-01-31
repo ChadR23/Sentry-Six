@@ -231,6 +231,26 @@ function findFFmpegPath() {
 }
 
 /**
+ * Format milliseconds into a human-readable time string (Xh Xm Xs format)
+ * @param {number} ms - Milliseconds
+ * @returns {string} Formatted time string
+ */
+function formatExportDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
+}
+
+/**
  * Detects and tests available GPU hardware encoders.
  * Returns the first working encoder found, or null if none are available.
  * Caches result to avoid repeated detection.
@@ -1231,6 +1251,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     if (!relevantSegments.length) throw new Error('No segments found in export range');
     console.log(`[SEGMENTS] Found ${relevantSegments.length} segments for export`);
+
+    // Start export timer - rendering begins now (dashboards, minimaps, blur zones, etc.)
+    const exportStartTime = Date.now();
+    console.log('[EXPORT] Export rendering started');
 
     // Build camera inputs for ALL cameras in order (use black for missing/unselected)
     const inputs = [];
@@ -2307,6 +2331,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cleanup();
 
         if (code === 0) {
+          const exportDurationMs = Date.now() - exportStartTime;
+          const formattedDuration = formatExportDuration(exportDurationMs);
+          
+          console.log(`[EXPORT] ✅ Export completed in ${formattedDuration}`);
+          
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
           sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } });
           resolve(true);
@@ -2554,15 +2583,7 @@ function loadSettings() {
 
 function saveSettings(settings) {
   try {
-    // Ensure the directory exists
-    const settingsDir = path.dirname(settingsPath);
-    if (!fs.existsSync(settingsDir)) {
-      fs.mkdirSync(settingsDir, { recursive: true });
-      console.log('[SETTINGS] Created settings directory:', settingsDir);
-    }
-    
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-    console.log('[SETTINGS] Settings saved successfully to:', settingsPath);
     return true;
   } catch (err) {
     console.error('Failed to save settings:', err);
@@ -2865,9 +2886,7 @@ ipcMain.handle('update:check', async () => {
   try {
     // Step 1: Check with telemetry API first (for killswitch and analytics)
     console.log('[UPDATE] Checking with telemetry API...');
-    const settings = loadSettings();
-    const analyticsEnabled = settings.anonymousAnalytics !== false; // Default to true
-    const apiResponse = await checkUpdateWithTelemetry(analyticsEnabled);
+    const apiResponse = await checkUpdateWithTelemetry();
     const processedResult = processApiResponse(apiResponse);
     
     // Handle force_manual (killswitch) - stop all auto-update and show critical alert

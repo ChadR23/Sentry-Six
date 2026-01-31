@@ -23,28 +23,20 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(180deg, 
-                rgb(45, 45, 50) 0%, 
-                rgb(35, 35, 40) 50%,
-                rgb(28, 28, 32) 100%);
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(0, 0, 0, 0.2);
             box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.5),
-                0 2px 8px rgba(0, 0, 0, 0.3);
+                0 4px 16px rgba(0, 0, 0, 0.3),
+                0 2px 4px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
         #minimap {
             width: 100%;
             height: 100%;
             border-radius: 12px;
-            background: #1a1a1a;
         }
         .leaflet-container {
-            background: #1a1a1a !important;
-        }
-        .leaflet-tile-pane {
-            filter: invert(100%) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+            background: #e0e0e0 !important;
         }
         .leaflet-marker-icon {
             filter: none !important;
@@ -53,6 +45,7 @@
             background: transparent !important;
             border: none !important;
             will-change: transform;
+            transition: none;
         }
         .arrow-marker-icon img {
             will-change: transform;
@@ -68,7 +61,17 @@
         let map = null;
         let mapMarker = null;
         let mapPolyline = null;
-        let currentRotation = 0;
+        
+        // Arrow size as percentage of minimap size
+        const ARROW_SIZE_PERCENT = 0.30;  // 18% of minimap width
+        let arrowSize = 80;  // Will be calculated based on container size
+        
+        // Smoothing state
+        let smoothedLat = null;
+        let smoothedLon = null;
+        let smoothedHeading = null;
+        const POSITION_SMOOTHING = 0.3;
+        const HEADING_SMOOTHING = 0.25;
         
         // Interpolation data
         let gpsData = [];
@@ -86,52 +89,105 @@
             ipcRenderer = { send: () => {}, on: () => {} };
         }
         
-        // Linear interpolation
-        function lerp(a, b, t) {
-            return a + (b - a) * t;
+        // Calculate arrow size based on container
+        function calculateArrowSize() {
+            const container = document.getElementById('minimapContainer');
+            const size = Math.min(container.offsetWidth, container.offsetHeight);
+            arrowSize = Math.round(size * ARROW_SIZE_PERCENT);
+            console.log('[MINIMAP] Arrow size:', arrowSize, 'px (container:', size, 'px)');
+            return arrowSize;
         }
         
-        // Interpolate heading with wrap-around
+        // Smooth step function
+        function smoothstep(t) {
+            return t * t * (3 - 2 * t);
+        }
+        
+        // Catmull-Rom spline interpolation
+        function catmullRom(p0, p1, p2, p3, t) {
+            const t2 = t * t;
+            const t3 = t2 * t;
+            return 0.5 * (
+                (2 * p1) +
+                (-p0 + p2) * t +
+                (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+                (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+            );
+        }
+        
+        function normalizeAngle(angle) {
+            while (angle > 180) angle -= 360;
+            while (angle < -180) angle += 360;
+            return angle;
+        }
+        
         function lerpAngle(a, b, t) {
-            let delta = b - a;
-            if (delta > 180) delta -= 360;
-            if (delta < -180) delta += 360;
-            return a + delta * t;
+            let delta = normalizeAngle(b - a);
+            return a + delta * smoothstep(t);
         }
         
-        // Get interpolated position for timestamp
         function getInterpolatedPosition(timestampMs) {
             if (gpsData.length === 0) return null;
+            if (gpsData.length === 1) {
+                return { lat: gpsData[0].lat, lon: gpsData[0].lon, heading: gpsData[0].heading };
+            }
             
-            let before = null;
-            let after = null;
-            
-            for (let i = 0; i < gpsData.length; i++) {
-                if (gpsData[i].t <= timestampMs) {
-                    before = gpsData[i];
-                }
-                if (gpsData[i].t >= timestampMs && !after) {
-                    after = gpsData[i];
+            let idx = 0;
+            for (let i = 0; i < gpsData.length - 1; i++) {
+                if (timestampMs >= gpsData[i].t && timestampMs <= gpsData[i + 1].t) {
+                    idx = i;
                     break;
+                }
+                if (timestampMs > gpsData[i + 1].t) {
+                    idx = i + 1;
                 }
             }
             
-            if (!before && !after) return null;
-            if (!before) return { lat: after.lat, lon: after.lon, heading: after.heading };
-            if (!after) return { lat: before.lat, lon: before.lon, heading: before.heading };
-            if (before.t === after.t) return { lat: before.lat, lon: before.lon, heading: before.heading };
+            if (timestampMs <= gpsData[0].t) {
+                return { lat: gpsData[0].lat, lon: gpsData[0].lon, heading: gpsData[0].heading };
+            }
+            if (timestampMs >= gpsData[gpsData.length - 1].t) {
+                const last = gpsData[gpsData.length - 1];
+                return { lat: last.lat, lon: last.lon, heading: last.heading };
+            }
             
-            const t = (timestampMs - before.t) / (after.t - before.t);
-            return {
-                lat: lerp(before.lat, after.lat, t),
-                lon: lerp(before.lon, after.lon, t),
-                heading: lerpAngle(before.heading, after.heading, t)
-            };
+            const i1 = idx;
+            const i2 = Math.min(idx + 1, gpsData.length - 1);
+            const i0 = Math.max(idx - 1, 0);
+            const i3 = Math.min(idx + 2, gpsData.length - 1);
+            
+            const p0 = gpsData[i0];
+            const p1 = gpsData[i1];
+            const p2 = gpsData[i2];
+            const p3 = gpsData[i3];
+            
+            const segmentDuration = p2.t - p1.t;
+            const t = segmentDuration > 0 ? (timestampMs - p1.t) / segmentDuration : 0;
+            const smoothT = smoothstep(t);
+            
+            const lat = catmullRom(p0.lat, p1.lat, p2.lat, p3.lat, smoothT);
+            const lon = catmullRom(p0.lon, p1.lon, p2.lon, p3.lon, smoothT);
+            const heading = lerpAngle(p1.heading, p2.heading, t);
+            
+            return { lat, lon, heading };
         }
         
-        // Initialize map
+        function applySmoothing(target, current, factor) {
+            if (current === null) return target;
+            return current + (target - current) * factor;
+        }
+        
+        function applySmoothingAngle(target, current, factor) {
+            if (current === null) return target;
+            let delta = normalizeAngle(target - current);
+            return current + delta * factor;
+        }
+        
         function initMap() {
             if (map) return;
+            
+            // Calculate arrow size before creating map
+            calculateArrowSize();
             
             map = L.map('minimap', {
                 zoomControl: false,
@@ -147,15 +203,15 @@
                 markerZoomAnimation: false
             }).setView([0, 0], mapZoom);
             
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
+                subdomains: 'abc',
                 updateWhenIdle: false,
                 updateWhenZooming: false,
-                keepBuffer: 8  // Keep more tiles in memory
+                keepBuffer: 8
             }).addTo(map);
         }
         
-        // Initialize route polyline
         function initMapPath(pathData) {
             if (!map || !pathData || !pathData.length) return;
             
@@ -174,41 +230,37 @@
                 opacity: 0.8
             }).addTo(map);
             
-            // Start centered on first point
             map.setView(validPath[0], mapZoom, { animate: false });
         }
         
-        // Store GPS data for interpolation
         function setGpsData(data) {
             gpsData = data.filter(d => 
                 d.lat !== undefined && d.lon !== undefined &&
                 Number.isFinite(d.lat) && Number.isFinite(d.lon) &&
                 !(Math.abs(d.lat) < 0.001 && Math.abs(d.lon) < 0.001)
             );
+            smoothedLat = null;
+            smoothedLon = null;
+            smoothedHeading = null;
             console.log('[MINIMAP] Loaded', gpsData.length, 'GPS points for interpolation');
         }
         
-        // Update marker and pan map (DYNAMIC)
         function updateMarker(lat, lon, heading) {
             if (!map) initMap();
             
-            const latlng = L.latLng(lat, lon);
+            smoothedLat = applySmoothing(lat, smoothedLat, POSITION_SMOOTHING);
+            smoothedLon = applySmoothing(lon, smoothedLon, POSITION_SMOOTHING);
+            smoothedHeading = applySmoothingAngle(heading || 0, smoothedHeading, HEADING_SMOOTHING);
             
-            // Smooth rotation
-            const targetHeading = heading || 0;
-            let delta = targetHeading - (currentRotation % 360);
-            if (delta > 180) delta -= 360;
-            if (delta < -180) delta += 360;
-            currentRotation += delta;
+            const latlng = L.latLng(smoothedLat, smoothedLon);
+            const halfArrow = Math.round(arrowSize / 2);
             
             if (!mapMarker) {
-                currentRotation = targetHeading;
-                
                 const arrowIcon = L.divIcon({
                     className: 'arrow-marker-icon',
-                    html: '<img src="../../assets/arrow.png" style="width: 40px; height: 40px; transform: rotate(' + currentRotation + 'deg); transform-origin: center center; display: block;" />',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20]
+                    html: '<img src="../../assets/arrow.png" style="width: ' + arrowSize + 'px; height: ' + arrowSize + 'px; transform: rotate(' + smoothedHeading + 'deg); transform-origin: center center; display: block;" />',
+                    iconSize: [arrowSize, arrowSize],
+                    iconAnchor: [halfArrow, halfArrow]
                 });
                 
                 mapMarker = L.marker(latlng, { icon: arrowIcon }).addTo(map);
@@ -219,16 +271,16 @@
                 if (iconElement) {
                     const imgElement = iconElement.querySelector('img');
                     if (imgElement) {
-                        imgElement.style.transform = 'rotate(' + currentRotation + 'deg)';
+                        imgElement.style.width = arrowSize + 'px';
+                        imgElement.style.height = arrowSize + 'px';
+                        imgElement.style.transform = 'rotate(' + smoothedHeading + 'deg)';
                     }
                 }
             }
             
-            // DYNAMIC: Pan map to follow marker
             map.setView(latlng, mapZoom, { animate: false });
         }
         
-        // Update by timestamp (interpolated)
         function updateMarkerByTime(timestampMs) {
             const pos = getInterpolatedPosition(timestampMs);
             if (pos) {
