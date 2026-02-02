@@ -61,7 +61,7 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
 ## Privacy & Updates
 
-Sentry Six keeps things simple and respects your privacy:
+Sentry Six includes a privacy-first approach to updates and analytics:
 
 - **Automatic Updates**: The app checks for updates to keep running smoothly with the latest features
 - **Anonymous Version Stats**: A random ID helps us see which versions are most popular so we can fix bugs faster
