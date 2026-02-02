@@ -2884,9 +2884,13 @@ async function checkForUpdatesManual() {
 // Update IPC handlers
 ipcMain.handle('update:check', async () => {
   try {
-    // Step 1: Check with telemetry API first (for killswitch and analytics)
-    console.log('[UPDATE] Checking with telemetry API...');
-    const apiResponse = await checkUpdateWithTelemetry();
+    // Step 1: Read anonymousAnalytics setting to determine fingerprint behavior
+    const settings = loadSettings();
+    const analyticsEnabled = settings.anonymousAnalytics !== false; // Default to true if not set
+    
+    // Step 2: Check with telemetry API first (for killswitch and analytics)
+    console.log('[UPDATE] Checking with telemetry API (analytics:', analyticsEnabled, ')...');
+    const apiResponse = await checkUpdateWithTelemetry(analyticsEnabled);
     const processedResult = processApiResponse(apiResponse);
     
     // Handle force_manual (killswitch) - stop all auto-update and show critical alert

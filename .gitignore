@@ -12,7 +12,7 @@ OLD/Sentry-Six-DEV-SEI/
 .env
 dev-tool/.env
 dev-tool/config.json
-
+.cursorignore
 
 DevTool
 
