@@ -619,8 +619,8 @@
                             </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label">GPS Minimap</span>
-                                    <span class="toggle-row-desc">Show route and position on map</span>
+                                    <span class="toggle-row-label" data-i18n="ui.export.minimap">GPS Minimap</span>
+                                    <span class="toggle-row-desc" data-i18n="ui.export.minimapDesc">Show route and position on map</span>
                                 </div>
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="includeMinimap">
@@ -629,13 +629,13 @@
                             </label>
                             <div id="minimapNoGpsWarning" class="info-box info-yellow hidden">
                                 <span class="info-box-icon">⚠️</span>
-                                <span>No GPS data found in selected clips.</span>
+                                <span data-i18n="ui.export.minimapNoGps">No GPS data found in selected clips.</span>
                             </div>
                             <div id="minimapOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Position</span>
-                                        <span class="select-row-desc">Corner placement</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapPosition">Position</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapPositionDesc">Corner placement</span>
                                     </div>
                                     <select id="minimapPosition" class="settings-select">
                                         <option value="top-right" selected>Top Right</option>
@@ -646,8 +646,8 @@
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Size</span>
-                                        <span class="select-row-desc">Minimap size</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapSize">Size</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapSizeDesc">Minimap size</span>
                                     </div>
                                     <select id="minimapSize" class="settings-select">
                                         <option value="small" selected>Small (25%)</option>
@@ -658,12 +658,12 @@
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Render Mode</span>
-                                        <span class="select-row-desc">Speed vs quality</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapRenderMode">Render Mode</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapRenderModeDesc">Speed vs quality</span>
                                     </div>
                                     <select id="minimapRenderMode" class="settings-select">
-                                        <option value="ass" selected>Static Map (Fast)</option>
-                                        <option value="leaflet">Live Map (Slow)</option>
+                                        <option value="ass" selected data-i18n="ui.export.minimapStaticFast">Static Map (Fast)</option>
+                                        <option value="leaflet" data-i18n="ui.export.minimapLiveSlow">Live Map (Slow)</option>
                                     </select>
                                 </div>
                                 <div id="minimapModeInfo" class="info-box info-blue">
@@ -740,7 +740,7 @@
                         <div class="progress-bar-container">
                             <div id="minimapProgressBar" class="progress-bar-fill"></div>
                         </div>
-                        <div id="minimapProgressText" class="progress-text">Rendering minimap...</div>
+                        <div id="minimapProgressText" class="progress-text" data-i18n="ui.export.renderingMinimap">Rendering minimap...</div>
                     </div>
                     
                     <!-- Minimize hint shown during export -->

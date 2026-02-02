@@ -476,12 +476,12 @@ export function openExportModal() {
         const updateMinimapModeInfo = () => {
             const mode = minimapRenderMode.value;
             if (mode === 'ass') {
-                minimapModeDesc.textContent = 'Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.';
+                minimapModeDesc.textContent = t('ui.export.minimapStaticDesc');
                 minimapModeInfo.classList.remove('info-yellow');
                 minimapModeInfo.classList.add('info-blue');
                 minimapModeInfo.querySelector('.info-box-icon').textContent = '⚡';
             } else {
-                minimapModeDesc.textContent = 'Live map: Renders each frame with Leaflet. Shows real-time map updates but much slower export.';
+                minimapModeDesc.textContent = t('ui.export.minimapLiveDesc');
                 minimapModeInfo.classList.remove('info-blue');
                 minimapModeInfo.classList.add('info-yellow');
                 minimapModeInfo.querySelector('.info-box-icon').textContent = '🗺️';
@@ -1349,7 +1349,7 @@ export async function startExport() {
                     notify(t('ui.notifications.noTelemetryData'), { type: 'warn' });
                 }
                 if (includeMinimap && allMapPath.length === 0) {
-                    notify('No GPS data available for minimap overlay. Minimap will be disabled.', { type: 'warn' });
+                    notify(t('ui.export.minimapNoGpsDisabled'), { type: 'warn' });
                 }
                 seiData = null;
                 mapPath = [];
@@ -1359,7 +1359,7 @@ export async function startExport() {
                 notify(t('ui.notifications.failedToExtractTelemetry'), { type: 'warn' });
             }
             if (includeMinimap) {
-                notify('Failed to extract GPS data. Minimap will be disabled.', { type: 'warn' });
+                notify(t('ui.export.minimapGpsExtractFailed'), { type: 'warn' });
             }
             seiData = null;
             mapPath = [];
