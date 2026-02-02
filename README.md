@@ -59,6 +59,17 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
   - Checks for new updates on start up with a one-click install.
     - You can also check for updates via the settings
 
+## Privacy & Updates
+
+Sentry Six keeps things simple and respects your privacy:
+
+- **Automatic Updates**: The app checks for updates to keep running smoothly with the latest features
+- **Anonymous Version Stats**: A random ID helps us see which versions are most popular so we can fix bugs faster
+- **No Personal Info**: We never collect or send any personal information to our servers
+- **First-Time Notice**: You'll see a one-time notification about these features when you first launch the app
+
+This helps us improve Sentry Six while keeping everything private and transparent.
+
 ## Community & Support
 
 Have questions, feedback, or want to connect with other users?
