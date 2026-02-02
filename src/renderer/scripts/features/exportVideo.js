@@ -8,7 +8,7 @@ import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
 import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
-import { t, getCurrentLanguage } from '../lib/i18n.js';
+import { t, getCurrentLanguage, onLanguageChange } from '../lib/i18n.js';
 
 // Export state
 export const exportState = {
@@ -476,12 +476,12 @@ export function openExportModal() {
         const updateMinimapModeInfo = () => {
             const mode = minimapRenderMode.value;
             if (mode === 'ass') {
-                minimapModeDesc.textContent = 'Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.';
+                minimapModeDesc.textContent = t('ui.export.minimapStaticDesc');
                 minimapModeInfo.classList.remove('info-yellow');
                 minimapModeInfo.classList.add('info-blue');
                 minimapModeInfo.querySelector('.info-box-icon').textContent = '⚡';
             } else {
-                minimapModeDesc.textContent = 'Live map: Renders each frame with Leaflet. Shows real-time map updates but much slower export.';
+                minimapModeDesc.textContent = t('ui.export.minimapLiveDesc');
                 minimapModeInfo.classList.remove('info-blue');
                 minimapModeInfo.classList.add('info-yellow');
                 minimapModeInfo.querySelector('.info-box-icon').textContent = '🗺️';
@@ -490,6 +490,11 @@ export function openExportModal() {
         
         minimapRenderMode.onchange = updateMinimapModeInfo;
         updateMinimapModeInfo(); // Set initial state
+        
+        // Update when language changes
+        onLanguageChange(() => {
+            updateMinimapModeInfo();
+        });
     }
 }
 

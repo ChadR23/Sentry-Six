@@ -619,8 +619,8 @@
                             </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label">GPS Minimap</span>
-                                    <span class="toggle-row-desc">Show route and position on map</span>
+                                    <span class="toggle-row-label" data-i18n="ui.export.minimap">GPS Minimap</span>
+                                    <span class="toggle-row-desc" data-i18n="ui.export.minimapDesc">Show route and position on map</span>
                                 </div>
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="includeMinimap">
@@ -629,48 +629,49 @@
                             </label>
                             <div id="minimapNoGpsWarning" class="info-box info-yellow hidden">
                                 <span class="info-box-icon">⚠️</span>
-                                <span>No GPS data found in selected clips.</span>
+                                <span data-i18n="ui.export.minimapNoGps">No GPS data found in selected clips.</span>
                             </div>
                             <div id="minimapOptions" class="hidden">
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Position</span>
-                                        <span class="select-row-desc">Corner placement</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapPosition">Position</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapPositionDesc">Corner placement</span>
                                     </div>
                                     <select id="minimapPosition" class="settings-select">
-                                        <option value="top-right" selected>Top Right</option>
-                                        <option value="top-left">Top Left</option>
-                                        <option value="bottom-right">Bottom Right</option>
-                                        <option value="bottom-left">Bottom Left</option>
+                                        <option value="top-right" selected data-i18n="ui.export.topRight">Top Right</option>
+                                        <option value="top-left" data-i18n="ui.export.topLeft">Top Left</option>
+                                        <option value="bottom-right" data-i18n="ui.export.bottomRight">Bottom Right</option>
+                                        <option value="bottom-left" data-i18n="ui.export.bottomLeft">Bottom Left</option>
                                     </select>
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Size</span>
-                                        <span class="select-row-desc">Minimap size</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapSize">Size</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapSizeDesc">Minimap size</span>
                                     </div>
                                     <select id="minimapSize" class="settings-select">
-                                        <option value="small" selected>Small (25%)</option>
-                                        <option value="medium">Medium (35%)</option>
-                                        <option value="large">Large (45%)</option>
-                                        <option value="xlarge">X-Large (55%)</option>
+                                        <option value="small" selected data-i18n="ui.export.minimapSmall">Small (25%)</option>
+                                        <option value="medium" data-i18n="ui.export.minimapMedium">Medium (35%)</option>
+                                        <option value="large" data-i18n="ui.export.minimapLarge">Large (45%)</option>
+                                        <option value="xlarge" data-i18n="ui.export.minimapXlarge">X-Large (55%)</option>
                                     </select>
                                 </div>
                                 <div class="select-row">
                                     <div class="select-row-info">
-                                        <span class="select-row-label">Render Mode</span>
-                                        <span class="select-row-desc">Speed vs quality</span>
+                                        <span class="select-row-label" data-i18n="ui.export.minimapRenderMode">Render Mode</span>
+                                        <span class="select-row-desc" data-i18n="ui.export.minimapRenderModeDesc">Speed vs quality</span>
                                     </div>
                                     <select id="minimapRenderMode" class="settings-select">
-                                        <option value="ass" selected>Static Map (Fast)</option>
-                                        <option value="leaflet">Live Map (Slow)</option>
+                                        <option value="ass" selected data-i18n="ui.export.minimapStatic">Static Map (Fast)</option>
+                                        <option value="leaflet" data-i18n="ui.export.minimapLive">Live Map (Slow)</option>
                                     </select>
                                 </div>
                                 <div id="minimapModeInfo" class="info-box info-blue">
                                     <span class="info-box-icon">⚡</span>
-                                    <span id="minimapModeDesc">Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.</span>
+                                    <span id="minimapModeDesc" data-i18n="ui.export.minimapStaticDesc">Static map: Downloads map tiles once, overlays route path and position marker. Fast export, requires internet.</span>
                                 </div>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </div>
