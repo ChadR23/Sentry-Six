@@ -76,6 +76,10 @@
       "gatekeeperAssess": false,
       "identity": null,
       "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
+      "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
+      "asarUnpack": [
+        "node_modules/canvas/**/*"
+      ],
       "extraResources": [
         {
           "from": "ffmpeg_bin/ffmpeg",
