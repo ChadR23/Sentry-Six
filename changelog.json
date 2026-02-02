@@ -1,6 +1,25 @@
 {
   "versions": [
     {
+      "version": "2026.6.5",
+      "date": "2026-02-02",
+      "title": "Major Update",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added Fast Mini map improvement. This is only a fixed map not live like the main map for exporting."
+        },
+        {
+          "type": "improvement",
+          "description": "improved live map export by 33% Thanks to Jeff"
+        },
+        {
+          "type": "Updated API with New Update system.",
+          "description": "Update API To handle Updates. Client will now send Platform, Version, and UUID to help us with updates."
+        }
+      ]
+    },
+    {
       "version": "2026.5.1",
       "date": "2026-01-29",
       "title": "Feature Release",
