@@ -29,6 +29,10 @@ ENV ELECTRON_NO_SANDBOX=1
 
 # Install system dependencies required for Electron
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Basic tools
+    curl \
+    ca-certificates \
+    gnupg \
     # Electron dependencies
     libnss3 \
     libnspr4 \
@@ -55,12 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxshmfence1 \
     # FFmpeg for video processing
     ffmpeg \
-    # Node.js (LTS)
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
     # Canvas dependencies (for node-canvas)
-    && apt-get install -y --no-install-recommends \
     libcairo2-dev \
     libpango1.0-dev \
     libjpeg-dev \
@@ -69,6 +68,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3 \
     # Cleanup
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Install Node.js (LTS) separately to ensure proper installation
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && node --version \
+    && npm --version \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
