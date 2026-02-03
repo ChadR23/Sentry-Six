@@ -31,11 +31,11 @@ cd /app
 
 # Start Electron with required flags for Docker environment
 # Use locally installed electron from node_modules
+# NOTE: Do NOT use --headless flag - we need the window to render in Xvfb
 exec /app/node_modules/.bin/electron \
     --no-sandbox \
     --disable-gpu \
     --disable-software-rasterizer \
     --disable-dev-shm-usage \
     --disable-setuid-sandbox \
-    --headless \
     /app/src/main.js
