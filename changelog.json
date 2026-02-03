@@ -11,7 +11,7 @@
         },
         {
           "type": "fix",
-          "description": "Fixed the Camera Glow/Hightlight on Saved and Sentry Clip events not displaying properly."
+          "description": "Fixed the Camera Glow/Highlight on Saved and Sentry Clip events not displaying properly."
         },
         {
           "type": "improvement",
