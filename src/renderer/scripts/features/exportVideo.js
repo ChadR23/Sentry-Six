@@ -684,11 +684,8 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         // Load video file
         let videoUrl;
         if (entry.file.path) {
-            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-            const normalizedPath = entry.file.path.replace(/\\/g, '/');
-            videoUrl = entry.file.path.startsWith('/') 
-                ? `file://${encodeURI(entry.file.path)}` 
-                : `file:///${encodeURI(normalizedPath)}`;
+            // Use filePathToUrl which handles both Electron and web mode
+            videoUrl = filePathToUrl(entry.file.path);
         } else if (entry.file instanceof File) {
             videoUrl = URL.createObjectURL(entry.file);
         } else {

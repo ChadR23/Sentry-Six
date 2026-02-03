@@ -7,10 +7,13 @@
 (function() {
   'use strict';
 
-  // Detect if we're in web mode (no electronAPI available)
-  const isWebMode = typeof window.electronAPI === 'undefined';
-  
-  if (!isWebMode) {
+  // Set web mode flag IMMEDIATELY before any other code runs
+  // This must happen synchronously so ES modules can detect it
+  if (typeof window.electronAPI === 'undefined') {
+    window._sentryWebMode = true;
+    console.log('[WebAPI] Web mode flag set: true');
+  } else {
+    window._sentryWebMode = false;
     console.log('[WebAPI] Electron mode detected, using native IPC');
     return; // Use native Electron API
   }
@@ -72,7 +75,9 @@
     // ============================================
     
     readDir: async (dirPath) => {
+      console.log('[WebAPI] readDir:', dirPath);
       const result = await apiCall('/fs/readDir', 'POST', { dirPath });
+      console.log('[WebAPI] readDir result:', result?.length, 'entries');
       return result;
     },
     
