@@ -131,6 +131,8 @@ canvas, .video-player, .tile-video {
     display: flex;
     align-items: center;
     justify-content: center;
+    container-type: inline-size;
+    container-name: tile;
 }
 
 /* Allow tiles with dashboard to show overflow */
@@ -1101,6 +1103,32 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     box-sizing: border-box;
     padding: 0;
     margin: 0;
+    transform-origin: center center;
+}
+
+/* Scale down compact dashboard content when tile is narrow */
+@container tile (max-width: 450px) {
+    .vis-content-compact {
+        zoom: 0.85;
+    }
+}
+
+@container tile (max-width: 380px) {
+    .vis-content-compact {
+        zoom: 0.75;
+    }
+}
+
+@container tile (max-width: 320px) {
+    .vis-content-compact {
+        zoom: 0.65;
+    }
+}
+
+@container tile (max-width: 260px) {
+    .vis-content-compact {
+        zoom: 0.55;
+    }
 }
 
 /* Brake Icon Compact */
