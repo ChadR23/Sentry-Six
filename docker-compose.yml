@@ -1,7 +1,11 @@
 # Sentry-Six Docker Compose Configuration
 # 
 # Usage:
-#   docker-compose up -d
+#   Option 1 - Pull from GitHub Container Registry:
+#     docker-compose pull && docker-compose up -d
+#   
+#   Option 2 - Build locally:
+#     docker-compose build && docker-compose up -d
 #   
 # Access WebUI at: http://localhost:5800
 #
@@ -13,10 +17,12 @@ version: '3.8'
 
 services:
   sentry-six:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: sentry-six:latest
+    # Use pre-built image from GitHub Container Registry
+    image: ghcr.io/chadr23/sentry-six:latest
+    # Or build locally (uncomment below, comment out image above)
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: sentry-six
     restart: unless-stopped
     

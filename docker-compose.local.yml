@@ -1,0 +1,44 @@
+# Sentry-Six Docker Compose - LOCAL BUILD
+# 
+# Use this for testing local changes before pushing to the docker branch
+#
+# Usage:
+#   docker-compose -f docker-compose.local.yml build
+#   docker-compose -f docker-compose.local.yml up -d
+#   
+# Access WebUI at: http://localhost:5800
+
+version: '3.8'
+
+services:
+  sentry-six:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentry-six:local
+    container_name: sentry-six-local
+    restart: unless-stopped
+    
+    ports:
+      - "5800:5800"
+      - "5900:5900"
+    
+    volumes:
+      # Configuration volume
+      - ./config:/config
+      # Data volume - CHANGE THIS to your Tesla footage path
+      - ./test-data:/data
+    
+    environment:
+      - SENTRY_SIX_DOCKER=1
+      - SENTRY_SIX_HEADLESS=1
+      - DISPLAY_WIDTH=1400
+      - DISPLAY_HEIGHT=900
+      - DARK_MODE=1
+      - KEEP_APP_RUNNING=1
+      - TZ=America/New_York
+    
+    security_opt:
+      - seccomp:unconfined
+    
+    shm_size: '2gb'
