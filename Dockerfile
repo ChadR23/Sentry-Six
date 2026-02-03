@@ -85,8 +85,8 @@ WORKDIR /app
 # Copy package files first for better layer caching
 COPY package*.json ./
 
-# Install Node.js dependencies
-RUN npm ci --production || npm install --production
+# Install Node.js dependencies (include dev dependencies for Electron)
+RUN npm ci || npm install
 
 # Copy application source
 COPY src/ ./src/
