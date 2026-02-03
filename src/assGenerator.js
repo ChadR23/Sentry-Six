@@ -563,8 +563,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     const apText = getApText(apState, language);
     
     const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
-    const isAutoHold = gear === 1 && mps < 0.01;
-    const brakeActive = brakeApplied || isAutoHold;
+    const brakeActive = brakeApplied;
     
     const accelPos = getSeiValue(sei, 'acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
     const accelActive = accelPos > 1 ? accelPos > 5 : accelPos > 0.05;

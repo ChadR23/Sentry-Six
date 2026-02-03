@@ -3450,10 +3450,9 @@ function updateVisualization(sei) {
         gearStateCompact.classList.toggle('active', isActive);
     }
 
-    // Brake - also detect Tesla's auto-hold (gear in Drive but speed is 0)
+    // Brake
     const brakeState = get('brakeApplied', 'brake_applied');
-    const isAutoHold = gear === 1 && mps < 0.01; // Gear Drive (1) and essentially stopped
-    const brakeActive = !!brakeState || isAutoHold;
+    const brakeActive = !!brakeState;
     brakeIcon?.classList.toggle('active', brakeActive);
     
     // Update compact dashboard brake
