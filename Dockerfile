@@ -79,7 +79,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install Node.js dependencies
-RUN npm ci --omit=dev || npm install --omit=dev
+RUN npm ci --production || npm install --production
 
 # Copy application source
 COPY src/ ./src/
