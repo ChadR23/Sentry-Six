@@ -1335,16 +1335,16 @@ async function loadDefaultFolderOnStartup() {
 // Call after a short delay to allow UI to initialize
 setTimeout(loadDefaultFolderOnStartup, 500);
 
-// Check for updates on startup (if not disabled in settings)
+// Check for updates on startup (unless API requests are disabled in developer settings)
 async function checkForUpdatesOnStartup() {
-    let autoUpdateDisabled = false;
+    let apiRequestsDisabled = false;
     
-    // Load from file-based settings
+    // Load from file-based settings - check developer setting for disabling API requests
     try {
-        const savedValue = await window.electronAPI.getSetting('autoUpdateDisabled');
-        autoUpdateDisabled = savedValue === true;
+        const savedValue = await window.electronAPI.getSetting('devDisableApiRequests');
+        apiRequestsDisabled = savedValue === true;
     } catch (err) {
-        console.log('[SETTINGS] Could not load autoUpdateDisabled setting:', err);
+        console.log('[SETTINGS] Could not load devDisableApiRequests setting:', err);
     }
     
     // Check if first run is complete and analytics setting exists - don't auto-update if welcome screen is needed
@@ -1357,14 +1357,16 @@ async function checkForUpdatesOnStartup() {
         console.log('[SETTINGS] Could not load settings:', err);
     }
     
-    // Only check for updates if auto-update is enabled AND first run is complete AND analytics setting exists
+    // Only check for updates if API requests are enabled AND first run is complete AND analytics setting exists
     // This matches the welcome screen logic: firstRunComplete !== true || hasAnalyticsSetting === undefined
     const shouldSkipUpdate = firstRunComplete !== true || hasAnalyticsSetting === undefined;
     
-    if (!autoUpdateDisabled && !shouldSkipUpdate && window.electronAPI?.checkForUpdates) {
+    if (apiRequestsDisabled) {
+        console.log('[UPDATE] Skipping auto-update check - API requests disabled in developer settings');
+    } else if (!shouldSkipUpdate && window.electronAPI?.checkForUpdates) {
         console.log('[UPDATE] Auto-checking for updates on startup');
         window.electronAPI.checkForUpdates();
-    } else if (!autoUpdateDisabled && shouldSkipUpdate) {
+    } else if (shouldSkipUpdate) {
         console.log('[UPDATE] Skipping auto-update check - waiting for welcome screen acceptance');
     }
 }

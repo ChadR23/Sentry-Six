@@ -552,23 +552,6 @@ export function initSettingsModal() {
         };
     }
     
-    // Disable auto-update toggle
-    const settingsDisableAutoUpdate = $('settingsDisableAutoUpdate');
-    if (settingsDisableAutoUpdate) {
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
-                settingsDisableAutoUpdate.checked = savedValue === true;
-            });
-        }
-        
-        settingsDisableAutoUpdate.addEventListener('change', async function() {
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('disableAutoUpdate', this.checked);
-            }
-            settingsDisableAutoUpdate.blur();
-        });
-    }
-    
     // Anonymous analytics toggle
     const settingsAnonymousAnalytics = $('settingsAnonymousAnalytics');
     if (settingsAnonymousAnalytics) {
@@ -586,39 +569,6 @@ export function initSettingsModal() {
         });
     }
     
-    // Update branch selector
-    const settingsUpdateBranch = $('settingsUpdateBranch');
-    const branchNote = $('branchInstallerNote');
-    if (settingsUpdateBranch) {
-        // Check if app is packaged (NSIS install) - disable branch switching
-        if (window.electronAPI?.devGetAppPaths) {
-            window.electronAPI.devGetAppPaths().then(paths => {
-                if (paths.isPackaged) {
-                    // Disable branch switcher for NSIS installs
-                    settingsUpdateBranch.disabled = true;
-                    settingsUpdateBranch.value = 'main';
-                    settingsUpdateBranch.style.opacity = '0.5';
-                    settingsUpdateBranch.style.cursor = 'not-allowed';
-                    if (branchNote) {
-                        branchNote.style.display = 'block';
-                    }
-                }
-            });
-        }
-        
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('updateBranch').then(savedValue => {
-                settingsUpdateBranch.value = savedValue || 'main';
-            });
-        }
-        
-        settingsUpdateBranch.addEventListener('change', async function() {
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('updateBranch', this.value);
-            }
-            settingsUpdateBranch.blur();
-        });
-    }
     
     // Check for updates button
     const checkForUpdatesBtn = $('checkForUpdatesBtn');
@@ -876,6 +826,24 @@ export function initDevSettingsModal() {
                 ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
                 : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
             devFakeNoGpu.blur();
+        };
+    }
+    
+    // Disable API Requests Toggle
+    const devDisableApiRequests = $('devDisableApiRequests');
+    if (devDisableApiRequests) {
+        // Load current setting
+        window.electronAPI?.getSetting?.('devDisableApiRequests').then(value => {
+            devDisableApiRequests.checked = value === true;
+        });
+        
+        devDisableApiRequests.onchange = async () => {
+            const value = devDisableApiRequests.checked;
+            await window.electronAPI?.setSetting?.('devDisableApiRequests', value);
+            showDevOutput(value 
+                ? 'API Requests: DISABLED\n\nNo update checks or API calls will be made.\nRestart app for full effect.'
+                : 'API Requests: ENABLED\n\nUpdate checks and API calls restored.\nRestart app for full effect.');
+            devDisableApiRequests.blur();
         };
     }
     

@@ -1,6 +1,33 @@
 {
   "versions": [
     {
+      "version": "2026.6.6",
+      "date": "2026-02-03",
+      "title": "Bug Fixes & Refinements",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed the Compact Dashboard Layout not resizing properly on smaller displays."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed the Camera Glow/Hightlight on Saved and Sentry Clip events not displaying properly."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed the fake brake autohold feature on the Dashboard to better represent what official is being shown by the SEI Data."
+        },
+        {
+          "type": "improvement",
+          "description": "Added the accelerator pedal position to the SEI Dashboard on exported videos."
+        },
+        {
+          "type": "improvement",
+          "description": "Added an Alpha Tag to the GPS Minimap export feature as it is still in development."
+        }
+      ]
+    },
+    {
       "version": "2026.6.5",
       "date": "2026-02-02",
       "title": "Major Update",

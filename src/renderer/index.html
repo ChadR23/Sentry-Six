@@ -619,7 +619,7 @@
                             </div>
                             <label class="toggle-row">
                                 <div class="toggle-row-info">
-                                    <span class="toggle-row-label" data-i18n="ui.export.minimap">GPS Minimap</span>
+                                    <span class="toggle-row-label"><span data-i18n="ui.export.minimap">GPS Minimap</span> <span class="alpha-tag">Alpha</span></span>
                                     <span class="toggle-row-desc" data-i18n="ui.export.minimapDesc">Show route and position on map</span>
                                 </div>
                                 <div class="toggle-switch">
@@ -1064,16 +1064,6 @@
                         <div class="modal-section-title" data-i18n="ui.settings.updates">Updates</div>
                         <label class="toggle-row">
                             <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.disableAutoUpdate">Disable Auto-Update</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.disableAutoUpdateDesc">Don't check for updates on launch</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsDisableAutoUpdate">
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
                                 <span class="toggle-row-label">Anonymous Analytics</span>
                                 <span class="toggle-row-desc">Help improve Sentry-Six with anonymized usage data</span>
                             </div>
@@ -1082,19 +1072,6 @@
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
-                        <div class="action-row">
-                            <div class="action-row-info">
-                                <span class="action-row-label" data-i18n="ui.settings.updateBranch">Update Branch</span>
-                                <span class="action-row-desc" data-i18n="ui.settings.updateBranchDesc">Main for stable, Dev-SEI for beta</span>
-                            </div>
-                            <select id="settingsUpdateBranch" class="settings-select">
-                                <option value="main" data-i18n="ui.settings.mainStable">Main (Stable)</option>
-                                <option value="Dev-SEI" data-i18n="ui.settings.devSeiBeta">Dev-SEI (Beta)</option>
-                            </select>
-                        </div>
-                        <div id="branchInstallerNote" class="settings-note" style="display: none; margin: 8px 0 12px 0; padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border-radius: 6px; font-size: 12px; color: rgba(255, 193, 7, 0.9);">
-                            ⚠️ Beta versions are only available for manual installs (npm start). <a href="#" onclick="window.electronAPI?.openExternal('https://github.com/ChadR23/Sentry-Six#manual-installation'); return false;" style="color: #ffc107;">Learn more</a>
-                        </div>
                         <div class="action-row">
                             <div class="action-row-info">
                                 <span class="action-row-label" data-i18n="ui.settings.checkForUpdates">Check for Updates</span>
@@ -1189,6 +1166,20 @@
                         </div>
                         <div class="toggle-switch">
                             <input type="checkbox" id="devFakeNoGpu">
+                            <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="modal-section">
+                    <div class="modal-section-title">Network</div>
+                    <label class="toggle-row">
+                        <div class="toggle-row-info">
+                            <span class="toggle-row-label">Disable API Requests</span>
+                            <span class="toggle-row-desc">Block all update checks and API calls</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="devDisableApiRequests">
                             <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                         </div>
                     </label>
