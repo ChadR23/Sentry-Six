@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>sentry-six</Name>
+  <Repository>ghcr.io/chadr23/sentry-six:latest</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ChadR23/Sentry-Six/issues</Support>
+  <Project>https://github.com/ChadR23/Sentry-Six</Project>
+  <Overview>
+    Sentry-Six is a Tesla Dashcam Viewer application that allows you to browse, view, and export Tesla Sentry Mode and Dashcam footage.
+    
+    Access the WebUI at http://[IP]:5800
+    
+    Features:
+    - Browse Tesla footage by date and event type
+    - Multi-camera synchronized playback
+    - Export clips with custom layouts
+    - Automatic event detection
+  </Overview>
+  <Category>MediaApp:Video Tools:</Category>
+  <WebUI>http://[IP]:[PORT:5800]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/ChadR23/Sentry-Six/main/docker/sentry-six.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/ChadR23/Sentry-Six/main/assets/Sentry_Six.png</Icon>
+  <ExtraParams>--shm-size=2g --security-opt seccomp=unconfined</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  
+  <!-- WebUI Port (noVNC) -->
+  <Config Name="WebUI Port" Target="5800" Default="5800" Mode="tcp" Description="Port for the web-based UI (noVNC). Access at http://[IP]:5800" Type="Port" Display="always" Required="true" Mask="false">5800</Config>
+  
+  <!-- VNC Port (optional) -->
+  <Config Name="VNC Port" Target="5900" Default="5900" Mode="tcp" Description="Port for direct VNC client access (optional)" Type="Port" Display="advanced" Required="false" Mask="false">5900</Config>
+  
+  <!-- Config Volume -->
+  <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/sentry-six" Mode="rw" Description="Path to store application settings and configuration. Contains settings.json and machine ID for persistent fingerprint." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sentry-six</Config>
+  
+  <!-- Data Volume (Tesla Footage) -->
+  <Config Name="Tesla Footage Path" Target="/data" Default="/mnt/user/TeslaCam" Mode="rw" Description="Path to your Tesla footage folder (TeslaCam). This is where your Sentry Mode and Dashcam recordings are stored." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/TeslaCam</Config>
+  
+  <!-- Display Settings -->
+  <Config Name="Display Width" Target="DISPLAY_WIDTH" Default="1400" Mode="" Description="Width of the application window in pixels" Type="Variable" Display="advanced" Required="false" Mask="false">1400</Config>
+  <Config Name="Display Height" Target="DISPLAY_HEIGHT" Default="900" Mode="" Description="Height of the application window in pixels" Type="Variable" Display="advanced" Required="false" Mask="false">900</Config>
+  <Config Name="Dark Mode" Target="DARK_MODE" Default="1" Mode="" Description="Enable dark mode for the WebUI (1=enabled, 0=disabled)" Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+  
+  <!-- Application Settings -->
+  <Config Name="Keep App Running" Target="KEEP_APP_RUNNING" Default="1" Mode="" Description="Automatically restart the application if it crashes (1=enabled)" Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+  <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Timezone for the container (e.g., America/New_York, Europe/London)" Type="Variable" Display="advanced" Required="false" Mask="false">America/New_York</Config>
+  
+  <!-- User/Group ID (for NAS permissions) -->
+  <Config Name="User ID" Target="USER_ID" Default="99" Mode="" Description="User ID for file permissions (default: 99 for nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="Group ID" Target="GROUP_ID" Default="100" Mode="" Description="Group ID for file permissions (default: 100 for users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+</Container>

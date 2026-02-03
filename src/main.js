@@ -7,6 +7,21 @@ const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss, writeMinim
 const https = require('https');
 const { checkUpdateWithTelemetry, processApiResponse, getAnonymizedFingerprint } = require('./updateTelemetry');
 const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
+const { 
+  isDockerEnvironment, 
+  isHeadlessMode, 
+  getConfigPath, 
+  getSettingsPath, 
+  getDiagnosticsPath,
+  applyDockerFlags,
+  logEnvironmentInfo 
+} = require('./dockerPaths');
+
+// Apply Docker/headless flags early (before app.whenReady)
+if (isDockerEnvironment() || isHeadlessMode()) {
+  applyDockerFlags(app);
+  logEnvironmentInfo();
+}
 
 // ============================================
 // DIAGNOSTICS: Console capture (must be early to catch all logs)
@@ -2489,7 +2504,8 @@ ipcMain.handle('dialog:openFolder', async () => {
 });
 
 // File-based settings storage for reliable persistence
-const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+// Uses Docker-aware path when running in container
+const settingsPath = getSettingsPath(() => app.getPath('userData'));
 
 /**
  * Check if npm packages need to be installed after an update (dev mode only)
@@ -3292,9 +3308,12 @@ ipcMain.handle('dev:getAppPaths', async () => {
   return {
     userData: app.getPath('userData'),
     settings: settingsPath,
+    diagnostics: diagnosticsDir,
     app: app.getAppPath(),
     temp: app.getPath('temp'),
-    isPackaged: app.isPackaged
+    isPackaged: app.isPackaged,
+    isDocker: isDockerEnvironment(),
+    isHeadless: isHeadlessMode()
   };
 });
 
@@ -3385,7 +3404,8 @@ ipcMain.handle('diagnostics:writeFile', async (_event, filePath, content) => {
 });
 
 // Diagnostics storage directory
-const diagnosticsDir = path.join(app.getPath('userData'), 'diagnostics');
+// Uses Docker-aware path when running in container
+const diagnosticsDir = getDiagnosticsPath(() => app.getPath('userData'));
 
 // Ensure diagnostics directory exists
 function ensureDiagnosticsDir() {

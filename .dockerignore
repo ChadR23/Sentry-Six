@@ -1,0 +1,62 @@
+# Docker build context exclusions
+# Reduces build context size and prevents sensitive files from being included
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules (will be installed in container)
+node_modules/
+
+# Build outputs
+release/
+dist/
+*.exe
+*.dmg
+*.zip
+*.AppImage
+
+# Development files
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Documentation (not needed in container)
+*.md
+!README.md
+docs/
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Config files not needed in container
+.editorconfig
+.eslintrc*
+.prettierrc*
+tsconfig.json
+jsconfig.json
+
+# FFmpeg binaries (will use system FFmpeg in container)
+ffmpeg_bin/
+
+# Local config directory (for docker-compose)
+config/
+
+# Cursor/IDE files
+.cursorignore
+.cursor/
+
+# Development tools
+Sentry-Six-DevTool/

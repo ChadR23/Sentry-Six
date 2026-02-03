@@ -17,4 +17,7 @@ dev-tool/config.json
 DevTool
 
 dev-tools/
-/Sentry-Six-DevTool
+Sentry-Six-DevTool/
+
+# Docker local config (user-specific)
+config/

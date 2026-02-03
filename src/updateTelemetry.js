@@ -8,6 +8,9 @@ const crypto = require('crypto');
 const https = require('https');
 const { app } = require('electron');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
+const { isDockerEnvironment, getMachineIdPath, getConfigPath } = require('./dockerPaths');
 
 // Configuration
 const TELEMETRY_CONFIG = {
@@ -21,11 +24,47 @@ const TELEMETRY_CONFIG = {
 let cachedFingerprint = null;
 
 /**
- * Get the machine ID using node-machine-id
- * Falls back to a generated ID if the library fails
+ * Get the machine ID using node-machine-id or persistent file in Docker
+ * In Docker: Uses a persistent file in /config to maintain consistent ID across rebuilds
+ * Falls back to a generated ID if all methods fail
  * @returns {string} Machine ID
  */
 function getMachineId() {
+  // In Docker, use persistent machine ID file
+  if (isDockerEnvironment()) {
+    try {
+      const machineIdFile = getMachineIdPath(() => app.getPath('userData'));
+      
+      // Check if persistent machine ID exists
+      if (fs.existsSync(machineIdFile)) {
+        const persistentId = fs.readFileSync(machineIdFile, 'utf8').trim();
+        if (persistentId && persistentId.length >= 32) {
+          console.log('[TELEMETRY] Using persistent Docker machine ID');
+          return persistentId;
+        }
+      }
+      
+      // Generate new machine ID for Docker
+      console.log('[TELEMETRY] Generating new persistent Docker machine ID');
+      const newId = crypto.randomBytes(32).toString('hex');
+      
+      // Ensure config directory exists
+      const configDir = getConfigPath(() => app.getPath('userData'));
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
+      
+      // Save the new ID
+      fs.writeFileSync(machineIdFile, newId, 'utf8');
+      console.log('[TELEMETRY] Saved new Docker machine ID to:', machineIdFile);
+      return newId;
+    } catch (err) {
+      console.warn('[TELEMETRY] Docker machine ID handling failed:', err.message);
+      // Fall through to standard methods
+    }
+  }
+  
+  // Standard method: use node-machine-id
   try {
     const { machineIdSync } = require('node-machine-id');
     return machineIdSync();

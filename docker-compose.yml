@@ -1,0 +1,75 @@
+# Sentry-Six Docker Compose Configuration
+# 
+# Usage:
+#   docker-compose up -d
+#   
+# Access WebUI at: http://localhost:5800
+#
+# Volume Mappings:
+#   - ./config:/config  - Application settings and configuration
+#   - /path/to/tesla:/data - Tesla footage directory (TeslaCam folder)
+
+version: '3.8'
+
+services:
+  sentry-six:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentry-six:latest
+    container_name: sentry-six
+    restart: unless-stopped
+    
+    # Port mappings
+    ports:
+      # WebUI (noVNC) - Primary access method
+      - "5800:5800"
+      # VNC (optional) - Direct VNC client access
+      - "5900:5900"
+    
+    # Volume mappings for persistent data
+    volumes:
+      # Configuration volume - stores settings.json, machine-id, diagnostics
+      - ./config:/config
+      # Data volume - mount your Tesla footage here
+      # Change this path to your actual TeslaCam folder location
+      - /mnt/user/TeslaCam:/data
+    
+    # Environment variables
+    environment:
+      # Application settings
+      - SENTRY_SIX_DOCKER=1
+      - SENTRY_SIX_HEADLESS=1
+      
+      # Display settings (jlesage/baseimage-gui)
+      - DISPLAY_WIDTH=1400
+      - DISPLAY_HEIGHT=900
+      - DARK_MODE=1
+      - KEEP_APP_RUNNING=1
+      
+      # Optional: Set timezone
+      - TZ=America/New_York
+      
+      # Optional: User/Group ID mapping (for NAS permissions)
+      # - USER_ID=1000
+      # - GROUP_ID=1000
+    
+    # Security options for Electron
+    security_opt:
+      - seccomp:unconfined
+    
+    # Shared memory size (helps with Electron stability)
+    shm_size: '2gb'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5800/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# Optional: Named volumes (alternative to bind mounts)
+# volumes:
+#   sentry-six-config:
+#   sentry-six-data:
