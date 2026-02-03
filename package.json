@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
+    "server": "node src/server.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -29,6 +30,7 @@
   "dependencies": {
     "canvas": "^3.2.0",
     "electron-updater": "^6.1.7",
+    "express": "^4.21.0",
     "node-machine-id": "^1.1.12",
     "protobufjs": "^7.5.4"
   },

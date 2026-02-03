@@ -2,7 +2,16 @@
 
 Run Sentry-Six on your server (Unraid, Synology, NAS) with a browser-based WebUI.
 
-## Quick Start
+## Two Docker Modes Available
+
+| Mode | Image Tag | Description |
+|------|-----------|-------------|
+| **Web Mode** (Recommended) | `chadr23/sentry-six:web` | Native web app, lightweight (~200MB) |
+| **VNC Mode** | `chadr23/sentry-six:latest` | Full Electron app via VNC (~1.5GB) |
+
+**Web Mode** is recommended for most users - it's faster, lighter, and provides a native browser experience.
+
+## Quick Start (Web Mode - Recommended)
 
 ### Using Docker Compose (Recommended)
 

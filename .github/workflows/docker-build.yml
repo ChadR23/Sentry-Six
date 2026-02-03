@@ -105,4 +105,23 @@ jobs:
           labels: ${{ steps.dockerhub-meta.outputs.labels }}
           cache-from: type=gha
 
-      # Artifact attestation removed - requires enterprise permissions
+      # Build Web Mode image (lightweight, no VNC)
+      - name: Extract Docker Hub metadata (Web)
+        id: dockerhub-meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=raw,value=web,enable=${{ github.ref == 'refs/heads/docker' }}
+            type=raw,value=web-latest,enable=${{ github.ref == 'refs/heads/docker' }}
+
+      - name: Build and push Web Mode image to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.web
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.dockerhub-meta-web.outputs.tags }}
+          labels: ${{ steps.dockerhub-meta-web.outputs.labels }}
+          cache-from: type=gha

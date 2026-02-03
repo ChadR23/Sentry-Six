@@ -1,0 +1,36 @@
+# Sentry-Six Docker Compose - Web Mode
+# Lightweight native web app (no VNC required)
+# Usage: docker-compose -f docker-compose.web.yml up -d
+
+version: '3.8'
+
+services:
+  sentry-six:
+    image: chadr23/sentry-six:web
+    container_name: sentry-six-web
+    restart: unless-stopped
+    
+    ports:
+      - "5800:5800"  # Web UI
+    
+    volumes:
+      # Configuration and settings
+      - ./config:/config
+      
+      # Tesla footage - CHANGE THIS to your TeslaCam path
+      - /path/to/your/TeslaCam:/data
+    
+    environment:
+      # Timezone (change to your timezone)
+      - TZ=America/New_York
+      
+      # Port (default 5800)
+      - PORT=5800
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5800/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

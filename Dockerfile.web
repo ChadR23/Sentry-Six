@@ -1,0 +1,63 @@
+# Sentry-Six Docker Web Mode
+# Runs as a native web application without Electron/VNC
+# Much lighter weight than the VNC-based approach
+
+FROM node:20-slim
+
+# Application metadata
+LABEL maintainer="Sentry Six Revamped"
+LABEL org.opencontainers.image.title="Sentry-Six Web"
+LABEL org.opencontainers.image.description="Tesla Dashcam Viewer - Web Mode"
+LABEL org.opencontainers.image.source="https://github.com/ChadR23/Sentry-Six"
+
+# Environment variables
+ENV NODE_ENV=production
+ENV SENTRY_SIX_DOCKER=1
+ENV SENTRY_SIX_WEB_MODE=1
+ENV PORT=5800
+
+# Install FFmpeg for video processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy package files first for better layer caching
+COPY package*.json ./
+
+# Install production dependencies only (no Electron needed)
+RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
+
+# Copy application source
+COPY src/ ./src/
+COPY assets/ ./assets/
+COPY version.json ./
+COPY LICENSE.txt ./
+
+# Create required directories
+RUN mkdir -p /config /data
+
+# Set up volumes
+VOLUME ["/config", "/data"]
+
+# Expose web port
+EXPOSE 5800
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5800/api/health || exit 1
+
+# Install curl for health check
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Run as non-root user for security
+RUN useradd -m -s /bin/bash sentry
+RUN chown -R sentry:sentry /app /config /data
+USER sentry
+
+# Start the web server
+CMD ["node", "src/server.js"]
