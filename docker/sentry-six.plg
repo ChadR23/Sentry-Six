@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PLUGIN>
+    <NAME>sentry-six</NAME>
+    <DESCRIPTION>Sentry-Six - Tesla Dashcam Viewer with WebUI</DESCRIPTION>
+    <VERSION>2026.6.5</VERSION>
+    <AUTHOR>Sentry Six Revamped</AUTHOR>
+    <LICENSE>MIT</LICENSE>
+    <CATEGORY>MediaApp:Video Tools:</CATEGORY>
+    <DOCKER>chadr23/sentry-six:latest</DOCKER>
+    <REPOSITORY>chadr23/sentry-six</REPOSITORY>
+    <REGISTRY>docker.io</REGISTRY>
+    <WEBUI>http://[IP]:[PORT:5800]/</WEBUI>
+    <ICON>https://raw.githubusercontent.com/ChadR23/Sentry-Six/main/assets/Sentry_Six.png</ICON>
+    <SUPPORT>https://github.com/ChadR23/Sentry-Six/issues</SUPPORT>
+    <PROJECT>https://github.com/ChadR23/Sentry-Six</PROJECT>
+    <OVERVIEW>
+        Sentry-Six is a Tesla Dashcam Viewer application that allows you to browse, view, and export Tesla Sentry Mode and Dashcam footage.
+        
+        Features:
+        - Browse Tesla footage by date and event type
+        - Multi-camera synchronized playback
+        - Export clips with custom layouts
+        - Automatic event detection
+        - WebUI access via browser (noVNC)
+        
+        Access the WebUI at http://[IP]:5800
+    </OVERVIEW>
+    <POSTPARAMS>
+        <PARAMETER>
+            <NAME>WebUI Port</NAME>
+            <TARGET>5800</TARGET>
+            <DEFAULT>5800</DEFAULT>
+            <MODE>tcp</MODE>
+            <DESCRIPTION>Port for the web-based UI (noVNC). Access at http://[IP]:5800</DESCRIPTION>
+            <DISPLAY>always</DISPLAY>
+            <REQUIRED>true</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>VNC Port</NAME>
+            <TARGET>5900</TARGET>
+            <DEFAULT>5900</DEFAULT>
+            <MODE>tcp</MODE>
+            <DESCRIPTION>Port for direct VNC client access (optional)</DESCRIPTION>
+            <DISPLAY>advanced</DISPLAY>
+            <REQUIRED>false</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Config Path</NAME>
+            <TARGET>/config</TARGET>
+            <DEFAULT>/mnt/user/appdata/sentry-six</DEFAULT>
+            <MODE>rw</MODE>
+            <DESCRIPTION>Path to store application settings and configuration. Contains settings.json and machine ID for persistent fingerprint.</DESCRIPTION>
+            <DISPLAY>always</DISPLAY>
+            <REQUIRED>true</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Tesla Footage Path</NAME>
+            <TARGET>/data</TARGET>
+            <DEFAULT>/mnt/user/TeslaCam</DEFAULT>
+            <MODE>rw</MODE>
+            <DESCRIPTION>Path to your Tesla footage folder (TeslaCam). This is where your Sentry Mode and Dashcam recordings are stored.</DESCRIPTION>
+            <DISPLAY>always</DISPLAY>
+            <REQUIRED>true</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Display Width</NAME>
+            <TARGET>DISPLAY_WIDTH</TARGET>
+            <DEFAULT>1400</DEFAULT>
+            <MODE></MODE>
+            <DESCRIPTION>Width of the application window in pixels</DESCRIPTION>
+            <DISPLAY>advanced</DISPLAY>
+            <REQUIRED>false</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Display Height</NAME>
+            <TARGET>DISPLAY_HEIGHT</TARGET>
+            <DEFAULT>900</DEFAULT>
+            <MODE></MODE>
+            <DESCRIPTION>Height of the application window in pixels</DESCRIPTION>
+            <DISPLAY>advanced</DISPLAY>
+            <REQUIRED>false</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Dark Mode</NAME>
+            <TARGET>DARK_MODE</TARGET>
+            <DEFAULT>1</DEFAULT>
+            <MODE></MODE>
+            <DESCRIPTION>Enable dark mode for the WebUI (1=enabled, 0=disabled)</DESCRIPTION>
+            <DISPLAY>advanced</DISPLAY>
+            <REQUIRED>false</REQUIRED>
+        </PARAMETER>
+        <PARAMETER>
+            <NAME>Timezone</NAME>
+            <TARGET>TZ</TARGET>
+            <DEFAULT>America/New_York</DEFAULT>
+            <MODE></MODE>
+            <DESCRIPTION>Timezone for the container (e.g., America/New_York, Europe/London)</DESCRIPTION>
+            <DISPLAY>advanced</DISPLAY>
+            <REQUIRED>false</REQUIRED>
+        </PARAMETER>
+    </POSTPARAMS>
+    <EXTRAPARAMS>--shm-size=2g --security-opt seccomp=unconfined</EXTRAPARAMS>
+</PLUGIN>

@@ -30,7 +30,8 @@ fi
 cd /app
 
 # Start Electron with required flags for Docker environment
-exec /usr/bin/electron \
+# Use locally installed electron from node_modules
+exec /app/node_modules/.bin/electron \
     --no-sandbox \
     --disable-gpu \
     --disable-software-rasterizer \

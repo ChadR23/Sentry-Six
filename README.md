@@ -1,7 +1,17 @@
 # Sentry Six Revamped
 #### View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration. All in one beautiful app.
 
-Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
+Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, Linux, or **Docker/Unraid**.
+
+## 🐳 Docker Support
+Run Sentry-Six on your server with WebUI access! Perfect for Unraid, Synology, or any Docker-compatible NAS.
+
+- **Web-based interface** - Access from any browser
+- **No software installation** - Runs entirely in Docker
+- **Persistent settings** - Survives container updates
+- **Easy deployment** - Available on Docker Hub
+
+👉 **[See Docker Installation Guide](DOCKER.md)** | **[Unraid Setup Guide](UNRAID.md)**
 
 https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
