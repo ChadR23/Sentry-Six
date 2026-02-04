@@ -1,7 +1,7 @@
 {
   "versions": [
     {
-      "version": "2026.6.8",
+      "version": "2026.6.10",
       "date": "2026-02-04",
       "title": "UI Design Overhaul",
       "changes": [
@@ -12,6 +12,10 @@
         {
           "type": "improvement",
           "description": "Increased the polling interval for support chat."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed a critical issue that caused the Auto Updater to break on versions 2026.6.5 and 2026.6.6."
         }
       ]
     },
