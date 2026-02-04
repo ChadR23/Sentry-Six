@@ -3651,7 +3651,9 @@ ipcMain.handle('support:uploadMedia', async (_event, data) => {
   try {
     const { ticketId, authToken, mediaData, fileName, fileType, fileSize, message, diagnostics } = data;
     const payload = JSON.stringify({ mediaData, fileName, fileType, fileSize, message, diagnostics });
-    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/media`, payload, authToken, 180000);
+    // Scale timeout based on file size: 3 min base + 1 min per 50MB (max 10 min)
+    const uploadTimeout = Math.min(600000, 180000 + Math.floor(fileSize / (50 * 1024 * 1024)) * 60000);
+    const result = await makeSupportRequest('POST', `/chat/ticket/${ticketId}/media`, payload, authToken, uploadTimeout);
     console.log(`[SUPPORT] Uploaded media to ticket: ${ticketId}`);
     return result;
   } catch (err) {
@@ -3740,7 +3742,16 @@ function makeSupportRequest(method, path, payload = null, authToken = null, time
             reject(new Error(result.error || `Server error: ${res.statusCode}`));
           }
         } catch (e) {
-          reject(new Error('Invalid server response'));
+          // Include status code and response preview for debugging
+          const preview = body.substring(0, 100).replace(/\s+/g, ' ').trim();
+          if (res.statusCode === 413) {
+            reject(new Error('File too large for server (max ~100MB)'));
+          } else if (res.statusCode >= 500) {
+            reject(new Error(`Server error ${res.statusCode} - please try again later`));
+          } else {
+            console.error(`[SUPPORT] Non-JSON response (${res.statusCode}): ${preview}...`);
+            reject(new Error(`Server error ${res.statusCode}: Invalid response`));
+          }
         }
       });
     });
