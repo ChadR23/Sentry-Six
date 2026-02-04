@@ -9,6 +9,14 @@ const https = require('https');
 const { app } = require('electron');
 const os = require('os');
 
+// Try to load node-machine-id at module level for proper bundling
+let machineIdModule = null;
+try {
+  machineIdModule = require('node-machine-id');
+} catch (err) {
+  console.warn('[TELEMETRY] node-machine-id not available:', err.message);
+}
+
 // Configuration
 const TELEMETRY_CONFIG = {
   apiHost: 'api.sentry-six.com',
@@ -26,15 +34,16 @@ let cachedFingerprint = null;
  * @returns {string} Machine ID
  */
 function getMachineId() {
-  try {
-    const { machineIdSync } = require('node-machine-id');
-    return machineIdSync();
-  } catch (err) {
-    console.warn('[TELEMETRY] node-machine-id failed, using fallback:', err.message);
-    // Fallback: generate a pseudo-ID from hostname + platform + arch
-    const fallbackData = `${os.hostname()}-${os.platform()}-${os.arch()}-${os.cpus()[0]?.model || 'unknown'}`;
-    return crypto.createHash('md5').update(fallbackData).digest('hex');
+  if (machineIdModule) {
+    try {
+      return machineIdModule.machineIdSync();
+    } catch (err) {
+      console.warn('[TELEMETRY] machineIdSync() failed, using fallback:', err.message);
+    }
   }
+  // Fallback: generate a pseudo-ID from hostname + platform + arch
+  const fallbackData = `${os.hostname()}-${os.platform()}-${os.arch()}-${os.cpus()[0]?.model || 'unknown'}`;
+  return crypto.createHash('md5').update(fallbackData).digest('hex');
 }
 
 /**
