@@ -29,6 +29,15 @@ const TELEMETRY_CONFIG = {
 let cachedFingerprint = null;
 
 /**
+ * Clear the cached fingerprint (for testing/debugging)
+ * Forces regeneration on next getAnonymizedFingerprint() call
+ */
+function clearFingerprintCache() {
+  cachedFingerprint = null;
+  console.log('[TELEMETRY] Fingerprint cache cleared');
+}
+
+/**
  * Get the machine ID using node-machine-id
  * Falls back to a generated ID if the library fails
  * @returns {string} Machine ID
@@ -248,5 +257,6 @@ module.exports = {
   processApiResponse,
   getPlatform,
   getArch,
+  clearFingerprintCache,
   TELEMETRY_CONFIG
 };
