@@ -2983,6 +2983,9 @@ ipcMain.handle('update:install', async (event) => {
         return result;
       } else if (autoUpdater) {
         // Windows NSIS install - use electron-updater to download
+        // Must call checkForUpdates first to initialize electron-updater state
+        // (required when update was detected via telemetry API, not electron-updater)
+        await autoUpdater.checkForUpdates();
         await autoUpdater.downloadUpdate();
         return { success: true, downloading: true };
       } else {
