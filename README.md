@@ -1,17 +1,19 @@
 # Sentry Six Revamped
 #### View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration. All in one beautiful app.
 
-Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
+🌐 **Website**: [sentry-six.com](https://sentry-six.com)
 
-https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
+Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
 
 ## Features
 - **Simple UI**
   - Select your TeslaCam folder using the folder explorer
   - Select a default folder in the settings
+  - Load clips from any folder - no Tesla USB structure needed
   - Easily browse files by date
   - Supports Recent, Sentry, and Saved Clips
-  - Event Triggers (e.g. "Manual Save", "Sentry", etc.)
+  - Event Triggers (e.g. "Manual Save", "Sentry", "Honk", "Object Detected", etc.)
+  - Delete folders/events with the trash icon in the Clip Browser
 
     <img width="176.5" height="275.5" alt="image" src="https://github.com/user-attachments/assets/1b2f3970-965b-431a-b1c9-073a7fd30800" />
 
@@ -23,9 +25,12 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
  
 - **SEI Telemetry**
   - Visualize the car's actions
-    - See data such as speed, gear, autopilot status, and more
-  - GPS data
+    - See data such as speed, gear, autopilot status, accelerator pedal position, and more
+  - GPS Map with route visualization
     - See the path your car took during the clip
+    - Route line changes color based on driving state (Blue for Self Driving, Gray for Manual)
+    - Zoom in/out and pan around the map (right-click drag to pan)
+  - Choose between default and compact dashboard layouts
   - *Requirements for SEI Telemetry*
     - *2025.44.25 or newer*
     - *Hardware 3 (HW3/AI3) or newer*
@@ -34,26 +39,36 @@ https://github.com/user-attachments/assets/573f36ae-3bc7-43ad-a7c3-4c60ef822a51
 
 - **Clip Exporting**
   - Trim clips with ease using in/out points
-  - Hardware-accelerated encoding
+  - Hardware-accelerated encoding (NVIDIA, AMD, Intel QuickSync, Apple Silicon)
   - Pick different export qualities
     - Mobile, Medium, High, Maximum
   - Add the SEI overlay to your export
-    - Choose either between the full and compact overlays
+    - Compact dashboard overlays
+    - Configurable dashboard size (Small to X-Large)
     - Overlay is pre-rendered for optimal performance
+  - Add a GPS minimap to your export (Alpha)
+  - Add a timestamp overlay with multiple date formats
   - Use blur zones to ensure privacy
-    - *Currently cannot be used with the overlay*
-
-  <img width="208.5" height="299" alt="ClipExport" src="https://github.com/user-attachments/assets/525a20d2-447b-44c6-8396-55159c29a555" />
+    - Multiple blur options: Solid (fast), Blur, True Blur
+  - Minimize the export modal and track progress via floating notification
+  <img width="269" height="352" alt="Export Modal" src="https://github.com/user-attachments/assets/1129003c-def2-43ad-b384-81ae1fdf1304" />
 
 - **Customizable Settings**
   - Adjustable glass blur intensity
   - Toggle between metric or imperial measurements (Km/H or MPH)
-  - Keyboard shortcuts
-  - Switch between stable and dev branches
+  - Choose between 12-hour and 24-hour time formats
+  - Customizable keyboard shortcuts with adjustable fast forward/backward duration
   - Event Highlights
     - See which camera was triggered, visualized with a yellow or red highlight
+  <img width="260" height="406" alt="Settings Modal" src="https://github.com/user-attachments/assets/8eb489b6-2b4c-4f64-ad91-af48be6a686b" />
 
-  <img width="220.4" height="395.1" alt="image" src="https://github.com/user-attachments/assets/17f2ca3b-93ff-47e0-af38-e42feee02cea" />
+- **Multi-Language Support**
+  - 13 languages supported: English, Spanish, French, German, Chinese (Simplified), Japanese, Korean, Portuguese, Russian, Italian, Dutch, Polish, and Turkish
+  - Export overlays respect your language setting
+
+- **Built-in Support Chat**
+  - Get help directly within the app
+  - Submit feedback, bug reports, and feature requests
 
 - **Auto Update**
   - Checks for new updates on start up with a one-click install.
@@ -112,9 +127,9 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 
 ## Project Origin & Credits
 
-This project was created and concepted by [**ChadR23**](https://github.com/ChadR23). It also benefited from help by [**Scottmg1**](https://github.com/Scottmg1) and use of the **Claude Opus 4.5 AI Model** during development.
+Originally concepted by  [**ChadR23**](https://github.com/ChadR23), this project is now co-developed alongside [**Scottmg1**](https://github.com/Scottmg1). Both serve as Main Developers, utilizing the **Claude Opus 4.5 AI Model** to aid in development.
 
-Special thanks to [**Parallax**](https://github.com/DennisGarvey), [**JeffFromTheIRS**](https://github.com/JeffFromTheIRS) and **38tu** for hands-on beta testing and invaluable feedback.
+Special thanks to [**JeffFromTheIRS**](https://github.com/JeffFromTheIRS) for his contributions via Pull Requests and beta testing, and to  [**Parallax**](https://github.com/DennisGarvey) and **38tu** for their hands-on testing and invaluable feedback.
 
 ## License
 
