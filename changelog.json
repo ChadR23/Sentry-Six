@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.6.7",
+      "date": "2026-02-03",
+      "title": "UI Design Overhaul",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Overhauled the UI design to be more modern and user-friendly."
+        }
+      ]
+    },
+    {
       "version": "2026.6.6",
       "date": "2026-02-03",
       "title": "Bug Fixes & Refinements",

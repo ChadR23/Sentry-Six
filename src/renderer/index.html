@@ -800,120 +800,22 @@
                 <button id="closeSettingsModal" class="modal-close">&times;</button>
             </div>
             
-            <!-- Tabs -->
-            <div class="modal-tabs">
-                <button class="modal-tab active" data-tab="general" data-i18n="ui.settings.general">General</button>
-                <button class="modal-tab" data-tab="shortcuts" data-i18n="ui.settings.shortcuts">Shortcuts</button>
-                <button class="modal-tab" data-tab="advanced" data-i18n="ui.settings.advanced">Advanced</button>
-            </div>
-            
-            <div class="modal-body">
-                <!-- General Tab -->
-                <div class="modal-tab-content active" data-tab="general">
-                    <!-- Layout Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.layout">Layout</div>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.classicSidebar">Classic Sidebar</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.classicSidebarDesc">Docked sidebar that doesn't overlap video</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsLayoutStyle">
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
+            <div class="modal-body modal-body-padded">
+                <!-- Display Section -->
+                <div class="settings-accordion open" data-section="display">
+                    <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="settings-accordion-header-left">
+                            <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                            </svg>
+                            <span class="settings-accordion-title">Display</span>
+                        </div>
+                        <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
-                    
-                    <!-- Overlays Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.overlays">Overlays</div>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.dashboard">Dashboard</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.dashboardDesc">Show speed, gear, and telemetry data</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsDashboardToggle" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.gpsMap">GPS Map</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.gpsMapDesc">Show route map with vehicle position</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsMapToggle" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
+                    <div class="settings-accordion-body">
                         <div class="select-row">
                             <div class="select-row-info">
-                                <span class="select-row-label" data-i18n="ui.settings.dashboardLayout">Dashboard Layout</span>
-                                <span class="select-row-desc" data-i18n="ui.settings.dashboardLayoutDesc">Default or compact style</span>
-                            </div>
-                            <select id="settingsDashboardLayout" class="settings-select">
-                                <option value="default" data-i18n="ui.settings.default">Default</option>
-                                <option value="compact" data-i18n="ui.export.compact">Compact</option>
-                            </select>
-                        </div>
-                        <div class="select-row">
-                            <div class="select-row-info">
-                                <span class="select-row-label" data-i18n="ui.settings.acceleratorDisplay">Accelerator Display</span>
-                                <span class="select-row-desc" data-i18n="ui.settings.acceleratorDisplayDesc">Pedal visualization style</span>
-                            </div>
-                            <select id="settingsAccelPedMode" class="settings-select">
-                                <option value="solid" data-i18n="ui.settings.solidColor">Solid Color (On/Off)</option>
-                                <option value="iconbar" selected data-i18n="ui.settings.iconBar">Icon Bar (Fill)</option>
-                                <option value="sidebar" data-i18n="ui.settings.sideBar">Bar on Side</option>
-                            </select>
-                        </div>
-                        <label class="toggle-row hidden" id="settingsCompactDashboardFixedRow">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.fixedToFrontCamera">Fixed to Front Camera</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.fixedToFrontCameraDesc">Keep compact dashboard on front camera</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsCompactDashboardFixed" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                        <div class="slider-row">
-                            <div class="slider-row-info">
-                                <span class="slider-row-label" data-i18n="ui.settings.glassBlur">Glass Blur</span>
-                                <span class="slider-row-desc" data-i18n="ui.settings.glassBlurDesc">Overlay blur intensity</span>
-                            </div>
-                            <div class="slider-row-control">
-                                <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
-                                <span id="glassBlurValue" class="slider-row-value">7px</span>
-                            </div>
-                        </div>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.metricUnits">Metric Units</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.metricUnitsDesc">Use kilometers per hour (KM/H)</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsMetricToggle">
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                        <div class="select-row">
-                            <div class="select-row-info">
-                                <span class="select-row-label" data-i18n="ui.settings.dateFormat">Date Format</span>
-                                <span class="select-row-desc" data-i18n="ui.settings.dateFormatDesc">Display format for dates</span>
-                            </div>
-                            <select id="settingsDateFormat" class="settings-select">
-                                <option value="mdy" data-i18n="ui.settings.mdyFormat">MM/DD/YYYY (US)</option>
-                                <option value="dmy" data-i18n="ui.settings.dmyFormat">DD/MM/YYYY (International)</option>
-                                <option value="ymd" selected data-i18n="ui.settings.ymdFormat">YYYY-MM-DD (ISO)</option>
-                            </select>
-                        </div>
-                        <div class="select-row">
-                            <div class="select-row-info">
-                                <span class="select-row-label" data-i18n="ui.settings.language">Language</span>
-                                <span class="select-row-desc" data-i18n="ui.settings.languageDesc">Application display language</span>
+                                <span class="select-row-label">Language</span>
                             </div>
                             <select id="settingsLanguage" class="settings-select">
                                 <option value="en" selected>English</option>
@@ -931,125 +833,189 @@
                                 <option value="tr">Türkçe</option>
                             </select>
                         </div>
-                    </div>
-                    
-                    <!-- Default Folder Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.defaultFolder">Default Dashcam Folder</div>
-                        <div class="modal-section-desc" data-i18n="ui.settings.defaultFolderDesc">Auto-load this folder on startup</div>
-                        <div class="input-row">
-                            <input type="text" id="defaultFolderPath" class="text-input" data-i18n-placeholder="ui.settings.noFolderSet" placeholder="No folder set" readonly>
-                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.browse">Browse</button>
-                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" data-i18n-title="ui.settings.clear" title="Clear">✕</button>
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">Classic Sidebar</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsLayoutStyle">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">Metric Units (KM/H)</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMetricToggle">
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="select-row">
+                            <div class="select-row-info">
+                                <span class="select-row-label">Date Format</span>
+                            </div>
+                            <select id="settingsDateFormat" class="settings-select">
+                                <option value="mdy">MM/DD/YYYY</option>
+                                <option value="dmy">DD/MM/YYYY</option>
+                                <option value="ymd" selected>YYYY-MM-DD</option>
+                            </select>
                         </div>
-                        <div id="defaultFolderStatus" class="folder-status"></div>
-                    </div>
-                    
-                    <!-- About Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.about">About</div>
-                        <div class="about-version-row">
-                            <span class="about-version-label" data-i18n="ui.settings.version">Version</span>
-                            <span id="settingsCurrentVersion" class="about-version-value">---</span>
+                        <div class="slider-row">
+                            <span class="slider-row-label">Glass Blur</span>
+                            <div class="slider-row-control">
+                                <input type="range" id="settingsGlassBlur" min="0" max="20" value="7" step="1">
+                                <span id="glassBlurValue" class="slider-row-value">7px</span>
+                            </div>
                         </div>
-                        <button id="viewChangelogBtn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
-                            </svg>
-                            <span data-i18n="ui.settings.viewChangelog">View Changelog</span>
-                        </button>
                     </div>
-                    
-                    <!-- Support Section -->
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.support">Support</div>
-                        <div class="modal-section-desc" data-i18n="ui.settings.supportDesc">Having issues? Use the Support Chat button in the playback bar to start a conversation with our team.</div>
-                        <button id="openSupportChatFromSettings" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                            </svg>
-                            <span data-i18n="ui.settings.openSupportChat">Open Support Chat</span>
-                        </button>
-                    </div>
-                    
                 </div>
                 
-                <!-- Shortcuts Tab -->
-                <div class="modal-tab-content" data-tab="shortcuts">
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.keyboardShortcuts">Keyboard Shortcuts</div>
-                        <div class="modal-section-desc" data-i18n="ui.settings.keyboardShortcutsDesc">Click a field and press any key</div>
+                <!-- Playback Section -->
+                <div class="settings-accordion" data-section="playback">
+                    <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="settings-accordion-header-left">
+                            <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            <span class="settings-accordion-title">Playback & Overlays</span>
+                        </div>
+                        <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="settings-accordion-body">
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">Dashboard Overlay</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsDashboardToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">GPS Map</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsMapToggle" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="select-row">
+                            <span class="select-row-label">Dashboard Style</span>
+                            <select id="settingsDashboardLayout" class="settings-select">
+                                <option value="default">Default</option>
+                                <option value="compact">Compact</option>
+                            </select>
+                        </div>
+                        <label class="toggle-row hidden" id="settingsCompactDashboardFixedRow">
+                            <span class="toggle-row-label">Fixed to Front Camera</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsCompactDashboardFixed" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="select-row">
+                            <span class="select-row-label">Accelerator Display</span>
+                            <select id="settingsAccelPedMode" class="settings-select">
+                                <option value="solid">Solid Color</option>
+                                <option value="iconbar" selected>Icon Bar</option>
+                                <option value="sidebar">Side Bar</option>
+                            </select>
+                        </div>
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">Sentry Camera Glow</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSentryCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <label class="toggle-row">
+                            <span class="toggle-row-label">Saved Camera Glow</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="settingsSavedCameraHighlight" checked>
+                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                            </div>
+                        </label>
+                        <div class="action-row">
+                            <span class="action-row-label">Reset Camera Order</span>
+                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Shortcuts Section -->
+                <div class="settings-accordion" data-section="shortcuts">
+                    <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="settings-accordion-header-left">
+                            <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h.01M18 16h.01"/>
+                            </svg>
+                            <span class="settings-accordion-title">Keyboard Shortcuts</span>
+                        </div>
+                        <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="settings-accordion-body">
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.playPause">Play / Pause</span>
+                            <span class="keybind-label">Play / Pause</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindPlayPause" data-action="playPause" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="playPause" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" id="skipForwardLabel" data-i18n="ui.settings.skipForward">Skip Forward</span>
+                            <span class="keybind-label" id="skipForwardLabel">Skip Forward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipForward" data-action="skipForward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipForward" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" id="skipBackwardLabel" data-i18n="ui.settings.skipBackward">Skip Backward</span>
+                            <span class="keybind-label" id="skipBackwardLabel">Skip Backward</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSkipBackward" data-action="skipBackward" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="skipBackward" title="Clear">✕</button>
                             </div>
                         </div>
-                        <div class="keybind-row-compact" style="margin-top: 4px;">
-                            <span class="keybind-label" data-i18n="ui.settings.skipDuration">Skip Duration</span>
+                        <div class="keybind-row-compact">
+                            <span class="keybind-label">Skip Duration</span>
                             <div class="keybind-input-wrapper">
-                                <select id="settingsSkipDuration" class="settings-select" style="width: 116px; padding: 4px 8px; font-size: 11px;">
-                                    <option value="1">1 <span data-i18n="ui.settings.second">second</span></option>
-                                    <option value="5">5 <span data-i18n="ui.settings.seconds">seconds</span></option>
-                                    <option value="15" selected>15 <span data-i18n="ui.settings.seconds">seconds</span></option>
+                                <select id="settingsSkipDuration" class="settings-select" style="width: 100px;">
+                                    <option value="1">1s</option>
+                                    <option value="5">5s</option>
+                                    <option value="15" selected>15s</option>
                                 </select>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.toggleDashboard">Toggle Dashboard</span>
+                            <span class="keybind-label">Toggle Dashboard</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleDash" data-action="toggleDash" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleDash" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.toggleMap">Toggle Map</span>
+                            <span class="keybind-label">Toggle Map</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleMap" data-action="toggleMap" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMap" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.toggleMphKmh">Toggle MPH / KMH</span>
+                            <span class="keybind-label">Toggle Units</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleMetric" data-action="toggleMetric" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleMetric" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.toggleClipsPanel">Toggle Clips Panel</span>
+                            <span class="keybind-label">Toggle Clips Panel</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindToggleClips" data-action="toggleClips" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="toggleClips" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerIn">Set Export Marker In</span>
+                            <span class="keybind-label">Export Marker In</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerIn" data-action="setMarkerIn" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerIn" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerOut">Set Export Marker Out</span>
+                            <span class="keybind-label">Export Marker Out</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerOut" data-action="setMarkerOut" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerOut" title="Clear">✕</button>
@@ -1058,68 +1024,64 @@
                     </div>
                 </div>
                 
-                <!-- Advanced Tab -->
-                <div class="modal-tab-content" data-tab="advanced">
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.updates">Updates</div>
+                <!-- Storage Section -->
+                <div class="settings-accordion" data-section="storage">
+                    <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="settings-accordion-header-left">
+                            <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <span class="settings-accordion-title">Storage</span>
+                        </div>
+                        <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="settings-accordion-body">
+                        <div class="input-row">
+                            <input type="text" id="defaultFolderPath" class="text-input" placeholder="No default folder" readonly>
+                            <button id="browseDefaultFolderBtn" class="btn btn-secondary btn-small">Browse</button>
+                            <button id="clearDefaultFolderBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
+                        </div>
+                        <div id="defaultFolderStatus" class="folder-status"></div>
+                    </div>
+                </div>
+                
+                <!-- About Section -->
+                <div class="settings-accordion" data-section="about">
+                    <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="settings-accordion-header-left">
+                            <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                            </svg>
+                            <span class="settings-accordion-title">About & Updates</span>
+                        </div>
+                        <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="settings-accordion-body">
+                        <div class="about-version-row">
+                            <span class="about-version-label">Version</span>
+                            <span id="settingsCurrentVersion" class="about-version-value">---</span>
+                        </div>
                         <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label">Anonymous Analytics</span>
-                                <span class="toggle-row-desc">Help improve Sentry-Six with anonymized usage data</span>
-                            </div>
+                            <span class="toggle-row-label">Anonymous Analytics</span>
                             <div class="toggle-switch">
                                 <input type="checkbox" id="settingsAnonymousAnalytics" checked>
                                 <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                             </div>
                         </label>
                         <div class="action-row">
-                            <div class="action-row-info">
-                                <span class="action-row-label" data-i18n="ui.settings.checkForUpdates">Check for Updates</span>
-                                <span class="action-row-desc" data-i18n="ui.settings.checkForUpdatesDesc">Manually check for new versions</span>
-                            </div>
-                            <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.checkNow">Check Now</button>
+                            <span class="action-row-label">Check for Updates</span>
+                            <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small">Check Now</button>
                         </div>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.eventHighlights">Event Highlights</div>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.sentryCameraGlow">Sentry Camera Glow</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.sentryCameraGlowDesc">Red glow on triggered camera</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsSentryCameraHighlight" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                        <label class="toggle-row">
-                            <div class="toggle-row-info">
-                                <span class="toggle-row-label" data-i18n="ui.settings.savedCameraGlow">Saved Camera Glow</span>
-                                <span class="toggle-row-desc" data-i18n="ui.settings.savedCameraGlowDesc">Yellow glow on triggered camera</span>
-                            </div>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsSavedCameraHighlight" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
-                            </div>
-                        </label>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <div class="modal-section-title" data-i18n="ui.settings.cameraLayout">Camera Layout</div>
-                        <div class="action-row">
-                            <div class="action-row-info">
-                                <span class="action-row-label" data-i18n="ui.settings.resetCameraOrder">Reset Camera Order</span>
-                                <span class="action-row-desc" data-i18n="ui.settings.resetCameraOrderDesc">Restore default grid positions</span>
-                            </div>
-                            <button id="resetCameraOrderBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.reset">Reset</button>
+                        <div class="about-buttons-row">
+                            <button id="openSupportChatFromSettings" class="btn btn-primary">Open Support Chat</button>
+                            <button id="viewChangelogBtn" class="btn btn-secondary">View Changelog</button>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="modal-footer">
-                <button id="closeSettingsBtn" class="btn btn-primary" data-i18n="ui.settings.done">Done</button>
+                <button id="closeSettingsBtn" class="btn btn-primary">Done</button>
             </div>
         </div>
     </div>

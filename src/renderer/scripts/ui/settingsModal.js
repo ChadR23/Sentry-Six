@@ -6,33 +6,6 @@
 import { initKeybindSettings } from '../lib/keybinds.js';
 import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange, t } from '../lib/i18n.js';
 
-/**
- * Initialize modal tabs functionality
- * @param {HTMLElement} modal - The modal element containing tabs
- */
-function initModalTabs(modal) {
-    if (!modal) return;
-    
-    const tabs = modal.querySelectorAll('.modal-tab');
-    const contents = modal.querySelectorAll('.modal-tab-content');
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetTab = tab.dataset.tab;
-            
-            // Update active tab
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // Update active content
-            contents.forEach(c => {
-                c.classList.toggle('active', c.dataset.tab === targetTab);
-            });
-            
-            tab.blur();
-        });
-    });
-}
 
 /**
  * Initialize collapsible sections
@@ -83,9 +56,6 @@ export function initSettingsModal() {
     
     const settingsBtn = $('settingsBtn');
     const settingsModal = $('settingsModal');
-    
-    // Initialize tabs
-    initModalTabs(settingsModal);
     
     // Initialize collapsible sections (for export modal)
     initCollapsibleSections();
@@ -142,6 +112,7 @@ export function initSettingsModal() {
                         disableAutoUpdate.checked = savedValue === true;
                     });
                 }
+                
                 settingsModal.classList.remove('hidden');
             }
             settingsBtn.blur();

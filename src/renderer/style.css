@@ -3824,10 +3824,6 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: rgba(255, 152, 0, 0.95);
 }
 
-.update-modal {
-    max-width: 400px;
-}
-
 /* Folder Status */
 .folder-status {
     font-size: 11px;
@@ -4381,11 +4377,59 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
    Update Modal Styles
    ============================================================ */
 .update-modal {
-    max-width: 420px;
+    --update-accent: #4caf50;
+    --update-accent-glow: rgba(76, 175, 80, 0.4);
+    --update-accent-soft: rgba(76, 175, 80, 0.15);
+    max-width: 440px;
+    border-radius: 24px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(165deg, 
+        rgba(30, 30, 40, 0.95) 0%, 
+        rgba(20, 20, 28, 0.98) 100%);
+}
+
+.update-modal .modal-header {
+    position: relative;
+    padding: 18px 22px;
+}
+
+.update-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 22px;
+    right: 22px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--update-accent) 50%, 
+        transparent 100%);
+    opacity: 0.5;
 }
 
 .update-modal .modal-header svg {
     flex-shrink: 0;
+    color: var(--update-accent);
+}
+
+.update-modal .modal-header h2 {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.update-modal .modal-body {
+    padding: 20px 22px;
+}
+
+.update-modal .modal-footer {
+    padding: 16px 22px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
+}
+
+.update-modal .modal-close:hover {
+    background: var(--update-accent-soft);
+    color: var(--update-accent);
 }
 
 /* Version Badge */
@@ -4652,37 +4696,47 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Soft T&C Welcome Modal */
 .soft-tc-modal {
-    max-width: 500px;
+    --tc-accent: #00d4ff;
+    --tc-accent-glow: rgba(0, 212, 255, 0.4);
+    --tc-accent-soft: rgba(0, 212, 255, 0.15);
+    max-width: 480px;
+    border-radius: 24px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(165deg, 
+        rgba(30, 30, 40, 0.95) 0%, 
+        rgba(20, 20, 28, 0.98) 100%);
 }
 
 .soft-tc-modal .modal-header {
+    position: relative;
     justify-content: center;
     text-align: center;
-    padding: 20px 20px; /* Increased padding to accommodate larger icon */
+    padding: 24px 22px 20px;
+}
+
+.soft-tc-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 22px;
+    right: 22px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--tc-accent) 50%, 
+        transparent 100%);
+    opacity: 0.5;
 }
 
 .soft-tc-modal .modal-header h2 {
-    font-size: 18px;
+    font-size: 20px;
     gap: 12px;
     align-items: center;
-}
-
-.soft-tc-modal .modal-header-icon {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.soft-tc-modal .modal-header-icon svg {
-    width: 100%;
-    height: 100%;
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .soft-tc-body {
-    padding: 30px 20px;
+    padding: 30px 24px;
 }
 
 .soft-tc-content {
@@ -4695,38 +4749,55 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .soft-tc-icon {
     margin-bottom: 10px;
+    animation: tcIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes tcIconPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.soft-tc-icon svg {
+    filter: drop-shadow(0 0 20px var(--tc-accent-glow));
 }
 
 .soft-tc-text h3 {
     font-size: 18px;
     font-weight: 600;
-    color: #00d4ff;
+    color: var(--tc-accent);
     margin-bottom: 12px;
 }
 
 .soft-tc-text p {
     font-size: 14px;
-    line-height: 1.6;
-    color: rgba(255, 255, 255, 0.85);
-    max-width: 400px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.8);
+    max-width: 380px;
     margin: 0 auto;
 }
 
 .soft-tc-footer {
-    padding: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 24px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
     text-align: center;
 }
 
 .soft-tc-footer .btn-primary {
-    background: linear-gradient(135deg, #00d4ff, #0099cc);
-    font-size: 16px;
-    padding: 12px 24px;
-    min-width: 180px;
+    background: var(--tc-accent);
+    border-color: var(--tc-accent);
+    font-size: 15px;
+    padding: 12px 28px;
+    min-width: 200px;
+    transition: all 0.25s ease;
 }
 
 .soft-tc-footer .btn-primary:hover {
-    background: linear-gradient(135deg, #1ae0ff, #00a8dd);
+    background: #1ae0ff;
+    border-color: #1ae0ff;
+    box-shadow: 0 4px 20px var(--tc-accent-glow);
+    transform: translateY(-2px);
 }
 
 /* Restart Message */
@@ -4800,23 +4871,124 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Changelog Modal (Full Changelog View) */
 .changelog-modal {
-    max-width: 500px;
+    --changelog-accent: #10b981;
+    --changelog-accent-glow: rgba(16, 185, 129, 0.4);
+    --changelog-accent-soft: rgba(16, 185, 129, 0.15);
+    max-width: 520px;
+    border-radius: 24px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(165deg, 
+        rgba(30, 30, 40, 0.95) 0%, 
+        rgba(20, 20, 28, 0.98) 100%);
 }
 
-.changelog-modal .changelog-content {
-    max-height: 400px;
+.changelog-modal .modal-header {
+    position: relative;
+    padding: 18px 22px;
+}
+
+.changelog-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 22px;
+    right: 22px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--changelog-accent) 50%, 
+        transparent 100%);
+    opacity: 0.5;
 }
 
 .changelog-modal .modal-header svg {
-    color: var(--accent-color, #3e9cbf);
+    color: var(--changelog-accent);
+}
+
+.changelog-modal .modal-header h2 {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.changelog-modal .changelog-content {
+    max-height: 450px;
+}
+
+.changelog-modal .modal-body {
+    padding: 16px 22px;
+}
+
+.changelog-modal .modal-footer {
+    padding: 16px 22px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
+}
+
+.changelog-modal .btn-primary {
+    background: var(--changelog-accent);
+    border-color: var(--changelog-accent);
+    transition: all 0.25s ease;
+}
+
+.changelog-modal .btn-primary:not(:disabled):hover {
+    background: #34d399;
+    border-color: #34d399;
+    box-shadow: 0 4px 20px var(--changelog-accent-glow);
+    transform: translateY(-1px);
+}
+
+.changelog-modal .modal-close:hover {
+    background: var(--changelog-accent-soft);
+    color: var(--changelog-accent);
 }
 
 /* ============================================================
    Welcome Guide Modal
    ============================================================ */
 .welcome-guide-modal {
-    max-width: 480px;
+    --guide-accent: #8b5cf6;
+    --guide-accent-glow: rgba(139, 92, 246, 0.4);
+    --guide-accent-soft: rgba(139, 92, 246, 0.15);
+    max-width: 520px;
     min-height: 400px;
+    border-radius: 24px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(165deg, 
+        rgba(30, 30, 40, 0.95) 0%, 
+        rgba(20, 20, 28, 0.98) 100%);
+}
+
+.welcome-guide-modal .modal-header {
+    position: relative;
+    padding: 18px 22px;
+}
+
+.welcome-guide-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 22px;
+    right: 22px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--guide-accent) 50%, 
+        transparent 100%);
+    opacity: 0.5;
+}
+
+.welcome-guide-modal .modal-header h2 {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.welcome-guide-modal .modal-header svg,
+.welcome-guide-modal .modal-header-icon {
+    color: var(--guide-accent);
+}
+
+.welcome-guide-modal .modal-close:hover {
+    background: var(--guide-accent-soft);
+    color: var(--guide-accent);
 }
 
 .welcome-guide-body {
@@ -4838,7 +5010,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    animation: welcomeStepFadeIn 0.3s ease;
+    animation: welcomeStepFadeIn 0.35s ease;
 }
 
 .welcome-step.active {
@@ -4857,26 +5029,28 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .welcome-step-icon {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 212, 255, 0.05) 100%);
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    background: linear-gradient(135deg, var(--guide-accent-soft) 0%, rgba(139, 92, 246, 0.05) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 20px;
+    box-shadow: 0 0 30px var(--guide-accent-glow);
 }
 
 .welcome-step-icon svg {
-    width: 32px;
-    height: 32px;
-    stroke: var(--accent-color, #00d4ff);
+    width: 36px;
+    height: 36px;
+    stroke: var(--guide-accent);
 }
 
 .welcome-step-icon-success {
     background: linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(76, 175, 80, 0.05) 100%);
     border-color: rgba(76, 175, 80, 0.4);
+    box-shadow: 0 0 30px rgba(76, 175, 80, 0.3);
 }
 
 .welcome-step-icon-success svg {
@@ -4964,6 +5138,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Footer Buttons */
 .welcome-guide-footer {
     justify-content: space-between;
+    padding: 16px 22px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
 }
 
 .welcome-nav-buttons {
@@ -4983,6 +5161,24 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 #welcomeNextBtn {
     min-width: 100px;
+}
+
+.welcome-guide-modal .btn-primary {
+    background: var(--guide-accent);
+    border-color: var(--guide-accent);
+    transition: all 0.25s ease;
+}
+
+.welcome-guide-modal .btn-primary:not(:disabled):hover {
+    background: #a78bfa;
+    border-color: #a78bfa;
+    box-shadow: 0 4px 20px var(--guide-accent-glow);
+    transform: translateY(-1px);
+}
+
+.welcome-guide-modal .btn-secondary:not(:disabled):hover {
+    background: var(--guide-accent-soft);
+    border-color: rgba(139, 92, 246, 0.3);
 }
 
 /* Element Highlight Overlay (for pointing to UI elements) */
@@ -6204,4 +6400,659 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .new-ticket-btn span {
     white-space: nowrap;
+}
+
+/* ============================================================
+   Settings & Dev Settings Modal - Modern Refresh
+   ============================================================ */
+
+/* Modern accent colors for settings modals */
+.settings-modal,
+.dev-modal {
+    --settings-accent: #6366f1;
+    --settings-accent-glow: rgba(99, 102, 241, 0.4);
+    --settings-accent-soft: rgba(99, 102, 241, 0.15);
+    --settings-secondary: #22d3ee;
+    --settings-secondary-glow: rgba(34, 211, 238, 0.3);
+}
+
+/* Enhanced modal chrome for settings */
+.settings-modal,
+.dev-modal {
+    max-width: 500px;
+    border-radius: 24px;
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 
+        0 32px 100px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(255, 255, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Settings modal header with gradient accent line */
+.settings-modal .modal-header,
+.dev-modal .modal-header {
+    position: relative;
+    padding: 18px 22px;
+}
+
+.settings-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--settings-accent) 30%, 
+        var(--settings-secondary) 70%, 
+        transparent 100%);
+    opacity: 0.5;
+}
+
+.dev-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        #ff9800 50%, 
+        transparent 100%);
+    opacity: 0.5;
+}
+
+/* Settings header icon with glow */
+.settings-modal .modal-header-icon {
+    color: var(--settings-accent);
+    filter: drop-shadow(0 0 8px var(--settings-accent-glow));
+}
+
+/* Modal sections with better spacing */
+.settings-modal .modal-section,
+.dev-modal .modal-section {
+    margin-bottom: 20px;
+}
+
+.settings-modal .modal-section-title,
+.dev-modal .modal-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-modal .modal-section-title::before,
+.dev-modal .modal-section-title::before {
+    content: '';
+    width: 3px;
+    height: 12px;
+    background: var(--settings-accent);
+    border-radius: 2px;
+}
+
+.dev-modal .modal-section-title::before {
+    background: #ff9800;
+}
+
+/* Enhanced toggle rows with hover effects */
+.settings-modal .toggle-row,
+.dev-modal .toggle-row {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.settings-modal .toggle-row:hover,
+.dev-modal .toggle-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+    transform: translateX(2px);
+}
+
+/* Enhanced toggle switch with spring animation */
+.settings-modal .toggle-switch-thumb,
+.dev-modal .toggle-switch-thumb {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.2s ease,
+                box-shadow 0.2s ease;
+}
+
+.settings-modal .toggle-switch input:checked + .toggle-switch-track,
+.dev-modal .toggle-switch input:checked + .toggle-switch-track {
+    background: var(--settings-accent);
+    box-shadow: 0 0 12px var(--settings-accent-glow);
+}
+
+.dev-modal .toggle-switch input:checked + .toggle-switch-track {
+    background: #ff9800;
+    box-shadow: 0 0 12px rgba(255, 152, 0, 0.4);
+}
+
+.settings-modal .toggle-switch input:checked + .toggle-switch-track .toggle-switch-thumb,
+.dev-modal .toggle-switch input:checked + .toggle-switch-track .toggle-switch-thumb {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Select rows with modern styling */
+.settings-modal .select-row,
+.dev-modal .select-row {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.settings-modal .select-row:hover,
+.dev-modal .select-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Enhanced select dropdowns */
+.settings-modal .settings-select,
+.dev-modal .settings-select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.settings-modal .settings-select:hover,
+.dev-modal .settings-select:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-modal .settings-select:focus,
+.dev-modal .settings-select:focus {
+    outline: none;
+    border-color: var(--settings-accent);
+    box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+/* Slider rows with accent color */
+.settings-modal .slider-row,
+.dev-modal .slider-row {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-modal input[type="range"]::-webkit-slider-thumb,
+.dev-modal input[type="range"]::-webkit-slider-thumb {
+    background: var(--settings-accent);
+    box-shadow: 0 0 8px var(--settings-accent-glow);
+}
+
+/* Action rows (buttons) with hover glow */
+.settings-modal .action-row,
+.dev-modal .action-row {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.settings-modal .action-row:hover,
+.dev-modal .action-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Primary button with glow effect */
+.settings-modal .btn-primary,
+.dev-modal .btn-primary {
+    background: var(--settings-accent);
+    border-color: var(--settings-accent);
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+.settings-modal .btn-primary:not(:disabled):hover,
+.dev-modal .btn-primary:not(:disabled):hover {
+    background: #818cf8;
+    border-color: #818cf8;
+    box-shadow: 0 4px 20px var(--settings-accent-glow);
+    transform: translateY(-1px);
+}
+
+.settings-modal .btn-primary:not(:disabled):active,
+.dev-modal .btn-primary:not(:disabled):active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px var(--settings-accent-glow);
+}
+
+/* Secondary button with subtle hover */
+.settings-modal .btn-secondary,
+.dev-modal .btn-secondary {
+    transition: all 0.2s ease;
+}
+
+.settings-modal .btn-secondary:not(:disabled):hover,
+.dev-modal .btn-secondary:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Input rows with focus glow */
+.settings-modal .input-row .text-input:focus,
+.dev-modal .input-row .text-input:focus {
+    border-color: var(--settings-accent);
+    box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+/* Keybind inputs with accent */
+.settings-modal .keybind-input:focus {
+    border-color: var(--settings-accent);
+    background: var(--settings-accent-soft);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Modal footer with subtle gradient */
+.settings-modal .modal-footer,
+.dev-modal .modal-footer {
+    padding: 16px 22px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
+}
+
+/* Dev modal cards with hover effect */
+.dev-modal .dev-card {
+    transition: all 0.25s ease;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dev-modal .dev-card:hover {
+    background: rgba(255, 152, 0, 0.1);
+    border-color: rgba(255, 152, 0, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 152, 0, 0.15);
+}
+
+/* Dev modal output area */
+.dev-modal #devOutput {
+    border-radius: 10px;
+    border: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+/* About version row styling - no border */
+.settings-modal .about-version-row {
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+}
+
+.settings-modal .about-version-value {
+    color: var(--settings-accent);
+    font-weight: 600;
+}
+
+/* Close button hover effect */
+.settings-modal .modal-close:hover,
+.dev-modal .modal-close:hover {
+    background: var(--settings-accent-soft);
+    color: var(--settings-accent);
+}
+
+.dev-modal .modal-close:hover {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+}
+
+/* Loading state animation for buttons */
+.settings-modal .btn-primary.loading,
+.dev-modal .btn-primary.loading {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+}
+
+.settings-modal .btn-primary.loading::after,
+.dev-modal .btn-primary.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: settingsSpinner 0.6s linear infinite;
+}
+
+@keyframes settingsSpinner {
+    to { transform: rotate(360deg); }
+}
+
+/* Smooth entrance animation for settings modal */
+#settingsModal .modal-content,
+#devSettingsModal .modal-content {
+    animation: settingsModalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes settingsModalSlideIn {
+    from { 
+        transform: translateY(20px) scale(0.95); 
+        opacity: 0; 
+    }
+    to { 
+        transform: translateY(0) scale(1); 
+        opacity: 1; 
+    }
+}
+
+/* Focus ring for accessibility */
+.settings-modal .btn:focus-visible,
+.dev-modal .btn:focus-visible {
+    outline: 2px solid var(--settings-accent);
+    outline-offset: 2px;
+}
+
+.dev-modal .btn:focus-visible,
+.dev-modal .dev-card:focus-visible {
+    outline: 2px solid #ff9800;
+    outline-offset: 2px;
+}
+
+/* Changelog button in settings with accent */
+.settings-modal #viewChangelogBtn {
+    border-color: rgba(99, 102, 241, 0.3);
+    transition: all 0.2s ease;
+}
+
+.settings-modal #viewChangelogBtn:hover {
+    border-color: var(--settings-accent);
+    background: var(--settings-accent-soft);
+    transform: translateY(-1px);
+}
+
+.settings-modal #viewChangelogBtn svg {
+    color: var(--settings-accent);
+}
+
+/* Support chat button styling */
+.settings-modal #openSupportChatFromSettings {
+    background: linear-gradient(135deg, #5865f2 0%, var(--settings-accent) 100%);
+    border: none;
+}
+
+.settings-modal #openSupportChatFromSettings:hover {
+    box-shadow: 0 4px 20px rgba(88, 101, 242, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Keybind row hover effect */
+.settings-modal .keybind-row-compact {
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin: 0 -12px;
+    transition: background 0.15s ease;
+}
+
+.settings-modal .keybind-row-compact:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Info boxes in settings with subtle styling */
+.settings-modal .info-box,
+.dev-modal .info-box {
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Section dividers */
+.settings-modal .modal-section + .modal-section {
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ============================================================
+   Settings Accordion Sections
+   ============================================================ */
+
+/* Accordion container */
+.settings-accordion {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.settings-accordion:last-child {
+    margin-bottom: 0;
+}
+
+.settings-accordion:hover {
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+.settings-accordion.open {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+/* Accordion header */
+.settings-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.settings-accordion-header:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-accordion-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Section icon */
+.settings-accordion-section-icon {
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.settings-accordion.open .settings-accordion-section-icon {
+    color: var(--settings-accent, #6366f1);
+}
+
+.settings-accordion-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    transition: color 0.2s ease;
+}
+
+.settings-accordion.open .settings-accordion-title {
+    color: rgba(255, 255, 255, 1);
+}
+
+/* Chevron icon */
+.settings-accordion-chevron {
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.25s ease, color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.settings-accordion.open .settings-accordion-chevron {
+    transform: rotate(180deg);
+    color: var(--settings-accent, #6366f1);
+}
+
+/* Accordion body */
+.settings-accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease-out;
+}
+
+.settings-accordion.open .settings-accordion-body {
+    max-height: 600px;
+}
+
+.settings-accordion-body > :first-child {
+    padding-top: 4px;
+}
+
+.settings-accordion-body > :last-child {
+    padding-bottom: 12px;
+}
+
+/* Compact toggle rows inside accordions */
+.settings-accordion .toggle-row {
+    padding: 8px 14px;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+}
+
+.settings-accordion .toggle-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+    transform: none;
+}
+
+.settings-accordion .toggle-row-label {
+    font-size: 12px;
+}
+
+/* Compact select rows */
+.settings-accordion .select-row {
+    padding: 8px 14px;
+    margin: 0;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-accordion .select-row-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-accordion .settings-select {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+
+/* Compact slider rows */
+.settings-accordion .slider-row {
+    padding: 8px 14px;
+    margin: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-accordion .slider-row-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Compact action rows */
+.settings-accordion .action-row {
+    padding: 8px 14px;
+    margin: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-accordion .action-row-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Compact keybind rows */
+.settings-accordion .keybind-row-compact {
+    padding: 6px 14px;
+    margin: 0;
+}
+
+.settings-accordion .keybind-label {
+    font-size: 11px;
+}
+
+/* Input row */
+.settings-accordion .input-row {
+    padding: 0 14px;
+}
+
+/* About version row - no border, simple inline display */
+.settings-accordion .about-version-row {
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-accordion .about-version-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.settings-accordion .about-version-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--settings-accent, #6366f1);
+}
+
+/* Side-by-side buttons row */
+.about-buttons-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 14px 12px;
+}
+
+.about-buttons-row .btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 8px 12px;
+}
+
+/* Buttons inside accordion */
+.settings-accordion .btn {
+    font-size: 11px;
+}
+
+/* Folder status */
+.settings-accordion .folder-status {
+    padding: 0 14px 8px;
 }
