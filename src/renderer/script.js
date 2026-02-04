@@ -431,6 +431,20 @@ function hasValidGps(sei) {
 
 // Initialize
 (async function init() {
+    // Check for pending deletion (after window reload to release file handles)
+    if (window.electronAPI?.checkPendingDelete) {
+        const pendingResult = await window.electronAPI.checkPendingDelete();
+        if (pendingResult.hasPending) {
+            if (pendingResult.success) {
+                console.log('[DELETE] Pending deletion completed successfully:', pendingResult.folderPath);
+                // Store base folder path to reload after i18n is ready
+                window._pendingDeleteBasePath = pendingResult.baseFolderPath;
+            } else {
+                console.error('[DELETE] Pending deletion failed:', pendingResult.error);
+            }
+        }
+    }
+    
     // Initialize i18n (language system)
     await initI18n();
     
@@ -1127,6 +1141,26 @@ function hasValidGps(sei) {
     
     // Initialize drag-and-drop for camera rearrangement
     initCameraDragAndDrop();
+    
+    // Handle pending deletion result (folder was deleted after reload)
+    if (window._pendingDeleteBasePath) {
+        const basePath = window._pendingDeleteBasePath;
+        delete window._pendingDeleteBasePath;
+        
+        // Show success notification
+        notify(t('ui.clipBrowser.deleteSuccess'), { type: 'success' });
+        
+        // Reload the folder to refresh the clip list
+        if (basePath && window.electronAPI?.readDir) {
+            console.log('[DELETE] Reloading folder after deletion:', basePath);
+            baseFolderPath = basePath;
+            setTimeout(() => {
+                traverseDirectoryElectron(basePath).catch(err => {
+                    console.error('[DELETE] Failed to reload folder:', err);
+                });
+            }, 500);
+        }
+    }
 })();
 
 // Mode Transitions
@@ -1217,6 +1251,82 @@ initMapVisualization({
 // Draggable panels moved to scripts/ui/draggablePanels.js
 initDraggablePanels([dashboardVis, mapVis]);
 
+// Handle clip deletion - refresh the clip list
+// unloadOnly: if true, just unload the video without refreshing (used before delete to release file handles)
+function handleClipDeleted(collectionId, folderPath, unloadOnly = false) {
+    console.log('[DELETE] Clip deleted:', collectionId, folderPath, unloadOnly ? '(unload only)' : '');
+    
+    // Clear current selection if it was the deleted clip
+    if (state.collection?.active?.id === collectionId) {
+        state.collection.active = null;
+        pauseNative();
+        resetDashboardAndMap();
+        
+        // Force release file handles by removing and recreating video elements
+        // Chromium's video decoder holds file handles even after clearing src
+        if (nativeVideo) {
+            // Clean up URL object references (revoke blob URLs)
+            videoUrls.forEach((url, vid) => {
+                if (url && url.startsWith('blob:')) {
+                    URL.revokeObjectURL(url);
+                }
+            });
+            videoUrls.clear();
+            
+            // Completely hide the video container to release all resources
+            const videoGrid = document.getElementById('videoGrid');
+            const multiCamGrid = document.getElementById('multiCamGrid');
+            
+            // Hide video grids and main container
+            if (videoGrid) videoGrid.style.display = 'none';
+            if (multiCamGrid) multiCamGrid.style.display = 'none';
+            if (videoContainer) videoContainer.style.visibility = 'hidden';
+            
+            // Remove all video elements entirely (not just recreate)
+            if (videoGrid) {
+                const videos = Array.from(videoGrid.querySelectorAll('video'));
+                videos.forEach(vid => {
+                    vid.pause();
+                    vid.removeAttribute('src');
+                    vid.load();
+                    vid.remove();
+                });
+            }
+            
+            // Also remove videoMain
+            if (videoMain) {
+                videoMain.pause();
+                videoMain.removeAttribute('src');
+                videoMain.load();
+                videoMain.remove();
+            }
+            
+            // Clear native video state
+            nativeVideo.master = null;
+            nativeVideo.seiData = null;
+            nativeVideo.mapPath = null;
+            nativeVideo.currentSegmentIdx = -1;
+        }
+        
+        // Hide overlays
+        if (dashboardVis) dashboardVis.classList.add('hidden');
+        if (mapVis) mapVis.classList.add('hidden');
+    }
+    
+    // If unloadOnly, don't refresh - we're just releasing file handles before delete
+    if (unloadOnly) return;
+    
+    // Re-scan the folder to refresh the library
+    if (baseFolderPath && window.electronAPI?.readDir) {
+        traverseDirectoryElectron(baseFolderPath).then(() => {
+            // Re-render the clip list with updated data
+            renderClipList();
+        }).catch(err => {
+            console.error('[DELETE] Failed to refresh folder:', err);
+        });
+    }
+}
+
 // Clip browser moved to scripts/core/clipBrowser.js
 initClipBrowser({
     getState: () => state,
@@ -1225,7 +1335,9 @@ initClipBrowser({
     clipList,
     dayFilter,
     selectDayCollection,
-    formatEventReason
+    formatEventReason,
+    getBaseFolderPath: () => baseFolderPath,
+    onClipDeleted: handleClipDeleted
 });
 setupPopoutCloseHandler();
 
@@ -1254,6 +1366,9 @@ initWelcomeGuide();
 // Expose welcome guide functions for developer settings
 window._resetWelcomeGuide = resetWelcomeGuide;
 window._openWelcomeGuide = openWelcomeGuide;
+
+// Expose notify function globally for modules
+window.showNotification = notify;
 
 // Keybind System - moved to scripts/lib/keybinds.js
 // Initialize keybind actions (handlers stay here since they use local functions)

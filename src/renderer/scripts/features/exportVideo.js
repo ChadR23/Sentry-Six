@@ -109,6 +109,119 @@ export function initExportModule(deps) {
     getUseMetric = deps.getUseMetric;
 }
 
+// Export overlay settings keys
+const EXPORT_OVERLAY_SETTINGS = {
+    includeTimestamp: 'exportIncludeTimestamp',
+    includeDashboard: 'exportIncludeDashboard',
+    dashboardPosition: 'exportDashboardPosition',
+    dashboardSize: 'exportDashboardSize',
+    includeMinimap: 'exportIncludeMinimap',
+    minimapPosition: 'exportMinimapPosition',
+    minimapSize: 'exportMinimapSize',
+    blurTypeSelect: 'exportBlurType'
+};
+
+// Default values for export overlay settings
+const EXPORT_OVERLAY_DEFAULTS = {
+    includeTimestamp: true,
+    includeDashboard: false,
+    dashboardPosition: 'bottom-center',
+    dashboardSize: 'medium',
+    includeMinimap: false,
+    minimapPosition: 'top-right',
+    minimapSize: 'small',
+    blurTypeSelect: 'solid'
+};
+
+/**
+ * Load saved export overlay settings from settings.json
+ */
+async function loadExportOverlaySettings() {
+    if (!window.electronAPI?.getSetting) return;
+    
+    // Setup save handlers first (only once)
+    setupExportOverlaySaveHandlers();
+    
+    // Load each setting and apply to the corresponding element
+    for (const [elementId, settingKey] of Object.entries(EXPORT_OVERLAY_SETTINGS)) {
+        const element = $(elementId);
+        if (!element) continue;
+        
+        try {
+            const savedValue = await window.electronAPI.getSetting(settingKey);
+            const defaultValue = EXPORT_OVERLAY_DEFAULTS[elementId];
+            const value = savedValue !== undefined ? savedValue : defaultValue;
+            
+            if (element.type === 'checkbox') {
+                element.checked = value === true;
+            } else if (element.tagName === 'SELECT') {
+                element.value = value;
+            }
+        } catch (err) {
+            console.warn(`Failed to load export setting ${settingKey}:`, err);
+        }
+    }
+    
+    // Update options visibility based on loaded checkbox states
+    const dashboardCheckbox = $('includeDashboard');
+    const dashboardOptions = $('dashboardOptions');
+    if (dashboardCheckbox && dashboardOptions) {
+        dashboardOptions.classList.toggle('hidden', !dashboardCheckbox.checked);
+    }
+    
+    const minimapCheckbox = $('includeMinimap');
+    const minimapOptions = $('minimapOptions');
+    if (minimapCheckbox && minimapOptions) {
+        minimapOptions.classList.toggle('hidden', !minimapCheckbox.checked);
+    }
+}
+
+// Track if save handlers have been set up
+let exportOverlaySaveHandlersInitialized = false;
+
+/**
+ * Setup change handlers to save export overlay settings
+ */
+function setupExportOverlaySaveHandlers() {
+    if (exportOverlaySaveHandlersInitialized) return;
+    exportOverlaySaveHandlersInitialized = true;
+    
+    for (const [elementId, settingKey] of Object.entries(EXPORT_OVERLAY_SETTINGS)) {
+        const element = $(elementId);
+        if (!element) continue;
+        
+        element.addEventListener('change', async () => {
+            if (!window.electronAPI?.setSetting) return;
+            
+            let value;
+            if (element.type === 'checkbox') {
+                value = element.checked;
+            } else if (element.tagName === 'SELECT') {
+                value = element.value;
+            }
+            
+            try {
+                await window.electronAPI.setSetting(settingKey, value);
+            } catch (err) {
+                console.warn(`Failed to save export setting ${settingKey}:`, err);
+            }
+            
+            // Handle options visibility for checkboxes
+            if (elementId === 'includeMinimap') {
+                const minimapOptions = $('minimapOptions');
+                if (minimapOptions) {
+                    minimapOptions.classList.toggle('hidden', !element.checked);
+                }
+            } else if (elementId === 'includeDashboard') {
+                const dashboardOptions = $('dashboardOptions');
+                if (dashboardOptions) {
+                    dashboardOptions.classList.toggle('hidden', !element.checked);
+                }
+            }
+        });
+    }
+}
+
 /**
  * Detect available cameras from the current collection
  * HW3 vehicles only have 4 cameras (no pillars), HW3+/HW4 have 6 cameras
@@ -373,6 +486,9 @@ export function openExportModal() {
     // Show modal first so dimensions are accurate
     modal.classList.remove('hidden');
     
+    // Load saved export overlay settings
+    loadExportOverlaySettings();
+    
     updateExportRangeDisplay();
     checkFFmpegAvailability();
     
@@ -448,26 +564,19 @@ export function openExportModal() {
     
     if (minimapCheckbox) {
         // Enable minimap checkbox - GPS availability is checked during export
-        minimapCheckbox.checked = false;
+        // Note: Don't reset checked state here - it's loaded from settings in loadExportOverlaySettings()
         minimapCheckbox.disabled = false;
         
         // Hide warning by default
         if (minimapNoGpsWarning) minimapNoGpsWarning.classList.add('hidden');
         
-        // Toggle minimap options visibility
-        minimapCheckbox.onchange = () => {
-            if (minimapOptions) {
-                if (minimapCheckbox.checked) {
-                    minimapOptions.classList.remove('hidden');
-                } else {
-                    minimapOptions.classList.add('hidden');
-                }
-            }
-        };
-        
-        // Initialize options visibility
+        // Initialize options visibility based on current checkbox state (set by loadExportOverlaySettings)
         if (minimapOptions) {
-            minimapOptions.classList.add('hidden');
+            if (minimapCheckbox.checked) {
+                minimapOptions.classList.remove('hidden');
+            } else {
+                minimapOptions.classList.add('hidden');
+            }
         }
     }
     

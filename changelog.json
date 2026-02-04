@@ -1,10 +1,11 @@
 {
   "versions": [
     {
-      "version": "2026.6.10",
+      "version": "2026.6.11",
       "date": "2026-02-04",
       "title": "UI Design Overhaul",
       "changes": [
+
         {
           "type": "improvement",
           "description": "Overhauled the UI design to be more modern and user-friendly."
@@ -12,6 +13,10 @@
         {
           "type": "improvement",
           "description": "Increased the polling interval for support chat."
+        },
+        {
+          "type": "feature",
+          "description": "Added the ability to remove a folder/event using the Trash Can icon in the Clip Browser."
         },
         {
           "type": "fix",

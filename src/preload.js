@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
   stat: (filePath) => ipcRenderer.invoke('fs:stat', filePath),
   showItemInFolder: (filePath) => ipcRenderer.invoke('fs:showItemInFolder', filePath),
+  deleteFolder: (folderPath) => ipcRenderer.invoke('fs:deleteFolder', folderPath),
+  deleteFolderWithReload: (folderPath, baseFolderPath) => ipcRenderer.invoke('fs:deleteFolderWithReload', folderPath, baseFolderPath),
+  checkPendingDelete: () => ipcRenderer.invoke('fs:checkPendingDelete'),
   
   // Export operations
   saveFile: (options) => ipcRenderer.invoke('dialog:saveFile', options),

@@ -619,6 +619,99 @@ canvas, .video-player, .tile-video {
     color: #e57373;
 }
 
+/* Clip delete button */
+.clip-delete-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    z-index: 5;
+}
+.clip-item:hover .clip-delete-btn {
+    opacity: 1;
+}
+.clip-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+.clip-delete-btn:active {
+    background: rgba(239, 68, 68, 0.5);
+}
+
+/* Delete confirmation modal */
+.delete-confirm-modal {
+    max-width: 420px;
+}
+.delete-confirm-message {
+    margin: 0 0 16px 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    line-height: 1.5;
+}
+.delete-confirm-path {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+.delete-path-label {
+    display: block;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.delete-path-value {
+    display: block;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    word-break: break-all;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+.delete-confirm-warning {
+    margin: 0;
+    font-size: 13px;
+    color: #f59e0b;
+    display: flex;
+    align-items: center;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+.btn-danger:hover {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+}
+.btn-danger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.btn-danger .spinner {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* Event location marker on map */
 .event-location-marker {
     background: transparent !important;
@@ -6815,8 +6908,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-modal .btn-primary:not(:disabled):hover,
 .dev-modal .btn-primary:not(:disabled):hover {
-    background: #818cf8;
-    border-color: #818cf8;
+    background: #1ae0ff;
+    border-color: #1ae0ff;
     box-shadow: 0 4px 20px var(--settings-accent-glow);
     transform: translateY(-1px);
 }

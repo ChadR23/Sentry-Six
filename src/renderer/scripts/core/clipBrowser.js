@@ -15,6 +15,8 @@ let clipList = null;
 let dayFilter = null;
 let selectDayCollection = null;
 let formatEventReason = null;
+let getBaseFolderPath = null;
+let onClipDeleted = null;
 
 /**
  * Initialize the clip browser module with dependencies.
@@ -27,6 +29,8 @@ export function initClipBrowser(deps) {
     dayFilter = deps.dayFilter;
     selectDayCollection = deps.selectDayCollection;
     formatEventReason = deps.formatEventReason;
+    getBaseFolderPath = deps.getBaseFolderPath;
+    onClipDeleted = deps.onClipDeleted;
 }
 
 /**
@@ -116,10 +120,29 @@ export function createClipItem(coll, title, typeClass) {
         }
     }
     
+    // Get folder path from first group's first file
+    let folderPath = null;
+    if (firstGroup && firstGroup.filesByCamera.size > 0) {
+        const firstEntry = firstGroup.filesByCamera.values().next().value;
+        if (firstEntry?.file?.path) {
+            // Extract the parent folder path (e.g., /path/to/SentryClips/2024-01-15_10-30-00)
+            const filePath = firstEntry.file.path;
+            const lastSlash = filePath.lastIndexOf('/');
+            const lastBackslash = filePath.lastIndexOf('\\');
+            const lastSep = Math.max(lastSlash, lastBackslash);
+            if (lastSep > 0) {
+                folderPath = filePath.substring(0, lastSep);
+            }
+        }
+    }
+    
     const item = document.createElement('div');
     item.className = `clip-item event-item ${typeClass}-item`;
     item.dataset.groupid = coll.id;
     item.dataset.type = 'collection';
+    if (folderPath) {
+        item.dataset.folderpath = folderPath;
+    }
     
     const segmentText = groups.length === 1 ? t('ui.clipBrowser.segment') : t('ui.clipBrowser.segments');
     const subline = `${groups.length} ${segmentText} · ${Math.max(1, cameras.length)} cam`;
@@ -134,6 +157,15 @@ export function createClipItem(coll, title, typeClass) {
         reasonBadge = `<span class="badge reason-icon ${alertClass}" title="${escapeHtml(eventMeta.reason)}">${escapeHtml(reasonLabel)}</span>`;
     }
     
+    // Only show delete button if we have a folder path (Electron mode)
+    const deleteBtn = folderPath ? `
+        <button class="clip-delete-btn" title="${escapeHtml(t('ui.clipBrowser.deleteClip'))}" data-folderpath="${escapeHtml(folderPath)}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+        </button>
+    ` : '';
+    
     item.innerHTML = `
         <div class="clip-meta clip-meta-full">
             <div class="clip-title">${escapeHtml(title)}</div>
@@ -145,9 +177,27 @@ export function createClipItem(coll, title, typeClass) {
                 <div>${escapeHtml(subline)}</div>
             </div>
         </div>
+        ${deleteBtn}
     `;
     
-    item.onclick = () => selectDayCollection?.(coll.key);
+    // Add click handler for the main item (excluding delete button)
+    item.onclick = (e) => {
+        if (e.target.closest('.clip-delete-btn')) return;
+        selectDayCollection?.(coll.key);
+    };
+    
+    // Add click handler for delete button
+    const deleteBtnEl = item.querySelector('.clip-delete-btn');
+    if (deleteBtnEl) {
+        deleteBtnEl.onclick = (e) => {
+            e.stopPropagation();
+            const path = deleteBtnEl.dataset.folderpath;
+            if (path) {
+                showDeleteConfirmModal(path, coll.id);
+            }
+        };
+    }
+    
     return item;
 }
 
@@ -322,4 +372,174 @@ export function setupPopoutCloseHandler() {
         if (openEl.contains(e.target)) return;
         closeEventPopout();
     });
+}
+
+/**
+ * Show delete confirmation modal (Step 1)
+ */
+function showDeleteConfirmModal(folderPath, collectionId) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConfirmModal');
+    if (existingModal) existingModal.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = 'deleteConfirmModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content delete-confirm-modal">
+            <div class="modal-header">
+                <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ef4444;">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+                <h2>${escapeHtml(t('ui.clipBrowser.deleteConfirmTitle'))}</h2>
+                <button id="closeDeleteModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <p class="delete-confirm-message">${escapeHtml(t('ui.clipBrowser.deleteConfirmMessage'))}</p>
+                <div class="delete-confirm-path">
+                    <span class="delete-path-label">${escapeHtml(t('ui.clipBrowser.deleteConfirmPath'))}</span>
+                    <code class="delete-path-value">${escapeHtml(folderPath)}</code>
+                </div>
+                <p class="delete-confirm-warning">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: #f59e0b; vertical-align: middle; margin-right: 6px;">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    ${escapeHtml(t('ui.clipBrowser.deleteConfirmWarning'))}
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmDeleteBtn" class="btn btn-danger">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right: 6px;">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                    ${escapeHtml(t('ui.clipBrowser.deleteBtn'))}
+                </button>
+                <button id="cancelDeleteBtn" class="btn btn-secondary">${escapeHtml(t('ui.clipBrowser.cancelBtn'))}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    const closeModal = () => modal.remove();
+    
+    document.getElementById('closeDeleteModal').onclick = closeModal;
+    document.getElementById('cancelDeleteBtn').onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+    
+    // First confirmation - show second confirmation modal
+    document.getElementById('confirmDeleteBtn').onclick = () => {
+        closeModal();
+        showFinalDeleteConfirmModal(folderPath, collectionId);
+    };
+}
+
+/**
+ * Show final delete confirmation modal (Step 2 - "Are you sure?")
+ */
+function showFinalDeleteConfirmModal(folderPath, collectionId) {
+    const modal = document.createElement('div');
+    modal.id = 'deleteConfirmModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content delete-confirm-modal">
+            <div class="modal-header">
+                <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ef4444;">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <h2>${escapeHtml(t('ui.clipBrowser.deleteFinalConfirmTitle'))}</h2>
+                <button id="closeDeleteModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <p class="delete-confirm-message delete-final-message">${escapeHtml(t('ui.clipBrowser.deleteFinalConfirmMessage'))}</p>
+                <div class="delete-confirm-path">
+                    <code class="delete-path-value">${escapeHtml(folderPath)}</code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmDeleteBtn" class="btn btn-danger">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right: 6px;">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                    ${escapeHtml(t('ui.clipBrowser.deleteConfirmBtn'))}
+                </button>
+                <button id="cancelDeleteBtn" class="btn btn-secondary">${escapeHtml(t('ui.clipBrowser.cancelBtn'))}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    const closeModal = () => modal.remove();
+    
+    document.getElementById('closeDeleteModal').onclick = closeModal;
+    document.getElementById('cancelDeleteBtn').onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+    
+    document.getElementById('confirmDeleteBtn').onclick = async () => {
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = `
+            <svg class="spinner" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 6px;">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+            </svg>
+            Deleting...
+        `;
+        
+        try {
+            const state = getState?.();
+            const isCurrentlyPlaying = state?.collection?.active?.id === collectionId;
+            
+            // If this is the currently playing clip, we need to reload the window to release file handles
+            // Chromium's video decoder holds handles that can't be released from renderer
+            if (isCurrentlyPlaying && window.electronAPI?.deleteFolderWithReload) {
+                console.log('[DELETE] Currently playing clip - will reload window to release handles');
+                closeModal();
+                
+                // Get base folder path for re-scanning after reload
+                const basePath = getBaseFolderPath?.() || '';
+                
+                const result = await window.electronAPI.deleteFolderWithReload(folderPath, basePath);
+                if (result.success && result.reloading) {
+                    // Window will reload - deletion will happen after reload
+                    return;
+                } else if (!result.success) {
+                    throw new Error(result.error || 'Failed to schedule deletion');
+                }
+            }
+            
+            // For non-playing clips, delete directly
+            if (window.electronAPI?.deleteFolder) {
+                const result = await window.electronAPI.deleteFolder(folderPath);
+                
+                if (result.success) {
+                    closeModal();
+                    // Notify parent to refresh the clip list
+                    if (onClipDeleted) {
+                        onClipDeleted(collectionId, folderPath, false);
+                    }
+                    // Show success notification
+                    if (window.showNotification) {
+                        window.showNotification(t('ui.clipBrowser.deleteSuccess'), { type: 'success' });
+                    }
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } else {
+                throw new Error('Delete not available');
+            }
+        } catch (err) {
+            console.error('Failed to delete clip:', err);
+            if (window.showNotification) {
+                window.showNotification(`${t('ui.clipBrowser.deleteFailed')}: ${err.message}`, { type: 'error' });
+            }
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right: 6px;">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+                ${escapeHtml(t('ui.clipBrowser.deleteConfirmBtn'))}
+            `;
+        }
+    };
 }

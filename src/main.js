@@ -2674,6 +2674,98 @@ ipcMain.handle('fs:showItemInFolder', async (_event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
+// Store pending deletion for after reload
+let pendingDeleteFolder = null;
+
+ipcMain.handle('fs:deleteFolder', async (_event, folderPath) => {
+  try {
+    // Validate the path exists and is a directory
+    if (!fs.existsSync(folderPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    
+    const stats = fs.statSync(folderPath);
+    if (!stats.isDirectory()) {
+      return { success: false, error: 'Path is not a directory' };
+    }
+    
+    // Try using shell.trashItem first (moves to recycle bin, works better with locked files on Windows)
+    try {
+      await shell.trashItem(folderPath);
+      console.log('[DELETE] Successfully moved folder to trash:', folderPath);
+      return { success: true };
+    } catch (trashErr) {
+      console.log('[DELETE] Trash failed, trying direct delete:', trashErr.message);
+      // Fall back to direct delete
+      rmSync(folderPath, { recursive: true, force: true });
+      console.log('[DELETE] Successfully deleted folder:', folderPath);
+      return { success: true };
+    }
+  } catch (err) {
+    console.error('[DELETE] Failed to delete folder:', folderPath, err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Schedule folder deletion and reload window to release file handles
+ipcMain.handle('fs:deleteFolderWithReload', async (_event, folderPath, baseFolderPath) => {
+  try {
+    // Validate the path exists
+    if (!fs.existsSync(folderPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    
+    const stats = fs.statSync(folderPath);
+    if (!stats.isDirectory()) {
+      return { success: false, error: 'Path is not a directory' };
+    }
+    
+    // Store the pending deletion info
+    pendingDeleteFolder = { folderPath, baseFolderPath };
+    
+    // Reload the main window to release all file handles
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      console.log('[DELETE] Reloading window to release file handles...');
+      mainWindow.webContents.reload();
+      return { success: true, reloading: true };
+    }
+    
+    return { success: false, error: 'Window not available' };
+  } catch (err) {
+    console.error('[DELETE] Failed to schedule deletion:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Check for pending deletion after window reload
+ipcMain.handle('fs:checkPendingDelete', async () => {
+  if (!pendingDeleteFolder) {
+    return { hasPending: false };
+  }
+  
+  const { folderPath, baseFolderPath } = pendingDeleteFolder;
+  pendingDeleteFolder = null; // Clear it
+  
+  console.log('[DELETE] Processing pending deletion after reload:', folderPath);
+  
+  try {
+    // Try trash first
+    try {
+      await shell.trashItem(folderPath);
+      console.log('[DELETE] Successfully moved folder to trash:', folderPath);
+      return { hasPending: true, success: true, folderPath, baseFolderPath };
+    } catch (trashErr) {
+      console.log('[DELETE] Trash failed, trying direct delete:', trashErr.message);
+      rmSync(folderPath, { recursive: true, force: true });
+      console.log('[DELETE] Successfully deleted folder:', folderPath);
+      return { hasPending: true, success: true, folderPath, baseFolderPath };
+    }
+  } catch (err) {
+    console.error('[DELETE] Failed to delete folder after reload:', folderPath, err);
+    return { hasPending: true, success: false, error: err.message, folderPath };
+  }
+});
+
 ipcMain.handle('ffmpeg:check', async () => {
   const ffmpegPath = findFFmpegPath();
   
