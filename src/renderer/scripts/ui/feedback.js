@@ -68,7 +68,7 @@ function createFeedbackModal() {
                             <span id="feedbackFileName"></span>
                             <button id="feedbackFileClear" class="feedback-file-clear" title="Remove">&times;</button>
                         </div>
-                        <div class="feedback-file-note">Max 500MB • Images or video recordings</div>
+                        <div class="feedback-file-note">Max 100MB • Images or video recordings</div>
                     </div>
                     
                     <label class="toggle-row" style="margin-top: 12px;">
@@ -135,9 +135,9 @@ function initFeedbackModal() {
     feedbackFile.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-            const maxSize = 500 * 1024 * 1024;
+            const maxSize = 100 * 1024 * 1024;
             if (file.size > maxSize) {
-                showFeedbackStatus('File too large. Maximum size is 500MB.', 'error');
+                showFeedbackStatus('File too large. Maximum size is 100MB.', 'error');
                 feedbackFile.value = '';
                 return;
             }

@@ -17,8 +17,8 @@ let lastMessageId = null;
 let unreadCount = 0; // Track cumulative unread messages
 
 // Constants
-const MAX_ATTACHMENT_SIZE = 500 * 1024 * 1024; // 500MB
-const MAX_TOTAL_SIZE = 550 * 1024 * 1024; // 550MB total with overhead
+const MAX_ATTACHMENT_SIZE = 100 * 1024 * 1024; // 100MB (Cloudflare limit)
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB total
 const POLL_INTERVAL = 3500; // 3.5 seconds
 const SUPPORT_SERVER_URL = 'https://api.sentry-six.com'; // Must match main.js
 
