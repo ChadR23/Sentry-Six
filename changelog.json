@@ -56,7 +56,7 @@
           "description": "improved live map export by 33% Thanks to Jeff"
         },
         {
-          "type": "Updated API with New Update system.",
+          "type": "improvement",
           "description": "Update API To handle Updates. Client will now send Platform, Version, and UUID to help us with updates."
         }
       ]
