@@ -9,6 +9,7 @@ const $ = id => document.getElementById(id);
 
 // State
 let updateComplete = false;
+let isDownloading = false;
 let changelogData = null;
 
 // DOM element references (lazily cached)
@@ -139,8 +140,12 @@ async function loadChangelog() {
  */
 export async function showUpdateModal(updateInfo) {
     getElements();
-    updateComplete = false;
     if (!updateModal) return;
+    
+    // Don't reset the modal if we're already downloading
+    if (isDownloading) return;
+    
+    updateComplete = false;
     
     // Display version info
     if (currentVersionDisplay) currentVersionDisplay.textContent = updateInfo.currentVersion;
@@ -172,6 +177,7 @@ export async function showUpdateModal(updateInfo) {
  */
 export function hideUpdateModal() {
     getElements();
+    isDownloading = false;
     if (updateModal) updateModal.classList.add('hidden');
 }
 
@@ -182,6 +188,9 @@ export function hideUpdateModal() {
 export async function handleInstallUpdate() {
     getElements();
     if (!window.electronAPI?.installUpdate) return;
+    
+    // Mark as downloading to prevent modal reset
+    isDownloading = true;
     
     // Show progress, hide buttons
     if (updateProgress) updateProgress.classList.remove('hidden');
@@ -197,6 +206,7 @@ export async function handleInstallUpdate() {
         if (!result.success) {
             // Check for errors
             if (result.error) {
+                isDownloading = false;
                 if (updateProgressText) updateProgressText.textContent = `Update failed: ${result.error}`;
                 if (updateModalFooter) updateModalFooter.style.display = '';
                 updateModal?.querySelector('.update-modal')?.classList.remove('updating');
@@ -206,6 +216,7 @@ export async function handleInstallUpdate() {
         // When download completes, update:downloaded event will trigger showUpdateDownloadedState
     } catch (err) {
         console.error('Update install error:', err);
+        isDownloading = false;
         if (updateProgressText) updateProgressText.textContent = `Error: ${err.message}`;
         if (updateModalFooter) updateModalFooter.style.display = '';
         updateModal?.querySelector('.update-modal')?.classList.remove('updating');
@@ -218,6 +229,7 @@ export async function handleInstallUpdate() {
 function showDevModeUpdateComplete() {
     getElements();
     updateComplete = true;
+    isDownloading = false;
     
     if (updateProgressBar) updateProgressBar.style.width = '100%';
     if (updateProgressText) {
@@ -250,6 +262,7 @@ function showDevModeUpdateComplete() {
 function showUpdateDownloadedState() {
     getElements();
     updateComplete = true;
+    isDownloading = false;
     
     if (updateProgressBar) updateProgressBar.style.width = '100%';
     if (updateProgressText) {
@@ -285,6 +298,7 @@ function showUpdateDownloadedState() {
 function showMacOSUpdateComplete(info) {
     getElements();
     updateComplete = true;
+    isDownloading = false;
     
     if (updateProgressBar) updateProgressBar.style.width = '100%';
     if (updateProgressText) {
