@@ -1,13 +1,17 @@
 {
   "versions": [
     {
-      "version": "2026.6.7",
-      "date": "2026-02-03",
+      "version": "2026.6.8",
+      "date": "2026-02-04",
       "title": "UI Design Overhaul",
       "changes": [
         {
           "type": "improvement",
           "description": "Overhauled the UI design to be more modern and user-friendly."
+        },
+        {
+          "type": "improvement",
+          "description": "Increased the polling interval for support chat."
         }
       ]
     },

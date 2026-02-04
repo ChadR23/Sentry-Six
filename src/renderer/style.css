@@ -2816,51 +2816,79 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     margin-bottom: 10px;
 }
 
-/* Collapsible Sections */
+/* Collapsible Sections - Accordion Style */
 .collapsible-section {
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    margin-bottom: 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
 }
 
 .collapsible-section:last-child {
     margin-bottom: 0;
 }
 
+.collapsible-section:hover {
+    border-color: rgba(0, 212, 255, 0.15);
+}
+
+.collapsible-section.open {
+    border-color: rgba(0, 212, 255, 0.25);
+    background: rgba(0, 212, 255, 0.03);
+}
+
 .collapsible-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
+    padding: 14px 16px;
     cursor: pointer;
     transition: background 0.15s;
     user-select: none;
 }
 
 .collapsible-header:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .collapsible-header-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.85);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+}
+
+.collapsible-section.open .collapsible-header-title {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.collapsible-section-icon {
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.collapsible-section.open .collapsible-section-icon {
+    color: #00d4ff;
 }
 
 .collapsible-header-icon {
-    width: 16px;
-    height: 16px;
-    color: rgba(255, 255, 255, 0.4);
-    transition: transform 0.2s;
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.25s ease, color 0.2s ease;
+    flex-shrink: 0;
 }
 
 .collapsible-section.open .collapsible-header-icon {
     transform: rotate(180deg);
+    color: #00d4ff;
 }
 
 .collapsible-body {
@@ -2874,7 +2902,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .collapsible-content {
-    padding: 0 14px 14px;
+    padding: 0 16px 16px;
 }
 
 /* Compact Toggle Row */
@@ -3255,29 +3283,30 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .option-card {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid transparent;
-    border-radius: 8px;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
 }
 
 .option-card:hover {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.35);
+    border-color: rgba(0, 212, 255, 0.15);
 }
 
 .option-card.selected,
 .option-card:has(input:checked) {
-    background: rgba(62, 156, 191, 0.2);
-    border-color: #3e9cbf;
+    background: rgba(0, 212, 255, 0.12);
+    border-color: #00d4ff;
 }
 
 .option-card input {
     width: 14px;
     height: 14px;
-    accent-color: #3e9cbf;
+    accent-color: #00d4ff;
     margin: 0;
 }
 
@@ -3364,7 +3393,6 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 14px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.95);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
 /* Dev Button Grid */
@@ -3812,8 +3840,143 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 480px;
 }
 
+/* ============================================================
+   Export Modal - Modern Layout
+   ============================================================ */
 .export-modal {
-    max-width: 540px;
+    --export-accent: #00d4ff;
+    --export-accent-glow: rgba(0, 212, 255, 0.4);
+    --export-accent-soft: rgba(0, 212, 255, 0.15);
+    max-width: 520px;
+    border-radius: 20px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(165deg, 
+        rgba(30, 30, 40, 0.95) 0%, 
+        rgba(20, 20, 28, 0.98) 100%);
+}
+
+.export-modal .modal-header {
+    position: relative;
+    padding: 16px 20px;
+}
+
+.export-modal .modal-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--export-accent) 50%, 
+        transparent 100%);
+    opacity: 0.4;
+}
+
+.export-modal .modal-header-icon {
+    color: var(--export-accent);
+}
+
+.export-modal .modal-body {
+    padding: 16px 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.export-modal .modal-footer {
+    padding: 14px 20px;
+    background: linear-gradient(180deg, 
+        rgba(0, 0, 0, 0.1) 0%, 
+        rgba(0, 0, 0, 0.15) 100%);
+}
+
+.export-modal .btn-primary {
+    background: var(--export-accent);
+    border-color: var(--export-accent);
+}
+
+.export-modal .btn-primary:not(:disabled):hover {
+    background: #1ae0ff;
+    border-color: #1ae0ff;
+    box-shadow: 0 4px 16px var(--export-accent-glow);
+}
+
+.export-modal .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Blur Zone Controls */
+.blur-zone-controls {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.blur-zone-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.blur-zone-add-row .settings-select {
+    flex: 1;
+}
+
+.blur-zone-add-row .btn {
+    white-space: nowrap;
+}
+
+.blur-zone-hint {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 8px;
+}
+
+.blur-zone-list {
+    margin-top: 10px;
+}
+
+.blur-zone-list:empty {
+    display: none;
+}
+
+/* FFmpeg Status Bar */
+.export-status-bar {
+    margin-top: 12px;
+}
+
+/* Export Time Range Stats */
+.export-modal .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.export-modal .stat-item {
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    border-radius: 10px;
+    text-align: center;
+}
+
+.export-modal .stat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 4px;
+}
+
+.export-modal .stat-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--export-accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
 .dev-modal {
@@ -3937,9 +4100,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .layout-canvas-container {
     position: relative;
     width: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 8px;
-    padding: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
     overflow: visible;
     display: flex;
     justify-content: center;
@@ -3951,8 +4115,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 100%;
     aspect-ratio: 16 / 9;
     background: #000;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+    border: 2px solid rgba(0, 212, 255, 0.2);
+    border-radius: 6px;
     overflow: hidden;
     touch-action: none;
     flex-shrink: 0;
@@ -3960,30 +4124,30 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .layout-card {
     position: absolute;
-    background: rgba(62, 156, 191, 0.2);
-    border: 2px solid #3e9cbf;
-    border-radius: 4px;
+    background: rgba(0, 212, 255, 0.15);
+    border: 2px solid #00d4ff;
+    border-radius: 6px;
     cursor: move;
     user-select: none;
     min-width: 80px;
     min-height: 45px;
-    transition: box-shadow 0.15s, border-color 0.15s;
+    transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .layout-card:hover {
-    background: rgba(62, 156, 191, 0.3);
-    border-color: #4db8d9;
+    background: rgba(0, 212, 255, 0.25);
+    border-color: #1ae0ff;
 }
 
 .layout-card.dragging {
     cursor: grabbing;
     z-index: 1000;
-    box-shadow: 0 4px 20px rgba(62, 156, 191, 0.5);
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.5);
 }
 
 .layout-card.snapping {
-    border-color: #4db8d9;
-    box-shadow: 0 0 0 2px rgba(77, 184, 217, 0.5), 0 0 20px rgba(77, 184, 217, 0.4);
+    border-color: #1ae0ff;
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.4);
 }
 
 .layout-card .card-label {
@@ -4263,12 +4427,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .export-progress-sticky {
     position: sticky;
     bottom: -16px;
-    background: #1e2227;
+    background: linear-gradient(180deg, rgba(30, 34, 39, 0.95) 0%, rgba(30, 34, 39, 1) 100%);
     padding: 16px 20px;
     margin: 16px -20px -16px -20px;
     padding-bottom: 16px;
     z-index: 10;
-    box-shadow: 0 20px 0 #1e2227;
+    border-top: 1px solid rgba(0, 212, 255, 0.1);
 }
 
 .export-progress-sticky:empty,
@@ -4278,7 +4442,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .export-progress {
     margin-top: 0;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .export-progress.hidden {
@@ -4287,16 +4451,16 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .progress-bar-container {
     height: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
     overflow: hidden;
     margin-bottom: 8px;
 }
 
 .progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #3e9cbf, #5cc2e8);
-    border-radius: 4px;
+    background: linear-gradient(90deg, #00a8cc, #00d4ff);
+    border-radius: 6px;
     width: 0%;
     transition: width 0.3s ease;
 }
@@ -4377,9 +4541,9 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
    Update Modal Styles
    ============================================================ */
 .update-modal {
-    --update-accent: #4caf50;
-    --update-accent-glow: rgba(76, 175, 80, 0.4);
-    --update-accent-soft: rgba(76, 175, 80, 0.15);
+    --update-accent: #00d4ff;
+    --update-accent-glow: rgba(0, 212, 255, 0.4);
+    --update-accent-soft: rgba(0, 212, 255, 0.15);
     max-width: 440px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
@@ -4871,9 +5035,9 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Changelog Modal (Full Changelog View) */
 .changelog-modal {
-    --changelog-accent: #10b981;
-    --changelog-accent-glow: rgba(16, 185, 129, 0.4);
-    --changelog-accent-soft: rgba(16, 185, 129, 0.15);
+    --changelog-accent: #00d4ff;
+    --changelog-accent-glow: rgba(0, 212, 255, 0.4);
+    --changelog-accent-soft: rgba(0, 212, 255, 0.15);
     max-width: 520px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
@@ -4931,8 +5095,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .changelog-modal .btn-primary:not(:disabled):hover {
-    background: #34d399;
-    border-color: #34d399;
+    background: #1ae0ff;
+    border-color: #1ae0ff;
     box-shadow: 0 4px 20px var(--changelog-accent-glow);
     transform: translateY(-1px);
 }
@@ -4946,9 +5110,9 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
    Welcome Guide Modal
    ============================================================ */
 .welcome-guide-modal {
-    --guide-accent: #8b5cf6;
-    --guide-accent-glow: rgba(139, 92, 246, 0.4);
-    --guide-accent-soft: rgba(139, 92, 246, 0.15);
+    --guide-accent: #00d4ff;
+    --guide-accent-glow: rgba(0, 212, 255, 0.4);
+    --guide-accent-soft: rgba(0, 212, 255, 0.15);
     max-width: 520px;
     min-height: 400px;
     border-radius: 24px;
@@ -5032,8 +5196,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     width: 72px;
     height: 72px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--guide-accent-soft) 0%, rgba(139, 92, 246, 0.05) 100%);
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: linear-gradient(135deg, var(--guide-accent-soft) 0%, rgba(0, 212, 255, 0.05) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5170,15 +5334,15 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .welcome-guide-modal .btn-primary:not(:disabled):hover {
-    background: #a78bfa;
-    border-color: #a78bfa;
+    background: #1ae0ff;
+    border-color: #1ae0ff;
     box-shadow: 0 4px 20px var(--guide-accent-glow);
     transform: translateY(-1px);
 }
 
 .welcome-guide-modal .btn-secondary:not(:disabled):hover {
     background: var(--guide-accent-soft);
-    border-color: rgba(139, 92, 246, 0.3);
+    border-color: rgba(0, 212, 255, 0.3);
 }
 
 /* Element Highlight Overlay (for pointing to UI elements) */
@@ -5872,85 +6036,111 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 /* =====================================================
-   SUPPORT CHAT PANEL
+   SUPPORT CHAT PANEL - Floating & Draggable
    ===================================================== */
 .support-chat-panel {
     position: fixed;
-    top: 0;
-    right: 0;
-    width: 400px;
-    height: 100vh;
-    background: rgba(15, 15, 22, 0.98);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    top: 80px;
+    right: 20px;
+    width: 380px;
+    height: 500px;
+    max-height: calc(100vh - 100px);
+    background: linear-gradient(165deg, 
+        rgba(25, 25, 35, 0.98) 0%, 
+        rgba(15, 15, 22, 0.99) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
     z-index: 10000;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    pointer-events: none;
+    resize: both;
+    overflow: hidden;
+    min-width:  400px;
+    min-height: 600px;
 }
 
 .support-chat-panel.visible {
-    transform: translateX(0);
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
 }
 
 .support-chat-panel.hidden {
-    transform: translateX(100%);
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+    pointer-events: none;
+}
+
+.support-chat-panel.dragging {
+    transition: none;
+    user-select: none;
 }
 
 .support-chat-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    -webkit-app-region: drag;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, 
+        rgba(0, 212, 255, 0.08) 0%, 
+        rgba(0, 0, 0, 0.2) 100%);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 16px 16px 0 0;
+    cursor: move;
 }
 
 .support-chat-title {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: #fff;
 }
 
 .support-chat-title svg {
     color: #00d4ff;
+    filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.4));
 }
 
 .support-ticket-id {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
-    background: rgba(0, 212, 255, 0.2);
-    padding: 2px 8px;
-    border-radius: 4px;
+    color: #00d4ff;
+    background: rgba(0, 212, 255, 0.15);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
 }
 
 .support-chat-actions {
     display: flex;
-    gap: 8px;
-    -webkit-app-region: no-drag;
+    gap: 6px;
 }
 
 .support-chat-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
     padding: 6px;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.7);
-    transition: all 0.2s;
+    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.2s ease;
 }
 
 .support-chat-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
+    background: rgba(0, 212, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.3);
+    color: #00d4ff;
 }
 
 .support-chat-messages {
@@ -6409,9 +6599,9 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Modern accent colors for settings modals */
 .settings-modal,
 .dev-modal {
-    --settings-accent: #6366f1;
-    --settings-accent-glow: rgba(99, 102, 241, 0.4);
-    --settings-accent-soft: rgba(99, 102, 241, 0.15);
+    --settings-accent: #00d4ff;
+    --settings-accent-glow: rgba(0, 212, 255, 0.4);
+    --settings-accent-soft: rgba(0, 212, 255, 0.15);
     --settings-secondary: #22d3ee;
     --settings-secondary-glow: rgba(34, 211, 238, 0.3);
 }
@@ -6661,7 +6851,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .settings-modal .keybind-input:focus {
     border-color: var(--settings-accent);
     background: var(--settings-accent-soft);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
 
 /* Modal footer with subtle gradient */
@@ -6776,7 +6966,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Changelog button in settings with accent */
 .settings-modal #viewChangelogBtn {
-    border-color: rgba(99, 102, 241, 0.3);
+    border-color: rgba(0, 212, 255, 0.3);
     transition: all 0.2s ease;
 }
 
@@ -6845,12 +7035,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .settings-accordion:hover {
-    border-color: rgba(99, 102, 241, 0.2);
+    border-color: rgba(0, 212, 255, 0.2);
 }
 
 .settings-accordion.open {
-    border-color: rgba(99, 102, 241, 0.3);
-    background: rgba(99, 102, 241, 0.05);
+    border-color: rgba(0, 212, 255, 0.3);
+    background: rgba(0, 212, 255, 0.05);
 }
 
 /* Accordion header */
@@ -6884,7 +7074,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .settings-accordion.open .settings-accordion-section-icon {
-    color: var(--settings-accent, #6366f1);
+    color: var(--settings-accent, #00d4ff);
 }
 
 .settings-accordion-title {
@@ -6909,7 +7099,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-accordion.open .settings-accordion-chevron {
     transform: rotate(180deg);
-    color: var(--settings-accent, #6366f1);
+    color: var(--settings-accent, #00d4ff);
 }
 
 /* Accordion body */
@@ -7031,7 +7221,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .settings-accordion .about-version-value {
     font-size: 12px;
     font-weight: 600;
-    color: var(--settings-accent, #6366f1);
+    color: var(--settings-accent, #00d4ff);
 }
 
 /* Side-by-side buttons row */

@@ -19,7 +19,7 @@ let unreadCount = 0; // Track cumulative unread messages
 // Constants
 const MAX_ATTACHMENT_SIZE = 500 * 1024 * 1024; // 500MB
 const MAX_TOTAL_SIZE = 550 * 1024 * 1024; // 550MB total with overhead
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 3500; // 3.5 seconds
 const SUPPORT_SERVER_URL = 'https://api.sentry-six.com'; // Must match main.js
 
 /**
@@ -242,10 +242,59 @@ function initChatEventHandlers() {
         }
     });
     
-    // Click outside to close
-    $('supportChatPanel').addEventListener('click', (e) => {
-        if (e.target.id === 'supportChatPanel') {
-            hideSupportChat();
+    // Draggable header
+    initDraggablePanel();
+}
+
+/**
+ * Make the support chat panel draggable by its header
+ */
+function initDraggablePanel() {
+    const panel = $('supportChatPanel');
+    const header = panel.querySelector('.support-chat-header');
+    
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    header.addEventListener('mousedown', (e) => {
+        // Don't drag if clicking on buttons
+        if (e.target.closest('.support-chat-btn') || e.target.closest('.support-chat-actions')) {
+            return;
+        }
+        
+        isDragging = true;
+        panel.classList.add('dragging');
+        
+        const rect = panel.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        
+        e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        let newX = e.clientX - offsetX;
+        let newY = e.clientY - offsetY;
+        
+        // Keep within viewport bounds
+        const maxX = window.innerWidth - panel.offsetWidth;
+        const maxY = window.innerHeight - panel.offsetHeight;
+        
+        newX = Math.max(0, Math.min(newX, maxX));
+        newY = Math.max(0, Math.min(newY, maxY));
+        
+        panel.style.left = newX + 'px';
+        panel.style.top = newY + 'px';
+        panel.style.right = 'auto';
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            panel.classList.remove('dragging');
         }
     });
 }
@@ -358,6 +407,7 @@ async function handleSendMessage() {
             
             saveTicketToStorage();
             startMessagePolling();
+            updateChatUI(); // Show close ticket button immediately
         } else {
             // If we have attachments, include message with first attachment
             // Otherwise send message alone

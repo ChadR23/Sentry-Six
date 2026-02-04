@@ -438,7 +438,10 @@
                 <!-- Layout Lab - Collapsible -->
                 <div class="collapsible-section open" data-section="layout">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title" data-i18n="ui.export.layout">Layout</span>
+                        <span class="collapsible-header-title">
+                            <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                            <span data-i18n="ui.export.layout">Layout</span>
+                        </span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
@@ -478,9 +481,12 @@
                 </div>
 
                 <!-- Quality - Collapsible -->
-                <div class="collapsible-section open" data-section="quality">
+                <div class="collapsible-section" data-section="quality">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title" data-i18n="ui.export.quality">Quality</span>
+                        <span class="collapsible-header-title">
+                            <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <span data-i18n="ui.export.quality">Quality</span>
+                        </span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
@@ -529,9 +535,12 @@
                 </div>
 
                 <!-- Overlays Section -->
-                <div class="collapsible-section open" data-section="overlays">
+                <div class="collapsible-section" data-section="overlays">
                     <div class="collapsible-header">
-                        <span class="collapsible-header-title" data-i18n="ui.export.overlays">Overlays</span>
+                        <span class="collapsible-header-title">
+                            <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                            <span data-i18n="ui.export.overlays">Overlays</span>
+                        </span>
                         <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="collapsible-body">
@@ -542,7 +551,7 @@
                                     <span class="toggle-row-desc" data-i18n="ui.export.timestampDesc">Burn-in recording date and time</span>
                                 </div>
                                 <div class="toggle-switch">
-                                    <input type="checkbox" id="includeTimestamp">
+                                    <input type="checkbox" id="includeTimestamp" checked>
                                     <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
                                 </div>
                             </label>
@@ -675,49 +684,54 @@
                     </div>
                 </div>
 
-                <!-- Blur Zone -->
-                <div class="modal-section">
-                    <div class="action-row">
-                        <div class="action-row-info">
-                            <span class="action-row-label" data-i18n="ui.export.blurType">Blur Method</span>
-                            <span class="action-row-desc" data-i18n="ui.export.blurTypeDesc">Choose blur method based on speed vs quality</span>
-                        </div>
-                        <select id="blurTypeSelect" class="settings-select" style="min-width: 160px;">
-                            <option value="solid" data-i18n="ui.export.blurSolid">Solid (Fast)</option>
-                            <option value="trueBlur" data-i18n="ui.export.blurTrue">True Blur (Slow)</option>
-                        </select>
+                <!-- Privacy / Blur Zone - Collapsible -->
+                <div class="collapsible-section" data-section="privacy">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">
+                            <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            <span>Privacy</span>
+                        </span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
-                    <div class="action-row">
-                        <div class="action-row-info">
-                            <span class="action-row-label" data-i18n="ui.export.addBlurZone">Add Blur Zone</span>
-                            <span class="action-row-desc" data-i18n="ui.export.addBlurZoneDesc">Redact sensitive information before sharing</span>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <div class="select-row">
+                                <div class="select-row-info">
+                                    <span class="select-row-label" data-i18n="ui.export.blurType">Blur Method</span>
+                                    <span class="select-row-desc" data-i18n="ui.export.blurTypeDesc">Speed vs quality tradeoff</span>
+                                </div>
+                                <select id="blurTypeSelect" class="settings-select">
+                                    <option value="solid" data-i18n="ui.export.blurSolid">Solid (Fast)</option>
+                                    <option value="trueBlur" data-i18n="ui.export.blurTrue">True Blur (Slow)</option>
+                                </select>
+                            </div>
+                            <div class="blur-zone-controls">
+                                <div class="blur-zone-add-row">
+                                    <select id="blurZoneCameraSelect" class="settings-select">
+                                        <option value="back" data-i18n="ui.cameras.back">Back</option>
+                                        <option value="front" data-i18n="ui.cameras.front">Front</option>
+                                        <option value="left_repeater" data-i18n="ui.cameras.leftRepeater">Left Repeater</option>
+                                        <option value="right_repeater" data-i18n="ui.cameras.rightRepeater">Right Repeater</option>
+                                        <option value="left_pillar" data-i18n="ui.cameras.leftPillar">Left Pillar</option>
+                                        <option value="right_pillar" data-i18n="ui.cameras.rightPillar">Right Pillar</option>
+                                    </select>
+                                    <button id="addBlurZoneBtn" class="btn btn-secondary btn-small" data-i18n="ui.export.addZone">Add Blur Zone</button>
+                                </div>
+                                <div class="blur-zone-hint">Redact license plates or sensitive info</div>
+                            </div>
+                            <div id="blurZoneList" class="blur-zone-list"></div>
+                            <div id="blurZoneStatus" class="info-box info-blue hidden">
+                                <span class="info-box-icon">ℹ️</span>
+                                <span id="blurZoneStatusText">Blur zone configured</span>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <select id="blurZoneCameraSelect" class="settings-select" style="min-width: 140px;">
-                                <option value="back" data-i18n="ui.cameras.back">Back</option>
-                                <option value="front" data-i18n="ui.cameras.front">Front</option>
-                                <option value="left_repeater" data-i18n="ui.cameras.leftRepeater">Left Repeater</option>
-                                <option value="right_repeater" data-i18n="ui.cameras.rightRepeater">Right Repeater</option>
-                                <option value="left_pillar" data-i18n="ui.cameras.leftPillar">Left Pillar</option>
-                                <option value="right_pillar" data-i18n="ui.cameras.rightPillar">Right Pillar</option>
-                            </select>
-                            <button id="addBlurZoneBtn" class="btn btn-secondary btn-small" data-i18n="ui.export.addZone">Add Zone</button>
-                        </div>
-                    </div>
-                    <!-- List of configured blur zones -->
-                    <div id="blurZoneList" class="blur-zone-list" style="margin-top: 10px;"></div>
-                    <div id="blurZoneStatus" class="info-box info-blue hidden" style="margin-top: 10px;">
-                        <span class="info-box-icon">ℹ️</span>
-                        <span id="blurZoneStatusText">Blur zone configured</span>
                     </div>
                 </div>
 
-                <!-- FFmpeg Status -->
-                <div class="modal-section">
-                    <div id="ffmpegStatus" class="info-box info-green">
-                        <span class="info-box-icon">⏳</span>
-                        <span class="status-text">Checking FFmpeg...</span>
-                    </div>
+                <!-- FFmpeg Status - Compact -->
+                <div id="ffmpegStatus" class="info-box info-green export-status-bar">
+                    <span class="info-box-icon">⏳</span>
+                    <span class="status-text">Checking FFmpeg...</span>
                 </div>
 
                 <!-- Progress (sticky) -->
@@ -1025,7 +1039,7 @@
                 </div>
                 
                 <!-- Storage Section -->
-                <div class="settings-accordion" data-section="storage">
+                <div class="settings-accordion open" data-section="storage">
                     <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
                         <div class="settings-accordion-header-left">
                             <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1046,7 +1060,7 @@
                 </div>
                 
                 <!-- About Section -->
-                <div class="settings-accordion" data-section="about">
+                <div class="settings-accordion open" data-section="about">
                     <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
                         <div class="settings-accordion-header-left">
                             <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1368,7 +1382,7 @@
                         <!-- Language Selector -->
                         <div class="setting-group" style="margin-top: 24px; max-width: 300px; margin-left: auto; margin-right: auto;">
                             <label for="welcomeLanguageSelect" class="setting-label" data-i18n="welcome.step1.languageLabel">Language</label>
-                            <select id="welcomeLanguageSelect" class="setting-select">
+                            <select id="welcomeLanguageSelect" class="settings-select">
                                 <!-- Populated by JavaScript -->
                             </select>
                             <p class="setting-desc" data-i18n="welcome.step1.languageDesc" style="margin-top: 8px;">Choose your preferred language</p>
