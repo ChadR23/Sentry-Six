@@ -78,7 +78,8 @@
       "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
       "asarUnpack": [
-        "node_modules/canvas/**/*"
+        "node_modules/canvas/**/*",
+        "node_modules/node-machine-id/**/*"
       ],
       "extraResources": [
         {
