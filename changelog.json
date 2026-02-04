@@ -1,6 +1,18 @@
 {
   "versions": [
     {
+      "version": "2026.6.12",
+      "date": "2026-02-04",
+      "title": "UI Design Overhaul",
+      "changes": [
+
+        {
+          "type": "fix",
+          "description": "Added the missing Mirror Cameras toggle in Settings back."
+        }
+      ]
+    },
+    {
       "version": "2026.6.11",
       "date": "2026-02-04",
       "title": "UI Design Overhaul",
