@@ -1205,8 +1205,8 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     sampledPoints = points.filter((_, i) => i % step === 0 || i === points.length - 1);
   }
   
-  // Line thickness based on map size
-  const strokeWidth = Math.max(2, Math.round(mapSize / 100));
+  // Line thickness based on map size - thicker for better visibility like live map
+  const strokeWidth = Math.max(4, Math.round(mapSize / 50));
   
   // Build path as a series of thin filled rectangles (stroke segments)
   // For each segment, create a quadrilateral perpendicular to the line direction
@@ -1242,7 +1242,7 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
   }
   
   // Add circles at start and end points for rounded caps
-  const capRadius = strokeWidth;
+  const capRadius = strokeWidth * 1.2;
   const startPt = sampledPoints[0];
   const endPt = sampledPoints[sampledPoints.length - 1];
   
@@ -1265,15 +1265,36 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
 
 /**
  * Generate ASS arrow marker path (direction indicator)
- * Creates a small, clean navigation arrow pointing up, centered at (0,0)
+ * Creates a navigation arrow pointing up, centered at (0,0)
+ * Based on new arrow icon design - modern navigation style
  * @param {number} scale - Scale factor
  * @returns {string} ASS drawing path for arrow
  */
 function generateArrowPath(scale = 1) {
-  const s = scale;
-  // Simple triangular navigation arrow (like Google Maps)
-  // Smaller and cleaner design
-  return `m 0 ${Math.round(-8*s)} l ${Math.round(5*s)} ${Math.round(8*s)} l ${Math.round(-5*s)} ${Math.round(4*s)} l ${Math.round(-5*s)} ${Math.round(-4*s)} l ${Math.round(5*s)} ${Math.round(-8*s)}`;
+  // New navigation arrow icon - centered at (0,0)
+  // Original was centered at ~(257, 231), height ~302 units
+  // Normalized to center (0,0) and scaled down for minimap use
+  // Base size is ~302 units tall, we scale to fit
+  const baseScale = scale / 15; // Scale factor to make it appropriate size for minimap
+  const s = baseScale;
+  
+  // Arrow path centered at (0,0) - pointing up
+  // Right half of arrow
+  const path = `m ${(0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
+    `b ${(15.24*s).toFixed(2)} ${(159*s).toFixed(2)} ${(29.98*s).toFixed(2)} ${(167*s).toFixed(2)} ${(44.72*s).toFixed(2)} ${(175.08*s).toFixed(2)} ` +
+    `${(108.97*s).toFixed(2)} ${(210.28*s).toFixed(2)} ${(156.82*s).toFixed(2)} ${(193.32*s).toFixed(2)} ${(132.86*s).toFixed(2)} ${(129.62*s).toFixed(2)} ` +
+    `${(106.86*s).toFixed(2)} ${(69.24*s).toFixed(2)} ${(24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ${(24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ` +
+    `${(16.03*s).toFixed(2)} ${(-142.33*s).toFixed(2)} ${(8.22*s).toFixed(2)} ${(-150.11*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ` +
+    `${(0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(50.57*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
+    // Left half of arrow (mirrored)
+    `m ${(-0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
+    `b ${(-15.24*s).toFixed(2)} ${(159*s).toFixed(2)} ${(-29.98*s).toFixed(2)} ${(167*s).toFixed(2)} ${(-44.72*s).toFixed(2)} ${(175.08*s).toFixed(2)} ` +
+    `${(-108.97*s).toFixed(2)} ${(210.28*s).toFixed(2)} ${(-156.82*s).toFixed(2)} ${(193.32*s).toFixed(2)} ${(-132.86*s).toFixed(2)} ${(129.62*s).toFixed(2)} ` +
+    `${(-106.86*s).toFixed(2)} ${(69.24*s).toFixed(2)} ${(-24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ${(-24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ` +
+    `${(-16.03*s).toFixed(2)} ${(-142.33*s).toFixed(2)} ${(-8.22*s).toFixed(2)} ${(-150.11*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ` +
+    `${(-0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(50.57*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(151*s).toFixed(2)}`;
+  
+  return path;
 }
 
 /**
@@ -1404,14 +1425,29 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
     assContent += generateMinimapBackground(mapX, mapY, mapSize, durationMs) + '\n';
   }
   
-  // Generate route path
-  const routePath = generateMinimapRoutePath(mapPath, bounds, mapSize, mapX, mapY, durationMs);
+  // Generate route path - extract GPS from seiData to ensure path matches arrow position
+  // This ensures the blue line follows the same coordinates as the arrow marker
+  const seiGpsPath = seiData
+    .map(({ sei }) => {
+      const lat = sei?.latitude_deg ?? sei?.latitudeDeg ?? 0;
+      const lon = sei?.longitude_deg ?? sei?.longitudeDeg ?? 0;
+      // Skip invalid coordinates
+      if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) return null;
+      return [lat, lon];
+    })
+    .filter(coord => coord !== null);
+  
+  // Use seiGpsPath if available, otherwise fall back to mapPath
+  // IMPORTANT: Recalculate bounds from seiGpsPath to ensure route and markers align
+  const routeGpsPath = seiGpsPath.length > 0 ? seiGpsPath : mapPath;
+  const routeBounds = seiGpsPath.length > 0 ? calculateGpsBounds(seiGpsPath) : bounds;
+  const routePath = generateMinimapRoutePath(routeGpsPath, routeBounds, mapSize, mapX, mapY, durationMs);
   if (routePath) {
     assContent += routePath + '\n';
   }
   
-  // Generate position markers
-  const markers = generateMinimapMarkers(seiData, mapPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs);
+  // Generate position markers - use same bounds as route path for alignment
+  const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs);
   if (markers) {
     assContent += markers + '\n';
   }
