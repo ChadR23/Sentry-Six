@@ -8,8 +8,12 @@
 
         {
           "type": "fix",
+          "description": "Fixed an issue where the download progress bar would not display on the update prompt. Despite downloading."
+        },
+        {
+          "type": "fix",
           "description": "Added the missing Mirror Cameras toggle in Settings back."
-        }
+        }        
       ]
     },
     {
