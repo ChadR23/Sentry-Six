@@ -3124,6 +3124,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     text-align: center;
     cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .keybind-row-compact .keybind-input:focus {

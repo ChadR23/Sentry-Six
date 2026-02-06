@@ -88,6 +88,9 @@ function getKeyIdentifier(e) {
     return mods.join('+').toLowerCase();
 }
 
+// Guard against duplicate initialization (listeners would stack)
+let keybindSettingsInitialized = false;
+
 /**
  * Initialize keybind settings UI
  */
@@ -104,16 +107,37 @@ export async function initKeybindSettings() {
         }
     });
     
+    // Only attach event listeners once
+    if (keybindSettingsInitialized) return;
+    keybindSettingsInitialized = true;
+    
     // Handle keybind input focus (start recording)
     keybindInputs.forEach(input => {
+        // Prevent modifier+click from causing native multi-select behavior
+        input.addEventListener('mousedown', (e) => {
+            if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) {
+                e.preventDefault();
+                input.focus();
+            }
+        });
+        
         input.addEventListener('focus', () => {
-            // Clear recording state from any previously active input
-            // (modifier+click can bypass normal blur, leaving multiple inputs "selected")
+            // Clear recording state from ALL other keybind inputs
+            keybindInputs.forEach(other => {
+                if (other !== input) {
+                    other.classList.remove('recording');
+                }
+            });
+            // Restore value of previous recording input if it was different
             if (recordingKeybindInput && recordingKeybindInput !== input) {
-                recordingKeybindInput.classList.remove('recording');
                 const prevAction = recordingKeybindInput.dataset.action;
                 loadKeybinds().then(kb => {
-                    recordingKeybindInput.value = kb[prevAction]?.display || '';
+                    // Only restore if it's no longer the active recording input
+                    if (recordingKeybindInput !== input) return;
+                    const prev = document.querySelector(`.keybind-input[data-action="${prevAction}"]`);
+                    if (prev && !prev.classList.contains('recording')) {
+                        prev.value = kb[prevAction]?.display || '';
+                    }
                 });
             }
             recordingKeybindInput = input;
@@ -122,13 +146,15 @@ export async function initKeybindSettings() {
         });
         
         input.addEventListener('blur', async () => {
-            if (recordingKeybindInput === input) {
+            // Capture ref before any async work
+            const wasRecording = recordingKeybindInput === input;
+            if (wasRecording) {
                 input.classList.remove('recording');
+                recordingKeybindInput = null;
                 // Restore previous value if no key was pressed
                 const action = input.dataset.action;
                 const keybinds = await loadKeybinds();
                 input.value = keybinds[action]?.display || '';
-                recordingKeybindInput = null;
             }
         });
     });
