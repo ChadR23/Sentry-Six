@@ -21,7 +21,7 @@ export function initKeybindActions(actions) {
  * Load keybinds from storage
  * @returns {Promise<Object>} Saved keybinds
  */
-export async function loadKeybinds() {
+async function loadKeybinds() {
     try {
         if (window.electronAPI?.getSetting) {
             const saved = await window.electronAPI.getSetting('keybinds');
@@ -144,7 +144,7 @@ export async function initKeybindSettings() {
  * Global keyboard event handler for keybind recording and execution
  * @param {KeyboardEvent} e - Keyboard event
  */
-export async function handleGlobalKeydown(e) {
+async function handleGlobalKeydown(e) {
     // If we're recording a keybind
     if (recordingKeybindInput) {
         e.preventDefault();

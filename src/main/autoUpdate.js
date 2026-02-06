@@ -550,7 +550,6 @@ module.exports = {
   UPDATE_CONFIG,
   autoUpdater,
   getLatestVersionFromGitHub,
-  compareVersions,
   registerAutoUpdateIpc,
   setupAutoUpdaterEvents
 };

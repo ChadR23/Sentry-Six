@@ -2,18 +2,16 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn, spawnSync, execSync } = require('child_process');
-const { writeCompactDashboardAss, cleanupAssFile, writeMinimapAss } = require('./assGenerator');
-const https = require('https');
-const http = require('http');
+const { spawn, spawnSync } = require('child_process');
+const { writeCompactDashboardAss, writeMinimapAss } = require('./assGenerator');
 let _canvas = null;
 function getCanvas() { if (!_canvas) _canvas = require('canvas'); return _canvas; }
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
 const { settingsPath, loadSettings, saveSettings, registerSettingsIpc } = require('./main/settings');
-const { SUPPORT_SERVER_URL, makeSupportRequest, registerSupportChatIpc } = require('./main/supportChat');
-const { fetchFromUrl, registerDiagnosticsStorageIpc } = require('./main/diagnostics');
-const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, compareVersions, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
-const { findFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, makeEven, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
+const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
+const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
+const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
+const { findFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
 const { calculateMinimapSize, downloadStaticMapBackground, preRenderMinimap } = require('./main/minimap');
 
 // ============================================
@@ -77,32 +75,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      webSecurity: false,
+      webSecurity: false, // Required for file:// video playback from local TeslaCam folders
     },
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-}
-
-// Dashboard Rendering Utilities
-// Find SEI data for a given timestamp
-function findSeiAtTime(seiData, timestampMs) {
-  if (!seiData || !seiData.length) return null;
-  
-  let closest = seiData[0];
-  let minDiff = Math.abs(seiData[0].timestampMs - timestampMs);
-  
-  for (let i = 1; i < seiData.length; i++) {
-    const diff = Math.abs(seiData[i].timestampMs - timestampMs);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closest = seiData[i];
-    }
-    // Since data is sorted, if diff starts increasing, we passed the closest
-    if (seiData[i].timestampMs > timestampMs && diff > minDiff) break;
-  }
-  
-  return closest?.sei || null;
 }
 
 // Parse timestamp key from filename (format: YYYY-MM-DD_HH-MM-SS-camera.mp4)
@@ -122,86 +99,96 @@ function parseTimestampKeyToEpochMs(timestampKey) {
   return new Date(+Y, +Mo - 1, +D, +h, +mi, +s, 0).getTime();
 }
 
-// Convert video time offset (ms from collection start) to actual timestamp (epoch ms)
-// This accounts for start/end markers by finding the correct segment
-function convertVideoTimeToTimestamp(videoTimeMs, segments, cumStarts) {
-  if (!segments || !segments.length || !cumStarts || !cumStarts.length) return null;
-  
-  // Find which segment contains this video time
-  for (let i = 0; i < segments.length; i++) {
-    const segStartMs = (cumStarts[i] || 0) * 1000;
-    const segDurMs = (segments[i]?.durationSec || 60) * 1000;
-    const segEndMs = segStartMs + segDurMs;
-    
-    if (videoTimeMs >= segStartMs && videoTimeMs < segEndMs) {
-      // Found the segment - extract timestamp from filename
-      const seg = segments[i];
-      const files = seg.files || {};
-      
-      // Try to get filename from any camera file (prefer front, then any)
-      let filename = null;
-      if (files.front) {
-        filename = path.basename(files.front);
-      } else {
-        // Get first available file
-        const firstCamera = Object.keys(files)[0];
-        if (firstCamera) filename = path.basename(files[firstCamera]);
-      }
-      
-      if (!filename) continue;
-      
-      // Parse timestamp key from filename
-      const timestampKey = parseTimestampKeyFromFilename(filename);
-      if (!timestampKey) continue;
-      
-      // Convert to epoch milliseconds
-      const segmentStartEpochMs = parseTimestampKeyToEpochMs(timestampKey);
-      if (!segmentStartEpochMs) continue;
-      
-      // Calculate offset within this segment
-      const offsetWithinSegmentMs = videoTimeMs - segStartMs;
-      
-      // Return actual timestamp
-      return segmentStartEpochMs + offsetWithinSegmentMs;
-    }
-  }
-  
-  return null;
-}
-
-// Dashboard dimensions for compact style (ASS subtitle overlay)
-const DASHBOARD_DIMENSIONS = {
-  compact: { width: 500, height: 76 }
-};
-
-// Calculate dashboard size based on output video dimensions, size preference, and style
-function calculateDashboardSize(outputWidth, outputHeight, sizeOption = 'medium', style = 'compact') {
-  const sizeMultipliers = {
-    'small': 0.20,
-    'medium': 0.30,
-    'large': 0.40
-  };
-  const multiplier = sizeMultipliers[sizeOption] || 0.30;
-  
-  const baseDims = DASHBOARD_DIMENSIONS[style] || DASHBOARD_DIMENSIONS.compact;
-  const aspectRatio = baseDims.width / baseDims.height;
-  
-  const targetWidth = Math.round(outputWidth * multiplier);
-  const targetHeight = Math.round(targetWidth / aspectRatio);
-  // Ensure even dimensions (required for video encoding)
-  return {
-    width: targetWidth + (targetWidth % 2),
-    height: targetHeight + (targetHeight % 2)
-  };
-}
-
 // ============================================
 // VIDEO EXPORT IMPLEMENTATION
 // ============================================
 
+/**
+ * Apply blur zones to individual camera streams before grid/layout composition.
+ * Shared by both custom-layout and grid-layout branches of performVideoExport.
+ *
+ * @param {Object} opts
+ * @param {Array}  opts.blurZones       - Export blur zone definitions
+ * @param {string} opts.blurType        - Blur type (currently always 'trueBlur')
+ * @param {Array}  opts.streams         - Array of { camera, tag } objects (tags are mutated)
+ * @param {Array}  opts.streamTags      - Optional streamTags array to keep in sync (grid path)
+ * @param {number} opts.cameraW         - Per-camera output width
+ * @param {number} opts.cameraH         - Per-camera output height
+ * @param {Array}  opts.filters         - FFmpeg filter array (mutated)
+ * @param {Array}  opts.cmd             - FFmpeg command array (mutated — mask inputs added)
+ * @param {Array}  opts.tempFiles       - Temp file list (mutated — mask paths added)
+ * @param {number} opts.inputCount      - Number of existing inputs at the point of call
+ * @param {number} opts.extraOffset     - Additional index offset (e.g. +1 when baseInput exists)
+ * @param {string} opts.exportId        - Export ID for temp file naming
+ * @param {number} opts.FPS             - Frame rate
+ */
+async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTags, cameraW, cameraH, filters, cmd, tempFiles, inputCount, extraOffset, exportId, FPS }) {
+  if (!blurZones.length) return;
+
+  const zonesByCamera = {};
+  for (const zone of blurZones) {
+    if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
+    if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
+    zonesByCamera[zone.camera].push(zone);
+  }
+
+  let maskInputOffset = 0;
+  for (const [cam, zones] of Object.entries(zonesByCamera)) {
+    const blurStream = streams.find(s => s.camera === cam);
+    if (!blurStream) continue;
+
+    const blurCameraStreamTag = blurStream.tag;
+    console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
+
+    try {
+      const firstZone = zones[0];
+      const maskW = firstZone.maskWidth || 1448;
+      const maskH = firstZone.maskHeight || 938;
+
+      const { createCanvas, loadImage } = getCanvas();
+      const compositeCanvas = createCanvas(maskW, maskH);
+      const compositeCtx = compositeCanvas.getContext('2d');
+      compositeCtx.fillStyle = 'black';
+      compositeCtx.fillRect(0, 0, maskW, maskH);
+
+      for (const zone of zones) {
+        const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
+        const maskImg = await loadImage(maskBuffer);
+        compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
+      }
+
+      const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+      const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
+      fs.writeFileSync(maskPath, compositeMaskBuffer);
+      tempFiles.push(maskPath);
+
+      let maskInputIdx = inputCount + 1 + extraOffset + maskInputOffset;
+      maskInputOffset++;
+
+      cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
+
+      const blurredStreamTag = `[blurred_${cam}]`;
+
+      filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
+      filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
+      filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
+      filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
+      filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
+
+      blurStream.tag = blurredStreamTag;
+      if (streamTags) {
+        const streamIndex = streamTags.indexOf(blurCameraStreamTag);
+        if (streamIndex !== -1) streamTags[streamIndex] = blurredStreamTag;
+      }
+    } catch (err) {
+      console.error('[BLUR] Failed to apply blur zone:', err);
+    }
+  }
+}
+
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, glassBlur = 7, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -227,9 +214,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
   const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch {} });
 
-  // Dashboard temp file path (set during pre-render)
-  let dashboardTempPath = null;
-  
   // Minimap temp file path (set during pre-render)
   let minimapTempPath = null;
 
@@ -317,27 +301,24 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
     
-    // Base resolution for per-camera scaling (used when layoutData is provided)
-    let basePerCamW, basePerCamH;
-    
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile':   w = 724;  h = 469;  crf = 28; basePerCamW = 724;  basePerCamH = 469; break;
-        case 'medium':   w = 1448; h = 938;  crf = 26; basePerCamW = 1448; basePerCamH = 938; break;
-        case 'high':     w = 2172; h = 1407; crf = 23; basePerCamW = 2172; basePerCamH = 1407; break;
-        case 'max':      w = 2896; h = 1876; crf = 20; basePerCamW = 2896; basePerCamH = 1876; break;  // Full front native
-        default:         w = 1448; h = 938;  crf = 23; basePerCamW = 1448; basePerCamH = 938;
+        case 'mobile':   w = 724;  h = 469;  crf = 28; break;
+        case 'medium':   w = 1448; h = 938;  crf = 26; break;
+        case 'high':     w = 2172; h = 1407; crf = 23; break;
+        case 'max':      w = 2896; h = 1876; crf = 20; break;  // Full front native
+        default:         w = 1448; h = 938;  crf = 23;
       }
       console.log('[RESOLUTION] Front camera only - using full front camera resolution');
     } else {
       // Multi-camera - scale to side camera resolution
       switch (q) {
-        case 'mobile':   w = 484;  h = 314;  crf = 28; basePerCamW = 484;  basePerCamH = 314; break;  // 0.33x side native
-        case 'medium':   w = 724;  h = 470;  crf = 26; basePerCamW = 724;  basePerCamH = 470; break;  // 0.5x side native (h must be even)
-        case 'high':     w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704; break;  // 0.75x side native
-        case 'max':      w = 1448; h = 938;  crf = 20; basePerCamW = 1448; basePerCamH = 938; break;  // Side native (front scaled down)
-        default:         w = 1086; h = 704;  crf = 23; basePerCamW = 1086; basePerCamH = 704;
+        case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
+        case 'medium':   w = 724;  h = 470;  crf = 26; break;  // 0.5x side native (h must be even)
+        case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
+        case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
+        default:         w = 1086; h = 704;  crf = 23;
       }
     }
 
@@ -441,14 +422,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       totalH = h * rows;
     }
 
-        // Dashboard input index: after black source (and base canvas if custom layout)
-        const dashboardInputIdx = baseInputIdx !== null ? baseInputIdx + 1 : inputs.length + 1;
-        
-        // Calculate dashboard size based on output resolution, user's size preference, and style
-        const dashboardSizeCalc = calculateDashboardSize(totalW, totalH, dashboardSize, dashboardStyle);
-        const dashboardWidth = dashboardSizeCalc.width;
-        const dashboardHeight = dashboardSizeCalc.height;
-        
         let useAssDashboard = false;
         let assTempPath = null;
 
@@ -572,7 +545,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               // Step 3: Create composite minimap video (map bg + ASS overlay)
               // This pre-renders the minimap so FFmpeg can just overlay it on the main video
               const minimapVideoPath = path.join(os.tmpdir(), `minimap_video_${exportId}_${Date.now()}.mov`);
-              const durationSec = (endTimeMs - startTimeMs) / 1000;
               
               const escapedAssPath = minimapAssTempPath
                 .replace(/\\/g, '/')
@@ -722,12 +694,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     const filters = [];
     const streamTags = [];
-    
-    // Camera position tracking (scope shared across layout types)
-    let gridCameraPositions = null;
-    let gridCameraDimensions = null;
-    let singleCameraPositions = null;
-    let singleCameraDimensions = null;
 
     if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
       // Custom layout using overlay filters (base canvas already added as input)
@@ -789,88 +755,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition
-      singleCameraPositions = {};
-      singleCameraDimensions = {};
-      for (const stream of cameraStreams) {
-        singleCameraPositions[stream.camera] = { x: stream.x, y: stream.y };
-        singleCameraDimensions[stream.camera] = { width: w + (w % 2), height: h + (h % 2) };
-      }
-      
-      if (blurZones.length > 0) {
-        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-        const zonesByCamera = {};
-        for (const zone of blurZones) {
-          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-          if (!zonesByCamera[zone.camera]) zonesByCamera[zone.camera] = [];
-          zonesByCamera[zone.camera].push(zone);
-        }
-        
-        let maskInputOffset = 0;
-        for (const [cam, zones] of Object.entries(zonesByCamera)) {
-          const blurStream = cameraStreams.find(s => s.camera === cam);
-          if (!blurStream) continue;
-          
-          const blurCameraStreamTag = blurStream.tag;
-          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
-          
-          try {
-            // Combine multiple masks for same camera into one composite mask using canvas
-            const firstZone = zones[0];
-            const maskW = firstZone.maskWidth || 1448;
-            const maskH = firstZone.maskHeight || 938;
-            
-            // Create composite mask by combining all zone masks
-            const { createCanvas, loadImage } = getCanvas();
-            const compositeCanvas = createCanvas(maskW, maskH);
-            const compositeCtx = compositeCanvas.getContext('2d');
-            compositeCtx.fillStyle = 'black';
-            compositeCtx.fillRect(0, 0, maskW, maskH);
-            
-            // Draw each mask (white areas are blur regions)
-            for (const zone of zones) {
-              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-              const maskImg = await loadImage(maskBuffer);
-              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-            }
-            
-            // Save composite mask
-            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-            fs.writeFileSync(maskPath, compositeMaskBuffer);
-            tempFiles.push(maskPath);
-            
-            let maskInputIdx = inputs.length + 1;
-            if (baseInputIdx !== null) maskInputIdx++;
-            maskInputIdx += maskInputOffset;
-            maskInputOffset++;
-            
-            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-            
-            const cameraW = w + (w % 2);
-            const cameraH = h + (h % 2);
-            
-            const blurredStreamTag = `[blurred_${cam}]`;
-            
-            // True Blur: uses alpha channel for smooth edge blending
-            // Split the camera stream into two copies (FFmpeg streams can only be consumed once)
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            
-            // Scale mask and convert to alpha format
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-            
-            // Apply blur to one copy, then apply alpha mask
-            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-            
-            // Overlay the blurred+masked region onto the original base
-            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-            
-            blurStream.tag = blurredStreamTag;
-          } catch (err) {
-            console.error('[BLUR] Failed to apply blur zone:', err);
-          }
-        }
-      }
+      await applyBlurZonesToStreams({
+        blurZones, blurType, streams: cameraStreams, streamTags: null,
+        cameraW: w + (w % 2), cameraH: h + (h % 2),
+        filters, cmd, tempFiles, inputCount: inputs.length,
+        extraOffset: baseInputIdx !== null ? 1 : 0, exportId, FPS
+      });
       
       // Chain overlays: start with base, overlay each camera in order
       let currentTag = `[${baseInputIdx}:v]`;
@@ -910,85 +800,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
-      gridCameraPositions = {};
-      gridCameraDimensions = {};
-      for (let i = 0; i < activeCamerasForGrid.length; i++) {
-        const cam = activeCamerasForGrid[i];
-        gridCameraPositions[cam] = {
-          x: (i % cols) * w,
-          y: Math.floor(i / cols) * h
-        };
-        gridCameraDimensions[cam] = { width: w, height: h };
-      }
-      
-      if (blurZones.length > 0) {
-        // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
-        const gridZonesByCamera = {};
-        for (const zone of blurZones) {
-          if (!zone || !zone.maskImageBase64 || !zone.camera) continue;
-          if (!gridZonesByCamera[zone.camera]) gridZonesByCamera[zone.camera] = [];
-          gridZonesByCamera[zone.camera].push(zone);
-        }
-        
-        let gridMaskInputOffset = 0;
-        for (const [cam, zones] of Object.entries(gridZonesByCamera)) {
-          const blurStream = gridStreams.find(s => s.camera === cam);
-          if (!blurStream) continue;
-          
-          const blurCameraStreamTag = blurStream.tag;
-          console.log(`[BLUR] Applying ${zones.length} blur zone(s) to camera: ${cam} (method: ${blurType})`);
-          
-          try {
-            // Combine multiple masks for same camera into one composite mask
-            const firstZone = zones[0];
-            const maskW = firstZone.maskWidth || 1448;
-            const maskH = firstZone.maskHeight || 938;
-            
-            const { createCanvas: createCanvas2, loadImage: loadImage2 } = getCanvas();
-            const compositeCanvas = createCanvas2(maskW, maskH);
-            const compositeCtx = compositeCanvas.getContext('2d');
-            compositeCtx.fillStyle = 'black';
-            compositeCtx.fillRect(0, 0, maskW, maskH);
-            
-            for (const zone of zones) {
-              const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-              const maskImg = await loadImage2(maskBuffer);
-              compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-            }
-            
-            const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
-            const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
-            fs.writeFileSync(maskPath, compositeMaskBuffer);
-            tempFiles.push(maskPath);
-            
-            let maskInputIdx = inputs.length + 1;
-            maskInputIdx += gridMaskInputOffset;
-            gridMaskInputOffset++;
-            
-            cmd.push('-loop', '1', '-framerate', FPS.toString(), '-i', maskPath);
-            
-            const cameraW = w + (w % 2);
-            const cameraH = h + (h % 2);
-            
-            const blurredStreamTag = `[blurred_${cam}]`;
-            
-            // True Blur: uses alpha channel for smooth edge blending
-            filters.push(`${blurCameraStreamTag}split=2[blur_orig_${cam}][blur_base_${cam}]`);
-            filters.push(`[${maskInputIdx}:v]scale=${cameraW}:${cameraH}:force_original_aspect_ratio=disable,format=gray,format=yuva420p[mask_alpha_${cam}]`);
-            filters.push(`[blur_orig_${cam}]boxblur=10:10[blurred_temp_${cam}]`);
-            filters.push(`[blurred_temp_${cam}][mask_alpha_${cam}]alphamerge[blurred_with_alpha_${cam}]`);
-            filters.push(`[blur_base_${cam}][blurred_with_alpha_${cam}]overlay=0:0:format=auto${blurredStreamTag}`);
-            
-            blurStream.tag = blurredStreamTag;
-            const streamIndex = streamTags.indexOf(blurCameraStreamTag);
-            if (streamIndex !== -1) {
-              streamTags[streamIndex] = blurredStreamTag;
-            }
-          } catch (err) {
-            console.error('[BLUR] Failed to apply blur zone:', err);
-          }
-        }
-      }
+      await applyBlurZonesToStreams({
+        blurZones, blurType, streams: gridStreams, streamTags,
+        cameraW: w + (w % 2), cameraH: h + (h % 2),
+        filters, cmd, tempFiles, inputCount: inputs.length,
+        extraOffset: 0, exportId, FPS
+      });
       
       const numStreams = activeCamerasForGrid.length;
       if (numStreams > 1) {
@@ -1784,9 +1601,6 @@ ipcMain.handle('dev:reloadApp', async () => {
   return { success: false, error: 'No main window' };
 });
 
-ipcMain.handle('app:isPackaged', async () => {
-  return app.isPackaged;
-});
 
 // Diagnostics & Support ID IPC Handlers
 ipcMain.handle('diagnostics:get', async () => {
@@ -1852,15 +1666,6 @@ ipcMain.handle('diagnostics:get', async () => {
   }
 });
 
-ipcMain.handle('diagnostics:writeFile', async (_event, filePath, content) => {
-  try {
-    fs.writeFileSync(filePath, content, 'utf-8');
-    return { success: true };
-  } catch (err) {
-    console.error('Failed to write diagnostic file:', err);
-    return { success: false, error: err.message };
-  }
-});
 
 // Diagnostics storage module (extracted to src/main/diagnostics.js)
 registerDiagnosticsStorageIpc(SUPPORT_SERVER_URL);

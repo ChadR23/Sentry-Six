@@ -419,14 +419,11 @@ function getGpuEncoderHEVC() { return gpuEncoderHEVC; }
 function setGpuEncoderHEVC(val) { gpuEncoderHEVC = val; }
 
 module.exports = {
-  ensureExecutable,
   findFFmpegPath,
   formatExportDuration,
   detectGpuHardware,
-  testEncoderCapability,
   detectGpuEncoder,
   detectHEVCEncoder,
-  makeEven,
   getGpuEncoder,
   setGpuEncoder,
   getGpuEncoderHEVC,

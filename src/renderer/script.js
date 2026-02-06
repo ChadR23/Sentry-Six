@@ -1,7 +1,7 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
 import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, SENTRY_CAMERA_HIGHLIGHT_KEY, SAVED_CAMERA_HIGHLIGHT_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
-import { escapeHtml, cssEscape, filePathToUrl } from './scripts/lib/utils.js';
+import { filePathToUrl } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
 import { notify } from './scripts/ui/notifications.js';
 import { showLoading, updateLoading, hideLoading, yieldToUI } from './scripts/ui/loadingOverlay.js';
@@ -24,19 +24,18 @@ import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelc
 import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
     initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder,
-    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder, updateCompactDashboardPosition
+    resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, updateCompactDashboardPosition
 } from './scripts/features/cameraRearrange.js';
 import { initDraggablePanels, resetPanelPosition } from './scripts/ui/draggablePanels.js';
 import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight } from './scripts/ui/eventMarkers.js';
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
 import { initDashboardVisibility, updateDashboardVisibility } from './scripts/ui/dashboardVisibility.js';
-import { hasValidGps, extractSeiFromBuffer, extractSeiFromFile, extractSeiFromEntry, findSeiAtTime } from './scripts/core/seiExtractor.js';
+import { hasValidGps, extractSeiFromEntry, findSeiAtTime } from './scripts/core/seiExtractor.js';
 import { 
-    getRootFolderNameFromWebkitRelativePath, getBestEffortRelPath, parseTeslaCamPath, 
-    parseClipFilename, normalizeCamera, cameraLabel, buildTeslaCamIndex, buildDayCollections
+    getRootFolderNameFromWebkitRelativePath, cameraLabel, buildTeslaCamIndex, buildDayCollections
 } from './scripts/core/teslaCamIndex.js';
-import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, forceResyncAllVideos, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
+import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
 import { 
     initClipBrowser, renderClipList, highlightSelectedClip, 
     buildDisplayItems, parseTimestampKeyToEpochMs

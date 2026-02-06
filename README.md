@@ -49,7 +49,6 @@ Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. Vi
   - Add a GPS minimap to your export (Alpha)
   - Add a timestamp overlay with multiple date formats
   - Use blur zones to ensure privacy
-    - Multiple blur options: Solid (fast), Blur, True Blur
   - Minimize the export modal and track progress via floating notification
   <img width="269" height="352" alt="Export Modal" src="https://github.com/user-attachments/assets/1129003c-def2-43ad-b384-81ae1fdf1304" />
 

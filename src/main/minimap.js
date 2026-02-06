@@ -511,13 +511,6 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
 
 module.exports = {
   calculateMinimapSize,
-  latLonToTile,
-  tileToLatLon,
-  calculateOptimalZoom,
-  downloadMapTile,
   downloadStaticMapBackground,
-  createMinimapRenderer,
-  renderMinimapFrame,
-  renderMinimapFrameByTime,
   preRenderMinimap
 };

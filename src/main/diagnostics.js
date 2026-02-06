@@ -230,4 +230,4 @@ function registerDiagnosticsStorageIpc(serverUrl) {
   });
 }
 
-module.exports = { diagnosticsDir, ensureDiagnosticsDir, fetchFromUrl, registerDiagnosticsStorageIpc };
+module.exports = { registerDiagnosticsStorageIpc };
