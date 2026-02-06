@@ -31,6 +31,11 @@ import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
 import { initDashboardVisibility, updateDashboardVisibility } from './scripts/ui/dashboardVisibility.js';
+import { hasValidGps, extractSeiFromBuffer, extractSeiFromFile, extractSeiFromEntry, findSeiAtTime } from './scripts/core/seiExtractor.js';
+import { 
+    getRootFolderNameFromWebkitRelativePath, getBestEffortRelPath, parseTeslaCamPath, 
+    parseClipFilename, normalizeCamera, cameraLabel, buildTeslaCamIndex, buildDayCollections
+} from './scripts/core/teslaCamIndex.js';
 import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, forceResyncAllVideos, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
 import { 
     initClipBrowser, renderClipList, highlightSelectedClip, 
@@ -47,20 +52,9 @@ const previews = state.previews;
 let seiType = null;
 let enumFields = null;
 
-// Multi-camera playback (Step 6)
-// now lives in state.multi
-
-// MULTI_LAYOUTS now lives in src/multiLayouts.js
-
-// Preview pipeline state now lives in state.previews
-
 // Sentry event metadata (event.json)
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
-
-// Export state moved to scripts/features/exportVideo.js
-
-// Sentry collection mode state now lives in state.collection.active
 
 // DOM Elements
 const $ = id => document.getElementById(id);
@@ -77,7 +71,6 @@ const progressBar = $('progressBar');
 const playBtn = $('playBtn');
 const skipBackBtn = $('skipBackBtn');
 const skipForwardBtn = $('skipForwardBtn');
-// currentTimeEl and totalTimeEl moved to scripts/ui/timeDisplay.js
 const dashboardVis = $('dashboardVis');
 const videoContainer = $('videoContainer');
 const clipList = $('clipList');
@@ -110,24 +103,38 @@ const videoBySlot = {
 // URL object references for cleanup
 const videoUrls = new Map(); // video element -> objectURL
 
-// Custom camera order moved to scripts/features/cameraRearrange.js
-
 // Visualization Elements
 const speedValue = $('speedValue');
 const gearState = $('gearState');
 const blinkLeft = $('blinkLeft');
 const blinkRight = $('blinkRight');
+const speedUnit = $('speedUnit');
+const autosteerIcon = $('autosteerIcon');
+const accelPedal = $('accelPedal');
+const accelFill = $('accelFill');
 
-// Steering wheel animation moved to scripts/ui/steeringWheel.js
+// Compact dashboard elements (cached to avoid 36fps getElementById calls)
+const speedValueCompact = $('speedValueCompact');
+const speedUnitCompact = $('speedUnitCompact');
+const gearStateCompact = $('gearStateCompact');
+const blinkLeftCompact = $('blinkLeftCompact');
+const blinkRightCompact = $('blinkRightCompact');
+const steeringIconCompact = $('steeringIconCompact');
+const autosteerIconCompact = $('autosteerIconCompact');
+const apTextCompact = $('apTextCompact');
+const brakeIconCompact = $('brakeIconCompact');
+const accelPedalCompact = $('accelPedalCompact');
+const accelFillCompact = $('accelFillCompact');
+const dashboardVisCompact = $('dashboardVisCompact');
+
 // Initialize with playback rate getter
 initSteeringWheel(() => state.ui.playbackRate || 1);
 
 // Reset dashboard and map to default state (no SEI data)
-function resetDashboardAndMap() {
+function resetDashboardElements() {
     // Reset speed
     if (speedValue) speedValue.textContent = '--';
-    const unitEl = $('speedUnit');
-    if (unitEl) unitEl.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
+    if (speedUnit) speedUnit.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
     
     // Reset gear
     if (gearState) {
@@ -143,7 +150,6 @@ function resetDashboardAndMap() {
     resetSteeringWheel();
     
     // Reset autopilot
-    const autosteerIcon = $('autosteerIcon');
     if (autosteerIcon) autosteerIcon.classList.remove('active');
     if (apText) {
         apText.textContent = t('ui.dashboard.noData');
@@ -152,32 +158,21 @@ function resetDashboardAndMap() {
     
     // Reset brake and accelerator
     brakeIcon?.classList.remove('active');
-    const accelPedal = $('accelPedal');
     if (accelPedal) accelPedal.classList.remove('active');
     
     // Reset compact dashboard elements
-    const brakeIconCompact = $('brakeIconCompact');
     if (brakeIconCompact) brakeIconCompact.classList.remove('active');
-    const accelPedalCompact = $('accelPedalCompact');
     if (accelPedalCompact) accelPedalCompact.classList.remove('active');
-    const speedValueCompact = $('speedValueCompact');
     if (speedValueCompact) speedValueCompact.textContent = '--';
-    const unitElCompact = $('speedUnitCompact');
-    if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
-    const gearStateCompact = $('gearStateCompact');
+    if (speedUnitCompact) speedUnitCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
     if (gearStateCompact) {
         gearStateCompact.textContent = '--';
         gearStateCompact.classList.remove('active');
     }
-    const blinkLeftCompact = $('blinkLeftCompact');
-    const blinkRightCompact = $('blinkRightCompact');
     blinkLeftCompact?.classList.remove('active', 'paused');
     blinkRightCompact?.classList.remove('active', 'paused');
-    const steeringIconCompact = $('steeringIconCompact');
     if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
-    const autosteerIconCompact = $('autosteerIconCompact');
     if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
-    const apTextCompact = $('apTextCompact');
     if (apTextCompact) {
         apTextCompact.textContent = t('ui.dashboard.manual');
         apTextCompact.classList.remove('active');
@@ -194,6 +189,10 @@ function resetDashboardAndMap() {
     
     // Reset compass
     resetCompass();
+}
+
+function resetDashboardAndMap() {
+    resetDashboardElements();
     
     // Reset map
     clearMapMarker();
@@ -222,82 +221,6 @@ function resetDashboardAndMap() {
         nativeVideo.lastSeiTimeMs = -Infinity;
         nativeVideo.dashboardReset = false;
     }
-}
-
-// Reset only dashboard elements (not map - preserve event.json marker)
-function resetDashboardOnly() {
-    // Reset speed
-    if (speedValue) speedValue.textContent = '--';
-    const unitEl = $('speedUnit');
-    if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
-    
-    // Reset gear
-    if (gearState) {
-        gearState.textContent = '--';
-        gearState.classList.remove('active');
-    }
-    
-    // Reset blinkers
-    blinkLeft?.classList.remove('active', 'paused');
-    blinkRight?.classList.remove('active', 'paused');
-    
-    // Reset steering wheel
-    resetSteeringWheel();
-    
-    // Reset autopilot
-    const autosteerIcon = $('autosteerIcon');
-    if (autosteerIcon) autosteerIcon.classList.remove('active');
-    if (apText) {
-        apText.textContent = t('ui.dashboard.noData');
-        apText.classList.remove('active');
-    }
-    
-    // Reset brake and accelerator
-    brakeIcon?.classList.remove('active');
-    const accelPedal = $('accelPedal');
-    if (accelPedal) accelPedal.classList.remove('active');
-    
-    // Reset compact dashboard elements
-    const brakeIconCompact = $('brakeIconCompact');
-    if (brakeIconCompact) brakeIconCompact.classList.remove('active');
-    const accelPedalCompact = $('accelPedalCompact');
-    if (accelPedalCompact) accelPedalCompact.classList.remove('active');
-    const speedValueCompact = $('speedValueCompact');
-    if (speedValueCompact) speedValueCompact.textContent = '--';
-    const unitElCompact = $('speedUnitCompact');
-    if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
-    const gearStateCompact = $('gearStateCompact');
-    if (gearStateCompact) {
-        gearStateCompact.textContent = '--';
-        gearStateCompact.classList.remove('active');
-    }
-    const blinkLeftCompact = $('blinkLeftCompact');
-    const blinkRightCompact = $('blinkRightCompact');
-    blinkLeftCompact?.classList.remove('active', 'paused');
-    blinkRightCompact?.classList.remove('active', 'paused');
-    const steeringIconCompact = $('steeringIconCompact');
-    if (steeringIconCompact) steeringIconCompact.style.transform = 'rotate(0deg)';
-    const autosteerIconCompact = $('autosteerIconCompact');
-    if (autosteerIconCompact) autosteerIconCompact.classList.remove('active');
-    const apTextCompact = $('apTextCompact');
-    if (apTextCompact) {
-        apTextCompact.textContent = t('ui.dashboard.manual');
-        apTextCompact.classList.remove('active');
-    }
-    
-    // Reset extra data
-    if (valSeq) valSeq.textContent = '--';
-    if (valLat) valLat.textContent = '--';
-    if (valLon) valLon.textContent = '--';
-    if (valHeading) valHeading.textContent = '--';
-    
-    // Reset G-force meter
-    resetGForceMeter();
-    
-    // Reset compass
-    resetCompass();
-    
-    // Note: Map is NOT reset here - preserves event.json static marker
 }
 
 // Show a static map marker from event.json location data (for Sentry/Saved clips)
@@ -390,7 +313,6 @@ const mapVis = $('mapVis');
 
 // Map State
 let map = null;
-// mapMarker moved to scripts/ui/mapVisualization.js
 let mapPolyline = null;
 let eventLocationMarker = null; // Static marker for Sentry/Saved clip event locations
 let mapPath = [];
@@ -401,30 +323,10 @@ const valLon = $('valLon');
 const valHeading = $('valHeading');
 const valSeq = $('valSeq');
 
-// G-Force Meter Elements moved to scripts/ui/gforceMeter.js
-
-// Compass Elements moved to scripts/ui/compass.js
-
-
 // Constants
 const MPS_TO_MPH = 2.23694;
 const MPS_TO_KMH = 3.6;
 let useMetric = false; // Will be loaded from settings
-
-// notify() moved to scripts/ui/notifications.js
-// Loading overlay helpers moved to scripts/ui/loadingOverlay.js
-
-function hasValidGps(sei) {
-    // Tesla SEI can be missing, zeroed, or invalid while parked / initializing GPS.
-    const lat = Number(sei?.latitudeDeg ?? sei?.latitude_deg);
-    const lon = Number(sei?.longitudeDeg ?? sei?.longitude_deg);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-    // Treat (0,0) as "no fix" (real-world clips should never be there).
-    if (lat === 0 && lon === 0) return false;
-    // Basic sanity bounds.
-    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return false;
-    return true;
-}
 
 // Initialize
 (async function init() {
@@ -455,10 +357,8 @@ function hasValidGps(sei) {
         console.log('Language changed to:', lang);
         
         // Update speed unit labels
-        const unitEl = $('speedUnit');
-        if (unitEl) unitEl.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
-        const unitElCompact = $('speedUnitCompact');
-        if (unitElCompact) unitElCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
+        if (speedUnit) speedUnit.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
+        if (speedUnitCompact) speedUnitCompact.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
         
         // Update "Manual" / "No Data" text if currently displayed
         if (apText && apText.textContent === 'Manual') {
@@ -467,7 +367,6 @@ function hasValidGps(sei) {
             apText.textContent = t('ui.dashboard.noData');
         }
         
-        const apTextCompact = $('apTextCompact');
         if (apTextCompact && apTextCompact.textContent === 'Manual') {
             apTextCompact.textContent = t('ui.dashboard.manual');
         }
@@ -768,10 +667,8 @@ function hasValidGps(sei) {
                 window.electronAPI.setSetting('useMetric', useMetric);
             }
             // Update speed unit display for both dashboards
-            const unitEl = $('speedUnit');
-            if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
-            const unitElCompact = $('speedUnitCompact');
-            if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+            if (speedUnit) speedUnit.textContent = useMetric ? 'KM/H' : 'MPH';
+            if (speedUnitCompact) speedUnitCompact.textContent = useMetric ? 'KM/H' : 'MPH';
         };
     }
 
@@ -810,8 +707,7 @@ function hasValidGps(sei) {
             useMetric = saved === true;
             const metricToggle = $('metricToggle');
             if (metricToggle) metricToggle.checked = useMetric;
-            const unitEl = $('speedUnit');
-            if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
+            if (speedUnit) speedUnit.textContent = useMetric ? 'KM/H' : 'MPH';
         });
         window.electronAPI.getSetting('accelPedMode').then(saved => {
             const mode = saved || 'iconbar';
@@ -846,8 +742,8 @@ function hasValidGps(sei) {
     window.updateDashboardLayout = async (layout) => {
         dashboardLayout = layout || 'default';
         window.dashboardLayout = dashboardLayout; // Store globally for dashboardVisibility
-        const defaultDash = $('dashboardVis');
-        const compactDash = $('dashboardVisCompact');
+        const defaultDash = dashboardVis;
+        const compactDash = dashboardVisCompact;
         
         if (defaultDash && compactDash) {
             if (dashboardLayout === 'compact') {
@@ -875,8 +771,6 @@ function hasValidGps(sei) {
     
     // Global function to update accelerator pedal display mode for all dashboards
     window.updateAccelPedMode = (mode) => {
-        const accelPedal = $('accelPedal');
-        const accelPedalCompact = $('accelPedalCompact');
         
         // Remove all mode classes
         const modes = ['mode-solid', 'mode-iconbar', 'mode-sidebar'];
@@ -894,16 +788,15 @@ function hasValidGps(sei) {
     
     // Global function to update compact dashboard positioning (fixed vs movable)
     window.updateCompactDashboardPositioning = (isFixed) => {
-        const compactDash = $('dashboardVisCompact');
-        if (!compactDash) return;
+        if (!dashboardVisCompact) return;
         
         if (isFixed) {
             // Fixed mode: remove draggable, attach to front camera
-            compactDash.classList.add('fixed-to-camera');
-            compactDash.classList.remove('draggable');
+            dashboardVisCompact.classList.add('fixed-to-camera');
+            dashboardVisCompact.classList.remove('draggable');
             // Reset drag offset and clear transform
-            resetPanelPosition(compactDash);
-            compactDash.style.cursor = '';
+            resetPanelPosition(dashboardVisCompact);
+            dashboardVisCompact.style.cursor = '';
             
             // Re-attach to front camera first - move it to the tile
             if (updateCompactDashboardPosition) {
@@ -915,28 +808,28 @@ function hasValidGps(sei) {
                 requestAnimationFrame(() => {
                     // Clear all inline positioning styles to let CSS handle it
                     // The CSS rule .multi-tile .dashboard-vis-compact will take over
-                    compactDash.style.position = '';
-                    compactDash.style.top = '';
-                    compactDash.style.right = '';
-                    compactDash.style.bottom = '';
-                    compactDash.style.left = '';
-                    compactDash.style.width = '';
-                    compactDash.style.height = '';
-                    compactDash.style.padding = '';
-                    compactDash.style.zIndex = '';
+                    dashboardVisCompact.style.position = '';
+                    dashboardVisCompact.style.top = '';
+                    dashboardVisCompact.style.right = '';
+                    dashboardVisCompact.style.bottom = '';
+                    dashboardVisCompact.style.left = '';
+                    dashboardVisCompact.style.width = '';
+                    dashboardVisCompact.style.height = '';
+                    dashboardVisCompact.style.padding = '';
+                    dashboardVisCompact.style.zIndex = '';
                     // Clear transform - CSS will set translateX(-50%)
-                    compactDash.style.transform = '';
-                    compactDash.style.pointerEvents = '';
+                    dashboardVisCompact.style.transform = '';
+                    dashboardVisCompact.style.pointerEvents = '';
                 });
             });
         } else {
             // Movable mode: make it draggable like default dashboard
-            compactDash.classList.remove('fixed-to-camera');
-            compactDash.classList.add('draggable');
+            dashboardVisCompact.classList.remove('fixed-to-camera');
+            dashboardVisCompact.classList.add('draggable');
             // Move to body if it's inside a tile
-            const parent = compactDash.parentElement;
+            const parent = dashboardVisCompact.parentElement;
             if (parent && parent.classList.contains('multi-tile')) {
-                document.body.appendChild(compactDash);
+                document.body.appendChild(dashboardVisCompact);
             }
             // Use requestAnimationFrame to ensure DOM/CSS updates are applied
             requestAnimationFrame(() => {
@@ -980,31 +873,30 @@ function hasValidGps(sei) {
                 }
                 
                 // Set initial positioning via inline styles (these override CSS)
-                compactDash.style.position = 'fixed';
-                compactDash.style.top = initialTop;
-                compactDash.style.left = initialLeft;
-                compactDash.style.right = 'auto';
-                compactDash.style.bottom = 'auto';
-                compactDash.style.width = '480px';
-                compactDash.style.height = '56px';
-                compactDash.style.padding = '6px 10px';
-                compactDash.style.zIndex = '101';
-                compactDash.style.pointerEvents = 'auto';
-                compactDash.style.cursor = 'grab';
+                dashboardVisCompact.style.position = 'fixed';
+                dashboardVisCompact.style.top = initialTop;
+                dashboardVisCompact.style.left = initialLeft;
+                dashboardVisCompact.style.right = 'auto';
+                dashboardVisCompact.style.bottom = 'auto';
+                dashboardVisCompact.style.width = '480px';
+                dashboardVisCompact.style.height = '56px';
+                dashboardVisCompact.style.padding = '6px 10px';
+                dashboardVisCompact.style.zIndex = '101';
+                dashboardVisCompact.style.pointerEvents = 'auto';
+                dashboardVisCompact.style.cursor = 'grab';
                 // Set initial transform - draggablePanels will update it with !important for compact dashboard
-                compactDash.style.transform = 'translate3d(0, 0, 0)';
+                dashboardVisCompact.style.transform = 'translate3d(0, 0, 0)';
                 // Reset drag offset to start fresh
-                resetPanelPosition(compactDash);
+                resetPanelPosition(dashboardVisCompact);
                 // Make it draggable - it will update the transform via inline style
-                initDraggablePanels([compactDash]);
+                initDraggablePanels([dashboardVisCompact]);
             });
         }
     };
     
     // Initialize compact dashboard positioning on load
     async function initCompactDashboardPositioning() {
-        const compactDash = $('dashboardVisCompact');
-        if (!compactDash) return;
+        if (!dashboardVisCompact) return;
         
         const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
         if (window.updateCompactDashboardPositioning) {
@@ -1040,7 +932,7 @@ function hasValidGps(sei) {
     const setEndMarkerBtn = $('setEndMarkerBtn');
     const exportBtn = $('exportBtn');
     const exportModal = $('exportModal');
-    const closeExportModal = $('closeExportModal');
+    const closeExportModalBtn = $('closeExportModal');
     const startExportBtn = $('startExportBtn');
     const cancelExportBtn = $('cancelExportBtn');
 
@@ -1053,11 +945,11 @@ function hasValidGps(sei) {
     if (exportBtn) {
         exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); exportBtn.blur(); };
     }
-    if (closeExportModal) {
-        closeExportModal.onclick = (e) => { 
+    if (closeExportModalBtn) {
+        closeExportModalBtn.onclick = (e) => { 
             e.preventDefault(); 
             // During export, this will minimize the modal and show floating progress
-            closeExportModalFn(); 
+            closeExportModal(); 
         };
     }
     if (cancelExportBtn) {
@@ -1070,7 +962,7 @@ function hasValidGps(sei) {
     if (exportModal) {
         exportModal.onclick = (e) => {
             if (e.target === exportModal) {
-                closeExportModalFn();
+                closeExportModal();
             }
         };
     }
@@ -1213,14 +1105,12 @@ function setMultiLayout(layoutId) {
     }
 }
 
-// Zoom/Pan moved to scripts/ui/zoomPan.js
 // Initialize zoom/pan module
 initZoomPan({
     getMultiCamGrid: () => multiCamGrid,
     getState: () => state
 });
 
-// Multi-camera focus moved to scripts/ui/multiCamFocus.js
 initMultiCamFocus({
     getMultiCamGrid: () => multiCamGrid,
     getState: () => state,
@@ -1228,13 +1118,11 @@ initMultiCamFocus({
     getVideoBySlot: () => videoBySlot
 });
 
-// Dashboard visibility moved to scripts/ui/dashboardVisibility.js
 initDashboardVisibility({
     getDashboardVis: () => dashboardVis,
     getState: () => state
 });
 
-// Map visibility moved to scripts/ui/mapVisualization.js
 initMapVisualization({
     getMap: () => map,
     getMapVis: () => mapVis,
@@ -1242,9 +1130,6 @@ initMapVisualization({
     getState: () => state
 });
 
-// Clips panel mode logic moved to src/panelMode.js
-
-// Draggable panels moved to scripts/ui/draggablePanels.js
 initDraggablePanels([dashboardVis, mapVis]);
 
 // Handle clip deletion - refresh the clip list
@@ -1323,7 +1208,6 @@ function handleClipDeleted(collectionId, folderPath, unloadOnly = false) {
     }
 }
 
-// Clip browser moved to scripts/core/clipBrowser.js
 initClipBrowser({
     getState: () => state,
     getLibrary: () => library,
@@ -1336,7 +1220,6 @@ initClipBrowser({
     onClipDeleted: handleClipDeleted
 });
 
-// Settings Modal moved to scripts/ui/settingsModal.js
 // Initialize settings modal with dependencies
 initSettingsModalDeps({
     getState: () => state,
@@ -1366,8 +1249,7 @@ window._openWelcomeGuide = openWelcomeGuide;
 // Expose notify function globally for modules
 window.showNotification = notify;
 
-// Keybind System - moved to scripts/lib/keybinds.js
-// Initialize keybind actions (handlers stay here since they use local functions)
+// Initialize keybind actions
 initKeybindActions({
     playPause: () => {
         const playBtn = $('playBtn');
@@ -1885,53 +1767,10 @@ async function loadDateContentElectron(date) {
     
     // Build index with path information
     const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
+    mergeIntoLibrary(built, date);
     
-    // Merge into library (replace data for this date)
-    library.clipGroups = built.groups;
-    library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
-    library.dayCollections = buildDayCollections(library.clipGroups);
-    library.dayData = library.dayData || new Map();
-    
-    // Update day data for this date
-    const dayData = { recent: [], sentry: new Map(), saved: new Map() };
-    for (const g of library.clipGroups) {
-        const type = (g.tag || '').toLowerCase();
-        if (type === 'recentclips') {
-            dayData.recent.push(g);
-        } else if (type === 'sentryclips' && g.eventId) {
-            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
-            dayData.sentry.get(g.eventId).push(g);
-        } else if (type === 'savedclips' && g.eventId) {
-            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
-            dayData.saved.get(g.eventId).push(g);
-        }
-    }
-    library.dayData.set(date, dayData);
-
-    // Reset selection
-    selection.selectedGroupId = null;
-    state.collection.active = null;
-    previews.cache.clear();
-    previews.queue.length = 0;
-    previews.inFlight = 0;
-
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
-    renderClipList();
-
-    // Auto-select first item
-    const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
-    if (dayValues.length) {
-        dayValues.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
-        const latest = dayValues[0];
-        if (latest?.key) {
-            selectDayCollection(latest.key);
-            // Update export button state after collection loads
-            setTimeout(updateExportButtonState, 100);
-        }
-    }
-
-    // Parse event.json in background
-    ingestSentryEventJson(built.eventAssetsByKey);
+    // Update export button state after collection loads
+    setTimeout(updateExportButtonState, 100);
     
     notify(t('ui.notifications.loadedFilesForDate', { count: files.length, date: formatDateDisplay(date) }), { type: 'success' });
 }
@@ -2325,38 +2164,15 @@ async function loadEventFolder(eventHandle, clipType, eventId, files) {
     }
 }
 
-// Process files for a single date
-async function handleFolderFilesForDate(files, date) {
-    if (!seiType) {
-        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
-        return;
-    }
-
-    const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
-    
-    // Merge into library (replace data for this date)
+// Shared helper: merge built index into library, reset selection, render, auto-select
+function mergeIntoLibrary(built, date) {
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
-    library.dayCollections = buildDayCollections(library.clipGroups);
-    library.dayData = library.dayData || new Map();
-    
-    // Update day data for this date
-    const dayData = { recent: [], sentry: new Map(), saved: new Map() };
-    for (const g of library.clipGroups) {
-        const type = (g.tag || '').toLowerCase();
-        if (type === 'recentclips') {
-            dayData.recent.push(g);
-        } else if (type === 'sentryclips' && g.eventId) {
-            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
-            dayData.sentry.get(g.eventId).push(g);
-        } else if (type === 'savedclips' && g.eventId) {
-            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
-            dayData.saved.get(g.eventId).push(g);
-        }
-    }
-    library.dayData.set(date, dayData);
+    const dayResult = buildDayCollections(library.clipGroups);
+    library.dayCollections = dayResult.collections;
+    library.allDates = dayResult.allDates;
+    library.dayData = dayResult.dayData;
 
-    // Reset selection
     selection.selectedGroupId = null;
     state.collection.active = null;
     previews.cache.clear();
@@ -2366,7 +2182,6 @@ async function handleFolderFilesForDate(files, date) {
     clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
 
-    // Auto-select first item
     const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
     if (dayValues.length) {
         dayValues.sort((a, b) => (b.sortEpoch ?? 0) - (a.sortEpoch ?? 0));
@@ -2376,8 +2191,18 @@ async function handleFolderFilesForDate(files, date) {
         }
     }
 
-    // Parse event.json in background
     ingestSentryEventJson(built.eventAssetsByKey);
+}
+
+// Process files for a single date
+async function handleFolderFilesForDate(files, date) {
+    if (!seiType) {
+        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
+        return;
+    }
+
+    const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
+    mergeIntoLibrary(built, date);
 }
 
 // Default click = choose folder (streamlined TeslaCam flow).
@@ -2423,287 +2248,6 @@ function resetMultiStreams() {
         try { s.decoder?.close?.(); } catch { /* ignore */ }
     }
     multi.streams.clear();
-}
-
-// Folder Ingest + Clip Groups
-function getRootFolderNameFromWebkitRelativePath(relPath) {
-    if (!relPath || typeof relPath !== 'string') return null;
-    const parts = relPath.split('/').filter(Boolean);
-    return parts.length ? parts[0] : null;
-}
-
-function getBestEffortRelPath(file, directoryName = null) {
-    // 1) webkitdirectory input provides webkitRelativePath
-    if (file?.webkitRelativePath) return file.webkitRelativePath;
-
-    // 2) directory drop traversal: our helper stores entry.fullPath on the File as _teslaPath
-    //    Example: "/TeslaCam/RecentClips/2025-...-front.mp4"
-    const p = file?._teslaPath;
-    if (typeof p === 'string' && p.length) {
-        return p.startsWith('/') ? p.slice(1) : p;
-    }
-
-    // 3) fall back to whatever we know
-    return directoryName ? `${directoryName}/${file.name}` : file.name;
-}
-
-function parseTeslaCamPath(relPath) {
-    const norm = (relPath || '').replace(/\\/g, '/');
-    const parts = norm.split('/').filter(Boolean);
-
-    // Known clip folder names (case-insensitive)
-    const clipFolders = ['recentclips', 'sentryclips', 'savedclips'];
-    
-    // Find any known parent folder (TeslaCam, teslausb, or any folder containing clip subfolders)
-    // First, look for a clip folder directly in the path
-    const clipFolderIdx = parts.findIndex(p => clipFolders.includes(p.toLowerCase()));
-    if (clipFolderIdx >= 0) {
-        // Found a clip folder - use it as the tag
-        const tag = parts[clipFolderIdx];
-        const rest = parts.slice(clipFolderIdx + 1);
-        return { tag, rest };
-    }
-
-    // Legacy: Find "TeslaCam" or "teslausb" segment if present
-    const knownRoots = ['teslacam', 'teslausb'];
-    const rootIdx = parts.findIndex(p => knownRoots.includes(p.toLowerCase()));
-    if (rootIdx >= 0 && parts.length > rootIdx + 1) {
-        const tag = parts[rootIdx + 1];
-        const rest = parts.slice(rootIdx + 2);
-        return { tag, rest };
-    }
-
-    // No known root: best effort tag from first folder if any
-    if (parts.length >= 2) return { tag: parts[0], rest: parts.slice(1) };
-    return { tag: 'Unknown', rest: parts.slice(1) };
-}
-
-function parseClipFilename(name) {
-    // Tesla naming: YYYY-MM-DD_HH-MM-SS-front.mp4
-    // Also seen in Sentry: same naming inside event folder; also "event.mp4" which we ignore.
-    const lower = name.toLowerCase();
-    if (!lower.endsWith('.mp4')) return null;
-    if (lower === 'event.mp4') return null;
-
-    const m = name.match(/^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})-(.+)\.mp4$/i);
-    if (!m) return null;
-    const timestampKey = `${m[1]}_${m[2]}`;
-    const cameraRaw = m[3];
-    return { timestampKey, camera: normalizeCamera(cameraRaw) };
-}
-
-function normalizeCamera(cameraRaw) {
-    const c = (cameraRaw || '').toLowerCase();
-    if (c === 'front') return 'front';
-    if (c === 'back') return 'back';
-    if (c === 'left_repeater' || c === 'left') return 'left_repeater';
-    if (c === 'right_repeater' || c === 'right') return 'right_repeater';
-    if (c === 'left_pillar') return 'left_pillar';
-    if (c === 'right_pillar') return 'right_pillar';
-    return c || 'unknown';
-}
-
-function cameraLabel(camera) {
-    if (camera === 'front') return t('ui.cameras.front');
-    if (camera === 'back') return t('ui.cameras.back');
-    if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
-    if (camera === 'right_repeater') return t('ui.cameras.rightRepeater');
-    if (camera === 'left_pillar') return t('ui.cameras.leftPillar');
-    if (camera === 'right_pillar') return t('ui.cameras.rightPillar');
-    return camera;
-}
-
-async function buildTeslaCamIndex(files, directoryName = null, onProgress = null) {
-    const groups = new Map(); // id -> group
-    let inferredRoot = directoryName || null;
-    const eventAssetsByKey = new Map(); // `${tag}/${eventId}` -> { jsonFile, pngFile, mp4File }
-
-    const totalFiles = files.length;
-    const BATCH_SIZE = 500; // Process files in batches to prevent UI blocking
-    let processed = 0;
-
-    for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
-        const relPath = getBestEffortRelPath(file, directoryName);
-        const { tag, rest } = parseTeslaCamPath(relPath);
-        const filename = rest[rest.length - 1] || file.name;
-        const lowerName = String(filename || '').toLowerCase();
-
-        // Event assets (event.json / event.png / event.mp4) for SentryClips and SavedClips
-        const tagLowerAsset = tag.toLowerCase();
-        if ((tagLowerAsset === 'sentryclips' || tagLowerAsset === 'savedclips') && rest.length >= 2 && (lowerName === 'event.json' || lowerName === 'event.png' || lowerName === 'event.mp4')) {
-            const eventId = rest[0];
-            const key = `${tag}/${eventId}`;
-            if (!eventAssetsByKey.has(key)) eventAssetsByKey.set(key, {});
-            const entry = eventAssetsByKey.get(key);
-            if (lowerName === 'event.json') entry.jsonFile = file;
-            if (lowerName === 'event.png') entry.pngFile = file;
-            if (lowerName === 'event.mp4') entry.mp4File = file;
-            processed++;
-            continue;
-        }
-
-        // Regular per-camera MP4
-        const parsed = parseClipFilename(filename);
-        if (!parsed) {
-            processed++;
-            continue;
-        }
-
-        // SentryClips/<eventId>/YYYY-...-front.mp4
-        // SavedClips/<eventId>/YYYY-...-front.mp4
-        // RecentClips/YYYY-...-front.mp4
-        let eventId = null;
-        const tagLower = tag.toLowerCase();
-        if ((tagLower === 'sentryclips' || tagLower === 'savedclips') && rest.length >= 2) {
-            eventId = rest[0];
-        }
-
-        const groupId = `${tag}/${eventId ? eventId + '/' : ''}${parsed.timestampKey}`;
-        if (!groups.has(groupId)) {
-            groups.set(groupId, {
-                id: groupId,
-                tag,
-                eventId,
-                timestampKey: parsed.timestampKey,
-                filesByCamera: new Map(),
-                bestRelPathHint: relPath,
-                eventMeta: null,
-                eventJsonFile: null,
-                eventPngFile: null,
-                eventMp4File: null
-            });
-        }
-        const g = groups.get(groupId);
-        g.filesByCamera.set(parsed.camera, { file, relPath, tag, eventId, timestampKey: parsed.timestampKey, camera: parsed.camera });
-
-        // try to infer folder label from relPath root if possible
-        if (!inferredRoot && relPath) inferredRoot = relPath.split('/')[0] || null;
-
-        processed++;
-
-        // Yield to UI every BATCH_SIZE files to prevent blocking
-        if (processed % BATCH_SIZE === 0) {
-            if (onProgress) onProgress(processed, totalFiles, groups.size);
-            await yieldToUI();
-        }
-    }
-
-    // Final progress update
-    if (onProgress) onProgress(totalFiles, totalFiles, groups.size);
-
-    // Attach any event assets to groups in the same Sentry event folder
-    for (const g of groups.values()) {
-        if (!g.eventId) continue;
-        const key = `${g.tag}/${g.eventId}`;
-        const assets = eventAssetsByKey.get(key);
-        if (!assets) continue;
-        g.eventJsonFile = assets.jsonFile || null;
-        g.eventPngFile = assets.pngFile || null;
-        g.eventMp4File = assets.mp4File || null;
-    }
-
-    const arr = Array.from(groups.values());
-    arr.sort((a, b) => (b.timestampKey || '').localeCompare(a.timestampKey || ''));
-    return { groups: arr, inferredRoot, eventAssetsByKey };
-}
-
-function buildDayCollections(groups) {
-    // Hierarchical structure: date -> { recentClips: [], sentryEvents: [], savedEvents: [] }
-    const byDay = new Map(); // day -> { recent: groups[], sentry: Map<eventId, groups[]>, saved: Map<eventId, groups[]> }
-    const allDates = new Set();
-
-    for (const g of groups) {
-        const key = String(g.timestampKey || '');
-        const day = key.split('_')[0] || 'Unknown';
-        const type = (g.tag || '').toLowerCase();
-        
-        allDates.add(day);
-        
-        if (!byDay.has(day)) {
-            byDay.set(day, {
-                recent: [],
-                sentry: new Map(), // eventId -> groups[]
-                saved: new Map()   // eventId -> groups[]
-            });
-        }
-        const dayData = byDay.get(day);
-        
-        if (type === 'recentclips') {
-            dayData.recent.push(g);
-        } else if (type === 'sentryclips' && g.eventId) {
-            if (!dayData.sentry.has(g.eventId)) dayData.sentry.set(g.eventId, []);
-            dayData.sentry.get(g.eventId).push(g);
-        } else if (type === 'savedclips' && g.eventId) {
-            if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
-            dayData.saved.get(g.eventId).push(g);
-        }
-    }
-
-    // Build collections for each selectable item
-    const collections = new Map();
-
-    for (const [day, dayData] of byDay.entries()) {
-        // Recent clips collection (all clips for this day combined)
-        if (dayData.recent.length > 0) {
-            const recentGroups = dayData.recent.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
-            const id = `recent:${day}`;
-            collections.set(id, buildCollectionFromGroups(id, day, 'RecentClips', recentGroups));
-        }
-
-        // Individual Sentry events
-        for (const [eventId, eventGroups] of dayData.sentry.entries()) {
-            const sortedGroups = eventGroups.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
-            const id = `sentry:${day}:${eventId}`;
-            const coll = buildCollectionFromGroups(id, day, 'SentryClips', sortedGroups);
-            coll.eventId = eventId;
-            coll.eventTime = eventId.split('_')[1]?.replace(/-/g, ':') || '';
-            collections.set(id, coll);
-        }
-
-        // Individual Saved events
-        for (const [eventId, eventGroups] of dayData.saved.entries()) {
-            const sortedGroups = eventGroups.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
-            const id = `saved:${day}:${eventId}`;
-            const coll = buildCollectionFromGroups(id, day, 'SavedClips', sortedGroups);
-            coll.eventId = eventId;
-            coll.eventTime = eventId.split('_')[1]?.replace(/-/g, ':') || '';
-            collections.set(id, coll);
-        }
-    }
-
-    // Store all dates for the day filter
-    library.allDates = Array.from(allDates).sort().reverse();
-    library.dayData = byDay;
-
-    return collections;
-}
-
-function buildCollectionFromGroups(id, day, clipType, groups) {
-    const startEpochMs = parseTimestampKeyToEpochMs(groups[0]?.timestampKey) ?? 0;
-    const lastStart = parseTimestampKeyToEpochMs(groups[groups.length - 1]?.timestampKey) ?? startEpochMs;
-    const endEpochMs = lastStart + 60_000;
-    const durationMs = Math.max(1, endEpochMs - startEpochMs);
-
-    const segmentStartsMs = groups.map(g => {
-        const t = parseTimestampKeyToEpochMs(g.timestampKey) ?? startEpochMs;
-        return Math.max(0, t - startEpochMs);
-    });
-
-    return {
-        id,
-        key: id,
-        day,
-        clipType,
-        tag: clipType,
-        groups,
-        meta: null,
-        durationMs,
-        segmentStartsMs,
-        anchorMs: 0,
-        anchorGroupId: groups[0]?.id || null,
-        sortEpoch: endEpochMs
-    };
 }
 
 function updateDayFilterOptions() {
@@ -2795,7 +2339,10 @@ async function handleFolderFiles(fileList, directoryName = null) {
     library.folderLabel = built.inferredRoot || directoryName || 'Folder';
 
     // Build virtual day-level collections (Sentry Six–style day timelines)
-    library.dayCollections = buildDayCollections(library.clipGroups);
+    const dayResult = buildDayCollections(library.clipGroups);
+    library.dayCollections = dayResult.collections;
+    library.allDates = dayResult.allDates;
+    library.dayData = dayResult.dayData;
 
     // Build day index (YYYY-MM-DD) for Recent/Saved/Sentry clips
     const dayIndex = new Map();
@@ -2848,8 +2395,6 @@ async function handleFolderFiles(fileList, directoryName = null) {
     // Parse any Sentry event.json files in the background and attach metadata to groups.
     ingestSentryEventJson(built.eventAssetsByKey);
 }
-
-// Clip browser functions moved to scripts/core/clipBrowser.js
 
 function selectClipGroup(groupId) {
     const g = library.clipGroupById.get(groupId);
@@ -3067,6 +2612,9 @@ function selectDayCollection(dayKey) {
         console.error('Failed to load native segment:', err);
         notify(t('ui.notifications.failedToLoadVideo', { error: err?.message || String(err) }), { type: 'error' });
     });
+
+    // Update export button state after collection loads
+    setTimeout(updateExportButtonState, 100);
     } catch (err) {
         console.error('Error in selectDayCollection:', err);
         notify(t('ui.notifications.errorSelectingDay', { error: err?.message || String(err) }), { type: 'error' });
@@ -3141,8 +2689,6 @@ async function ingestSentryEventJson(eventAssetsByKey) {
         }
     }
 }
-
-// escapeHtml/cssEscape moved to scripts/lib/utils.js
 
 // Playback Logic
 playBtn.onclick = () => {
@@ -3456,9 +3002,6 @@ async function showCollectionAtMs(ms) {
     showFrame(idx);
 }
 
-// G-Force Meter moved to scripts/ui/gforceMeter.js
-// Compass moved to scripts/ui/compass.js
-
 // Visualization Logic - support both camelCase (protobufjs) and snake_case
 function updateVisualization(sei) {
     if (!sei) return;
@@ -3470,47 +3013,32 @@ function updateVisualization(sei) {
     const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
     
-    // Update default dashboard
+    // Speed
     if (speedValue) speedValue.textContent = speed;
-    const unitEl = $('speedUnit');
-    if (unitEl) unitEl.textContent = useMetric ? 'KM/H' : 'MPH';
-    
-    // Update compact dashboard
-    const speedValueCompact = $('speedValueCompact');
+    if (speedUnit) speedUnit.textContent = useMetric ? 'KM/H' : 'MPH';
     if (speedValueCompact) speedValueCompact.textContent = speed;
-    const unitElCompact = $('speedUnitCompact');
-    if (unitElCompact) unitElCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    if (speedUnitCompact) speedUnitCompact.textContent = useMetric ? 'KM/H' : 'MPH';
 
     // Gear
     const gear = get('gearState', 'gear_state');
     let gearText = '--';
-    if (gear === 0) gearText = 'Park'; // PARK
-    else if (gear === 1) gearText = 'Drive'; // DRIVE
-    else if (gear === 2) gearText = 'Reverse'; // REVERSE
-    else if (gear === 3) gearText = 'Neutral'; // NEUTRAL
+    if (gear === 0) gearText = 'Park';
+    else if (gear === 1) gearText = 'Drive';
+    else if (gear === 2) gearText = 'Reverse';
+    else if (gear === 3) gearText = 'Neutral';
     
-    if (gearState) {
-        gearState.textContent = gearText;
-    }
-    const gearStateCompact = $('gearStateCompact');
-    if (gearStateCompact) {
-        gearStateCompact.textContent = gearText;
-    }
+    if (gearState) gearState.textContent = gearText;
+    if (gearStateCompact) gearStateCompact.textContent = gearText;
 
     // Blinkers - pause animation when video is not playing
     const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
     const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
     const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
     
-    // Update default dashboard blinkers
     blinkLeft?.classList.toggle('active', leftBlinkerOn);
     blinkRight?.classList.toggle('active', rightBlinkerOn);
     blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
     blinkRight?.classList.toggle('paused', !isCurrentlyPlaying);
-    
-    // Update compact dashboard blinkers
-    const blinkLeftCompact = $('blinkLeftCompact');
-    const blinkRightCompact = $('blinkRightCompact');
     blinkLeftCompact?.classList.toggle('active', leftBlinkerOn);
     blinkRightCompact?.classList.toggle('active', rightBlinkerOn);
     blinkLeftCompact?.classList.toggle('paused', !isCurrentlyPlaying);
@@ -3522,12 +3050,9 @@ function updateVisualization(sei) {
 
     // Autopilot
     const apState = get('autopilotState', 'autopilot_state');
-    const autosteerIcon = $('autosteerIcon');
     const isActive = apState === 1 || apState === 2;
     
-    if (autosteerIcon) {
-        autosteerIcon.classList.toggle('active', isActive);
-    }
+    if (autosteerIcon) autosteerIcon.classList.toggle('active', isActive);
     apText?.classList.toggle('active', isActive);
     gearState?.classList.toggle('active', isActive);
     
@@ -3537,59 +3062,29 @@ function updateVisualization(sei) {
     else if (apState === 3) apTextContent = t('ui.dashboard.tacc');
     
     if (apText) apText.textContent = apTextContent;
-    
-    // Update compact dashboard autopilot
-    const autosteerIconCompact = $('autosteerIconCompact');
-    if (autosteerIconCompact) {
-        autosteerIconCompact.classList.toggle('active', isActive);
-    }
-    const apTextCompact = $('apTextCompact');
+    if (autosteerIconCompact) autosteerIconCompact.classList.toggle('active', isActive);
     if (apTextCompact) {
         apTextCompact.textContent = apTextContent;
         apTextCompact.classList.toggle('active', isActive);
     }
-    if (gearStateCompact) {
-        gearStateCompact.classList.toggle('active', isActive);
-    }
+    if (gearStateCompact) gearStateCompact.classList.toggle('active', isActive);
 
     // Brake
-    const brakeState = get('brakeApplied', 'brake_applied');
-    const brakeActive = !!brakeState;
+    const brakeActive = !!get('brakeApplied', 'brake_applied');
     brakeIcon?.classList.toggle('active', brakeActive);
-    
-    // Update compact dashboard brake
-    const brakeIconCompact = $('brakeIconCompact');
-    if (brakeIconCompact) {
-        brakeIconCompact.classList.toggle('active', brakeActive);
-    }
+    if (brakeIconCompact) brakeIconCompact.classList.toggle('active', brakeActive);
 
     // Accelerator pedal - lights up when pressed with pressure bar
     const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
     // Normalize to 0-100 range (SEI data can be 0-1 or 0-100 depending on version)
     const accelPct = accelPosRaw > 1 ? Math.min(100, accelPosRaw) : Math.min(100, accelPosRaw * 100);
     const isPressed = accelPct > 5;
+    const topInset = 100 - accelPct;
     
-    const accelPedal = $('accelPedal');
-    if (accelPedal) {
-        accelPedal.classList.toggle('active', isPressed);
-    }
-    const accelFill = $('accelFill');
-    if (accelFill) {
-        // clip-path inset: top right bottom left - reveal from bottom by reducing top inset
-        const topInset = 100 - accelPct;
-        accelFill.style.clipPath = `inset(${topInset}% 0 0 0)`;
-    }
-    
-    // Update compact dashboard accelerator
-    const accelPedalCompact = $('accelPedalCompact');
-    if (accelPedalCompact) {
-        accelPedalCompact.classList.toggle('active', isPressed);
-    }
-    const accelFillCompact = $('accelFillCompact');
-    if (accelFillCompact) {
-        const topInset = 100 - accelPct;
-        accelFillCompact.style.clipPath = `inset(${topInset}% 0 0 0)`;
-    }
+    if (accelPedal) accelPedal.classList.toggle('active', isPressed);
+    if (accelFill) accelFill.style.clipPath = `inset(${topInset}% 0 0 0)`;
+    if (accelPedalCompact) accelPedalCompact.classList.toggle('active', isPressed);
+    if (accelFillCompact) accelFillCompact.style.clipPath = `inset(${topInset}% 0 0 0)`;
 
     // Extra Data
     const seqNo = get('frameSeqNo', 'frame_seq_no');
@@ -3614,7 +3109,6 @@ function updateVisualization(sei) {
     // Compass Update
     updateCompass(sei);
 
-    // Map Update - moved to scripts/ui/mapVisualization.js
     updateMapMarker(sei, hasValidGps);
 }
 
@@ -3646,8 +3140,7 @@ dashboardVis.addEventListener('pointerdown', (e) => {
     }
 });
 
-// Time display functions moved to scripts/ui/timeDisplay.js
-// Local wrapper that uses imported functions
+// Local wrapper for time display
 function updateTimeDisplay(frameIndex) {
     if (state.collection.active) {
         const currentSec = Math.floor((+progressBar.value || 0) / 1000);
@@ -3828,7 +3321,7 @@ function onMasterTimeUpdate() {
     const currentVidMs = currentVidSec * 1000;
     
     // Update telemetry overlay from pre-extracted SEI data
-    const sei = findSeiAtTime(currentVidMs);
+    const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
     if (sei) {
         updateVisualization(sei);
         nativeVideo.lastSeiTimeMs = currentVidMs;
@@ -3840,7 +3333,7 @@ function onMasterTimeUpdate() {
         const timeSinceLastSei = currentVidMs - lastSei;
         if (timeSinceLastSei > 2000 && !nativeVideo.dashboardReset) {
             // Show "no data" state for dashboard (but keep any event.json map marker)
-            resetDashboardOnly();
+            resetDashboardElements();
             nativeVideo.dashboardReset = true;
         }
     }
@@ -4072,7 +3565,7 @@ async function loadNativeSegment(segIdx) {
     const masterCam = multi.masterCamera || 'front';
     const masterEntry = group.filesByCamera.get(masterCam) || group.filesByCamera.values().next().value;
     if (masterEntry && seiType) {
-        extractSeiFromEntry(masterEntry).then(({ seiData, mapPath }) => {
+        extractSeiFromEntry(masterEntry, seiType).then(({ seiData, mapPath }) => {
             nativeVideo.seiData = seiData;
             nativeVideo.mapPath = mapPath;
             if (mapPath?.length) {
@@ -4297,112 +3790,6 @@ function applyPlaybackRate(rate) {
     console.log('Playback rate set to:', playbackRate);
 }
 
-// Extract SEI telemetry from an entry (handles both File objects and Electron paths)
-async function extractSeiFromEntry(entry) {
-    if (!entry) return { seiData: [], mapPath: [] };
-    
-    // If it's an Electron file with path, fetch via file:// protocol
-    if (entry.file?.isElectronFile && entry.file?.path) {
-        try {
-            const fileUrl = filePathToUrl(entry.file.path);
-            const response = await fetch(fileUrl);
-            const buffer = await response.arrayBuffer();
-            return extractSeiFromBuffer(buffer);
-        } catch (err) {
-            console.warn('Failed to extract SEI from Electron file:', err);
-            return { seiData: [], mapPath: [] };
-        }
-    }
-    
-    // Regular File object
-    if (entry.file && entry.file instanceof File) {
-        return extractSeiFromFile(entry.file);
-    }
-    
-    return { seiData: [], mapPath: [] };
-}
-
-// Extract SEI from ArrayBuffer
-function extractSeiFromBuffer(buffer) {
-    const seiData = [];
-    const mapPath = [];
-    
-    try {
-        const mp4 = new DashcamMP4(buffer);
-        const frames = mp4.parseFrames(seiType);
-        
-        for (const frame of frames) {
-            if (frame.sei) {
-                seiData.push({ timestampMs: frame.timestamp, sei: frame.sei });
-                if (hasValidGps(frame.sei)) {
-                    const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
-                    const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
-                    // Include autopilot state: 1 or 2 = engaged, 0 or undefined = manual
-                    const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state ?? 0;
-                    const isAutopilot = apState === 1 || apState === 2;
-                    mapPath.push({ lat, lon, autopilot: isAutopilot });
-                }
-            }
-        }
-    } catch (err) {
-        console.warn('Failed to extract SEI:', err);
-    }
-    
-    return { seiData, mapPath };
-}
-
-// Extract SEI telemetry from a video file (runs once per segment load)
-async function extractSeiFromFile(file) {
-    const seiData = [];
-    const mapPath = [];
-    
-    try {
-        const buffer = await file.arrayBuffer();
-        const mp4 = new DashcamMP4(buffer);
-        const frames = mp4.parseFrames(seiType);
-        
-        for (const frame of frames) {
-            if (frame.sei) {
-                seiData.push({ timestampMs: frame.timestamp, sei: frame.sei });
-                if (hasValidGps(frame.sei)) {
-                    const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
-                    const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
-                    // Include autopilot state: 1 or 2 = engaged, 0 or undefined = manual
-                    const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state ?? 0;
-                    const isAutopilot = apState === 1 || apState === 2;
-                    mapPath.push({ lat, lon, autopilot: isAutopilot });
-                }
-            }
-        }
-    } catch (err) {
-        console.warn('Failed to extract SEI:', err);
-    }
-    
-    return { seiData, mapPath };
-}
-
-// Find SEI data for a given timestamp (find closest match)
-function findSeiAtTime(timestampMs) {
-    const data = nativeVideo.seiData;
-    if (!data || !data.length) return null;
-    
-    // Find closest SEI frame to the target time
-    let closest = data[0];
-    let minDiff = Math.abs(data[0].timestampMs - timestampMs);
-    
-    for (let i = 1; i < data.length; i++) {
-        const diff = Math.abs(data[i].timestampMs - timestampMs);
-        if (diff < minDiff) {
-            minDiff = diff;
-            closest = data[i];
-        }
-        // Since data is sorted, if diff starts increasing, we passed the closest
-        if (data[i].timestampMs > timestampMs && diff > minDiff) break;
-    }
-    
-    return closest?.sei || null;
-}
-
 function seekNative(pct) {
     const vid = nativeVideo.master || videoMain;
     if (!vid || !vid.duration) return;
@@ -4492,16 +3879,6 @@ initExportModule({
     getProgressBar: () => progressBar,
     getUseMetric: () => useMetric
 });
-
-// Alias for closeExportModal (used internally)
-const closeExportModalFn = closeExportModal;
-
-// Update export button state when collection changes
-const originalSelectDayCollection = selectDayCollection;
-window.selectDayCollectionWrapper = function(dayKey) {
-    originalSelectDayCollection.call(this, dayKey);
-    setTimeout(updateExportButtonState, 100);
-};
 
 // Call updateExportButtonState initially
 setTimeout(updateExportButtonState, 500);
