@@ -4,7 +4,7 @@
  */
 
 import { escapeHtml, cssEscape } from '../lib/utils.js';
-import { formatEventTime, populateEventPopout } from '../ui/clipListHelpers.js';
+import { formatEventTime } from '../ui/clipListHelpers.js';
 import { t } from '../lib/i18n.js';
 
 // Dependencies injected at init
@@ -217,35 +217,6 @@ export function highlightSelectedClip() {
     }
 }
 
-/**
- * Close any open event popout.
- */
-export function closeEventPopout() {
-    const state = getState?.();
-    if (!state?.ui?.openEventRowId) return;
-    const el = clipList?.querySelector?.(`.clip-item[data-groupid="${cssEscape(state.ui.openEventRowId)}"]`);
-    if (el) el.classList.remove('event-open');
-    state.ui.openEventRowId = null;
-}
-
-/**
- * Toggle event popout for a row.
- */
-export function toggleEventPopout(rowId, metaOverride = null) {
-    const state = getState?.();
-    const library = getLibrary?.();
-    
-    if (state?.ui?.openEventRowId && state.ui.openEventRowId !== rowId) closeEventPopout();
-    const el = clipList?.querySelector?.(`.clip-item[data-groupid="${cssEscape(rowId)}"]`);
-    if (!el) return;
-    const opening = !el.classList.contains('event-open');
-    if (!opening) { closeEventPopout(); return; }
-
-    const meta = metaOverride ?? (library?.clipGroupById?.get(rowId)?.eventMeta || null);
-    populateEventPopout(el, meta);
-    el.classList.add('event-open');
-    if (state?.ui) state.ui.openEventRowId = rowId;
-}
 
 /**
  * Build display items for legacy Sentry collection mode.
@@ -343,7 +314,7 @@ export function parseTimestampKeyToEpochMs(timestampKey) {
 /**
  * Format camera name for display.
  */
-export function formatCameraName(camera) {
+function formatCameraName(camera) {
     if (camera === 'front') return t('ui.cameras.front');
     if (camera === 'back') return t('ui.cameras.back');
     if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
@@ -356,23 +327,12 @@ export function formatCameraName(camera) {
 /**
  * Format timestamp key for display.
  */
-export function timestampLabel(timestampKey) {
+function timestampLabel(timestampKey) {
     return (timestampKey || '').replace('_', ' ').replace(/-/g, (m, off, s) => {
         return m;
     }).replace(/(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2})/, '$1 $2:$3:$4');
 }
 
-// Setup document click handler for closing popouts
-export function setupPopoutCloseHandler() {
-    document.addEventListener('click', (e) => {
-        const state = getState?.();
-        if (!state?.ui?.openEventRowId) return;
-        const openEl = clipList?.querySelector?.(`.clip-item[data-groupid="${cssEscape(state.ui.openEventRowId)}"]`);
-        if (!openEl) { state.ui.openEventRowId = null; return; }
-        if (openEl.contains(e.target)) return;
-        closeEventPopout();
-    });
-}
 
 /**
  * Show delete confirmation modal (Step 1)

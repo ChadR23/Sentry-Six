@@ -129,21 +129,6 @@ function findClosestSegment(point, anchors) {
     return null;
 }
 
-/**
- * Load saved coordinates into the editor
- */
-export function loadSavedCoordinates(coordinates, canvasWidth, canvasHeight) {
-    if (!coordinates || coordinates.length < 3) return;
-    
-    editorState.anchors = coordinates.map(coord => ({
-        x: coord.x * canvasWidth,
-        y: coord.y * canvasHeight
-    }));
-    
-    if (editorState.isInitialized) {
-        render();
-    }
-}
 
 /**
  * Initialize the blur zone editor with an image

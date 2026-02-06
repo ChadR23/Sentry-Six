@@ -22,7 +22,7 @@ function getElements() {
 /**
  * Show the welcome modal
  */
-export function showWelcomeModal() {
+function showWelcomeModal() {
     getElements();
     if (!welcomeModal) return;
     
@@ -38,7 +38,7 @@ export function showWelcomeModal() {
 /**
  * Hide the welcome modal
  */
-export function hideWelcomeModal() {
+function hideWelcomeModal() {
     getElements();
     if (welcomeModal) {
         welcomeModal.classList.add('hidden');

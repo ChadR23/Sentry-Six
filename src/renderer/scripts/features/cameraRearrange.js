@@ -42,12 +42,6 @@ export function getCustomCameraOrder() {
     return customCameraOrder;
 }
 
-/**
- * Set the custom camera order
- */
-export function setCustomCameraOrder(order) {
-    customCameraOrder = order;
-}
 
 /**
  * Initialize custom camera order from settings

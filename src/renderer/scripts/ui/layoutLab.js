@@ -552,15 +552,3 @@ export function getLayoutData() {
     };
 }
 
-/**
- * Get scale factor to convert canvas coordinates to video coordinates
- * @param {number} videoWidth - Target video width
- * @param {number} videoHeight - Target video height
- * @returns {Object} { scaleX, scaleY }
- */
-export function getScaleFactor(videoWidth, videoHeight) {
-    return {
-        scaleX: videoWidth / layoutState.canvasWidth,
-        scaleY: videoHeight / layoutState.canvasHeight
-    };
-}

@@ -243,10 +243,6 @@ function processApiResponse(apiResponse) {
 }
 
 module.exports = {
-  getAnonymizedFingerprint,
   checkUpdateWithTelemetry,
-  processApiResponse,
-  getPlatform,
-  getArch,
-  TELEMETRY_CONFIG
+  processApiResponse
 };

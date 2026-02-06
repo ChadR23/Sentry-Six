@@ -10,7 +10,7 @@ import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChang
 /**
  * Initialize collapsible sections
  */
-export function initCollapsibleSections() {
+function initCollapsibleSections() {
     document.querySelectorAll('.collapsible-header').forEach(header => {
         header.addEventListener('click', () => {
             const section = header.closest('.collapsible-section');
@@ -846,92 +846,6 @@ export function initDevSettingsModal() {
         };
     }
     
-    // Theme Customization - App Accent Color
-    const DEFAULT_APP_ACCENT = '#00d4ff';
-    const DEFAULT_DASHBOARD_ACCENT = '#0048ff';
-    
-    const devAppAccentColor = $('devAppAccentColor');
-    const devResetAppAccent = $('devResetAppAccent');
-    
-    function applyAppAccentColor(color) {
-        document.documentElement.style.setProperty('--accent-color', color);
-        // Calculate glow color with alpha
-        const r = parseInt(color.slice(1, 3), 16);
-        const g = parseInt(color.slice(3, 5), 16);
-        const b = parseInt(color.slice(5, 7), 16);
-        document.documentElement.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`);
-    }
-    
-    if (devAppAccentColor) {
-        // Load saved color
-        window.electronAPI?.getSetting?.('appAccentColor').then(savedColor => {
-            const color = savedColor || DEFAULT_APP_ACCENT;
-            devAppAccentColor.value = color;
-            applyAppAccentColor(color);
-        });
-        
-        devAppAccentColor.addEventListener('input', (e) => {
-            applyAppAccentColor(e.target.value);
-        });
-        
-        devAppAccentColor.addEventListener('change', async (e) => {
-            await window.electronAPI?.setSetting?.('appAccentColor', e.target.value);
-            showDevOutput(`App Accent Color: ${e.target.value}\n\nColor applied to UI elements.`);
-        });
-    }
-    
-    if (devResetAppAccent) {
-        devResetAppAccent.onclick = async () => {
-            if (devAppAccentColor) devAppAccentColor.value = DEFAULT_APP_ACCENT;
-            applyAppAccentColor(DEFAULT_APP_ACCENT);
-            await window.electronAPI?.setSetting?.('appAccentColor', DEFAULT_APP_ACCENT);
-            showDevOutput('App Accent Color: Reset to default (#00d4ff)');
-            devResetAppAccent.blur();
-        };
-    }
-    
-    // Theme Customization - Dashboard Accent Color
-    const devDashboardAccentColor = $('devDashboardAccentColor');
-    const devResetDashboardAccent = $('devResetDashboardAccent');
-    
-    function applyDashboardAccentColor(color) {
-        document.documentElement.style.setProperty('--dashboard-accent', color);
-        // Calculate glow color with alpha
-        const r = parseInt(color.slice(1, 3), 16);
-        const g = parseInt(color.slice(3, 5), 16);
-        const b = parseInt(color.slice(5, 7), 16);
-        document.documentElement.style.setProperty('--dashboard-accent-glow', `rgba(${r}, ${g}, ${b}, 0.5)`);
-        // Store globally for dashboard renderers and export
-        window._dashboardAccentColor = color;
-    }
-    
-    if (devDashboardAccentColor) {
-        // Load saved color
-        window.electronAPI?.getSetting?.('dashboardAccentColor').then(savedColor => {
-            const color = savedColor || DEFAULT_DASHBOARD_ACCENT;
-            devDashboardAccentColor.value = color;
-            applyDashboardAccentColor(color);
-        });
-        
-        devDashboardAccentColor.addEventListener('input', (e) => {
-            applyDashboardAccentColor(e.target.value);
-        });
-        
-        devDashboardAccentColor.addEventListener('change', async (e) => {
-            await window.electronAPI?.setSetting?.('dashboardAccentColor', e.target.value);
-            showDevOutput(`Dashboard Accent Color: ${e.target.value}\n\nColor applied to dashboard overlays.`);
-        });
-    }
-    
-    if (devResetDashboardAccent) {
-        devResetDashboardAccent.onclick = async () => {
-            if (devDashboardAccentColor) devDashboardAccentColor.value = DEFAULT_DASHBOARD_ACCENT;
-            applyDashboardAccentColor(DEFAULT_DASHBOARD_ACCENT);
-            await window.electronAPI?.setSetting?.('dashboardAccentColor', DEFAULT_DASHBOARD_ACCENT);
-            showDevOutput('Dashboard Accent Color: Reset to default (#0048ff)');
-            devResetDashboardAccent.blur();
-        };
-    }
 }
 
 /**
@@ -1038,5 +952,81 @@ function renderFullChangelog(versions) {
             </div>
         </div>
     `).join('');
+}
+
+/**
+ * Initialize settings search functionality
+ */
+export function initSettingsSearch() {
+    const searchInput = $('settingsSearchInput');
+    const clearBtn = $('settingsSearchClear');
+    const noResults = $('settingsNoResults');
+    const settingsModal = $('settingsModal');
+    if (!searchInput || !settingsModal) return;
+
+    const accordions = settingsModal.querySelectorAll('.settings-accordion');
+
+    function performSearch(query) {
+        const q = query.trim().toLowerCase();
+        clearBtn?.classList.toggle('hidden', q.length === 0);
+
+        if (!q) {
+            // Reset: show everything, restore open/closed state
+            accordions.forEach(acc => {
+                acc.classList.remove('search-hidden', 'search-match');
+                acc.querySelectorAll('.toggle-row, .select-row').forEach(row => {
+                    row.classList.remove('search-hidden');
+                });
+            });
+            if (noResults) noResults.classList.add('hidden');
+            return;
+        }
+
+        let anyVisible = false;
+        accordions.forEach(acc => {
+            const title = acc.querySelector('.settings-accordion-title')?.textContent?.toLowerCase() || '';
+            const sectionMatch = title.includes(q);
+
+            // Check individual rows
+            const rows = acc.querySelectorAll('.toggle-row, .select-row');
+            let rowMatch = false;
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(q) || sectionMatch) {
+                    row.classList.remove('search-hidden');
+                    rowMatch = true;
+                } else {
+                    row.classList.add('search-hidden');
+                }
+            });
+
+            if (sectionMatch || rowMatch) {
+                acc.classList.remove('search-hidden');
+                acc.classList.add('search-match');
+                if (!acc.classList.contains('open')) acc.classList.add('open');
+                anyVisible = true;
+            } else {
+                acc.classList.add('search-hidden');
+                acc.classList.remove('search-match');
+            }
+        });
+
+        if (noResults) noResults.classList.toggle('hidden', anyVisible);
+    }
+
+    searchInput.addEventListener('input', () => performSearch(searchInput.value));
+
+    clearBtn?.addEventListener('click', () => {
+        searchInput.value = '';
+        performSearch('');
+        searchInput.focus();
+    });
+
+    // Clear search when modal is closed
+    const closeBtn = $('closeSettingsModal');
+    const doneBtn = $('closeSettingsBtn');
+    const resetSearch = () => { searchInput.value = ''; performSearch(''); };
+    closeBtn?.addEventListener('click', resetSearch);
+    doneBtn?.addEventListener('click', resetSearch);
 }
 

@@ -38,7 +38,7 @@ export async function loadKeybinds() {
  * Save keybinds to storage
  * @param {Object} keybinds - Keybinds to save
  */
-export function saveKeybinds(keybinds) {
+function saveKeybinds(keybinds) {
     if (window.electronAPI?.setSetting) {
         window.electronAPI.setSetting('keybinds', keybinds);
     }
@@ -49,7 +49,7 @@ export function saveKeybinds(keybinds) {
  * @param {KeyboardEvent} e - Keyboard event
  * @returns {string} Formatted key string
  */
-export function formatKeyEvent(e) {
+function formatKeyEvent(e) {
     const parts = [];
     if (e.ctrlKey) parts.push('Ctrl');
     if (e.altKey) parts.push('Alt');
@@ -78,7 +78,7 @@ export function formatKeyEvent(e) {
  * @param {KeyboardEvent} e - Keyboard event
  * @returns {string} Key identifier
  */
-export function getKeyIdentifier(e) {
+function getKeyIdentifier(e) {
     const mods = [];
     if (e.ctrlKey) mods.push('ctrl');
     if (e.altKey) mods.push('alt');

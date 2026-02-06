@@ -3,10 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync, execSync } = require('child_process');
-const { writeCompactDashboardAss, cleanupAssFile, writeSolidCoverAss, writeMinimapAss } = require('./assGenerator');
+const { writeCompactDashboardAss, cleanupAssFile, writeMinimapAss } = require('./assGenerator');
 const https = require('https');
-const { checkUpdateWithTelemetry, processApiResponse, getAnonymizedFingerprint } = require('./updateTelemetry');
-const { createWriteStream, mkdirSync, rmSync, copyFileSync } = require('fs');
+const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
 
 // ============================================
 // DIAGNOSTICS: Console capture (must be early to catch all logs)
@@ -780,7 +779,7 @@ async function downloadMapTile(x, y, zoom, outputPath) {
   return new Promise((resolve, reject) => {
     const url = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
     
-    const file = createWriteStream(outputPath);
+    const file = fs.createWriteStream(outputPath);
     
     const request = https.get(url, {
       headers: {
@@ -867,7 +866,7 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
   
   // Create temp directory for tiles
   const tempDir = path.join(os.tmpdir(), `map_tiles_${exportId}_${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  fs.mkdirSync(tempDir, { recursive: true });
   
   const tilePaths = [];
   const tileSize = 256; // OSM tiles are 256x256
@@ -951,7 +950,7 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
     });
     
     // Cleanup tile temp files
-    rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
     
     // Calculate the actual geo bounds of the stitched image (tile edges)
     const actualTopLeft = tileToLatLon(topLeftTile.x, topLeftTile.y, zoom);
@@ -973,7 +972,7 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
     };
   } catch (err) {
     // Cleanup on error
-    try { rmSync(tempDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     throw err;
   }
 }
@@ -1712,7 +1711,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const filters = [];
     const streamTags = [];
     
-    // Camera position tracking for ASS-based solid cover overlay (scope shared across layout types)
+    // Camera position tracking (scope shared across layout types)
     let gridCameraPositions = null;
     let gridCameraDimensions = null;
     let singleCameraPositions = null;
@@ -1778,7 +1777,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition
-      // Track camera positions for ASS-based solid cover overlay (single camera layout)
       singleCameraPositions = {};
       singleCameraDimensions = {};
       for (const stream of cameraStreams) {
@@ -1786,9 +1784,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         singleCameraDimensions[stream.camera] = { width: w + (w % 2), height: h + (h % 2) };
       }
       
-      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
-      // For 'trueBlur', we use mask-based FFmpeg filters with alpha channel blending
-      if (blurType !== 'solid') {
+      if (blurZones.length > 0) {
         // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
         const zonesByCamera = {};
         for (const zone of blurZones) {
@@ -1862,8 +1858,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             console.error('[BLUR] Failed to apply blur zone:', err);
           }
         }
-      } else if (blurZones.length > 0) {
-        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s) (single camera layout)`);
       }
       
       // Chain overlays: start with base, overlay each camera in order
@@ -1904,7 +1898,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
       
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
-      // Track camera positions for ASS-based solid cover overlay
       gridCameraPositions = {};
       gridCameraDimensions = {};
       for (let i = 0; i < activeCamerasForGrid.length; i++) {
@@ -1916,9 +1909,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         gridCameraDimensions[cam] = { width: w, height: h };
       }
       
-      // For 'solid' blur type, we skip FFmpeg-based blur and use ASS overlay later
-      // For 'trueBlur', we use mask-based FFmpeg filters with alpha channel blending
-      if (blurType !== 'solid') {
+      if (blurZones.length > 0) {
         // OPTIMIZATION: Group blur zones by camera and combine masks to reduce FFmpeg operations
         const gridZonesByCamera = {};
         for (const zone of blurZones) {
@@ -1985,8 +1976,6 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             console.error('[BLUR] Failed to apply blur zone:', err);
           }
         }
-      } else if (blurZones.length > 0) {
-        console.log(`[BLUR] Using ASS solid cover for ${blurZones.length} blur zone(s)`);
       }
       
       const numStreams = activeCamerasForGrid.length;
@@ -2028,66 +2017,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
     }
 
-    // Generate ASS solid cover overlay for 'solid' blur type
-    let solidCoverAssPath = null;
     let currentStreamTag = '[grid]'; // Track the current stream tag for chaining filters
-    
-    if (blurType === 'solid' && blurZones.length > 0) {
-      try {
-        // Determine camera positions based on layout type
-        // Use grid positions if available, otherwise fall back to single camera positions
-        let cameraPositions = {};
-        let cameraDimensions = {};
-        
-        if (gridCameraPositions && Object.keys(gridCameraPositions).length > 0) {
-          // Grid layout - use grid positions
-          cameraPositions = gridCameraPositions;
-          cameraDimensions = gridCameraDimensions;
-        } else if (singleCameraPositions && Object.keys(singleCameraPositions).length > 0) {
-          // Single camera or custom layout
-          cameraPositions = singleCameraPositions;
-          cameraDimensions = singleCameraDimensions;
-        } else {
-          // Fallback - use full video dimensions for single camera
-          const singleCam = activeCamerasForGrid[0] || blurZones[0]?.camera;
-          if (singleCam) {
-            cameraPositions[singleCam] = { x: 0, y: 0 };
-            cameraDimensions[singleCam] = { width: totalW, height: totalH };
-          }
-        }
-        
-        // Filter blur zones to only those with selected cameras
-        const selectedBlurZones = blurZones.filter(z => 
-          z && z.coordinates && z.coordinates.length >= 3 && cameraPositions[z.camera]
-        );
-        
-        if (selectedBlurZones.length > 0) {
-          const durationMs = endTimeMs - startTimeMs;
-          solidCoverAssPath = await writeSolidCoverAss(
-            exportId,
-            selectedBlurZones,
-            durationMs,
-            totalW,
-            totalH,
-            cameraDimensions,
-            cameraPositions
-          );
-          tempFiles.push(solidCoverAssPath);
-          
-          // Apply solid cover ASS filter
-          const escapedSolidCoverPath = solidCoverAssPath
-            .replace(/\\/g, '/')
-            .replace(/:/g, '\\:');
-          
-          filters.push(`[grid]ass='${escapedSolidCoverPath}'[grid_cover]`);
-          currentStreamTag = '[grid_cover]';
-          console.log(`[ASS] Using ASS solid cover for ${selectedBlurZones.length} blur zone(s): ${solidCoverAssPath}`);
-        }
-      } catch (err) {
-        console.error('[BLUR] Failed to generate solid cover ASS:', err);
-        // Fall through to continue without solid cover
-      }
-    }
     
     // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
     const padding = 20; // Padding from edges
@@ -2697,7 +2627,7 @@ ipcMain.handle('fs:deleteFolder', async (_event, folderPath) => {
     } catch (trashErr) {
       console.log('[DELETE] Trash failed, trying direct delete:', trashErr.message);
       // Fall back to direct delete
-      rmSync(folderPath, { recursive: true, force: true });
+      fs.rmSync(folderPath, { recursive: true, force: true });
       console.log('[DELETE] Successfully deleted folder:', folderPath);
       return { success: true };
     }
@@ -2756,7 +2686,7 @@ ipcMain.handle('fs:checkPendingDelete', async () => {
       return { hasPending: true, success: true, folderPath, baseFolderPath };
     } catch (trashErr) {
       console.log('[DELETE] Trash failed, trying direct delete:', trashErr.message);
-      rmSync(folderPath, { recursive: true, force: true });
+      fs.rmSync(folderPath, { recursive: true, force: true });
       console.log('[DELETE] Successfully deleted folder:', folderPath);
       return { hasPending: true, success: true, folderPath, baseFolderPath };
     }
@@ -2879,7 +2809,7 @@ function downloadFile(url, destPath, onProgress) {
       
       const totalSize = parseInt(res.headers['content-length'], 10);
       let downloadedSize = 0;
-      const file = createWriteStream(destPath);
+      const file = fs.createWriteStream(destPath);
       
       res.on('data', chunk => {
         downloadedSize += chunk.length;
@@ -3137,9 +3067,9 @@ async function performMacOSUpdate() {
     
     // Clean and create temp directory
     if (fs.existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
-    mkdirSync(tempDir, { recursive: true });
+    fs.mkdirSync(tempDir, { recursive: true });
     
     // Download the DMG file
     await downloadFile(dmgAsset.browser_download_url, dmgPath, (pct) => {
@@ -3194,9 +3124,9 @@ async function performManualUpdate(event) {
     
     // Clean and create temp directory
     if (fs.existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
-    mkdirSync(tempDir, { recursive: true });
+    fs.mkdirSync(tempDir, { recursive: true });
     
     sendProgress(10, 'Downloading update...');
     await downloadFile(zipUrl, zipPath, (pct) => {
@@ -3207,7 +3137,7 @@ async function performManualUpdate(event) {
     
     // Extract zip file
     const extractDir = path.join(tempDir, 'extracted');
-    mkdirSync(extractDir, { recursive: true });
+    fs.mkdirSync(extractDir, { recursive: true });
     
     if (process.platform === 'win32') {
       execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { windowsHide: true });
@@ -3236,14 +3166,14 @@ async function performManualUpdate(event) {
       if (entry.isDirectory()) {
         copyDirectoryRecursive(srcPath, destPath);
       } else {
-        copyFileSync(srcPath, destPath);
+        fs.copyFileSync(srcPath, destPath);
       }
     }
     
     sendProgress(90, 'Cleaning up...');
     
     // Cleanup temp files
-    rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
     
     console.log(`[UPDATE] Updated to v${latestVersion?.version || 'latest'}`);
     
@@ -3265,7 +3195,7 @@ function copyDirectoryRecursive(src, dest) {
   if (!fs.existsSync(src)) return;
   
   if (!fs.existsSync(dest)) {
-    mkdirSync(dest, { recursive: true });
+    fs.mkdirSync(dest, { recursive: true });
   }
   
   const entries = fs.readdirSync(src, { withFileTypes: true });
@@ -3277,7 +3207,7 @@ function copyDirectoryRecursive(src, dest) {
     if (entry.isDirectory()) {
       copyDirectoryRecursive(srcPath, destPath);
     } else {
-      copyFileSync(srcPath, destPath);
+      fs.copyFileSync(srcPath, destPath);
     }
   }
 }

@@ -232,13 +232,3 @@ function translateSelectOptions() {
         option.textContent = t(key);
     });
 }
-
-/**
- * Helper to translate dynamic content
- * @param {string} key - Translation key
- * @param {Object} params - Optional parameters
- * @returns {string} Translated string
- */
-export function translate(key, params) {
-    return t(key, params);
-}

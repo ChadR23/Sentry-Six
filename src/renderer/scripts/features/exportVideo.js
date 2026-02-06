@@ -28,7 +28,7 @@ export const exportState = {
     blurZones: [], // Array of { coordinates: [{x, y}, ...], camera: string, maskImageBase64, maskWidth, maskHeight }
     blurZoneCamera: null, // Camera being edited
     blurZoneEditIndex: null, // Index of zone being edited (null = new zone)
-    blurType: 'solid' // 'solid' (faster) or 'transparent' (blends edges)
+    blurType: 'trueBlur'
 };
 
 // Track if modal listeners have been initialized
@@ -36,57 +36,6 @@ let blurZoneModalInitialized = false;
 
 // DOM helper
 const $ = id => document.getElementById(id);
-
-/**
- * Check if dashboard should be disabled based on blur zones and blur type
- * Dashboard is only disabled when blur zones exist AND blur type is NOT 'solid'
- * (Solid uses ASS overlay which can be layered with dashboard ASS)
- * @returns {boolean} True if dashboard should be disabled
- */
-function shouldDisableDashboard() {
-    const hasBlurZones = exportState.blurZones.length > 0;
-    const blurType = $('blurTypeSelect')?.value || 'solid';
-    // Only disable dashboard for 'trueBlur' - not for 'solid'
-    return hasBlurZones && blurType !== 'solid';
-}
-
-/**
- * Update dashboard checkbox state based on blur zones and blur type
- */
-function updateDashboardAvailability() {
-    const dashboardCheckbox = $('includeDashboard');
-    const dashboardOptions = $('dashboardOptions');
-    const dashboardToggleRow = dashboardCheckbox?.closest('.toggle-row');
-    const timestampCheckbox = $('includeTimestamp');
-    const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-    const timestampOptions = $('timestampOptions');
-    
-    if (!dashboardCheckbox) return;
-    
-    const shouldDisable = shouldDisableDashboard();
-    const hasGpu = exportState.gpuAvailable;
-    
-    if (shouldDisable || !hasGpu) {
-        // Disable dashboard
-        dashboardCheckbox.checked = false;
-        dashboardCheckbox.disabled = true;
-        if (dashboardToggleRow) dashboardToggleRow.classList.add('disabled');
-        if (dashboardOptions) dashboardOptions.classList.add('hidden');
-        
-        // Re-enable timestamp toggle since dashboard is disabled
-        if (timestampCheckbox) {
-            timestampCheckbox.disabled = false;
-            if (timestampToggleRow) timestampToggleRow.classList.remove('disabled');
-        }
-    } else {
-        // Enable dashboard (if GPU available and no conflicting blur)
-        dashboardCheckbox.disabled = false;
-        if (dashboardToggleRow) dashboardToggleRow.classList.remove('disabled');
-        
-        // If dashboard was enabled before, keep its state
-        // Otherwise, the user can now enable it
-    }
-}
 
 // Dependencies set via init
 let getState = null;
@@ -118,7 +67,6 @@ const EXPORT_OVERLAY_SETTINGS = {
     includeMinimap: 'exportIncludeMinimap',
     minimapPosition: 'exportMinimapPosition',
     minimapSize: 'exportMinimapSize',
-    blurTypeSelect: 'exportBlurType'
 };
 
 // Default values for export overlay settings
@@ -129,8 +77,7 @@ const EXPORT_OVERLAY_DEFAULTS = {
     dashboardSize: 'medium',
     includeMinimap: false,
     minimapPosition: 'top-right',
-    minimapSize: 'small',
-    blurTypeSelect: 'solid'
+    minimapSize: 'small'
 };
 
 /**
@@ -988,9 +935,6 @@ function initBlurZoneEditorModal() {
                     exportState.blurZones.push(newZone);
                 }
                 
-                // Update dashboard availability based on blur zones and blur type
-                updateDashboardAvailability();
-                
                 updateBlurZoneStatusDisplay();
                 notify(t('ui.notifications.blurZoneSaved'), { type: 'success' });
                 closeEditor();
@@ -1030,8 +974,6 @@ function updateBlurZoneStatusDisplay() {
         if (addBtn) addBtn.textContent = 'Add Zone';
     }
     
-    // Update dashboard availability based on blur zones and blur type
-    updateDashboardAvailability();
 }
 
 /**
@@ -1163,15 +1105,6 @@ export async function checkFFmpegAvailability() {
         });
     }
     
-    // Set up blur type dropdown listener to update dashboard availability
-    // When user changes blur type, dashboard availability may change
-    const blurTypeSelect = $('blurTypeSelect');
-    if (blurTypeSelect) {
-        blurTypeSelect.addEventListener('change', () => {
-            updateDashboardAvailability();
-        });
-    }
-    
     if (!statusEl) return;
     
     statusEl.innerHTML = `<span class="status-icon">⏳</span><span class="status-text">${t('ui.export.checkingFfmpeg')}</span>`;
@@ -1210,8 +1143,6 @@ export async function checkFFmpegAvailability() {
                     dashboardGpuWarning.classList.add('hidden');
                 }
                 
-                // Update dashboard availability based on GPU and blur zones/type
-                updateDashboardAvailability();
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -1280,17 +1211,10 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
     
-    // Blur zone disables dashboard ONLY for 'trueBlur' type
-    // 'solid' blur type uses ASS overlay which can be layered with dashboard
     const hasBlurZones = exportState.blurZones.length > 0;
-    const blurType = $('blurTypeSelect')?.value || 'solid';
+    const blurType = 'trueBlur';
     const includeDashboardCheckbox = $('includeDashboard');
     let includeDashboard = includeDashboardCheckbox?.checked ?? false;
-    
-    // Disable dashboard if blur zones are active AND blur type is not 'solid'
-    if (hasBlurZones && blurType !== 'solid') {
-        includeDashboard = false;
-    }
     
     // Check for blur zones on unselected cameras and warn user
     if (hasBlurZones) {
@@ -1655,8 +1579,7 @@ export async function startExport() {
             baseFolderPath,
             quality,
             // Only include dashboard if checkbox was checked AND we successfully extracted SEI data
-            // Dashboard is allowed with blur zones if blur type is 'solid' (both use ASS, can be layered)
-            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0 && (blurType === 'solid' || !hasBlurZones),
+            includeDashboard: includeDashboard && seiData !== null && seiData.length > 0,
             seiData: seiData || [], // Empty array if dashboard disabled - no RAM used
             layoutData: layoutData || null,
             useMetric: getUseMetric?.() ?? false, // Pass metric setting for dashboard overlay
@@ -1671,7 +1594,7 @@ export async function startExport() {
             timestampTimeFormat, // Time format: 12h (AM/PM), 24h
             // Blur zone data - filter to only selected cameras, send all zones
             blurZones: exportState.blurZones.filter(z => cameras.includes(z.camera)),
-            blurType: $('blurTypeSelect')?.value || 'solid', // 'solid' (ASS cover), 'trueBlur' (mask-based blur)
+            blurType: 'trueBlur',
             // Language for dashboard text translations (Gear, Autopilot states, etc.)
             language: getCurrentLanguage(),
             // Mirror cameras setting (back and repeaters)

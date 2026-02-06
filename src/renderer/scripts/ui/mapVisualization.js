@@ -132,10 +132,3 @@ export function clearMapMarker() {
     }
     currentMapArrowRotation = 0;
 }
-
-/**
- * Get current map marker
- */
-export function getMapMarker() {
-    return mapMarker;
-}

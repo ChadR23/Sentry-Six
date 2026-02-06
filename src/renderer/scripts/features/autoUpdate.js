@@ -175,7 +175,7 @@ export async function showUpdateModal(updateInfo) {
 /**
  * Hide the update modal
  */
-export function hideUpdateModal() {
+function hideUpdateModal() {
     getElements();
     isDownloading = false;
     if (updateModal) updateModal.classList.add('hidden');
@@ -330,7 +330,7 @@ function showMacOSUpdateComplete(info) {
  * This is a critical alert that requires manual download
  * @param {Object} info - Force manual update info from server
  */
-export function showForceManualModal(info) {
+function showForceManualModal(info) {
     getElements();
     if (!updateModal) return;
     

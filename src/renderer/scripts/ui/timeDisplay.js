@@ -48,7 +48,7 @@ export function updateTimeDisplayNew(currentSec, totalSec) {
  * @param {string} timeFormat - '12h' or '24h'
  * @returns {string} Formatted time string
  */
-export function formatTimeWithPreference(hours, minutes, seconds, timeFormat) {
+function formatTimeWithPreference(hours, minutes, seconds, timeFormat) {
     const m = String(minutes).padStart(2, '0');
     const s = String(seconds).padStart(2, '0');
     

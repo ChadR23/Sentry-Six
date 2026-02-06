@@ -16,15 +16,14 @@ import {
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
     startExport, cancelExport, clearExportMarkers 
 } from './scripts/features/exportVideo.js';
-import { initLayoutLab } from './scripts/ui/layoutLab.js';
-import { initAutoUpdate, showUpdateModal, hideUpdateModal, handleInstallUpdate } from './scripts/features/autoUpdate.js';
+import { initAutoUpdate } from './scripts/features/autoUpdate.js';
 import { initWelcomeScreen } from './scripts/features/welcomeScreen.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
-import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal } from './scripts/ui/settingsModal.js';
+import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal, initSettingsSearch } from './scripts/ui/settingsModal.js';
 import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
 import { initDiagnostics, logDiagnosticEvent } from './scripts/ui/diagnostics.js';
 import { 
-    initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder, setCustomCameraOrder,
+    initCameraRearrange, initCustomCameraOrder, getCustomCameraOrder,
     resetCameraOrder, getEffectiveSlots, initCameraDragAndDrop, updateTileLabels, saveCustomCameraOrder, updateCompactDashboardPosition
 } from './scripts/features/cameraRearrange.js';
 import { initDraggablePanels, resetPanelPosition } from './scripts/ui/draggablePanels.js';
@@ -33,11 +32,9 @@ import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js'
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
 import { initDashboardVisibility, updateDashboardVisibility } from './scripts/ui/dashboardVisibility.js';
 import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, forceResyncAllVideos, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
-import { formatEventTime, getTypeLabel, populateEventPopout } from './scripts/ui/clipListHelpers.js';
 import { 
-    initClipBrowser, renderClipList, createClipItem, highlightSelectedClip, 
-    closeEventPopout, toggleEventPopout, buildDisplayItems, parseTimestampKeyToEpochMs,
-    formatCameraName, timestampLabel, setupPopoutCloseHandler
+    initClipBrowser, renderClipList, highlightSelectedClip, 
+    buildDisplayItems, parseTimestampKeyToEpochMs
 } from './scripts/core/clipBrowser.js';
 import { initI18n, t, onLanguageChange } from './scripts/lib/i18n.js';
 
@@ -1172,7 +1169,6 @@ function setMode(nextMode) {
     pause();
 
     // Close transient UI.
-    closeEventPopout();
     clearMultiFocus();
 
     // Clear mode-specific state.
@@ -1339,7 +1335,6 @@ initClipBrowser({
     getBaseFolderPath: () => baseFolderPath,
     onClipDeleted: handleClipDeleted
 });
-setupPopoutCloseHandler();
 
 // Settings Modal moved to scripts/ui/settingsModal.js
 // Initialize settings modal with dependencies
@@ -1353,6 +1348,7 @@ initSettingsModalDeps({
     getLayoutStyle: () => window._panelMode?.getLayoutStyle?.() || 'modern'
 });
 initSettingsModal();
+initSettingsSearch();
 initDevSettingsModal();
 initChangelogModal();
 
@@ -1918,7 +1914,6 @@ async function loadDateContentElectron(date) {
     previews.cache.clear();
     previews.queue.length = 0;
     previews.inFlight = 0;
-    state.ui.openEventRowId = null;
 
     clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
@@ -2367,7 +2362,6 @@ async function handleFolderFilesForDate(files, date) {
     previews.cache.clear();
     previews.queue.length = 0;
     previews.inFlight = 0;
-    state.ui.openEventRowId = null;
 
     clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
@@ -2819,7 +2813,6 @@ async function handleFolderFiles(fileList, directoryName = null) {
     previews.cache.clear();
     previews.queue.length = 0;
     previews.inFlight = 0;
-    state.ui.openEventRowId = null;
 
     if (isLargeFolder) {
         updateLoading('Rendering...', '', 98);
@@ -3121,11 +3114,6 @@ async function ingestSentryEventJson(eventAssetsByKey) {
             }
             // Re-render list so Sentry collections can show event marker + updated details.
             renderClipList();
-            // If an event popout is currently open, refresh its contents.
-            if (state.ui.openEventRowId) {
-                const el = clipList?.querySelector?.(`.clip-item[data-groupid="${cssEscape(state.ui.openEventRowId)}"]`);
-                if (el?.classList?.contains('event-open')) populateEventPopout(el, meta);
-            }
             // Refresh map if this event is currently active (fixes map not showing on auto-select)
             if (state.collection.active?.groups?.some(g => g.tag === tag && g.eventId === eventId)) {
                 showEventJsonLocation(state.collection.active);
@@ -3265,10 +3253,7 @@ document.addEventListener('keydown', (e) => {
     );
 
     if (e.code === 'Escape') {
-        if (state.ui.openEventRowId) {
-            e.preventDefault();
-            closeEventPopout();
-        } else if (state.ui.multiFocusSlot) {
+        if (state.ui.multiFocusSlot) {
             e.preventDefault();
             clearMultiFocus();
         }

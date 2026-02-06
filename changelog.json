@@ -1,11 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.6.20",
+      "date": "2026-02-05",
+      "title": "Bug Fixes & Improvements",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed translations not working in certain areas."
+        },
+        {
+          "type": "improvement",
+          "description": "Removed dead code and files."
+        },
+        {
+          "type": "feature",
+          "description": "Added Search Functionality to Settings."
+        }    
+      ]
+    },
+    {
       "version": "2026.6.12",
       "date": "2026-02-04",
       "title": "UI Design Overhaul",
       "changes": [
-
         {
           "type": "fix",
           "description": "Fixed an issue where users had to wait for the install button to appear because the download progress bar would not display on the update prompt. Despite it downloading."
@@ -21,7 +39,6 @@
       "date": "2026-02-04",
       "title": "UI Design Overhaul",
       "changes": [
-
         {
           "type": "improvement",
           "description": "Overhauled the UI design to be more modern and user-friendly."

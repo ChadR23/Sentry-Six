@@ -14,7 +14,7 @@
  * - move preview pipeline into `state.previews`
  */
 
-export function createInitialState() {
+function createInitialState() {
   return {
     // Current top-level mode. This will expand over time, but even a simple
     // explicit mode prevents subtle "poisoned state" bugs during transitions.
@@ -69,9 +69,6 @@ export function createInitialState() {
     ui: {
       // Multi-cam tile focus (null or 'tl'|'tc'|'tr'|'bl'|'bc'|'br')
       multiFocusSlot: null,
-
-      // Event popout row currently open (null or row id string)
-      openEventRowId: null,
 
       // Scrubbing flags/timers
       isScrubbing: false,
