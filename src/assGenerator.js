@@ -446,7 +446,8 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     language = 'en'
   } = options;
   
-  // Dashboard dimensions - scale based on video width and size option
+  // Dashboard dimensions - fixed size based on 1920px reference width
+  // This ensures the dashboard is the same size regardless of camera count
   // Size options: small (25%), medium (35%), large (45%), xlarge (55% - for high-res exports)
   const sizeMultipliers = {
     'small': 0.25,
@@ -457,11 +458,10 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const sizeMultiplier = sizeMultipliers[size] || 0.35;
   
   // Compact style aspect ratio: 480x56 (8.57:1)
-  // Cap dashboard width to prevent it from getting too large on high-res exports
-  // Max width based on 1920px reference (standard 1080p width)
-  const maxDashWidth = Math.round(1920 * sizeMultiplier);
-  const rawDashWidth = Math.round(playResX * sizeMultiplier);
-  const dashWidth = Math.min(rawDashWidth, maxDashWidth);
+  // Always use 1920px reference so dashboard size is consistent across camera counts
+  // Cap at video width minus margins to prevent overflow on very small exports
+  const refDashWidth = Math.round(1920 * sizeMultiplier);
+  const dashWidth = Math.min(refDashWidth, playResX - 80);
   const dashHeight = Math.round(dashWidth / 8.57);
   const fontSize = Math.round(dashHeight * 0.45);
   const iconSize = Math.round(dashHeight * 0.5);

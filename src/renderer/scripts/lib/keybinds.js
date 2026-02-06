@@ -107,6 +107,15 @@ export async function initKeybindSettings() {
     // Handle keybind input focus (start recording)
     keybindInputs.forEach(input => {
         input.addEventListener('focus', () => {
+            // Clear recording state from any previously active input
+            // (modifier+click can bypass normal blur, leaving multiple inputs "selected")
+            if (recordingKeybindInput && recordingKeybindInput !== input) {
+                recordingKeybindInput.classList.remove('recording');
+                const prevAction = recordingKeybindInput.dataset.action;
+                loadKeybinds().then(kb => {
+                    recordingKeybindInput.value = kb[prevAction]?.display || '';
+                });
+            }
             recordingKeybindInput = input;
             input.classList.add('recording');
             input.value = 'Press a key...';
