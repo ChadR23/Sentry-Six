@@ -1,17 +1,17 @@
 {
   "versions": [
     {
-      "version": "2026.6.32",
-      "date": "2026-02-06",
+      "version": "2026.6.34",
+      "date": "2026-02-07",
       "title": "Bug Fixes & Improvements",
       "changes": [
         {
           "type": "fix",
-          "description": "Fixed translations not working in certain areas."
+          "description": "Fixed translations not working in certain cases."
         },
         {
           "type": "improvement",
-          "description": "Removed dead code and files."
+          "description": "Cleaned up unused code and files."
         },
         {
           "type": "feature",

@@ -965,6 +965,7 @@ export function initSettingsSearch() {
     if (!searchInput || !settingsModal) return;
 
     const accordions = settingsModal.querySelectorAll('.settings-accordion');
+    const savedOpenState = new Map();
 
     function performSearch(query) {
         const q = query.trim().toLowerCase();
@@ -974,16 +975,21 @@ export function initSettingsSearch() {
             // Reset: show everything, restore open/closed state
             accordions.forEach(acc => {
                 acc.classList.remove('search-hidden', 'search-match');
+                if (savedOpenState.has(acc)) {
+                    acc.classList.toggle('open', savedOpenState.get(acc));
+                }
                 acc.querySelectorAll('.toggle-row, .select-row').forEach(row => {
                     row.classList.remove('search-hidden');
                 });
             });
+            savedOpenState.clear();
             if (noResults) noResults.classList.add('hidden');
             return;
         }
 
         let anyVisible = false;
         accordions.forEach(acc => {
+            if (!savedOpenState.has(acc)) savedOpenState.set(acc, acc.classList.contains('open'));
             const title = acc.querySelector('.settings-accordion-title')?.textContent?.toLowerCase() || '';
             const sectionMatch = title.includes(q);
 
@@ -1003,7 +1009,10 @@ export function initSettingsSearch() {
             if (sectionMatch || rowMatch) {
                 acc.classList.remove('search-hidden');
                 acc.classList.add('search-match');
-                if (!acc.classList.contains('open')) acc.classList.add('open');
+                if (!acc.classList.contains('open')) {
+                    if (!savedOpenState.has(acc)) savedOpenState.set(acc, false);
+                    acc.classList.add('open');
+                }
                 anyVisible = true;
             } else {
                 acc.classList.add('search-hidden');
