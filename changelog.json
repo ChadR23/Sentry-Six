@@ -1,13 +1,17 @@
 {
   "versions": [
     {
-      "version": "2026.7.1",
+      "version": "2026.7.2",
       "date": "2026-02-09",
       "title": "Shareable Links for Exports!",
       "changes": [
         {
           "type": "feature",
-          "description": "You can now generate a Shareable Link to share your exports with others!"
+          "description": "You can now generate a shareable link, that you can use to share your exports with others!"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed some bugs with the export modal, and dashboard overlay on exported videos."
         }
       ]
     },

@@ -3367,12 +3367,27 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     --export-accent: #00d4ff;
     --export-accent-glow: rgba(0, 212, 255, 0.4);
     --export-accent-soft: rgba(0, 212, 255, 0.15);
-    max-width: 520px;
+    max-width: 920px;
     border-radius: 20px;
     backdrop-filter: blur(20px) saturate(180%);
     background: linear-gradient(165deg, 
         rgba(30, 30, 40, 0.95) 0%, 
         rgba(20, 20, 28, 0.98) 100%);
+}
+
+/* Two-column export layout */
+.export-columns {
+    display: flex;
+    gap: 16px;
+}
+
+.export-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.export-col .collapsible-section {
+    margin-bottom: 8px;
 }
 
 .export-modal .modal-header {
@@ -3400,7 +3415,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .export-modal .modal-body {
     padding: 16px 20px;
-    max-height: 60vh;
+    max-height: 75vh;
     overflow-y: auto;
 }
 
@@ -3899,10 +3914,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: #00d4ff;
 }
 
+.shared-clips-modal {
+    max-width: 560px;
+}
+
 .shared-clips-modal .modal-body {
     max-height: 55vh;
     overflow-y: auto;
-    padding: 12px 16px 16px;
+    padding: 0;
 }
 
 .shared-clips-empty {
@@ -3929,25 +3948,41 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     display: none;
 }
 
+.shared-clips-layout {
+    display: flex;
+    flex-direction: column;
+}
+
 .shared-clips-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 2px;
+    padding: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .shared-clip-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
     transition: all 0.15s ease;
+    gap: 10px;
 }
 
 .shared-clip-item:hover {
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.shared-clip-item.selected {
+    background: rgba(0, 212, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.25);
 }
 
 .shared-clip-item.expired {
@@ -3957,7 +3992,6 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .shared-clip-info {
     flex: 1;
     min-width: 0;
-    margin-right: 10px;
 }
 
 .shared-clip-name {
@@ -3993,20 +4027,95 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: rgba(239, 68, 68, 0.7);
 }
 
-.shared-clip-actions {
+/* Detail panel */
+.shared-clip-detail {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.shared-clip-detail.hidden {
+    display: none;
+}
+
+.shared-clip-preview {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 16 / 9;
+    max-height: 180px;
+    margin-bottom: 10px;
+}
+
+.shared-clip-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.shared-clip-preview-overlay {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    color: rgba(255, 255, 255, 0.6);
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
-.shared-clip-actions .btn-small {
-    padding: 5px 8px !important;
-    min-width: 0;
+.shared-clip-preview:hover .shared-clip-preview-overlay {
+    opacity: 0;
 }
 
-.shared-clip-actions .btn-small svg {
-    display: block;
+.shared-clip-detail-info {
+    margin-bottom: 10px;
+}
+
+.shared-clip-detail-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.shared-clip-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+.shared-clip-detail-size {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.shared-clip-detail-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.shared-clip-detail-actions .btn-small {
+    flex: 1;
+    justify-content: center;
+}
+
+/* Danger button style */
+.btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fff;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.btn-danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.4);
 }
 
 .shared-clip-delete:hover {
@@ -4460,6 +4569,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .btn-danger {
     background: linear-gradient(135deg, #f44336, #d32f2f) !important;
+    color: #fff !important;
 }
 
 .btn-danger:hover {

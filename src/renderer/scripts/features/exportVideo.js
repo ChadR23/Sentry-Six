@@ -114,6 +114,18 @@ async function loadExportOverlaySettings() {
     const dashboardOptions = $('dashboardOptions');
     if (dashboardCheckbox && dashboardOptions) {
         dashboardOptions.classList.toggle('hidden', !dashboardCheckbox.checked);
+        // If dashboard is already enabled, disable timestamp option
+        if (dashboardCheckbox.checked) {
+            const timestampCheckbox = $('includeTimestamp');
+            const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
+            const timestampOptions = $('timestampOptions');
+            if (timestampCheckbox) {
+                timestampCheckbox.checked = false;
+                timestampCheckbox.disabled = true;
+                if (timestampToggleRow) timestampToggleRow.classList.add('disabled');
+                if (timestampOptions) timestampOptions.classList.add('hidden');
+            }
+        }
     }
     
     const minimapCheckbox = $('includeMinimap');
@@ -1614,6 +1626,7 @@ export async function startExport() {
             dashboardStyle, // Style: standard (full layout) or compact (streamlined)
             dashboardPosition, // Position: bottom-center, bottom-left, bottom-right, top-center, etc.
             dashboardSize, // Size: small (20%), medium (30%), large (40%)
+            accelPedMode: window._accelPedMode || 'iconbar', // Accelerator pedal display mode: solid, iconbar, sidebar
             // Timestamp-only option (independent of dashboard, uses simple drawtext filter)
             includeTimestamp: includeTimestamp && !includeDashboard, // Only if dashboard is not enabled
             timestampPosition, // Position: bottom-center, bottom-left, etc.
@@ -1902,14 +1915,23 @@ async function uploadShareClip(filePath) {
     }
 }
 
+// Currently selected shared clip data (for detail panel and delete confirmation)
+let _selectedClipData = null;
+
 /**
  * Render the shared clips list in the My Shared Clips modal
  */
 export async function renderSharedClipsList() {
     const listEl = document.getElementById('sharedClipsList');
     const emptyEl = document.getElementById('sharedClipsEmpty');
+    const detailEl = document.getElementById('sharedClipDetail');
+    const layoutEl = document.querySelector('.shared-clips-layout');
     
     if (!listEl) return;
+    
+    // Reset detail panel
+    if (detailEl) detailEl.classList.add('hidden');
+    _selectedClipData = null;
     
     let clips = [];
     try {
@@ -1920,11 +1942,13 @@ export async function renderSharedClipsList() {
     
     if (clips.length === 0) {
         if (emptyEl) emptyEl.classList.remove('hidden');
+        if (layoutEl) layoutEl.style.display = 'none';
         listEl.innerHTML = '';
         return;
     }
     
     if (emptyEl) emptyEl.classList.add('hidden');
+    if (layoutEl) layoutEl.style.display = '';
     
     const now = Date.now();
     
@@ -1947,69 +1971,169 @@ export async function renderSharedClipsList() {
                     <span class="shared-clip-status ${statusClass}">${statusText}</span>
                 </div>
             </div>
-            <div class="shared-clip-actions">
-                ${!isExpired ? `
-                <button class="btn btn-secondary btn-small shared-clip-copy" data-url="${clip.url}" title="Copy link">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-                <button class="btn btn-secondary btn-small shared-clip-open" data-url="${clip.url}" title="Open in browser">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                </button>
-                ` : ''}
-                <button class="btn btn-secondary btn-small shared-clip-delete" data-code="${clip.code}" data-token="${clip.deleteToken}" title="${isExpired ? 'Remove from list' : 'Delete clip'}">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-            </div>
         </div>`;
     }).join('');
     
-    // Wire up button handlers
-    listEl.querySelectorAll('.shared-clip-copy').forEach(btn => {
-        btn.onclick = () => {
-            const url = btn.dataset.url;
-            navigator.clipboard.writeText(url).then(() => {
-                const origHTML = btn.innerHTML;
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
-                setTimeout(() => { btn.innerHTML = origHTML; }, 1500);
+    // Wire up click-to-select on each clip row
+    listEl.querySelectorAll('.shared-clip-item').forEach(item => {
+        item.onclick = () => {
+            const code = item.dataset.code;
+            const clip = clips.find(c => c.code === code);
+            if (!clip) return;
+            
+            // Toggle selection
+            const wasSelected = item.classList.contains('selected');
+            listEl.querySelectorAll('.shared-clip-item').forEach(el => el.classList.remove('selected'));
+            
+            if (wasSelected) {
+                // Deselect
+                if (detailEl) detailEl.classList.add('hidden');
+                _selectedClipData = null;
+                return;
+            }
+            
+            item.classList.add('selected');
+            _selectedClipData = clip;
+            
+            // Populate detail panel
+            const expiresAt = new Date(clip.expiresAt).getTime();
+            const isExpired = expiresAt <= now;
+            const remainingHours = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60)));
+            const sizeMB = clip.fileSize ? (clip.fileSize / 1048576).toFixed(1) : '?';
+            
+            const nameEl = document.getElementById('sharedClipDetailName');
+            const sizeEl = document.getElementById('sharedClipDetailSize');
+            const statusEl = document.getElementById('sharedClipDetailStatus');
+            const previewVideo = document.getElementById('sharedClipPreviewVideo');
+            const copyBtn = document.getElementById('sharedClipCopyBtn');
+            const openBtn = document.getElementById('sharedClipOpenBtn');
+            const deleteBtn = document.getElementById('sharedClipDeleteBtn');
+            
+            if (nameEl) nameEl.textContent = clip.fileName || clip.code;
+            if (sizeEl) sizeEl.textContent = `${sizeMB} MB`;
+            if (statusEl) {
+                statusEl.textContent = isExpired ? 'Expired' : `${remainingHours}h left`;
+                statusEl.className = `shared-clip-status ${isExpired ? 'expired' : 'active'}`;
+            }
+            
+            // Load video preview (first frame) from server
+            if (previewVideo && clip.url && !isExpired) {
+                const videoUrl = clip.url.replace(/\/([^/]+)$/, '/video/$1');
+                previewVideo.src = videoUrl + '#t=0.5';
+                previewVideo.load();
+            } else if (previewVideo) {
+                previewVideo.removeAttribute('src');
+            }
+            
+            // Show/hide buttons based on expired state
+            if (copyBtn) copyBtn.style.display = isExpired ? 'none' : '';
+            if (openBtn) openBtn.style.display = isExpired ? 'none' : '';
+            if (deleteBtn) {
+                deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="ui.sharedClips.delete">${t('ui.sharedClips.delete')}</span>`;
+            }
+            
+            if (detailEl) detailEl.classList.remove('hidden');
+        };
+    });
+    
+    // Wire up detail panel action buttons
+    _wireDetailButtons(listEl, emptyEl, layoutEl);
+}
+
+/**
+ * Wire up the detail panel action buttons (copy, open, delete)
+ */
+function _wireDetailButtons(listEl, emptyEl, layoutEl) {
+    const copyBtn = document.getElementById('sharedClipCopyBtn');
+    const openBtn = document.getElementById('sharedClipOpenBtn');
+    const deleteBtn = document.getElementById('sharedClipDeleteBtn');
+    
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            if (!_selectedClipData?.url) return;
+            navigator.clipboard.writeText(_selectedClipData.url).then(() => {
+                const origHTML = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+                setTimeout(() => { copyBtn.innerHTML = origHTML; }, 1500);
             });
         };
-    });
+    }
     
-    listEl.querySelectorAll('.shared-clip-open').forEach(btn => {
-        btn.onclick = () => {
-            window.electronAPI?.openExternal(btn.dataset.url);
+    if (openBtn) {
+        openBtn.onclick = () => {
+            if (_selectedClipData?.url) {
+                window.electronAPI?.openExternal(_selectedClipData.url);
+            }
         };
-    });
+    }
     
-    listEl.querySelectorAll('.shared-clip-delete').forEach(btn => {
-        btn.onclick = async () => {
-            const code = btn.dataset.code;
-            const token = btn.dataset.token;
-            const item = btn.closest('.shared-clip-item');
+    if (deleteBtn) {
+        deleteBtn.onclick = () => {
+            if (!_selectedClipData) return;
+            // Open delete confirmation modal
+            const deleteModal = document.getElementById('deleteSharedClipModal');
+            const deleteNameEl = document.getElementById('deleteClipName');
+            if (deleteNameEl) deleteNameEl.textContent = _selectedClipData.fileName || _selectedClipData.code;
+            if (deleteModal) deleteModal.classList.remove('hidden');
+        };
+    }
+    
+    // Wire up delete confirmation modal buttons
+    const cancelDeleteBtn = document.getElementById('cancelDeleteClipBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteClipBtn');
+    const closeDeleteModalBtn = document.getElementById('closeDeleteSharedClipModal');
+    const deleteModal = document.getElementById('deleteSharedClipModal');
+    const detailEl = document.getElementById('sharedClipDetail');
+    
+    const closeDeleteModal = () => {
+        if (deleteModal) deleteModal.classList.add('hidden');
+    };
+    
+    if (cancelDeleteBtn) cancelDeleteBtn.onclick = closeDeleteModal;
+    if (closeDeleteModalBtn) closeDeleteModalBtn.onclick = closeDeleteModal;
+    
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.onclick = async () => {
+            if (!_selectedClipData) return;
             
-            // Disable button during delete
-            btn.disabled = true;
+            const code = _selectedClipData.code;
+            const token = _selectedClipData.deleteToken;
+            
+            confirmDeleteBtn.disabled = true;
+            confirmDeleteBtn.textContent = 'Deleting...';
             
             try {
-                const result = await window.electronAPI?.deleteSharedClip(code, token);
+                await window.electronAPI?.deleteSharedClip(code, token);
+                
+                closeDeleteModal();
+                
+                // Remove from list with animation
+                const item = listEl?.querySelector(`.shared-clip-item[data-code="${code}"]`);
                 if (item) {
                     item.style.opacity = '0';
                     item.style.transform = 'translateX(20px)';
                     item.style.transition = 'all 0.25s ease';
                     setTimeout(() => {
                         item.remove();
-                        // Check if list is now empty
                         if (listEl.children.length === 0) {
                             if (emptyEl) emptyEl.classList.remove('hidden');
+                            if (layoutEl) layoutEl.style.display = 'none';
                         }
                     }, 250);
                 }
+                
+                // Hide detail panel
+                if (detailEl) detailEl.classList.add('hidden');
+                _selectedClipData = null;
+                
             } catch (err) {
                 console.error('[SHARE] Delete failed:', err);
-                btn.disabled = false;
+            } finally {
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.textContent = 'Delete Clip';
             }
         };
-    });
+    }
 }
 
 /**

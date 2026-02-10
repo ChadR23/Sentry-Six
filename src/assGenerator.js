@@ -443,7 +443,8 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     cumStarts = [],
     dateFormat = 'mdy',
     timeFormat = '12h',
-    language = 'en'
+    language = 'en',
+    accelPedMode = 'iconbar'
   } = options;
   
   // Dashboard dimensions - fixed size based on 1920px reference width
@@ -479,7 +480,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const startX = pos.x - dashWidth / 2 + padding;
   
   // Even spacing for all elements, with speed/gearAp shifted for extra gap
-  const extraGap = spacing * 0.15; // Extra gap between speed and gear/AP
+  const extraGap = spacing * 0.22; // Extra gap between speed and gear/AP (and away from blinkers)
   const positions = {
     brake: startX + spacing * 0,
     dateTime: startX + spacing * 1,              // Date/Time (was Gear)
@@ -721,44 +722,86 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         ));
         
         // Accelerator pedal icon - from Illustrator export, centered at (0,0)
-        // Draw base pedal in gray, then overlay colored fill from bottom based on accelPct
         const accelX = Math.round(positions.accel);
         const accelY = Math.round(pos.y);
         const accelPctVal = prev.accelPct || 0;
+        const accelActive = accelPctVal > 5;
         
-        // Calculate icon bounds for clipping (pedal is ~773 units tall in base, scaled)
-        const pedalHalfHeight = Math.round(386 * pedalScale);
-        const pedalTop = accelY - pedalHalfHeight;
-        const pedalBottom = accelY + pedalHalfHeight;
-        // Clip Y position: reveal from bottom based on percentage
-        const clipY = Math.round(pedalBottom - (pedalBottom - pedalTop) * (accelPctVal / 100));
-        
-        // Main pedal body - gray base
-        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
-          drawAcceleratorPedal(pedalScale) + `{\\p0}`
-        ));
-        // Pedal tab - gray base
-        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
-          drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
-        ));
-        
-        // Colored fill overlay - clipped from bottom based on percentage
-        if (accelPctVal > 0) {
-          const pedalHalfWidth = Math.round(200 * pedalScale);
-          const clipLeft = accelX - pedalHalfWidth;
-          const clipRight = accelX + pedalHalfWidth;
-          // Main pedal body - blue fill with clip
-          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
-            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&HFF4800&\\clip(${clipLeft},${clipY},${clipRight},${pedalBottom})\\p1}` +
+        if (accelPedMode === 'solid') {
+          // Mode: solid - Simple on/off color change, no fill overlay
+          const solidColor = accelActive ? '&HFF4800&' : '&H606060&';
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c${solidColor}\\p1}` +
             drawAcceleratorPedal(pedalScale) + `{\\p0}`
           ));
-          // Pedal tab - blue fill with clip
-          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
-            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&HFF4800&\\clip(${clipLeft},${clipY},${clipRight},${pedalBottom})\\p1}` +
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c${solidColor}\\p1}` +
             drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
           ));
+        } else if (accelPedMode === 'sidebar') {
+          // Mode: sidebar - Icon with vertical bar on the right
+          const sidebarIconColor = accelActive ? '&HFF4800&' : '&H606060&';
+          // Draw pedal icon (shifted left to make room for bar)
+          const sidebarIconX = accelX - Math.round(iconSize * 0.12);
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${sidebarIconX},${accelY})\\bord0\\shad0\\1c${sidebarIconColor}\\p1}` +
+            drawAcceleratorPedal(pedalScale) + `{\\p0}`
+          ));
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${sidebarIconX},${accelY})\\bord0\\shad0\\1c${sidebarIconColor}\\p1}` +
+            drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+          ));
+          // Draw vertical sidebar bar to the right of icon
+          const barWidth = Math.max(2, Math.round(iconSize * 0.08));
+          const barHeight = Math.round(iconSize * 0.9);
+          const barX = sidebarIconX + Math.round(iconSize * 0.38);
+          const barTop = accelY - Math.round(barHeight / 2);
+          const barBottom = accelY + Math.round(barHeight / 2);
+          // Gray background bar
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H404040&\\p1}` +
+            `m ${barX} ${barTop} l ${barX + barWidth} ${barTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
+          ));
+          // Blue fill from bottom based on percentage
+          if (accelPctVal > 0) {
+            const fillTop = Math.round(barBottom - (barHeight * accelPctVal / 100));
+            events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF4800&\\p1}` +
+              `m ${barX} ${fillTop} l ${barX + barWidth} ${fillTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
+            ));
+          }
+        } else {
+          // Mode: iconbar (default) - Icon fills from bottom based on percentage
+          const pedalHalfHeight = Math.round(386 * pedalScale);
+          const pedalTop = accelY - pedalHalfHeight;
+          const pedalBottom = accelY + pedalHalfHeight;
+          const clipY = Math.round(pedalBottom - (pedalBottom - pedalTop) * (accelPctVal / 100));
+          
+          // Main pedal body - gray base
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
+            drawAcceleratorPedal(pedalScale) + `{\\p0}`
+          ));
+          // Pedal tab - gray base
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
+            drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+          ));
+          
+          // Colored fill overlay - clipped from bottom based on percentage
+          if (accelPctVal > 0) {
+            const pedalHalfWidth = Math.round(200 * pedalScale);
+            const clipLeft = accelX - pedalHalfWidth;
+            const clipRight = accelX + pedalHalfWidth;
+            events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&HFF4800&\\clip(${clipLeft},${clipY},${clipRight},${pedalBottom})\\p1}` +
+              drawAcceleratorPedal(pedalScale) + `{\\p0}`
+            ));
+            events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&HFF4800&\\clip(${clipLeft},${clipY},${clipRight},${pedalBottom})\\p1}` +
+              drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+            ));
+          }
         }
       }
       
