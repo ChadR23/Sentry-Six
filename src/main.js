@@ -1371,11 +1371,6 @@ ipcMain.handle('share:upload', async (event, filePath) => {
     
     const stat = fs.statSync(filePath);
     const totalBytes = stat.size;
-    const maxSize = 500 * 1024 * 1024; // 500 MB
-    
-    if (totalBytes > maxSize) {
-      throw new Error(`File too large (${(totalBytes / 1048576).toFixed(1)} MB). Maximum is 500 MB.`);
-    }
     
     // Generate delete token client-side
     const deleteToken = crypto.randomBytes(24).toString('hex');
