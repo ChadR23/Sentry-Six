@@ -4027,6 +4027,32 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: rgba(239, 68, 68, 0.7);
 }
 
+/* Hint arrow */
+.shared-clips-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    animation: hintBounce 2s ease-in-out infinite;
+}
+
+.shared-clips-hint svg {
+    opacity: 0.4;
+}
+
+.shared-clips-hint.hidden {
+    display: none;
+}
+
+@keyframes hintBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(3px); }
+}
+
 /* Detail panel */
 .shared-clip-detail {
     border-top: 1px solid rgba(255, 255, 255, 0.08);

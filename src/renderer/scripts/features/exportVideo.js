@@ -1852,6 +1852,14 @@ async function uploadShareClip(filePath) {
     const shareErrorText = $('shareErrorText');
     const shareBtn = $('exportShareBtn');
     
+    // Disable Done button during upload
+    const doneBtn = $('exportDoneBtn');
+    if (doneBtn) {
+        doneBtn.disabled = true;
+        doneBtn.style.opacity = '0.4';
+        doneBtn.style.cursor = 'not-allowed';
+    }
+    
     // Show upload progress
     if (shareUploadProgress) shareUploadProgress.classList.remove('hidden');
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
@@ -1874,6 +1882,13 @@ async function uploadShareClip(filePath) {
             if (shareLinkResult) shareLinkResult.classList.remove('hidden');
             if (shareLinkInput) shareLinkInput.value = progress.url;
             
+            // Re-enable Done button
+            if (doneBtn) {
+                doneBtn.disabled = false;
+                doneBtn.style.opacity = '';
+                doneBtn.style.cursor = '';
+            }
+            
             notify('Clip shared successfully!', { type: 'success' });
             
             // Remove listener
@@ -1883,6 +1898,13 @@ async function uploadShareClip(filePath) {
             if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
             if (shareError) shareError.classList.remove('hidden');
             if (shareErrorText) shareErrorText.textContent = `Upload failed: ${progress.error}`;
+            
+            // Re-enable Done button
+            if (doneBtn) {
+                doneBtn.disabled = false;
+                doneBtn.style.opacity = '';
+                doneBtn.style.cursor = '';
+            }
             
             // Re-show share button for retry
             if (shareBtn) {
@@ -1907,6 +1929,11 @@ async function uploadShareClip(filePath) {
         if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
         if (shareError) shareError.classList.remove('hidden');
         if (shareErrorText) shareErrorText.textContent = `Upload failed: ${err.message || 'Unknown error'}`;
+        if (doneBtn) {
+            doneBtn.disabled = false;
+            doneBtn.style.opacity = '';
+            doneBtn.style.cursor = '';
+        }
         if (shareBtn) {
             shareBtn.classList.remove('hidden');
             shareBtn.disabled = false;
@@ -1985,12 +2012,15 @@ export async function renderSharedClipsList() {
             const wasSelected = item.classList.contains('selected');
             listEl.querySelectorAll('.shared-clip-item').forEach(el => el.classList.remove('selected'));
             
+            const hintEl = document.getElementById('sharedClipsHint');
             if (wasSelected) {
                 // Deselect
                 if (detailEl) detailEl.classList.add('hidden');
+                if (hintEl) hintEl.classList.remove('hidden');
                 _selectedClipData = null;
                 return;
             }
+            if (hintEl) hintEl.classList.add('hidden');
             
             item.classList.add('selected');
             _selectedClipData = clip;
@@ -2033,6 +2063,7 @@ export async function renderSharedClipsList() {
             }
             
             if (detailEl) detailEl.classList.remove('hidden');
+            if (hintEl) hintEl.classList.add('hidden');
         };
     });
     
