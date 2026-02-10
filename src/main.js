@@ -1353,6 +1353,236 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
   return true;
 });
 
+// ============================================
+// CLIP SHARING - Upload export to Sentry Six server
+// ============================================
+const CLIP_UPLOAD_URL = 'https://api.sentry-six.com/share/upload';
+const CLIP_DELETE_URL = 'https://api.sentry-six.com/share/delete';
+const crypto = require('crypto');
+
+ipcMain.handle('share:upload', async (event, filePath) => {
+  console.log('[SHARE] Starting clip upload:', filePath);
+  
+  try {
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Export file not found');
+    }
+    
+    const stat = fs.statSync(filePath);
+    const totalBytes = stat.size;
+    const maxSize = 500 * 1024 * 1024; // 500 MB
+    
+    if (totalBytes > maxSize) {
+      throw new Error(`File too large (${(totalBytes / 1048576).toFixed(1)} MB). Maximum is 500 MB.`);
+    }
+    
+    // Generate delete token client-side
+    const deleteToken = crypto.randomBytes(24).toString('hex');
+    
+    // Build multipart form data manually to stream the file with progress tracking
+    const boundary = `----SentrySixUpload${Date.now()}${Math.random().toString(36).slice(2)}`;
+    const fileName = path.basename(filePath);
+    
+    // Form data: deleteToken field + video file
+    const deleteTokenPart = Buffer.from(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="deleteToken"\r\n\r\n` +
+      `${deleteToken}\r\n`
+    );
+    const filePart = Buffer.from(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="video"; filename="${fileName}"\r\n` +
+      `Content-Type: video/mp4\r\n\r\n`
+    );
+    const footerPart = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const contentLength = deleteTokenPart.length + filePart.length + totalBytes + footerPart.length;
+    
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(CLIP_UPLOAD_URL);
+      const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+      
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': contentLength
+        }
+      };
+      
+      const req = httpModule.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(body);
+            if (res.statusCode === 200 && result.success) {
+              console.log(`[SHARE] Upload complete: ${result.url}`);
+              
+              // Auto-save to local shared clips list
+              try {
+                const settings = loadSettings();
+                const sharedClips = settings.sharedClips || [];
+                sharedClips.unshift({
+                  code: result.code,
+                  url: result.url,
+                  deleteToken: result.deleteToken || deleteToken,
+                  expiresAt: result.expiresAt,
+                  fileSize: result.fileSize,
+                  fileName,
+                  uploadedAt: new Date().toISOString()
+                });
+                // Keep max 50 entries
+                settings.sharedClips = sharedClips.slice(0, 50);
+                saveSettings(settings);
+              } catch (saveErr) {
+                console.error('[SHARE] Failed to save clip to settings:', saveErr.message);
+              }
+              
+              event.sender.send('share:progress', { type: 'complete', ...result });
+              resolve(result);
+            } else {
+              const errorMsg = result.error || `Upload failed (HTTP ${res.statusCode})`;
+              console.error('[SHARE] Upload failed:', errorMsg);
+              event.sender.send('share:progress', { type: 'error', error: errorMsg });
+              reject(new Error(errorMsg));
+            }
+          } catch (parseErr) {
+            console.error('[SHARE] Response parse error:', body.slice(0, 200));
+            reject(new Error('Invalid server response'));
+          }
+        });
+      });
+      
+      req.on('error', (err) => {
+        console.error('[SHARE] Upload network error:', err.message);
+        event.sender.send('share:progress', { type: 'error', error: err.message });
+        reject(err);
+      });
+      
+      // Write deleteToken field first, then file header
+      req.write(deleteTokenPart);
+      req.write(filePart);
+      
+      // Stream file with progress tracking
+      let bytesUploaded = 0;
+      let lastProgressPct = 0;
+      const fileStream = fs.createReadStream(filePath, { highWaterMark: 256 * 1024 }); // 256KB chunks
+      
+      fileStream.on('data', (chunk) => {
+        req.write(chunk);
+        bytesUploaded += chunk.length;
+        const pct = Math.floor((bytesUploaded / totalBytes) * 100);
+        if (pct > lastProgressPct) {
+          lastProgressPct = pct;
+          event.sender.send('share:progress', {
+            type: 'progress',
+            percentage: pct,
+            bytesUploaded,
+            totalBytes
+          });
+        }
+      });
+      
+      fileStream.on('end', () => {
+        req.write(footerPart);
+        req.end();
+        event.sender.send('share:progress', {
+          type: 'progress',
+          percentage: 100,
+          bytesUploaded: totalBytes,
+          totalBytes
+        });
+      });
+      
+      fileStream.on('error', (err) => {
+        console.error('[SHARE] File read error:', err.message);
+        req.destroy();
+        reject(err);
+      });
+    });
+    
+  } catch (err) {
+    console.error('[SHARE] Upload error:', err.message);
+    event.sender.send('share:progress', { type: 'error', error: err.message });
+    throw err;
+  }
+});
+
+// Get list of shared clips from local settings
+ipcMain.handle('share:getClips', async () => {
+  try {
+    const settings = loadSettings();
+    return settings.sharedClips || [];
+  } catch (err) {
+    console.error('[SHARE] Failed to get clips:', err.message);
+    return [];
+  }
+});
+
+// Delete a shared clip (sends delete request to server + removes from local settings)
+ipcMain.handle('share:deleteClip', async (_event, code, deleteToken) => {
+  console.log('[SHARE] Deleting clip:', code);
+  
+  try {
+    const urlObj = new URL(CLIP_DELETE_URL);
+    const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+    const payload = JSON.stringify({ code, deleteToken });
+    
+    const result = await new Promise((resolve, reject) => {
+      const req = httpModule.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        }
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ statusCode: res.statusCode, data: JSON.parse(body) });
+          } catch {
+            resolve({ statusCode: res.statusCode, data: { error: 'Invalid response' } });
+          }
+        });
+      });
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    });
+    
+    // Remove from local settings regardless of server response
+    try {
+      const settings = loadSettings();
+      settings.sharedClips = (settings.sharedClips || []).filter(c => c.code !== code);
+      saveSettings(settings);
+    } catch (e) { /* ignore */ }
+    
+    if (result.statusCode === 200 && result.data.success) {
+      console.log(`[SHARE] Clip ${code} deleted successfully`);
+      return { success: true };
+    } else {
+      return { success: false, error: result.data.error || 'Delete failed' };
+    }
+    
+  } catch (err) {
+    console.error('[SHARE] Delete error:', err.message);
+    // Still remove from local settings
+    try {
+      const settings = loadSettings();
+      settings.sharedClips = (settings.sharedClips || []).filter(c => c.code !== code);
+      saveSettings(settings);
+    } catch (e) { /* ignore */ }
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('fs:showItemInFolder', async (_event, filePath) => {
   shell.showItemInFolder(filePath);
 });

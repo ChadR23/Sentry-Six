@@ -501,6 +501,21 @@ export function openExportModal() {
     // Update blur zone status display
     updateBlurZoneStatusDisplay();
     
+    // Hide completion panel when opening fresh
+    const completePanel = $('exportCompletePanel');
+    if (completePanel) completePanel.classList.add('hidden');
+    
+    // Reset share upload UI
+    const shareUploadProgress = $('shareUploadProgress');
+    const shareLinkResult = $('shareLinkResult');
+    const shareError = $('shareError');
+    if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
+    if (shareLinkResult) shareLinkResult.classList.add('hidden');
+    if (shareError) shareError.classList.add('hidden');
+    
+    // Initialize share clip toggle based on export duration
+    initShareClipToggle();
+    
     // Initialize minimap toggle and options
     const minimapCheckbox = $('includeMinimap');
     const minimapOptions = $('minimapOptions');
@@ -555,6 +570,19 @@ export function openExportModal() {
 export function closeExportModal() {
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
+    
+    // Restore modal body/footer if completion panel was showing
+    const completePanel = $('exportCompletePanel');
+    if (completePanel && !completePanel.classList.contains('hidden')) {
+        completePanel.classList.add('hidden');
+        const modalBody = modal?.querySelector('.modal-body');
+        const modalFooter = modal?.querySelector('.modal-footer');
+        if (modalBody) modalBody.classList.remove('hidden');
+        if (modalFooter) modalFooter.classList.remove('hidden');
+    }
+    
+    // Clean up share progress listener
+    window.electronAPI?.removeAllListeners?.('share:progress');
     
     // If exporting, show floating progress instead of canceling
     if (exportState.isExporting && exportState.currentExportId) {
@@ -1000,6 +1028,9 @@ export function updateExportRangeDisplay() {
     if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
     if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
     if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
+    
+    // Update share toggle availability based on new duration
+    initShareClipToggle();
 }
 
 /**
@@ -1539,12 +1570,8 @@ export async function startExport() {
                         modal.classList.remove('hidden');
                     }
                     
-                    setTimeout(() => {
-                        if (confirm(`${translatedMessage}\n\n${t('ui.export.openFileLocation')}`)) {
-                            window.electronAPI.showItemInFolder(outputPath);
-                        }
-                        closeExportModal();
-                    }, 500);
+                    // Show completion panel instead of confirm dialog
+                    showExportCompletePanel(outputPath, translatedMessage);
                 } else {
                     if (progressText) progressText.textContent = translatedMessage;
                     notify(translatedMessage, { type: 'error' });
@@ -1652,9 +1679,337 @@ export async function cancelExport() {
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;
     
+    // Restore modal body/footer if completion panel was showing
+    const completePanel = $('exportCompletePanel');
+    if (completePanel && !completePanel.classList.contains('hidden')) {
+        completePanel.classList.add('hidden');
+        const modal2 = $('exportModal');
+        const modalBody = modal2?.querySelector('.modal-body');
+        const modalFooter = modal2?.querySelector('.modal-footer');
+        if (modalBody) modalBody.classList.remove('hidden');
+        if (modalFooter) modalFooter.classList.remove('hidden');
+    }
+    
+    // Clean up share progress listener
+    window.electronAPI?.removeAllListeners?.('share:progress');
+    
     // Close modal completely when cancelled
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
+}
+
+/**
+ * Initialize the share clip toggle based on export duration
+ */
+function initShareClipToggle() {
+    const shareToggle = $('shareClipToggle');
+    const shareToggleRow = $('shareClipToggleRow');
+    const shareWarning = $('shareClipWarning');
+    const shareInfo = $('shareClipInfo');
+    
+    if (!shareToggle) return;
+    
+    const nativeVideo = getNativeVideo?.();
+    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
+    const startPct = exportState.startMarkerPct ?? 0;
+    const endPct = exportState.endMarkerPct ?? 100;
+    const durationSec = Math.abs((endPct - startPct) / 100 * totalSec);
+    const maxDurationSec = 5 * 60; // 5 minutes
+    
+    if (durationSec > maxDurationSec) {
+        // Export too long for sharing
+        shareToggle.checked = false;
+        shareToggle.disabled = true;
+        if (shareToggleRow) shareToggleRow.classList.add('disabled');
+        if (shareWarning) shareWarning.classList.remove('hidden');
+        if (shareInfo) shareInfo.classList.add('hidden');
+    } else {
+        shareToggle.disabled = false;
+        if (shareToggleRow) shareToggleRow.classList.remove('disabled');
+        if (shareWarning) shareWarning.classList.add('hidden');
+        if (shareInfo) shareInfo.classList.remove('hidden');
+    }
+    
+    // Update toggle state when duration changes
+    shareToggle.onchange = () => {
+        if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
+    };
+}
+
+/**
+ * Show the export completion panel (replaces native confirm dialog)
+ */
+function showExportCompletePanel(outputPath, message) {
+    const completePanel = $('exportCompletePanel');
+    const modalBody = completePanel?.closest('.modal-content')?.querySelector('.modal-body');
+    const modalFooter = completePanel?.closest('.modal-content')?.querySelector('.modal-footer');
+    const completeTitleEl = $('exportCompleteTitle');
+    const completeMessageEl = $('exportCompleteMessage');
+    const doneBtn = $('exportDoneBtn');
+    const openFolderBtn = $('exportOpenFolderBtn');
+    const shareBtn = $('exportShareBtn');
+    const shareUploadProgress = $('shareUploadProgress');
+    const shareLinkResult = $('shareLinkResult');
+    const shareError = $('shareError');
+    
+    if (!completePanel) return;
+    
+    // Get file size for display
+    const fileSizeText = message || 'Export completed successfully';
+    
+    // Set completion text
+    if (completeTitleEl) completeTitleEl.textContent = 'Export Complete!';
+    if (completeMessageEl) completeMessageEl.textContent = fileSizeText;
+    
+    // Reset share UI
+    if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
+    if (shareLinkResult) shareLinkResult.classList.add('hidden');
+    if (shareError) shareError.classList.add('hidden');
+    
+    // Hide modal body and footer, show completion panel
+    if (modalBody) modalBody.classList.add('hidden');
+    if (modalFooter) modalFooter.classList.add('hidden');
+    completePanel.classList.remove('hidden');
+    
+    // Check if share was pre-selected
+    const shareToggle = $('shareClipToggle');
+    const wasShareSelected = shareToggle?.checked && !shareToggle?.disabled;
+    
+    // If share was pre-selected, hide the share button (it auto-starts) 
+    // If not pre-selected, show it as an option
+    if (shareBtn) {
+        shareBtn.classList.toggle('hidden', wasShareSelected);
+    }
+    
+    // Wire up button handlers
+    if (doneBtn) {
+        doneBtn.onclick = () => {
+            completePanel.classList.add('hidden');
+            if (modalBody) modalBody.classList.remove('hidden');
+            if (modalFooter) modalFooter.classList.remove('hidden');
+            closeExportModal();
+        };
+    }
+    
+    if (openFolderBtn) {
+        openFolderBtn.onclick = () => {
+            window.electronAPI?.showItemInFolder(outputPath);
+        };
+    }
+    
+    if (shareBtn) {
+        shareBtn.onclick = () => {
+            shareBtn.disabled = true;
+            shareBtn.classList.add('hidden');
+            uploadShareClip(outputPath);
+        };
+    }
+    
+    // Copy link button
+    const copyBtn = $('shareLinkCopyBtn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            const linkInput = $('shareLinkInput');
+            if (linkInput?.value) {
+                navigator.clipboard.writeText(linkInput.value).then(() => {
+                    const origText = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => { copyBtn.textContent = origText; }, 2000);
+                });
+            }
+        };
+    }
+    
+    // Auto-start upload if share was pre-selected
+    if (wasShareSelected) {
+        uploadShareClip(outputPath);
+    }
+}
+
+/**
+ * Upload the exported clip to Sentry Six server for sharing
+ */
+async function uploadShareClip(filePath) {
+    const shareUploadProgress = $('shareUploadProgress');
+    const shareUploadProgressBar = $('shareUploadProgressBar');
+    const shareUploadProgressText = $('shareUploadProgressText');
+    const shareLinkResult = $('shareLinkResult');
+    const shareLinkInput = $('shareLinkInput');
+    const shareError = $('shareError');
+    const shareErrorText = $('shareErrorText');
+    const shareBtn = $('exportShareBtn');
+    
+    // Show upload progress
+    if (shareUploadProgress) shareUploadProgress.classList.remove('hidden');
+    if (shareLinkResult) shareLinkResult.classList.add('hidden');
+    if (shareError) shareError.classList.add('hidden');
+    if (shareUploadProgressBar) shareUploadProgressBar.style.width = '0%';
+    if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Six...';
+    
+    // Listen for progress updates
+    const progressHandler = (progress) => {
+        if (progress.type === 'progress') {
+            if (shareUploadProgressBar) shareUploadProgressBar.style.width = `${progress.percentage}%`;
+            const uploadedMB = (progress.bytesUploaded / 1048576).toFixed(1);
+            const totalMB = (progress.totalBytes / 1048576).toFixed(1);
+            if (shareUploadProgressText) {
+                shareUploadProgressText.textContent = `Uploading... ${uploadedMB} / ${totalMB} MB (${progress.percentage}%)`;
+            }
+        } else if (progress.type === 'complete') {
+            // Upload succeeded - show link
+            if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
+            if (shareLinkResult) shareLinkResult.classList.remove('hidden');
+            if (shareLinkInput) shareLinkInput.value = progress.url;
+            
+            notify('Clip shared successfully!', { type: 'success' });
+            
+            // Remove listener
+            window.electronAPI?.off('share:progress', progressHandler);
+        } else if (progress.type === 'error') {
+            // Upload failed
+            if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
+            if (shareError) shareError.classList.remove('hidden');
+            if (shareErrorText) shareErrorText.textContent = `Upload failed: ${progress.error}`;
+            
+            // Re-show share button for retry
+            if (shareBtn) {
+                shareBtn.classList.remove('hidden');
+                shareBtn.disabled = false;
+            }
+            
+            // Remove listener
+            window.electronAPI?.off('share:progress', progressHandler);
+        }
+    };
+    
+    if (window.electronAPI?.on) {
+        window.electronAPI.on('share:progress', progressHandler);
+    }
+    
+    try {
+        await window.electronAPI.uploadShareClip(filePath);
+    } catch (err) {
+        console.error('[SHARE] Upload failed:', err);
+        // Error is handled by the progress handler
+        if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
+        if (shareError) shareError.classList.remove('hidden');
+        if (shareErrorText) shareErrorText.textContent = `Upload failed: ${err.message || 'Unknown error'}`;
+        if (shareBtn) {
+            shareBtn.classList.remove('hidden');
+            shareBtn.disabled = false;
+        }
+        window.electronAPI?.off('share:progress', progressHandler);
+    }
+}
+
+/**
+ * Render the shared clips list in the My Shared Clips modal
+ */
+export async function renderSharedClipsList() {
+    const listEl = document.getElementById('sharedClipsList');
+    const emptyEl = document.getElementById('sharedClipsEmpty');
+    
+    if (!listEl) return;
+    
+    let clips = [];
+    try {
+        clips = await window.electronAPI?.getSharedClips() || [];
+    } catch (err) {
+        console.error('[SHARE] Failed to load shared clips:', err);
+    }
+    
+    if (clips.length === 0) {
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        listEl.innerHTML = '';
+        return;
+    }
+    
+    if (emptyEl) emptyEl.classList.add('hidden');
+    
+    const now = Date.now();
+    
+    listEl.innerHTML = clips.map(clip => {
+        const expiresAt = new Date(clip.expiresAt).getTime();
+        const isExpired = expiresAt <= now;
+        const remainingMs = expiresAt - now;
+        const remainingHours = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60)));
+        const sizeMB = clip.fileSize ? (clip.fileSize / 1048576).toFixed(1) : '?';
+        const statusClass = isExpired ? 'expired' : 'active';
+        const statusText = isExpired ? 'Expired' : `${remainingHours}h left`;
+        const displayName = clip.fileName || clip.code;
+        
+        return `
+        <div class="shared-clip-item ${statusClass}" data-code="${clip.code}">
+            <div class="shared-clip-info">
+                <div class="shared-clip-name" title="${displayName}">${displayName}</div>
+                <div class="shared-clip-meta">
+                    <span class="shared-clip-size">${sizeMB} MB</span>
+                    <span class="shared-clip-status ${statusClass}">${statusText}</span>
+                </div>
+            </div>
+            <div class="shared-clip-actions">
+                ${!isExpired ? `
+                <button class="btn btn-secondary btn-small shared-clip-copy" data-url="${clip.url}" title="Copy link">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+                <button class="btn btn-secondary btn-small shared-clip-open" data-url="${clip.url}" title="Open in browser">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </button>
+                ` : ''}
+                <button class="btn btn-secondary btn-small shared-clip-delete" data-code="${clip.code}" data-token="${clip.deleteToken}" title="${isExpired ? 'Remove from list' : 'Delete clip'}">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+    
+    // Wire up button handlers
+    listEl.querySelectorAll('.shared-clip-copy').forEach(btn => {
+        btn.onclick = () => {
+            const url = btn.dataset.url;
+            navigator.clipboard.writeText(url).then(() => {
+                const origHTML = btn.innerHTML;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+                setTimeout(() => { btn.innerHTML = origHTML; }, 1500);
+            });
+        };
+    });
+    
+    listEl.querySelectorAll('.shared-clip-open').forEach(btn => {
+        btn.onclick = () => {
+            window.electronAPI?.openExternal(btn.dataset.url);
+        };
+    });
+    
+    listEl.querySelectorAll('.shared-clip-delete').forEach(btn => {
+        btn.onclick = async () => {
+            const code = btn.dataset.code;
+            const token = btn.dataset.token;
+            const item = btn.closest('.shared-clip-item');
+            
+            // Disable button during delete
+            btn.disabled = true;
+            
+            try {
+                const result = await window.electronAPI?.deleteSharedClip(code, token);
+                if (item) {
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(20px)';
+                    item.style.transition = 'all 0.25s ease';
+                    setTimeout(() => {
+                        item.remove();
+                        // Check if list is now empty
+                        if (listEl.children.length === 0) {
+                            if (emptyEl) emptyEl.classList.remove('hidden');
+                        }
+                    }, 250);
+                }
+            } catch (err) {
+                console.error('[SHARE] Delete failed:', err);
+                btn.disabled = false;
+            }
+        };
+    });
 }
 
 /**

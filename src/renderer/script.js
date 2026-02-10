@@ -14,7 +14,7 @@ import {
     exportState, initExportModule, setExportMarker, updateExportMarkers, 
     updateExportButtonState, openExportModal, closeExportModal, reopenExportModal,
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
-    startExport, cancelExport, clearExportMarkers 
+    startExport, cancelExport, clearExportMarkers, renderSharedClipsList 
 } from './scripts/features/exportVideo.js';
 import { initAutoUpdate } from './scripts/features/autoUpdate.js';
 import { initWelcomeScreen } from './scripts/features/welcomeScreen.js';
@@ -963,6 +963,32 @@ let useMetric = false; // Will be loaded from settings
             if (e.target === exportModal) {
                 closeExportModal();
             }
+        };
+    }
+    
+    // My Shared Clips modal
+    const mySharedClipsBtn = $('mySharedClipsBtn');
+    const sharedClipsModal = $('sharedClipsModal');
+    const closeSharedClipsModal = $('closeSharedClipsModal');
+    
+    if (mySharedClipsBtn) {
+        mySharedClipsBtn.onclick = async (e) => {
+            e.preventDefault();
+            mySharedClipsBtn.blur();
+            if (sharedClipsModal) {
+                sharedClipsModal.classList.remove('hidden');
+                await renderSharedClipsList();
+            }
+        };
+    }
+    if (closeSharedClipsModal) {
+        closeSharedClipsModal.onclick = () => {
+            if (sharedClipsModal) sharedClipsModal.classList.add('hidden');
+        };
+    }
+    if (sharedClipsModal) {
+        sharedClipsModal.onclick = (e) => {
+            if (e.target === sharedClipsModal) sharedClipsModal.classList.add('hidden');
         };
     }
     

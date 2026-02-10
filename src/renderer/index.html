@@ -361,6 +361,12 @@
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
                 </button>
+                <button id="mySharedClipsBtn" class="control-btn shared-clips-btn" title="My Shared Clips">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                </button>
                 <button id="supportChatBtn" class="control-btn support-chat-control-btn" data-i18n-title="ui.playback.supportChat" title="Support Chat">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -718,6 +724,40 @@
                     </div>
                 </div>
 
+                <!-- Share Clip - Prominent Section -->
+                <div class="collapsible-section open share-clip-section" data-section="sharing">
+                    <div class="collapsible-header">
+                        <span class="collapsible-header-title">
+                            <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            <span>Share Clip</span>
+                            <span class="share-new-badge">NEW</span>
+                        </span>
+                        <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
+                    <div class="collapsible-body">
+                        <div class="collapsible-content">
+                            <label class="toggle-row" id="shareClipToggleRow">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Generate Shareable Link</span>
+                                    <span class="toggle-row-desc">Upload to Sentry Six servers after export</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="shareClipToggle">
+                                    <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                                </div>
+                            </label>
+                            <div id="shareClipInfo" class="info-box info-blue" style="margin-top: 8px;">
+                                <span class="info-box-icon">🔗</span>
+                                <span>Your clip will be available for <strong>48 hours</strong> at clip.sentry-six.com</span>
+                            </div>
+                            <div id="shareClipWarning" class="info-box info-yellow hidden" style="margin-top: 8px;">
+                                <span class="info-box-icon">⚠️</span>
+                                <span>Sharing is only available for exports under 5 minutes</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- FFmpeg Status - Compact -->
                 <div id="ffmpegStatus" class="info-box info-green export-status-bar">
                     <span class="info-box-icon">⏳</span>
@@ -756,9 +796,85 @@
                     </div>
                 </div>
             </div>
+            <!-- Export Complete Panel (replaces confirm dialog) -->
+            <div id="exportCompletePanel" class="export-complete-panel hidden">
+                <div class="export-complete-header">
+                    <svg class="export-complete-icon" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <div class="export-complete-text">
+                        <div id="exportCompleteTitle" class="export-complete-title">Export Complete!</div>
+                        <div id="exportCompleteMessage" class="export-complete-message"></div>
+                    </div>
+                </div>
+                
+                <div class="export-complete-actions">
+                    <button id="exportDoneBtn" class="btn btn-secondary">Done</button>
+                    <button id="exportOpenFolderBtn" class="btn btn-secondary">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        Open in Folder
+                    </button>
+                    <button id="exportShareBtn" class="btn btn-primary btn-share">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        Share Clip
+                    </button>
+                </div>
+                
+                <!-- Upload progress (shown during upload) -->
+                <div id="shareUploadProgress" class="export-progress hidden" style="margin-top: 12px;">
+                    <div class="progress-bar-container">
+                        <div id="shareUploadProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="shareUploadProgressText" class="progress-text">Uploading to Sentry Six...</div>
+                </div>
+                
+                <!-- Share link result (shown after upload completes) -->
+                <div id="shareLinkResult" class="share-link-result hidden">
+                    <div class="share-link-box">
+                        <input id="shareLinkInput" type="text" class="share-link-input" readonly>
+                        <button id="shareLinkCopyBtn" class="btn btn-primary btn-small">Copy</button>
+                    </div>
+                    <div class="share-link-expiry">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Link expires in 48 hours
+                    </div>
+                </div>
+                
+                <!-- Share error (shown on upload failure) -->
+                <div id="shareError" class="info-box info-red hidden" style="margin-top: 12px;">
+                    <span class="info-box-icon">⚠️</span>
+                    <span id="shareErrorText">Upload failed</span>
+                </div>
+            </div>
+
             <div class="modal-footer">
                 <button id="cancelExportBtn" class="btn btn-secondary" data-i18n="ui.export.cancel">Cancel</button>
                 <button id="startExportBtn" class="btn btn-primary" disabled data-i18n="ui.export.exportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Shared Clips Modal -->
+    <div id="sharedClipsModal" class="modal hidden">
+        <div class="modal-content shared-clips-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    <span>My Shared Clips</span>
+                </h2>
+                <button id="closeSharedClipsModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <div id="sharedClipsEmpty" class="shared-clips-empty">
+                    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    <p>No shared clips yet</p>
+                    <span>Export a clip with sharing enabled to see it here</span>
+                </div>
+                <div id="sharedClipsList" class="shared-clips-list"></div>
             </div>
         </div>
     </div>

@@ -21,6 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelExport: (exportId) => ipcRenderer.invoke('export:cancel', exportId),
   checkFFmpeg: () => ipcRenderer.invoke('ffmpeg:check'),
   
+  // Clip sharing
+  uploadShareClip: (filePath) => ipcRenderer.invoke('share:upload', filePath),
+  getSharedClips: () => ipcRenderer.invoke('share:getClips'),
+  deleteSharedClip: (code, deleteToken) => ipcRenderer.invoke('share:deleteClip', code, deleteToken),
+  
   // Update operations (using electron-updater)
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
@@ -55,7 +60,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Event listeners
   on: (channel, callback) => {
-    const allowedChannels = ['export:progress', 'update:available', 'update:progress', 'update:downloaded', 'update:forceManual'];
+    const allowedChannels = ['export:progress', 'share:progress', 'update:available', 'update:progress', 'update:downloaded', 'update:forceManual'];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
     }
