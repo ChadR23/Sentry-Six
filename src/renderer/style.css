@@ -3920,7 +3920,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .shared-clips-modal .modal-body {
     max-height: 55vh;
-    overflow-y: auto;
+    overflow: hidden;
     padding: 0;
 }
 

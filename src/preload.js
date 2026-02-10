@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clip sharing
   uploadShareClip: (filePath) => ipcRenderer.invoke('share:upload', filePath),
   getSharedClips: () => ipcRenderer.invoke('share:getClips'),
+  syncSharedClips: () => ipcRenderer.invoke('share:syncClips'),
   deleteSharedClip: (code, deleteToken) => ipcRenderer.invoke('share:deleteClip', code, deleteToken),
   
   // Update operations (using electron-updater)

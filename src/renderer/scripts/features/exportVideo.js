@@ -1962,9 +1962,14 @@ export async function renderSharedClipsList() {
     
     let clips = [];
     try {
-        clips = await window.electronAPI?.getSharedClips() || [];
+        // Sync with server to remove clips deleted by admin or expired
+        clips = await window.electronAPI?.syncSharedClips() || [];
     } catch (err) {
-        console.error('[SHARE] Failed to load shared clips:', err);
+        console.error('[SHARE] Failed to sync shared clips:', err);
+        // Fallback to local clips if sync fails
+        try {
+            clips = await window.electronAPI?.getSharedClips() || [];
+        } catch { /* ignore */ }
     }
     
     if (clips.length === 0) {

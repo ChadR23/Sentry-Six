@@ -1518,6 +1518,75 @@ ipcMain.handle('share:getClips', async () => {
   }
 });
 
+// Sync local shared clips with server (removes clips deleted by admin or expired)
+ipcMain.handle('share:syncClips', async () => {
+  try {
+    const settings = loadSettings();
+    const clips = settings.sharedClips || [];
+    if (clips.length === 0) return clips;
+    
+    const codes = clips.map(c => c.code);
+    const payload = JSON.stringify({ codes });
+    const urlObj = new URL('https://api.sentry-six.com/share/check-codes');
+    const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+    
+    const result = await new Promise((resolve, reject) => {
+      const req = httpModule.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        }
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body));
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.setTimeout(10000, () => { req.destroy(); resolve(null); });
+      req.write(payload);
+      req.end();
+    });
+    
+    if (!result || !result.statuses) {
+      // Server unreachable, return local clips as-is
+      return clips;
+    }
+    
+    // Update local clips: remove deleted ones, update expiry times
+    const updatedClips = [];
+    for (const clip of clips) {
+      const status = result.statuses[clip.code];
+      if (!status || status.deleted) {
+        console.log(`[SHARE] Removing clip ${clip.code} (deleted on server)`);
+        continue;
+      }
+      // Update expiry from server
+      if (status.expiresAt) {
+        clip.expiresAt = status.expiresAt;
+      }
+      updatedClips.push(clip);
+    }
+    
+    settings.sharedClips = updatedClips;
+    saveSettings(settings);
+    return updatedClips;
+  } catch (err) {
+    console.error('[SHARE] Sync clips error:', err.message);
+    const settings = loadSettings();
+    return settings.sharedClips || [];
+  }
+});
+
 // Delete a shared clip (sends delete request to server + removes from local settings)
 ipcMain.handle('share:deleteClip', async (_event, code, deleteToken) => {
   console.log('[SHARE] Deleting clip:', code);
