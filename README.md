@@ -50,6 +50,13 @@ Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. Vi
   - Add a timestamp overlay with multiple date formats
   - Use blur zones to ensure privacy
   - Minimize the export modal and track progress via floating notification
+
+- **Clip Sharing**
+  - Generate a shareable link after exporting a clip
+  - Clips are hosted on Sentry Six servers for 48 hours at clip.sentry-six.com
+  - Manage your shared clips from the "My Shared Clips" modal
+    - Preview, copy link, open in browser, or delete shared clips
+  - Available for exports under 5 minutes
   <img width="269" height="352" alt="Export Modal" src="https://github.com/user-attachments/assets/1129003c-def2-43ad-b384-81ae1fdf1304" />
 
 - **Customizable Settings**
