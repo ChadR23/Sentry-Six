@@ -3212,6 +3212,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: rgba(255, 255, 255, 0.45);
 }
 
+.option-card.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
 /* Info Boxes */
 .info-box {
     display: flex;

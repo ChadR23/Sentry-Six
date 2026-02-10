@@ -1743,10 +1743,43 @@ function initShareClipToggle() {
         if (shareInfo) shareInfo.classList.remove('hidden');
     }
     
+    // Apply max quality restriction based on current toggle state
+    updateMaxQualityForSharing(shareToggle.checked);
+    
     // Update toggle state when duration changes
     shareToggle.onchange = () => {
         if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
+        updateMaxQualityForSharing(shareToggle.checked);
     };
+}
+
+/**
+ * Disable or enable the Maximum quality option based on share clip state.
+ * If Maximum was selected when sharing is enabled, switch to High.
+ */
+function updateMaxQualityForSharing(sharingEnabled) {
+    const maxRadio = document.querySelector('input[name="exportQuality"][value="max"]');
+    if (!maxRadio) return;
+    
+    const maxCard = maxRadio.closest('.option-card');
+    
+    if (sharingEnabled) {
+        // If max is currently selected, switch to high
+        if (maxRadio.checked) {
+            const highRadio = document.querySelector('input[name="exportQuality"][value="high"]');
+            if (highRadio) {
+                highRadio.checked = true;
+            }
+        }
+        maxRadio.disabled = true;
+        if (maxCard) maxCard.classList.add('disabled');
+    } else {
+        maxRadio.disabled = false;
+        if (maxCard) maxCard.classList.remove('disabled');
+    }
+    
+    // Refresh size estimate to reflect any quality change
+    updateExportSizeEstimate();
 }
 
 /**
