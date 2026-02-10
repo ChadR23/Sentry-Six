@@ -57,7 +57,7 @@ Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. Vi
   - Manage your shared clips from the "My Shared Clips" modal
     - Preview, copy link, open in browser, or delete shared clips
   - Available for exports under 5 minutes
-  <img width="269" height="352" alt="Export Modal" src="https://github.com/user-attachments/assets/1129003c-def2-43ad-b384-81ae1fdf1304" />
+ <img width="468.5" height="410" alt="Export Modal" src="https://github.com/user-attachments/assets/0bd241b7-34a3-43fe-b577-e81359cd538e" />
 
 - **Customizable Settings**
   - Adjustable glass blur intensity
