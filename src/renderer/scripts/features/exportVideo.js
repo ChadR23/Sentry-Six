@@ -1740,7 +1740,7 @@ function initShareClipToggle() {
         shareToggle.disabled = false;
         if (shareToggleRow) shareToggleRow.classList.remove('disabled');
         if (shareWarning) shareWarning.classList.add('hidden');
-        if (shareInfo) shareInfo.classList.remove('hidden');
+        if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
     }
     
     // Apply max quality restriction based on current toggle state

@@ -600,6 +600,7 @@ let useMetric = false; // Will be loaded from settings
     if (dayFilter) {
         dayFilter.onchange = async () => {
             const selectedDate = dayFilter.value;
+            updateDayFilterMarker();
             if (selectedDate && folderStructure?.dateHandles?.has(selectedDate)) {
                 // Lazy load: fetch files for this date from NAS
                 await loadDateContent(selectedDate);
@@ -1009,18 +1010,16 @@ let useMetric = false; // Will be loaded from settings
     });
 
     // Listen for date format changes to update the clips dropdown
+    // Update existing option text in-place instead of rebuilding from library.allDates,
+    // because library.allDates may only contain the currently loaded date's data
     window.addEventListener('dateFormatChanged', () => {
-        if (library.allDates && library.allDates.length > 0) {
-            const currentValue = dayFilter.value;
-            dayFilter.innerHTML = `<option value="">${t('ui.clipBrowser.selectDate')}</option>`;
-            library.allDates.forEach(date => {
-                const opt = document.createElement('option');
-                opt.value = date;
-                opt.textContent = formatDateDisplay(date);
-                dayFilter.appendChild(opt);
-            });
-            if (currentValue) dayFilter.value = currentValue;
+        if (!dayFilter) return;
+        for (const opt of dayFilter.options) {
+            if (!opt.value) continue; // Skip "Select Date" placeholder
+            // Strip any marker prefix, reformat with new date format, marker will be reapplied
+            opt.textContent = formatDateDisplay(opt.value);
         }
+        updateDayFilterMarker();
     });
 
     // Multi focus mode (click a tile to expand)
@@ -1542,6 +1541,7 @@ async function traverseDirectoryElectron(dirPath) {
     
     if (sortedDates.length > 0) {
         dayFilter.value = sortedDates[0];
+        updateDayFilterMarker();
         await loadDateContentElectron(sortedDates[0]);
     }
     
@@ -1916,6 +1916,7 @@ async function traverseDirectoryHandle(dirHandle) {
     // Auto-select most recent date
     if (sortedDates.length && dayFilter) {
         dayFilter.value = sortedDates[0];
+        updateDayFilterMarker();
         await loadDateContent(sortedDates[0]);
     }
 }
@@ -2296,6 +2297,19 @@ function updateDayFilterOptions() {
     } else {
         dayFilter.value = dates[0] || '';
     }
+    
+    // Add persistent marker to selected date
+    updateDayFilterMarker();
+}
+
+function updateDayFilterMarker() {
+    if (!dayFilter) return;
+    const selected = dayFilter.value;
+    for (const opt of dayFilter.options) {
+        if (!opt.value) continue; // Skip "Select Date" placeholder
+        const baseText = opt.textContent.replace(/^▸\s*/, '');
+        opt.textContent = (opt.value === selected) ? `▸ ${baseText}` : baseText;
+    }
 }
 
 async function handleFolderFiles(fileList, directoryName = null) {
@@ -2614,29 +2628,63 @@ function selectDayCollection(dayKey) {
         console.warn('Duration probing failed, using estimates:', err);
     });
 
-    // Load first segment with native video, then seek to event offset
-    loadNativeSegment(0).then(() => {
-        // Update time display with total duration (may be updated again when probing completes)
-        const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
-        updateTimeDisplayNew(0, totalSec);
+    // Load the correct segment directly (avoids loading segment 0 then seeking, which caused camera desync)
+    if (startOffsetSec > 0) {
+        // Calculate which segment contains the event time using 60s estimates
+        const targetSegIdx = Math.min(Math.floor(startOffsetSec / 60), numSegs - 1);
+        const localOffset = startOffsetSec - (targetSegIdx * 60);
         
-        playBtn.disabled = false;
-        progressBar.disabled = false;
+        console.log('Loading directly at event segment', targetSegIdx, 'localOffset:', localOffset.toFixed(1) + 's');
         
-        // Seek to 15 seconds before event time if we have an anchor
-        if (startOffsetSec > 0) {
-            seekNativeDayCollectionBySec(startOffsetSec).then(() => {
-                if (autoplayToggle?.checked) {
-                    setTimeout(() => playNative(), 100);
-                }
+        loadNativeSegment(targetSegIdx).then(() => {
+            const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
+            updateTimeDisplayNew(Math.floor(startOffsetSec), Math.floor(totalSec));
+            
+            playBtn.disabled = false;
+            progressBar.disabled = false;
+            
+            // Seek within the segment to the correct local offset
+            const vid = nativeVideo.master;
+            if (vid) {
+                const seekTo = Math.min(localOffset, vid.duration || 60);
+                vid.currentTime = seekTo;
+                syncMultiVideos(seekTo);
+                
+                // Update progress bar position
+                const pct = (startOffsetSec / totalSec) * 100;
+                progressBar.value = Math.min(100, pct);
+            }
+            
+            if (autoplayToggle?.checked) {
+                setTimeout(() => playNative(), 100);
+            }
+        }).catch(err => {
+            console.error('Failed to load event segment, falling back to segment 0:', err);
+            // Fallback: load segment 0
+            loadNativeSegment(0).then(() => {
+                playBtn.disabled = false;
+                progressBar.disabled = false;
+            }).catch(e => {
+                notify(t('ui.notifications.failedToLoadVideo', { error: e?.message || String(e) }), { type: 'error' });
             });
-        } else if (autoplayToggle?.checked) {
-            setTimeout(() => playNative(), 100);
-        }
-    }).catch(err => {
-        console.error('Failed to load native segment:', err);
-        notify(t('ui.notifications.failedToLoadVideo', { error: err?.message || String(err) }), { type: 'error' });
-    });
+        });
+    } else {
+        // No event anchor - load from the beginning
+        loadNativeSegment(0).then(() => {
+            const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
+            updateTimeDisplayNew(0, totalSec);
+            
+            playBtn.disabled = false;
+            progressBar.disabled = false;
+            
+            if (autoplayToggle?.checked) {
+                setTimeout(() => playNative(), 100);
+            }
+        }).catch(err => {
+            console.error('Failed to load native segment:', err);
+            notify(t('ui.notifications.failedToLoadVideo', { error: err?.message || String(err) }), { type: 'error' });
+        });
+    }
 
     // Update export button state after collection loads
     setTimeout(updateExportButtonState, 100);
@@ -3672,7 +3720,6 @@ async function loadNativeSegment(segIdx) {
         let resolved = false;
         
         const cleanup = () => {
-            vid.removeEventListener('loadedmetadata', onLoaded);
             vid.removeEventListener('canplay', onLoaded);
             vid.removeEventListener('error', onError);
         };
@@ -3704,24 +3751,51 @@ async function loadNativeSegment(segIdx) {
             resolve();
         }, 5000);
         
-        // Listen for both loadedmetadata and canplay (canplay is more reliable)
-        vid.addEventListener('loadedmetadata', onLoaded, { once: true });
+        // Wait for canplay (ensures at least one frame is decoded and ready to render)
+        // Do NOT use loadedmetadata alone - it fires before frame decode on some codecs
+        // Do NOT use a requestAnimationFrame readyState shortcut - readyState may be stale
+        // from a previously loaded source before load() has fully reset the element
         vid.addEventListener('canplay', onLoaded, { once: true });
         vid.addEventListener('error', onError, { once: true });
-        
-        // Check if already ready (but give a tick for load() to reset state)
-        requestAnimationFrame(() => {
-            if (!resolved && vid.readyState >= 2) {
-                console.log('Video already ready (readyState:', vid.readyState, ')');
-                onLoaded();
-            }
-        });
     });
     
-    // Reset video to start (ensure clean state after loading new segment)
+    // Wait for ALL non-master multi-cam videos to also reach canplay
+    // This prevents desync where master is ready but other cameras are still loading
+    if (multi.enabled) {
+        const otherVids = Object.entries(videoBySlot)
+            .filter(([, vid]) => vid && vid.src && vid !== nativeVideo.master)
+            .map(([slot, vid]) => ({ slot, vid }));
+        
+        if (otherVids.length > 0) {
+            console.log('Waiting for', otherVids.length, 'non-master cameras to load...');
+            await Promise.all(otherVids.map(({ slot, vid }) => 
+                new Promise(resolve => {
+                    if (vid.readyState >= 3) {
+                        resolve();
+                        return;
+                    }
+                    const timer = setTimeout(() => {
+                        vid.removeEventListener('canplay', onReady);
+                        console.warn('Timeout waiting for', slot, 'readyState:', vid.readyState);
+                        resolve();
+                    }, 3000);
+                    const onReady = () => {
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    vid.addEventListener('canplay', onReady, { once: true });
+                })
+            ));
+            console.log('All cameras ready');
+        }
+    }
+    
+    // Reset ALL videos to start (ensure clean state after loading new segment)
     if (nativeVideo.master) {
         nativeVideo.master.currentTime = 0;
     }
+    // Sync non-master videos to time 0 so all cameras start at the same position
+    syncMultiVideos(0);
     
     // Re-apply playback rate after loading new segment
     applyPlaybackRate(state.ui.playbackRate);
