@@ -7,23 +7,23 @@
       "changes": [
         {
           "type": "feature",
-          "description": "Added Time-lapse Works with all current features. Also has been translated to all 13 languages. Added Time-lapse exported time (1:01:13 → 07:39)"
+          "description": "Added Time-lapse. Works with all current features and has been translated to all 13 languages. Added time-lapse exported time display (1:01:13 → 07:39)"
         },
         {
           "type": "fix",
-          "description": "Fixed bug with timeline where it would load things twice. causing desync of the cameras."
+          "description": "Fixed bug with timeline where it would load things twice, causing desync of the cameras."
         },
         {
           "type": "improvement",
-          "description": "Export Progress bars now move instead of jumping each percentage. main progress bar will now also show 1% at a time instead of jumping percentage. overall smoothing of the Progress bars."
+          "description": "Export progress bars now move smoothly instead of jumping each percentage. Main progress bar will now also show 1% at a time instead of jumping. Overall smoothing of the progress bars."
         },
         {
           "type": "improvement",
-          "description": "Made Blinkers icons same as export for the UI."
+          "description": "Made blinker icons consistent with export icons in the UI."
         },
         {
           "type": "fix",
-          "description": "Fixed a bug where when changing date format in settings caused all other dates to disappear and had to select tesla folder again."
+          "description": "Fixed a bug where changing the date format in settings caused all other dates to disappear, requiring reselection of the Tesla folder."
         }
       ]
     },

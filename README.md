@@ -91,6 +91,8 @@ Sentry Six includes a privacy-first approach to updates and analytics:
 
 This helps us improve Sentry Six while keeping everything private and transparent.
 
+📄 **[Privacy Policy](https://sentry-six.com/privacy)** · **[Terms of Service](https://sentry-six.com/terms)**
+
 ## Community & Support
 
 Have questions, feedback, or want to connect with other users?
