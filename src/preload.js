@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkFFmpeg: () => ipcRenderer.invoke('ffmpeg:check'),
   
   // Clip sharing
+  getShareConfig: () => ipcRenderer.invoke('share:getConfig'),
   uploadShareClip: (filePath) => ipcRenderer.invoke('share:upload', filePath),
   getSharedClips: () => ipcRenderer.invoke('share:getClips'),
   syncSharedClips: () => ipcRenderer.invoke('share:syncClips'),

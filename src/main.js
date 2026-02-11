@@ -188,7 +188,7 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar' } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -962,8 +962,21 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       filters.push(`${currentStreamTag}format=yuv420p[out]`);
     }
 
+    // Time-lapse: speed up the entire composited video (after all overlays)
+    if (enableTimelapse && timelapseSpeed > 1) {
+      const lastIdx = filters.length - 1;
+      filters[lastIdx] = filters[lastIdx].replace('[out]', '[pre_tl]');
+      filters.push(`[pre_tl]setpts=PTS/${timelapseSpeed}[out]`);
+      console.log(`[TIMELAPSE] Applied ${timelapseSpeed}x speed-up filter`);
+    }
+
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
+    
+    // Time-lapse: remove audio (sped-up audio is noise)
+    if (enableTimelapse && timelapseSpeed > 1) {
+      cmd.push('-an');
+    }
 
     // Configure video encoder based on GPU availability
     if (useGpu && activeEncoder) {
@@ -1026,7 +1039,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`);
     }
     
-    cmd.push('-t', durationSec.toString());
+    // Time-lapse: adjust output duration
+    const outputDurationSec = (enableTimelapse && timelapseSpeed > 1) ? durationSec / timelapseSpeed : durationSec;
+    cmd.push('-t', outputDurationSec.toString());
     cmd.push('-movflags', '+faststart');
     
     // Set pixel format - VideoToolbox handles this internally, others need explicit setting
@@ -1074,13 +1089,16 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         if (stderr.length > MAX_STDERR_SIZE) {
           stderr = stderr.slice(-MAX_STDERR_SIZE);
         }
-        const match = dataStr.match(/time=(\d+):(\d+):(\d+)/);
-        if (match && durationSec > 0) {
-          const sec = +match[1] * 3600 + +match[2] * 60 + +match[3];
-          const pct = Math.min(95, Math.floor((sec / durationSec) * 100));
+        const match = dataStr.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
+        if (match && outputDurationSec > 0) {
+          const sec = +match[1] * 3600 + +match[2] * 60 + +match[3] + +match[4] / 100;
+          // Use one decimal place for smoother bar movement (e.g. 23.4%)
+          const pctRaw = Math.min(95, (sec / outputDurationSec) * 100);
+          const pct = Math.round(pctRaw * 10) / 10; // round to 0.1
+          const displayPct = Math.floor(pctRaw); // integer for display text
           if (pct > lastPct) {
             lastPct = pct;
-            sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: pct } });
+            sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: displayPct } });
           }
         }
       });
@@ -1359,7 +1377,42 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
 // ============================================
 const CLIP_UPLOAD_URL = 'https://api.sentry-six.com/share/upload';
 const CLIP_DELETE_URL = 'https://api.sentry-six.com/share/delete';
+const CLIP_CONFIG_URL = 'https://api.sentry-six.com/share/config';
 const crypto = require('crypto');
+
+let _shareConfigCache = null;
+
+ipcMain.handle('share:getConfig', async () => {
+  if (_shareConfigCache) return _shareConfigCache;
+  try {
+    const urlObj = new URL(CLIP_CONFIG_URL);
+    const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+    const result = await new Promise((resolve, reject) => {
+      const req = httpModule.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'GET'
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch { resolve(null); }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+      req.end();
+    });
+    if (result && result.expirationHours) {
+      _shareConfigCache = { expirationHours: result.expirationHours };
+      return _shareConfigCache;
+    }
+  } catch (err) {
+    console.warn('[SHARE] Failed to fetch config:', err.message);
+  }
+  return { expirationHours: 48 };
+});
 
 ipcMain.handle('share:upload', async (event, filePath) => {
   console.log('[SHARE] Starting clip upload:', filePath);

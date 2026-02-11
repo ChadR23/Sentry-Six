@@ -31,6 +31,30 @@ export const exportState = {
     blurType: 'trueBlur'
 };
 
+// Cached share config (expiration hours from server)
+let _shareExpirationHours = 48; // default fallback
+
+async function fetchShareConfig() {
+    try {
+        const config = await window.electronAPI?.getShareConfig?.();
+        if (config?.expirationHours) {
+            _shareExpirationHours = config.expirationHours;
+        }
+    } catch { /* use default */ }
+    updateShareExpirationDisplay();
+}
+
+function updateShareExpirationDisplay() {
+    const infoText = $('shareClipInfoText');
+    if (infoText) {
+        infoText.innerHTML = t('ui.export.shareClipInfo', { hours: _shareExpirationHours });
+    }
+    const expiryText = $('shareLinkExpiryText');
+    if (expiryText) {
+        expiryText.textContent = t('ui.export.shareLinkExpiry', { hours: _shareExpirationHours });
+    }
+}
+
 // Track if modal listeners have been initialized
 let blurZoneModalInitialized = false;
 
@@ -67,6 +91,8 @@ const EXPORT_OVERLAY_SETTINGS = {
     includeMinimap: 'exportIncludeMinimap',
     minimapPosition: 'exportMinimapPosition',
     minimapSize: 'exportMinimapSize',
+    enableTimelapse: 'exportEnableTimelapse',
+    timelapseSpeed: 'exportTimelapseSpeed',
 };
 
 // Default values for export overlay settings
@@ -77,7 +103,9 @@ const EXPORT_OVERLAY_DEFAULTS = {
     dashboardSize: 'medium',
     includeMinimap: false,
     minimapPosition: 'top-right',
-    minimapSize: 'small'
+    minimapSize: 'small',
+    enableTimelapse: false,
+    timelapseSpeed: '8'
 };
 
 /**
@@ -133,6 +161,19 @@ async function loadExportOverlaySettings() {
     if (minimapCheckbox && minimapOptions) {
         minimapOptions.classList.toggle('hidden', !minimapCheckbox.checked);
     }
+    
+    // Timelapse options visibility
+    const timelapseCheckbox = $('enableTimelapse');
+    const timelapseOptions = $('timelapseOptions');
+    if (timelapseCheckbox && timelapseOptions) {
+        timelapseOptions.classList.toggle('hidden', !timelapseCheckbox.checked);
+        if (timelapseCheckbox.checked) {
+            updateTimelapseDurationEstimate();
+        }
+    }
+    
+    // Update duration display now that all settings (including timelapse) are loaded
+    updateExportRangeDisplay();
 }
 
 // Track if save handlers have been set up
@@ -176,8 +217,59 @@ function setupExportOverlaySaveHandlers() {
                 if (dashboardOptions) {
                     dashboardOptions.classList.toggle('hidden', !element.checked);
                 }
+            } else if (elementId === 'enableTimelapse') {
+                const timelapseOptions = $('timelapseOptions');
+                if (timelapseOptions) {
+                    timelapseOptions.classList.toggle('hidden', !element.checked);
+                }
+                if (element.checked) {
+                    updateTimelapseDurationEstimate();
+                }
+                // Update header duration display and share link eligibility
+                updateExportRangeDisplay();
+            } else if (elementId === 'timelapseSpeed') {
+                updateTimelapseDurationEstimate();
+                // Update header duration display and share link eligibility
+                updateExportRangeDisplay();
             }
         });
+    }
+}
+
+/**
+ * Update the timelapse duration estimate text based on selected speed and export range
+ */
+function updateTimelapseDurationEstimate() {
+    const speedSelect = $('timelapseSpeed');
+    const durationText = $('timelapseDurationText');
+    if (!speedSelect || !durationText) return;
+    
+    const speed = parseInt(speedSelect.value) || 8;
+    
+    // Try to calculate actual output duration from export range
+    const nativeVideo = getNativeVideo?.();
+    const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 0;
+    
+    if (totalSec > 0) {
+        const startPct = exportState.startMarkerPct ?? 0;
+        const endPct = exportState.endMarkerPct ?? 100;
+        const rangeSec = Math.abs((endPct - startPct) / 100 * totalSec);
+        const outputSec = rangeSec / speed;
+        
+        // Format duration nicely
+        const formatDuration = (sec) => {
+            if (sec < 60) return `${Math.round(sec)}s`;
+            const mins = Math.floor(sec / 60);
+            const secs = Math.round(sec % 60);
+            if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+            const hrs = Math.floor(mins / 60);
+            const remainMins = mins % 60;
+            return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+        };
+        
+        durationText.textContent = `${formatDuration(rangeSec)} → ${formatDuration(outputSec)} at ${speed}x speed`;
+    } else {
+        durationText.textContent = `Output will be ~${speed}x shorter than selected range`;
     }
 }
 
@@ -429,6 +521,12 @@ export function updateExportButtonState() {
  * Open the export modal
  */
 export function openExportModal() {
+    // If export is active and modal was minimized, just reopen without resetting
+    if (exportState.isExporting && exportState.modalMinimized) {
+        reopenExportModal();
+        return;
+    }
+    
     const state = getState?.();
     if (!state?.collection?.active) {
         notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
@@ -444,6 +542,9 @@ export function openExportModal() {
     
     // Show modal first so dimensions are accurate
     modal.classList.remove('hidden');
+    
+    // Fetch share config (expiration hours) from server
+    fetchShareConfig();
     
     // Load saved export overlay settings
     loadExportOverlaySettings();
@@ -1039,7 +1140,22 @@ export function updateExportRangeDisplay() {
     
     if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
     if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
-    if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
+    
+    // Show effective duration when timelapse is enabled
+    const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
+    const timelapseSpeed = timelapseEnabled ? (parseInt($('timelapseSpeed')?.value) || 8) : 1;
+    const durationLabel = $('exportDurationLabel');
+    const durationItem = $('exportDurationItem');
+    if (timelapseEnabled && timelapseSpeed > 1) {
+        const effectiveSec = durationSec / timelapseSpeed;
+        if (durationEl) durationEl.textContent = `${formatTimeHMS(durationSec)} → ${formatTimeHMS(effectiveSec)}`;
+        if (durationLabel) durationLabel.textContent = t('ui.export.timelapseDuration');
+        if (durationItem) durationItem.classList.add('timelapse-active');
+    } else {
+        if (durationEl) durationEl.textContent = formatTimeHMS(durationSec);
+        if (durationLabel) durationLabel.textContent = t('ui.export.duration');
+        if (durationItem) durationItem.classList.remove('timelapse-active');
+    }
     
     // Update share toggle availability based on new duration
     initShareClipToggle();
@@ -1289,6 +1405,11 @@ export async function startExport() {
     const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
     const timestampDateFormat = window._dateFormat || 'ymd'; // Use global date format setting
     const timestampTimeFormat = window._timeFormat || '12h'; // Use global time format setting (12h/24h)
+    
+    // Timelapse settings
+    const enableTimelapseCheckbox = $('enableTimelapse');
+    const enableTimelapse = enableTimelapseCheckbox?.checked ?? false;
+    const timelapseSpeed = parseInt($('timelapseSpeed')?.value) || 8;
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -1644,7 +1765,10 @@ export async function startExport() {
             minimapPosition,
             minimapSize,
             minimapRenderMode, // 'ass' (fast, vector) or 'leaflet' (slow, map tiles)
-            mapPath
+            mapPath,
+            // Time-lapse settings
+            enableTimelapse,
+            timelapseSpeed // Speed multiplier (2, 4, 8, 16, 32, 64)
         };
         
         console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}, renderMode=${minimapRenderMode}`);
@@ -1726,10 +1850,15 @@ function initShareClipToggle() {
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
-    const durationSec = Math.abs((endPct - startPct) / 100 * totalSec);
+    const rawDurationSec = Math.abs((endPct - startPct) / 100 * totalSec);
     const maxDurationSec = 5 * 60; // 5 minutes
     
-    if (durationSec > maxDurationSec) {
+    // If timelapse is enabled, use effective output duration (raw / speed)
+    const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
+    const timelapseSpeed = timelapseEnabled ? (parseInt($('timelapseSpeed')?.value) || 8) : 1;
+    const effectiveDurationSec = rawDurationSec / timelapseSpeed;
+    
+    if (effectiveDurationSec > maxDurationSec) {
         // Export too long for sharing
         shareToggle.checked = false;
         shareToggle.disabled = true;

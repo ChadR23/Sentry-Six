@@ -1,6 +1,33 @@
 {
   "versions": [
     {
+      "version": "2026.7.15",
+      "date": "2026-02-10",
+      "title": "Feature Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added Time-lapse Works with all current features. Also has been translated to all 13 languages. Added Time-lapse exported time (1:01:13 → 07:39)"
+        },
+        {
+          "type": "fix",
+          "description": "Fixed bug with timeline where it would load things twice. causing desync of the cameras."
+        },
+        {
+          "type": "improvement",
+          "description": "Export Progress bars now move instead of jumping each percentage. main progress bar will now also show 1% at a time instead of jumping percentage. overall smoothing of the Progress bars."
+        },
+        {
+          "type": "improvement",
+          "description": "Made Blinkers icons same as export for the UI."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed a bug where when changing date format in settings caused all other dates to disappear and had to select tesla folder again."
+        }
+      ]
+    },
+    {
       "version": "2026.7.5",
       "date": "2026-02-10",
       "title": "Shareable Links for Exports!",
@@ -31,7 +58,7 @@
         {
           "type": "feature",
           "description": "Added Search Functionality to Settings."
-        }    
+        }
       ]
     },
     {
@@ -46,7 +73,7 @@
         {
           "type": "fix",
           "description": "Added the missing Mirror Cameras toggle in Settings back."
-        }        
+        }
       ]
     },
     {

@@ -46,13 +46,33 @@ export function initDraggablePanels(panels) {
             
             e.preventDefault();
             const offset = dragOffsets.get(panel);
-            const newX = e.clientX - startX;
-            const newY = e.clientY - startY;
+            let newX = e.clientX - startX;
+            let newY = e.clientY - startY;
             
             // Check if mouse actually moved (more than a few pixels)
             if (Math.abs(newX - offset.x) > 2 || Math.abs(newY - offset.y) > 2) {
                 hasMoved = true;
             }
+            
+            // Clamp to viewport bounds (like support chat)
+            const rect = panel.getBoundingClientRect();
+            // Base position = current rendered position minus current offset
+            const baseLeft = rect.left - offset.x;
+            const baseTop = rect.top - offset.y;
+            const panelWidth = rect.width;
+            const panelHeight = rect.height;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const controlsBarHeight = 60; // Height of the bottom controls bar
+            
+            // Clamp so panel stays fully within viewport
+            const minX = -baseLeft;
+            const maxX = viewportWidth - panelWidth - baseLeft;
+            const minY = -baseTop;
+            const maxY = viewportHeight - panelHeight - controlsBarHeight - baseTop;
+            
+            newX = Math.max(minX, Math.min(newX, maxX));
+            newY = Math.max(minY, Math.min(newY, maxY));
             
             offset.x = newX;
             offset.y = newY;

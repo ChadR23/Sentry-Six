@@ -2164,7 +2164,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     width: 0%;
     background: linear-gradient(90deg, rgba(62, 156, 191, 0.8), rgba(100, 180, 220, 0.95));
     border-radius: 2px;
-    transition: width 0.2s ease-out;
+    transition: width 1.5s linear;
 }
 .export-floating-open-btn {
     display: flex;
@@ -3520,6 +3520,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
+.export-modal .stat-item.timelapse-active {
+    border-color: rgba(0, 212, 255, 0.35);
+    background: rgba(0, 212, 255, 0.06);
+}
+.export-modal .stat-item.timelapse-active .stat-label {
+    color: rgba(0, 212, 255, 0.9);
+}
+
 .dev-modal {
     max-width: 460px;
 }
@@ -3674,7 +3682,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: linear-gradient(90deg, #00a8cc, #00d4ff);
     border-radius: 6px;
     width: 0%;
-    transition: width 0.3s ease;
+    transition: width 1.5s linear;
 }
 
 .progress-text {
@@ -4402,7 +4410,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 100%;
     background: linear-gradient(90deg, #4caf50, #81c784);
     border-radius: 3px;
-    transition: width 0.3s ease;
+    transition: width 1.5s linear;
 }
 
 .update-progress .progress-text {
