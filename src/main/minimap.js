@@ -405,7 +405,7 @@ async function renderMinimapFrameByTime(minimapWindow, timestampMs, width, heigh
 }
 
 // Pre-render minimap overlay to a temp video file
-async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress, cancelledExports) {
+async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress, cancelledExports, darkMode = false) {
   // Full 36fps for smooth output - but optimized with:
   // 1. Locked map view (no tile updates after initial load)
   // 2. Interpolated GPS positions for smooth movement
@@ -437,6 +437,20 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   // Send GPS data for client-side interpolation
   minimapWindow.webContents.send('minimap:setGpsData', gpsInterpolationData);
   console.log(`[MINIMAP] Sent ${gpsInterpolationData.length} GPS points for interpolation`);
+  
+        if (ipcRenderer && ipcRenderer.on) {
+            ipcRenderer.on('minimap:setDarkMode', (event, darkMode) => {
+                // Apply dark mode to map tiles
+                if (darkMode && map) {
+                    const tileLayer = map._layers[Object.keys(map._layers)[0]];
+                    if (tileLayer) {
+                        tileLayer.getContainer().style.filter = 'invert(1) hue-rotate(180deg)';
+                    }
+                }
+                // Do NOT send minimap:ready - this is a setup event, not a frame update
+            });
+            
+            ipcRenderer.on('minimap:init', (event, pathData) => {
   
   // Wait for map tiles to load (only happens once!)
   await new Promise(resolve => setTimeout(resolve, 2000));

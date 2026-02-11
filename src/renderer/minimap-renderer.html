@@ -38,6 +38,13 @@
         .leaflet-container {
             background: #e0e0e0 !important;
         }
+        /* Dark mode: invert tiles then rotate hue back to natural colors */
+        .dark-mode .leaflet-tile-pane {
+            filter: invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.2);
+        }
+        .dark-mode .leaflet-container {
+            background: #1a1a1a !important;
+        }
         .leaflet-marker-icon {
             filter: none !important;
         }
@@ -347,6 +354,12 @@
             
             ipcRenderer.on('minimap:setGpsData', (event, data) => {
                 setGpsData(data);
+                if (ipcRenderer?.send) ipcRenderer.send('minimap:ready');
+            });
+            
+            ipcRenderer.on('minimap:setDarkMode', (event, enabled) => {
+                console.log('[MINIMAP] Dark mode:', enabled);
+                document.getElementById('minimapContainer').classList.toggle('dark-mode', !!enabled);
                 if (ipcRenderer?.send) ipcRenderer.send('minimap:ready');
             });
             

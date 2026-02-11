@@ -1402,6 +1402,7 @@ export async function startExport() {
     const minimapPosition = $('minimapPosition')?.value || 'top-right';
     const minimapSize = $('minimapSize')?.value || 'small';
     const minimapRenderMode = $('minimapRenderMode')?.value || 'ass'; // 'ass' or 'leaflet'
+    const minimapDarkMode = window._mapDarkMode === true;
     
     console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
     console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}, RenderMode=${minimapRenderMode}`);
@@ -1804,6 +1805,7 @@ export async function startExport() {
             minimapPosition,
             minimapSize,
             minimapRenderMode, // 'ass' (fast, vector) or 'leaflet' (slow, map tiles)
+            minimapDarkMode, // Dark mode CSS filter for map tiles
             mapPath,
             // Time-lapse settings
             enableTimelapse,

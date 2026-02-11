@@ -99,6 +99,10 @@ export function initSettingsModal() {
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
                 
+                // Sync map mode dropdown
+                const settingsMapMode = $('settingsMapMode');
+                if (settingsMapMode) settingsMapMode.value = window._mapDarkMode ? 'dark' : 'light';
+                
                 // Sync layout style toggle
                 const settingsLayoutStyle = $('settingsLayoutStyle');
                 if (settingsLayoutStyle) {
@@ -234,6 +238,26 @@ export function initSettingsModal() {
                 mapToggle.dispatchEvent(new Event('change'));
             }
             settingsMapToggle.blur();
+        };
+    }
+    
+    // Map mode dropdown (light/dark)
+    const settingsMapMode = $('settingsMapMode');
+    if (settingsMapMode && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('mapDarkMode').then(saved => {
+            settingsMapMode.value = saved === true ? 'dark' : 'light';
+        });
+        
+        settingsMapMode.onchange = async () => {
+            const enabled = settingsMapMode.value === 'dark';
+            window._mapDarkMode = enabled;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('mapDarkMode', enabled);
+            }
+            if (window.applyMapDarkMode) {
+                window.applyMapDarkMode(enabled);
+            }
+            settingsMapMode.blur();
         };
     }
     
