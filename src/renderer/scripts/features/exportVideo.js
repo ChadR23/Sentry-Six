@@ -1657,6 +1657,8 @@ export async function startExport() {
                 }
             } else if (progress.type === 'dashboard-progress') {
                 // Show dashboard progress bar
+                // Ensure main progress is also visible to keep container from hiding
+                if (progressEl) progressEl.classList.remove('hidden');
                 if (dashboardProgressEl) dashboardProgressEl.classList.remove('hidden');
                 if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
                 if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
@@ -1666,6 +1668,8 @@ export async function startExport() {
                 }
             } else if (progress.type === 'minimap-progress') {
                 // Show minimap progress bar
+                // Ensure main progress is also visible to keep container from hiding
+                if (progressEl) progressEl.classList.remove('hidden');
                 if (minimapProgressEl) minimapProgressEl.classList.remove('hidden');
                 if (minimapProgressBar) minimapProgressBar.style.width = `${progress.percentage}%`;
                 if (minimapProgressText) minimapProgressText.textContent = progress.message;
