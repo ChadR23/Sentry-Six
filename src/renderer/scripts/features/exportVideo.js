@@ -1333,6 +1333,12 @@ export async function checkFFmpegAvailability() {
  * Start the export process
  */
 export async function startExport() {
+    // Guard against duplicate exports (e.g. user clicks while SEI extraction is in progress)
+    if (exportState.isExporting) {
+        notify(t('ui.notifications.exportAlreadyInProgress') || 'Export already in progress', { type: 'warn' });
+        return;
+    }
+    
     const state = getState?.();
     const nativeVideo = getNativeVideo?.();
     const baseFolderPath = getBaseFolderPath?.();
@@ -1429,6 +1435,16 @@ export async function startExport() {
         return;
     }
     
+    // Lock export state and disable button BEFORE SEI extraction to prevent duplicate exports
+    // This is critical for NAS/network files where SEI extraction can take minutes
+    const startBtn = $('startExportBtn');
+    const progressEl = $('exportProgress');
+    const exportProgressBar = $('exportProgressBar');
+    const progressText = $('exportProgressText');
+    
+    exportState.isExporting = true;
+    if (startBtn) startBtn.disabled = true;
+    
     // Only extract SEI data if dashboard or minimap is enabled - skip entirely if both disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
     // This happens AFTER file dialog so user gets instant feedback
@@ -1437,7 +1453,10 @@ export async function startExport() {
     
     if (includeDashboard || includeMinimap) {
         try {
-            notify(t('ui.notifications.extractingTelemetry'), { type: 'info' });
+            // Show persistent progress bar during SEI extraction (not just a toast)
+            if (progressEl) progressEl.classList.remove('hidden');
+            if (exportProgressBar) exportProgressBar.style.width = '0%';
+            if (progressText) progressText.textContent = t('ui.notifications.extractingTelemetry') || 'Extracting telemetry data...';
             
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
@@ -1461,6 +1480,18 @@ export async function startExport() {
                        !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
             };
             
+            // Count segments in range so we can show accurate progress
+            const segmentsInRange = [];
+            for (let i = 0; i < groups.length; i++) {
+                const segStartMs = (cumStarts[i] || 0) * 1000;
+                const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
+                const segEndMs = segStartMs + segDurationMs;
+                if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
+                    segmentsInRange.push(i);
+                }
+            }
+            const totalSegsToProcess = segmentsInRange.length;
+            
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
                 // Check for cancellation before processing each segment
@@ -1477,6 +1508,12 @@ export async function startExport() {
                 const segEndMs = segStartMs + segDurationMs;
                 
                 if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
+                    // Update progress bar for SEI extraction
+                    const segIdx = segmentsInRange.indexOf(i);
+                    const seiPct = totalSegsToProcess > 0 ? Math.round(((segIdx + 1) / totalSegsToProcess) * 100) : 0;
+                    if (exportProgressBar) exportProgressBar.style.width = `${seiPct}%`;
+                    if (progressText) progressText.textContent = `${t('ui.notifications.extractingTelemetry') || 'Extracting telemetry data...'} (${segIdx + 1}/${totalSegsToProcess})`;
+                    
                     // Prefer front camera for SEI extraction, fallback to any available camera
                     let entry = group.filesByCamera?.get('front');
                     if (!entry) {
@@ -1561,15 +1598,19 @@ export async function startExport() {
             seiData = null;
             mapPath = [];
         }
+        
+        // Reset progress bar after SEI extraction before FFmpeg phase
+        if (exportProgressBar) exportProgressBar.style.width = '0%';
+        if (progressText) progressText.textContent = t('ui.export.preparing') || 'Preparing...';
     }
     // If dashboard and minimap are both disabled, seiData remains null and no files are loaded into memory
     
     const segments = [];
-    const groups = state.collection.active.groups || [];
-    const cumStarts = nativeVideo?.cumulativeStarts || [];
+    const groups2 = state.collection.active.groups || [];
+    const cumStarts2 = nativeVideo?.cumulativeStarts || [];
     
-    for (let i = 0; i < groups.length; i++) {
-        const group = groups[i];
+    for (let i = 0; i < groups2.length; i++) {
+        const group = groups2[i];
         const durationSec = nativeVideo?.segmentDurations?.[i] || 60;
         
         const files = {};
@@ -1593,7 +1634,7 @@ export async function startExport() {
         segments.push({
             index: i,
             durationSec,
-            startSec: cumStarts[i] || 0,
+            startSec: cumStarts2[i] || 0,
             files,
             groupId: group.id,
             timestamp // Epoch ms for this segment's start time (UTC)
@@ -1603,19 +1644,15 @@ export async function startExport() {
     const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
     if (!hasFiles) {
         notify(t('ui.notifications.noVideoFilesForExport'), { type: 'error' });
+        exportState.isExporting = false;
+        if (startBtn) startBtn.disabled = false;
+        if (progressEl) progressEl.classList.add('hidden');
         return;
     }
-    
-    const progressEl = $('exportProgress');
-    const exportProgressBar = $('exportProgressBar');
-    const progressText = $('exportProgressText');
-    const startBtn = $('startExportBtn');
     
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
     if (progressText) progressText.textContent = t('ui.export.preparing');
-    
-    if (startBtn) startBtn.disabled = true;
     
     // Show hint during export
     const minimizeHint = $('exportMinimizeHint');
@@ -1623,8 +1660,6 @@ export async function startExport() {
     
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
-    exportState.isExporting = true;
-    exportState.cancelled = false; // Reset cancellation flag
     
     // Get dashboard and minimap progress elements
     const dashboardProgressEl = $('dashboardProgress');
