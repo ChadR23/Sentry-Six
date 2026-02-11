@@ -500,6 +500,26 @@ export function initSettingsModal() {
         };
     }
     
+    // Privacy Policy & Terms of Service links
+    const openPrivacyPolicy = $('openPrivacyPolicy');
+    if (openPrivacyPolicy) {
+        openPrivacyPolicy.onclick = (e) => {
+            e.preventDefault();
+            if (window.electronAPI?.openExternal) {
+                window.electronAPI.openExternal('https://sentry-six.com/privacy');
+            }
+        };
+    }
+    const openTermsOfService = $('openTermsOfService');
+    if (openTermsOfService) {
+        openTermsOfService.onclick = (e) => {
+            e.preventDefault();
+            if (window.electronAPI?.openExternal) {
+                window.electronAPI.openExternal('https://sentry-six.com/terms');
+            }
+        };
+    }
+    
     // Initialize support chat on startup (for message polling)
     (async () => {
         try {
