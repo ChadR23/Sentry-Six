@@ -212,6 +212,37 @@
             }).addTo(map);
         }
         
+        // Subdivide a path using Catmull-Rom spline for smoother curves
+        function smoothPath(coords, subdivisions = 4) {
+            if (coords.length < 3) return coords;
+            
+            const result = [];
+            
+            for (let i = 0; i < coords.length - 1; i++) {
+                const i0 = Math.max(i - 1, 0);
+                const i1 = i;
+                const i2 = i + 1;
+                const i3 = Math.min(i + 2, coords.length - 1);
+                
+                const p0 = coords[i0];
+                const p1 = coords[i1];
+                const p2 = coords[i2];
+                const p3 = coords[i3];
+                
+                for (let s = 0; s < subdivisions; s++) {
+                    const t = s / subdivisions;
+                    const lat = catmullRom(p0[0], p1[0], p2[0], p3[0], t);
+                    const lon = catmullRom(p0[1], p1[1], p2[1], p3[1], t);
+                    result.push([lat, lon]);
+                }
+            }
+            
+            // Add the final point
+            result.push(coords[coords.length - 1]);
+            
+            return result;
+        }
+        
         function initMapPath(pathData) {
             if (!map || !pathData || !pathData.length) return;
             
@@ -224,10 +255,16 @@
             
             if (validPath.length < 2) return;
             
-            mapPolyline = L.polyline(validPath, {
+            // Smooth the path with Catmull-Rom interpolation for a cleaner curve
+            const smoothed = smoothPath(validPath, 8);
+            
+            mapPolyline = L.polyline(smoothed, {
                 color: '#0072ff',
-                weight: 3,
-                opacity: 0.8
+                weight: 5,
+                opacity: 0.8,
+                lineJoin: 'round',
+                lineCap: 'round',
+                smoothFactor: 0
             }).addTo(map);
             
             map.setView(validPath[0], mapZoom, { animate: false });
