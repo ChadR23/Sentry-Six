@@ -393,6 +393,21 @@ let useMetric = false; // Will be loaded from settings
         updateTileLabels();
     });
     
+    // Map dark mode - applies CSS filter to Leaflet tile pane
+    window._mapDarkMode = false;
+    function applyMapDarkMode(enabled) {
+        const mapEl = document.getElementById('map');
+        if (mapEl) {
+            const tilePane = mapEl.querySelector('.leaflet-tile-pane');
+            if (tilePane) {
+                tilePane.style.filter = enabled
+                    ? 'invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.2)'
+                    : '';
+            }
+        }
+    }
+    window.applyMapDarkMode = applyMapDarkMode;
+
     // Init Map
     try {
         if (window.L) {
@@ -411,6 +426,9 @@ let useMetric = false; // Will be loaded from settings
                 maxZoom: 19,
                 subdomains: 'abc'
             }).addTo(map);
+            
+            // Apply dark mode if previously saved
+            if (window._mapDarkMode) applyMapDarkMode(true);
             
             // Enable right-click drag for panning (to avoid conflict with dashboard left-click drag)
             let mapDragStart = null;
@@ -714,6 +732,10 @@ let useMetric = false; // Will be loaded from settings
             if (window.updateAccelPedMode) {
                 window.updateAccelPedMode(mode);
             }
+        });
+        window.electronAPI.getSetting('mapDarkMode').then(saved => {
+            window._mapDarkMode = saved === true;
+            applyMapDarkMode(window._mapDarkMode);
         });
     } else {
         // Fallback to defaults

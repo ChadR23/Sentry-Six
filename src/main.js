@@ -188,7 +188,7 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', minimapDarkMode = false, mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -630,7 +630,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
                 minimapHeight,
                 ffmpegPath,
                 sendMinimapProgress,
-                cancelledExports
+                cancelledExports,
+                minimapDarkMode
               );
               
               tempFiles.push(minimapTempPath);

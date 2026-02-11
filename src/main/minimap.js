@@ -405,7 +405,7 @@ async function renderMinimapFrameByTime(minimapWindow, timestampMs, width, heigh
 }
 
 // Pre-render minimap overlay to a temp video file
-async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress, cancelledExports) {
+async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTimeMs, minimapWidth, minimapHeight, ffmpegPath, sendProgress, cancelledExports, darkMode = false) {
   // Full 36fps for smooth output - but optimized with:
   // 1. Locked map view (no tile updates after initial load)
   // 2. Interpolated GPS positions for smooth movement
@@ -437,6 +437,12 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   // Send GPS data for client-side interpolation
   minimapWindow.webContents.send('minimap:setGpsData', gpsInterpolationData);
   console.log(`[MINIMAP] Sent ${gpsInterpolationData.length} GPS points for interpolation`);
+  
+  // Send dark mode setting
+  if (darkMode) {
+    minimapWindow.webContents.send('minimap:setDarkMode', true);
+    console.log(`[MINIMAP] Dark mode enabled`);
+  }
   
   // Wait for map tiles to load (only happens once!)
   await new Promise(resolve => setTimeout(resolve, 2000));
