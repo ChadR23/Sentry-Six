@@ -438,19 +438,11 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   minimapWindow.webContents.send('minimap:setGpsData', gpsInterpolationData);
   console.log(`[MINIMAP] Sent ${gpsInterpolationData.length} GPS points for interpolation`);
   
-        if (ipcRenderer && ipcRenderer.on) {
-            ipcRenderer.on('minimap:setDarkMode', (event, darkMode) => {
-                // Apply dark mode to map tiles
-                if (darkMode && map) {
-                    const tileLayer = map._layers[Object.keys(map._layers)[0]];
-                    if (tileLayer) {
-                        tileLayer.getContainer().style.filter = 'invert(1) hue-rotate(180deg)';
-                    }
-                }
-                // Do NOT send minimap:ready - this is a setup event, not a frame update
-            });
-            
-            ipcRenderer.on('minimap:init', (event, pathData) => {
+  // Send dark mode setting to renderer
+  if (darkMode) {
+    minimapWindow.webContents.send('minimap:setDarkMode', darkMode);
+  }
+  
   
   // Wait for map tiles to load (only happens once!)
   await new Promise(resolve => setTimeout(resolve, 2000));
