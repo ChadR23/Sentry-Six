@@ -1,6 +1,6 @@
 /**
  * Update Telemetry Module
- * Handles anonymized fingerprint generation and API communication for update checks
+ * Handles UID generation and API communication for update checks
  * Implements killswitch logic for force_manual updates
  */
 
@@ -25,8 +25,8 @@ const TELEMETRY_CONFIG = {
   timeoutMs: 10000
 };
 
-// Cached fingerprint (generated once per session)
-let cachedFingerprint = null;
+// Cached UID (generated once per session)
+let cachedUid = null;
 
 /**
  * Get the machine ID using node-machine-id
@@ -47,21 +47,21 @@ function getMachineId() {
 }
 
 /**
- * Generate an anonymized fingerprint using SHA-256 hash of machine ID + salt
- * @returns {string} Anonymized fingerprint (64-char hex string)
+ * Generate an anonymized UID using SHA-256 hash of machine ID + salt
+ * @returns {string} Anonymized UID (64-char hex string)
  */
-function getAnonymizedFingerprint() {
-  if (cachedFingerprint) {
-    return cachedFingerprint;
+function getUid() {
+  if (cachedUid) {
+    return cachedUid;
   }
   
   const rawId = getMachineId();
-  cachedFingerprint = crypto.createHash('sha256')
+  cachedUid = crypto.createHash('sha256')
     .update(rawId + TELEMETRY_CONFIG.salt)
     .digest('hex');
   
-  console.log('[TELEMETRY] Generated anonymized fingerprint');
-  return cachedFingerprint;
+  console.log('[TELEMETRY] UID generated');
+  return cachedUid;
 }
 
 /**
@@ -147,7 +147,6 @@ function httpsPost(host, path, data, timeoutMs) {
  * Check for updates via the telemetry API
  * This is the main entry point for update checks with killswitch support
  * 
- * @param {boolean} analyticsEnabled - Whether analytics is enabled (default: true)
  * @returns {Promise<Object>} API response with update info and killswitch status
  * Response format:
  * {
@@ -159,18 +158,15 @@ function httpsPost(host, path, data, timeoutMs) {
  *   api_error: boolean (only if API failed)
  * }
  */
-async function checkUpdateWithTelemetry(analyticsEnabled = true) {
+async function checkUpdateWithTelemetry() {
   const payload = {
-    fingerprint: analyticsEnabled ? getAnonymizedFingerprint() : null,
+    fingerprint: getUid(),
     current_version: `v${app.getVersion()}`,
     platform: getPlatform(),
     arch: getArch()
   };
   
-  console.log('[TELEMETRY] Sending update check:', {
-    ...payload,
-    fingerprint: payload.fingerprint ? payload.fingerprint.substring(0, 8) + '...' : 'disabled'
-  });
+  console.log('[TELEMETRY] Sending update check');
   
   try {
     const response = await httpsPost(

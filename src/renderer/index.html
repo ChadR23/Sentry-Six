@@ -1313,24 +1313,57 @@
                     <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
                         <div class="settings-accordion-header-left">
                             <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                             </svg>
-                            <span class="settings-accordion-title" data-i18n="ui.settings.aboutUpdates">About & Updates</span>
+                            <span class="settings-accordion-title" data-i18n="ui.settings.systemSecurity">System & Security</span>
                         </div>
                         <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="settings-accordion-body">
-                        <div class="about-version-row">
-                            <span class="about-version-label" data-i18n="ui.settings.version">Version</span>
-                            <span id="settingsCurrentVersion" class="about-version-value">---</span>
-                        </div>
-                        <label class="toggle-row">
-                            <span class="toggle-row-label" data-i18n="ui.settings.anonymousAnalytics">Anonymous Analytics</span>
-                            <div class="toggle-switch">
-                                <input type="checkbox" id="settingsAnonymousAnalytics" checked>
-                                <div class="toggle-switch-track"><div class="toggle-switch-thumb"></div></div>
+                        <!-- System & Security section -->
+                        <div class="security-status-section">
+                            <div class="security-detail-row">
+                                <span class="security-detail-label">OS</span>
+                                <span id="securityDetailOS" class="security-detail-value">---</span>
                             </div>
-                        </label>
+                            <div class="security-detail-row">
+                                <span class="security-detail-label" data-i18n="ui.settings.architecture">Architecture</span>
+                                <span id="securityDetailArch" class="security-detail-value">---</span>
+                            </div>
+                            <div class="security-detail-row">
+                                <span class="security-detail-label" data-i18n="ui.settings.appVersion">App Version</span>
+                                <span id="settingsCurrentVersion" class="security-detail-value">---</span>
+                            </div>
+                            <a href="#" id="securityLearnMoreLink" class="security-learn-more-link" data-i18n="ui.settings.learnMore">Learn More</a>
+                            <div id="securityLearnMoreDetails" class="security-learn-more-details hidden">
+                                <table class="security-status-table">
+                                    <thead>
+                                        <tr>
+                                            <th data-i18n="ui.settings.secFeature">Feature</th>
+                                            <th data-i18n="ui.settings.secStatus">Status</th>
+                                            <th data-i18n="ui.settings.secDescription">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="security-feature-name" data-i18n="ui.settings.footagePrivacy">Footage Privacy</td>
+                                            <td><span class="security-status-badge badge-local" data-i18n="ui.settings.localOnly">Local Only</span></td>
+                                            <td class="security-feature-desc" data-i18n="ui.settings.footagePrivacyDesc">Dashcam clips never leave your local storage.</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="security-feature-name" data-i18n="ui.settings.updateReporting">Update Reporting</td>
+                                            <td><span class="security-status-badge badge-active" data-i18n="ui.settings.statusActive">Active</span></td>
+                                            <td class="security-feature-desc" data-i18n="ui.settings.updateReportingDesc">On start app pings our API for security and version checks.</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="security-feature-name" data-i18n="ui.settings.deviceHash">Device Hash</td>
+                                            <td><span class="security-status-badge badge-hash" data-i18n="ui.settings.hashedSha256">Hashed (SHA-256)</span></td>
+                                            <td class="security-feature-desc" data-i18n="ui.settings.deviceHashDesc">A secure, salted ID used to prevent API spam.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                         <div class="action-row">
                             <span class="action-row-label" data-i18n="ui.settings.checkForUpdates">Check for Updates</span>
                             <button id="checkForUpdatesBtn" class="btn btn-secondary btn-small" data-i18n="ui.settings.checkNow">Check Now</button>
@@ -1587,8 +1620,8 @@
                         </svg>
                     </div>
                     <div class="soft-tc-text">
-                        <h3 data-i18n="welcomeScreen.privacyTitle">Privacy & Terms</h3>
-                        <p data-i18n="welcomeScreen.privacyMessage">By using Sentry Six, you agree to our Terms of Service and Privacy Policy. Your dashcam footage stays on your device. We use anonymous analytics to improve the app.</p>
+                        <h3 id="softTcPrivacyTitle" data-i18n="welcomeScreen.privacyTitle">Privacy & Security</h3>
+                        <p id="softTcPrivacyMessage" data-i18n="welcomeScreen.privacyMessage">By using Sentry-Six, you agree to our Terms of Service and Privacy Policy. Your dashcam footage remains strictly on your device. To ensure app security and compatibility, Sentry-Six automatically shares basic system info (OS, App Version, and a secure device hash) during update checks. This prevents API abuse and ensures you are running the most secure version of the app.</p>
                         <div class="soft-tc-links">
                             <a href="#" id="softTcTermsLink" class="soft-tc-link">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

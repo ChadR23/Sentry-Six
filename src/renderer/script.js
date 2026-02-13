@@ -1390,19 +1390,16 @@ async function checkForUpdatesOnStartup() {
         console.log('[SETTINGS] Could not load devDisableApiRequests setting:', err);
     }
     
-    // Check if first run is complete and analytics setting exists - don't auto-update if welcome screen is needed
-    let firstRunComplete = false;
-    let hasAnalyticsSetting = false;
+    // Check if privacy terms have been accepted - don't auto-update if welcome screen is needed
+    let acceptedPrivacyVersion = 0;
     try {
-        firstRunComplete = await window.electronAPI.getSetting('firstRunComplete');
-        hasAnalyticsSetting = await window.electronAPI.getSetting('anonymousAnalytics');
+        acceptedPrivacyVersion = await window.electronAPI.getSetting('acceptedPrivacyVersion') || 0;
     } catch (err) {
         console.log('[SETTINGS] Could not load settings:', err);
     }
     
-    // Only check for updates if API requests are enabled AND first run is complete AND analytics setting exists
-    // This matches the welcome screen logic: firstRunComplete !== true || hasAnalyticsSetting === undefined
-    const shouldSkipUpdate = firstRunComplete !== true || hasAnalyticsSetting === undefined;
+    // Only check for updates if API requests are enabled AND privacy terms are accepted
+    const shouldSkipUpdate = acceptedPrivacyVersion < 2;
     
     if (apiRequestsDisabled) {
         console.log('[UPDATE] Skipping auto-update check - API requests disabled in developer settings');
@@ -1417,8 +1414,17 @@ async function checkForUpdatesOnStartup() {
 // Delay update check to allow app to fully initialize
 setTimeout(checkForUpdatesOnStartup, 2000);
 
-// Show welcome guide for first-time users (after app fully initializes)
-setTimeout(checkAndShowWelcomeGuide, 1000);
+// Show welcome guide for first-time users (only if privacy already accepted)
+// If privacy modal is showing, the guide will be triggered after acceptance via welcomeScreen.js
+window._checkAndShowWelcomeGuide = checkAndShowWelcomeGuide;
+(async () => {
+    if (window.electronAPI?.getSetting) {
+        const acceptedVersion = await window.electronAPI.getSetting('acceptedPrivacyVersion');
+        if (acceptedVersion && acceptedVersion >= 2) {
+            setTimeout(checkAndShowWelcomeGuide, 1000);
+        }
+    }
+})();
 
 // Fast tooltips - JS-based, appended to body to escape all stacking contexts
 (function initTooltips() {

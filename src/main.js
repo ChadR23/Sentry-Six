@@ -1951,6 +1951,20 @@ ipcMain.handle('dev:reloadApp', async () => {
 });
 
 
+// System info IPC handler (for Settings "Learn More" section)
+ipcMain.handle('system:getInfo', async () => {
+  const platform = os.platform();
+  let osName = platform;
+  if (platform === 'win32') osName = 'Windows';
+  else if (platform === 'darwin') osName = 'macOS';
+  else if (platform === 'linux') osName = 'Linux';
+  return {
+    os: osName,
+    arch: os.arch(),
+    appVersion: app.getVersion()
+  };
+});
+
 // Diagnostics & Support ID IPC Handlers
 ipcMain.handle('diagnostics:get', async () => {
   try {

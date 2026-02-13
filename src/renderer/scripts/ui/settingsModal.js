@@ -567,24 +567,6 @@ export function initSettingsModal() {
         };
     }
     
-    // Anonymous analytics toggle
-    const settingsAnonymousAnalytics = $('settingsAnonymousAnalytics');
-    if (settingsAnonymousAnalytics) {
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('anonymousAnalytics').then(savedValue => {
-                settingsAnonymousAnalytics.checked = savedValue !== false; // Default to true
-            });
-        }
-        
-        settingsAnonymousAnalytics.addEventListener('change', async function() {
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('anonymousAnalytics', this.checked);
-            }
-            settingsAnonymousAnalytics.blur();
-        });
-    }
-    
-    
     // Check for updates button
     const checkForUpdatesBtn = $('checkForUpdatesBtn');
     if (checkForUpdatesBtn) {
@@ -1111,3 +1093,30 @@ export function initSettingsSearch() {
     doneBtn?.addEventListener('click', resetSearch);
 }
 
+// Populate OS & Architecture on load (always visible)
+(async function populateSystemInfo() {
+    if (window.electronAPI?.getSystemInfo) {
+        try {
+            const info = await window.electronAPI.getSystemInfo();
+            const osEl = document.getElementById('securityDetailOS');
+            const archEl = document.getElementById('securityDetailArch');
+            if (osEl) osEl.textContent = info.os || '---';
+            if (archEl) archEl.textContent = info.arch || '---';
+        } catch (err) {
+            console.log('[SETTINGS] Could not load system info:', err);
+        }
+    }
+})();
+
+// System & Security "Learn More" toggle — registered at module scope for reliability
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('#securityLearnMoreLink');
+    if (!link) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const details = document.getElementById('securityLearnMoreDetails');
+    if (!details) return;
+    const isHidden = details.classList.contains('hidden');
+    details.classList.toggle('hidden');
+    link.textContent = isHidden ? (t('ui.settings.hideDetails') || 'Hide Details') : (t('ui.settings.learnMore') || 'Learn More');
+});
