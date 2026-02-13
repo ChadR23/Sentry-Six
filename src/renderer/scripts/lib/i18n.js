@@ -219,7 +219,10 @@ export function translatePage() {
     // Translate titles/tooltips
     document.querySelectorAll('[data-i18n-title]').forEach(el => {
         const key = el.getAttribute('data-i18n-title');
-        el.title = t(key);
+        const translated = t(key);
+        el.title = translated;
+        // Sync fast tooltip
+        el.setAttribute('data-tip', translated);
     });
 }
 

@@ -17,7 +17,7 @@ import {
     startExport, cancelExport, clearExportMarkers, renderSharedClipsList 
 } from './scripts/features/exportVideo.js';
 import { initAutoUpdate } from './scripts/features/autoUpdate.js';
-import { initWelcomeScreen } from './scripts/features/welcomeScreen.js';
+import { initWelcomeScreen, resetWelcomeScreen, showWelcomeScreen } from './scripts/features/welcomeScreen.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal, initSettingsSearch } from './scripts/ui/settingsModal.js';
 import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
@@ -393,6 +393,21 @@ let useMetric = false; // Will be loaded from settings
         updateTileLabels();
     });
     
+    // Map dark mode - applies CSS filter to Leaflet tile pane
+    window._mapDarkMode = false;
+    function applyMapDarkMode(enabled) {
+        const mapEl = document.getElementById('map');
+        if (mapEl) {
+            const tilePane = mapEl.querySelector('.leaflet-tile-pane');
+            if (tilePane) {
+                tilePane.style.filter = enabled
+                    ? 'invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.2)'
+                    : '';
+            }
+        }
+    }
+    window.applyMapDarkMode = applyMapDarkMode;
+
     // Init Map
     try {
         if (window.L) {
@@ -411,6 +426,9 @@ let useMetric = false; // Will be loaded from settings
                 maxZoom: 19,
                 subdomains: 'abc'
             }).addTo(map);
+            
+            // Apply dark mode if previously saved
+            if (window._mapDarkMode) applyMapDarkMode(true);
             
             // Enable right-click drag for panning (to avoid conflict with dashboard left-click drag)
             let mapDragStart = null;
@@ -714,6 +732,10 @@ let useMetric = false; // Will be loaded from settings
             if (window.updateAccelPedMode) {
                 window.updateAccelPedMode(mode);
             }
+        });
+        window.electronAPI.getSetting('mapDarkMode').then(saved => {
+            window._mapDarkMode = saved === true;
+            applyMapDarkMode(window._mapDarkMode);
         });
     } else {
         // Fallback to defaults
@@ -1270,6 +1292,10 @@ initWelcomeGuide();
 window._resetWelcomeGuide = resetWelcomeGuide;
 window._openWelcomeGuide = openWelcomeGuide;
 
+// Expose welcome screen (Privacy & Terms) functions for developer settings
+window._resetWelcomeScreen = resetWelcomeScreen;
+window._showWelcomeScreen = showWelcomeScreen;
+
 // Expose notify function globally for modules
 window.showNotification = notify;
 
@@ -1364,19 +1390,16 @@ async function checkForUpdatesOnStartup() {
         console.log('[SETTINGS] Could not load devDisableApiRequests setting:', err);
     }
     
-    // Check if first run is complete and analytics setting exists - don't auto-update if welcome screen is needed
-    let firstRunComplete = false;
-    let hasAnalyticsSetting = false;
+    // Check if privacy terms have been accepted - don't auto-update if welcome screen is needed
+    let acceptedPrivacyVersion = 0;
     try {
-        firstRunComplete = await window.electronAPI.getSetting('firstRunComplete');
-        hasAnalyticsSetting = await window.electronAPI.getSetting('anonymousAnalytics');
+        acceptedPrivacyVersion = await window.electronAPI.getSetting('acceptedPrivacyVersion') || 0;
     } catch (err) {
         console.log('[SETTINGS] Could not load settings:', err);
     }
     
-    // Only check for updates if API requests are enabled AND first run is complete AND analytics setting exists
-    // This matches the welcome screen logic: firstRunComplete !== true || hasAnalyticsSetting === undefined
-    const shouldSkipUpdate = firstRunComplete !== true || hasAnalyticsSetting === undefined;
+    // Only check for updates if API requests are enabled AND privacy terms are accepted
+    const shouldSkipUpdate = acceptedPrivacyVersion < 2;
     
     if (apiRequestsDisabled) {
         console.log('[UPDATE] Skipping auto-update check - API requests disabled in developer settings');
@@ -1391,8 +1414,88 @@ async function checkForUpdatesOnStartup() {
 // Delay update check to allow app to fully initialize
 setTimeout(checkForUpdatesOnStartup, 2000);
 
-// Show welcome guide for first-time users (after app fully initializes)
-setTimeout(checkAndShowWelcomeGuide, 1000);
+// Show welcome guide for first-time users (only if privacy already accepted)
+// If privacy modal is showing, the guide will be triggered after acceptance via welcomeScreen.js
+window._checkAndShowWelcomeGuide = checkAndShowWelcomeGuide;
+(async () => {
+    if (window.electronAPI?.getSetting) {
+        const acceptedVersion = await window.electronAPI.getSetting('acceptedPrivacyVersion');
+        if (acceptedVersion && acceptedVersion >= 2) {
+            setTimeout(checkAndShowWelcomeGuide, 1000);
+        }
+    }
+})();
+
+// Fast tooltips - JS-based, appended to body to escape all stacking contexts
+(function initTooltips() {
+    const tip = document.createElement('div');
+    tip.className = 'tooltip-popup';
+    document.body.appendChild(tip);
+    let showTimer = null;
+    let currentEl = null;
+
+    function show(el) {
+        const text = el.getAttribute('data-tip');
+        if (!text || el.disabled) return;
+        tip.textContent = text;
+        // Position above the element, centered
+        const rect = el.getBoundingClientRect();
+        tip.style.left = '0px';
+        tip.style.top = '0px';
+        tip.classList.add('visible');
+        // Measure after making visible (but opacity transition handles appearance)
+        const tipRect = tip.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - tipRect.width / 2;
+        let top = rect.top - tipRect.height - 6;
+        // Clamp to viewport
+        if (left < 4) left = 4;
+        if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - 4 - tipRect.width;
+        if (top < 4) { top = rect.bottom + 6; } // flip below if no room above
+        tip.style.left = left + 'px';
+        tip.style.top = top + 'px';
+    }
+
+    function hide() {
+        clearTimeout(showTimer);
+        showTimer = null;
+        currentEl = null;
+        tip.classList.remove('visible');
+    }
+
+    document.addEventListener('mouseover', (e) => {
+        const el = e.target.closest('[data-tip]');
+        if (!el || !el.getAttribute('data-tip') || el.disabled) { if (currentEl) hide(); return; }
+        if (el === currentEl) return;
+        clearTimeout(showTimer);
+        currentEl = el;
+        showTimer = setTimeout(() => show(el), 150);
+    });
+    document.addEventListener('mouseout', (e) => {
+        const el = e.target.closest('[data-tip]');
+        if (el === currentEl) hide();
+    });
+    // Hide on scroll/click
+    document.addEventListener('scroll', hide, true);
+    document.addEventListener('mousedown', hide);
+
+    // Convert existing title attributes to data-tip
+    document.querySelectorAll('[title]').forEach(el => {
+        if (!el.getAttribute('data-tip')) el.setAttribute('data-tip', el.title);
+        el.removeAttribute('title');
+    });
+    // Observe DOM for dynamically added title attributes
+    new MutationObserver(mutations => {
+        for (const m of mutations) {
+            if (m.type === 'attributes' && m.attributeName === 'title') {
+                const el = m.target;
+                if (el.title) {
+                    el.setAttribute('data-tip', el.title);
+                    el.removeAttribute('title');
+                }
+            }
+        }
+    }).observe(document.body, { attributes: true, attributeFilter: ['title'], subtree: true });
+})();
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once

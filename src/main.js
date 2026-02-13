@@ -188,7 +188,7 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
 
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
-  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
+  const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', minimapDarkMode = false, mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
   
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
   
@@ -630,7 +630,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
                 minimapHeight,
                 ffmpegPath,
                 sendMinimapProgress,
-                cancelledExports
+                cancelledExports,
+                minimapDarkMode
               );
               
               tempFiles.push(minimapTempPath);
@@ -963,7 +964,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
 
     // Time-lapse: speed up the entire composited video (after all overlays)
-    if (enableTimelapse && timelapseSpeed > 1) {
+    if (enableTimelapse && timelapseSpeed !== 1) {
       const lastIdx = filters.length - 1;
       filters[lastIdx] = filters[lastIdx].replace('[out]', '[pre_tl]');
       filters.push(`[pre_tl]setpts=PTS/${timelapseSpeed}[out]`);
@@ -973,8 +974,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
     
-    // Time-lapse: remove audio (sped-up audio is noise)
-    if (enableTimelapse && timelapseSpeed > 1) {
+    // Time-lapse: remove audio (modified-speed audio is noise)
+    if (enableTimelapse && timelapseSpeed !== 1) {
       cmd.push('-an');
     }
 
@@ -1040,7 +1041,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
     
     // Time-lapse: adjust output duration
-    const outputDurationSec = (enableTimelapse && timelapseSpeed > 1) ? durationSec / timelapseSpeed : durationSec;
+    const outputDurationSec = (enableTimelapse && timelapseSpeed !== 1) ? durationSec / timelapseSpeed : durationSec;
     cmd.push('-t', outputDurationSec.toString());
     cmd.push('-movflags', '+faststart');
     
@@ -1949,6 +1950,20 @@ ipcMain.handle('dev:reloadApp', async () => {
   return { success: false, error: 'No main window' };
 });
 
+
+// System info IPC handler (for Settings "Learn More" section)
+ipcMain.handle('system:getInfo', async () => {
+  const platform = os.platform();
+  let osName = platform;
+  if (platform === 'win32') osName = 'Windows';
+  else if (platform === 'darwin') osName = 'macOS';
+  else if (platform === 'linux') osName = 'Linux';
+  return {
+    os: osName,
+    arch: os.arch(),
+    appVersion: app.getVersion()
+  };
+});
 
 // Diagnostics & Support ID IPC Handlers
 ipcMain.handle('diagnostics:get', async () => {

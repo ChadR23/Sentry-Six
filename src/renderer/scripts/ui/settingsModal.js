@@ -99,6 +99,10 @@ export function initSettingsModal() {
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
                 
+                // Sync map mode dropdown
+                const settingsMapMode = $('settingsMapMode');
+                if (settingsMapMode) settingsMapMode.value = window._mapDarkMode ? 'dark' : 'light';
+                
                 // Sync layout style toggle
                 const settingsLayoutStyle = $('settingsLayoutStyle');
                 if (settingsLayoutStyle) {
@@ -234,6 +238,26 @@ export function initSettingsModal() {
                 mapToggle.dispatchEvent(new Event('change'));
             }
             settingsMapToggle.blur();
+        };
+    }
+    
+    // Map mode dropdown (light/dark)
+    const settingsMapMode = $('settingsMapMode');
+    if (settingsMapMode && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('mapDarkMode').then(saved => {
+            settingsMapMode.value = saved === true ? 'dark' : 'light';
+        });
+        
+        settingsMapMode.onchange = async () => {
+            const enabled = settingsMapMode.value === 'dark';
+            window._mapDarkMode = enabled;
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('mapDarkMode', enabled);
+            }
+            if (window.applyMapDarkMode) {
+                window.applyMapDarkMode(enabled);
+            }
+            settingsMapMode.blur();
         };
     }
     
@@ -543,24 +567,6 @@ export function initSettingsModal() {
         };
     }
     
-    // Anonymous analytics toggle
-    const settingsAnonymousAnalytics = $('settingsAnonymousAnalytics');
-    if (settingsAnonymousAnalytics) {
-        if (window.electronAPI?.getSetting) {
-            window.electronAPI.getSetting('anonymousAnalytics').then(savedValue => {
-                settingsAnonymousAnalytics.checked = savedValue !== false; // Default to true
-            });
-        }
-        
-        settingsAnonymousAnalytics.addEventListener('change', async function() {
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('anonymousAnalytics', this.checked);
-            }
-            settingsAnonymousAnalytics.blur();
-        });
-    }
-    
-    
     // Check for updates button
     const checkForUpdatesBtn = $('checkForUpdatesBtn');
     if (checkForUpdatesBtn) {
@@ -772,6 +778,8 @@ export function initDevSettingsModal() {
                 if (confirm('Are you sure you want to reset all settings? This will reload the app.')) {
                     const result = await window.electronAPI.devResetSettings();
                     if (result.success) {
+                        // Clear localStorage too for a true factory reset
+                        localStorage.clear();
                         showDevOutput('Settings reset successfully.\nDeleted: ' + result.path + '\n\nReloading app...');
                         setTimeout(() => { window.electronAPI?.devReloadApp?.(); }, 1500);
                     } else {
@@ -863,6 +871,34 @@ export function initDevSettingsModal() {
                 showDevOutput('Error: Welcome guide module not loaded');
             }
             devShowWelcomeGuide.blur();
+        };
+    }
+    
+    // Reset Privacy & Terms
+    const devResetWelcomeScreen = $('devResetWelcomeScreen');
+    if (devResetWelcomeScreen) {
+        devResetWelcomeScreen.onclick = async () => {
+            if (window._resetWelcomeScreen) {
+                await window._resetWelcomeScreen();
+                showDevOutput('Privacy & Terms Reset\n\nThe Privacy & Terms dialog will appear on next app launch.\nOr click "Show Privacy & Terms" to see it now.');
+            } else {
+                showDevOutput('Error: Welcome screen module not loaded');
+            }
+            devResetWelcomeScreen.blur();
+        };
+    }
+    
+    // Show Privacy & Terms Now
+    const devShowWelcomeScreen = $('devShowWelcomeScreen');
+    if (devShowWelcomeScreen) {
+        devShowWelcomeScreen.onclick = () => {
+            if (window._showWelcomeScreen) {
+                closeDevSettings();
+                window._showWelcomeScreen();
+            } else {
+                showDevOutput('Error: Welcome screen module not loaded');
+            }
+            devShowWelcomeScreen.blur();
         };
     }
     
@@ -1059,3 +1095,30 @@ export function initSettingsSearch() {
     doneBtn?.addEventListener('click', resetSearch);
 }
 
+// Populate OS & Architecture on load (always visible)
+(async function populateSystemInfo() {
+    if (window.electronAPI?.getSystemInfo) {
+        try {
+            const info = await window.electronAPI.getSystemInfo();
+            const osEl = document.getElementById('securityDetailOS');
+            const archEl = document.getElementById('securityDetailArch');
+            if (osEl) osEl.textContent = info.os || '---';
+            if (archEl) archEl.textContent = info.arch || '---';
+        } catch (err) {
+            console.log('[SETTINGS] Could not load system info:', err);
+        }
+    }
+})();
+
+// System & Security "Learn More" toggle — registered at module scope for reliability
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('#securityLearnMoreLink');
+    if (!link) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const details = document.getElementById('securityLearnMoreDetails');
+    if (!details) return;
+    const isHidden = details.classList.contains('hidden');
+    details.classList.toggle('hidden');
+    link.textContent = isHidden ? (t('ui.settings.hideDetails') || 'Hide Details') : (t('ui.settings.learnMore') || 'Learn More');
+});

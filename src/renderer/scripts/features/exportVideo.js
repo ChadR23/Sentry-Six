@@ -244,7 +244,7 @@ function updateTimelapseDurationEstimate() {
     const durationText = $('timelapseDurationText');
     if (!speedSelect || !durationText) return;
     
-    const speed = parseInt(speedSelect.value) || 8;
+    const speed = parseFloat(speedSelect.value) || 8;
     
     // Try to calculate actual output duration from export range
     const nativeVideo = getNativeVideo?.();
@@ -269,7 +269,7 @@ function updateTimelapseDurationEstimate() {
         
         durationText.textContent = `${formatDuration(rangeSec)} → ${formatDuration(outputSec)} at ${speed}x speed`;
     } else {
-        durationText.textContent = `Output will be ~${speed}x shorter than selected range`;
+        durationText.textContent = speed < 1 ? `Output will be ~${1/speed}x longer than selected range` : `Output will be ~${speed}x shorter than selected range`;
     }
 }
 
@@ -1143,10 +1143,10 @@ export function updateExportRangeDisplay() {
     
     // Show effective duration when timelapse is enabled
     const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
-    const timelapseSpeed = timelapseEnabled ? (parseInt($('timelapseSpeed')?.value) || 8) : 1;
+    const timelapseSpeed = timelapseEnabled ? (parseFloat($('timelapseSpeed')?.value) || 8) : 1;
     const durationLabel = $('exportDurationLabel');
     const durationItem = $('exportDurationItem');
-    if (timelapseEnabled && timelapseSpeed > 1) {
+    if (timelapseEnabled && timelapseSpeed !== 1) {
         const effectiveSec = durationSec / timelapseSpeed;
         if (durationEl) durationEl.textContent = `${formatTimeHMS(durationSec)} → ${formatTimeHMS(effectiveSec)}`;
         if (durationLabel) durationLabel.textContent = t('ui.export.timelapseDuration');
@@ -1402,6 +1402,7 @@ export async function startExport() {
     const minimapPosition = $('minimapPosition')?.value || 'top-right';
     const minimapSize = $('minimapSize')?.value || 'small';
     const minimapRenderMode = $('minimapRenderMode')?.value || 'ass'; // 'ass' or 'leaflet'
+    const minimapDarkMode = window._mapDarkMode === true;
     
     console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
     console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}, RenderMode=${minimapRenderMode}`);
@@ -1415,7 +1416,7 @@ export async function startExport() {
     // Timelapse settings
     const enableTimelapseCheckbox = $('enableTimelapse');
     const enableTimelapse = enableTimelapseCheckbox?.checked ?? false;
-    const timelapseSpeed = parseInt($('timelapseSpeed')?.value) || 8;
+    const timelapseSpeed = parseFloat($('timelapseSpeed')?.value) || 8;
     
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
@@ -1804,10 +1805,11 @@ export async function startExport() {
             minimapPosition,
             minimapSize,
             minimapRenderMode, // 'ass' (fast, vector) or 'leaflet' (slow, map tiles)
+            minimapDarkMode, // Dark mode CSS filter for map tiles
             mapPath,
             // Time-lapse settings
             enableTimelapse,
-            timelapseSpeed // Speed multiplier (2, 4, 8, 16, 32, 64)
+            timelapseSpeed // Speed multiplier (0.5, 2, 4, 8, 16, 32, 64)
         };
         
         console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}, renderMode=${minimapRenderMode}`);
@@ -1894,7 +1896,7 @@ function initShareClipToggle() {
     
     // If timelapse is enabled, use effective output duration (raw / speed)
     const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
-    const timelapseSpeed = timelapseEnabled ? (parseInt($('timelapseSpeed')?.value) || 8) : 1;
+    const timelapseSpeed = timelapseEnabled ? (parseFloat($('timelapseSpeed')?.value) || 8) : 1;
     const effectiveDurationSec = rawDurationSec / timelapseSpeed;
     
     if (effectiveDurationSec > maxDurationSec) {
