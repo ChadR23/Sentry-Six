@@ -964,7 +964,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
 
     // Time-lapse: speed up the entire composited video (after all overlays)
-    if (enableTimelapse && timelapseSpeed > 1) {
+    if (enableTimelapse && timelapseSpeed !== 1) {
       const lastIdx = filters.length - 1;
       filters[lastIdx] = filters[lastIdx].replace('[out]', '[pre_tl]');
       filters.push(`[pre_tl]setpts=PTS/${timelapseSpeed}[out]`);
@@ -974,8 +974,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
     
-    // Time-lapse: remove audio (sped-up audio is noise)
-    if (enableTimelapse && timelapseSpeed > 1) {
+    // Time-lapse: remove audio (modified-speed audio is noise)
+    if (enableTimelapse && timelapseSpeed !== 1) {
       cmd.push('-an');
     }
 
@@ -1041,7 +1041,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
     
     // Time-lapse: adjust output duration
-    const outputDurationSec = (enableTimelapse && timelapseSpeed > 1) ? durationSec / timelapseSpeed : durationSec;
+    const outputDurationSec = (enableTimelapse && timelapseSpeed !== 1) ? durationSec / timelapseSpeed : durationSec;
     cmd.push('-t', outputDurationSec.toString());
     cmd.push('-movflags', '+faststart');
     
