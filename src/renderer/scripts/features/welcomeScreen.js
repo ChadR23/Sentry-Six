@@ -29,6 +29,23 @@ function showWelcomeModal() {
     // Show modal
     welcomeModal.classList.remove('hidden');
     
+    // Set up external links for Terms and Privacy
+    const termsLink = document.getElementById('softTcTermsLink');
+    const privacyLink = document.getElementById('softTcPrivacyLink');
+    
+    if (termsLink) {
+        termsLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.electronAPI?.openExternal?.('https://sentry-six.com/terms');
+        });
+    }
+    if (privacyLink) {
+        privacyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.electronAPI?.openExternal?.('https://sentry-six.com/privacy');
+        });
+    }
+    
     // Focus the accept button
     if (acceptBtn) {
         acceptBtn.focus();
@@ -126,4 +143,21 @@ export async function initWelcomeScreen() {
     }
     
     return false; // Modal was not shown (first run already complete)
+}
+
+/**
+ * Reset the welcome screen (for developer testing)
+ */
+export async function resetWelcomeScreen() {
+    if (window.electronAPI?.setSetting) {
+        await window.electronAPI.setSetting('firstRunComplete', false);
+        await window.electronAPI.setSetting('anonymousAnalytics', undefined);
+    }
+}
+
+/**
+ * Show the welcome screen manually (for developer testing)
+ */
+export function showWelcomeScreen() {
+    showWelcomeModal();
 }

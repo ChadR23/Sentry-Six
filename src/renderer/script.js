@@ -17,7 +17,7 @@ import {
     startExport, cancelExport, clearExportMarkers, renderSharedClipsList 
 } from './scripts/features/exportVideo.js';
 import { initAutoUpdate } from './scripts/features/autoUpdate.js';
-import { initWelcomeScreen } from './scripts/features/welcomeScreen.js';
+import { initWelcomeScreen, resetWelcomeScreen, showWelcomeScreen } from './scripts/features/welcomeScreen.js';
 import { zoomPanState, initZoomPan, resetZoomPan, applyZoomPan, applyMirrorTransforms } from './scripts/ui/zoomPan.js';
 import { initSettingsModalDeps, initSettingsModal, initDevSettingsModal, openDevSettings, initChangelogModal, initSettingsSearch } from './scripts/ui/settingsModal.js';
 import { initWelcomeGuide, checkAndShowWelcomeGuide, resetWelcomeGuide, openWelcomeGuide } from './scripts/ui/welcomeGuide.js';
@@ -1292,6 +1292,10 @@ initWelcomeGuide();
 window._resetWelcomeGuide = resetWelcomeGuide;
 window._openWelcomeGuide = openWelcomeGuide;
 
+// Expose welcome screen (Privacy & Terms) functions for developer settings
+window._resetWelcomeScreen = resetWelcomeScreen;
+window._showWelcomeScreen = showWelcomeScreen;
+
 // Expose notify function globally for modules
 window.showNotification = notify;
 
@@ -1415,6 +1419,77 @@ setTimeout(checkForUpdatesOnStartup, 2000);
 
 // Show welcome guide for first-time users (after app fully initializes)
 setTimeout(checkAndShowWelcomeGuide, 1000);
+
+// Fast tooltips - JS-based, appended to body to escape all stacking contexts
+(function initTooltips() {
+    const tip = document.createElement('div');
+    tip.className = 'tooltip-popup';
+    document.body.appendChild(tip);
+    let showTimer = null;
+    let currentEl = null;
+
+    function show(el) {
+        const text = el.getAttribute('data-tip');
+        if (!text || el.disabled) return;
+        tip.textContent = text;
+        // Position above the element, centered
+        const rect = el.getBoundingClientRect();
+        tip.style.left = '0px';
+        tip.style.top = '0px';
+        tip.classList.add('visible');
+        // Measure after making visible (but opacity transition handles appearance)
+        const tipRect = tip.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - tipRect.width / 2;
+        let top = rect.top - tipRect.height - 6;
+        // Clamp to viewport
+        if (left < 4) left = 4;
+        if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - 4 - tipRect.width;
+        if (top < 4) { top = rect.bottom + 6; } // flip below if no room above
+        tip.style.left = left + 'px';
+        tip.style.top = top + 'px';
+    }
+
+    function hide() {
+        clearTimeout(showTimer);
+        showTimer = null;
+        currentEl = null;
+        tip.classList.remove('visible');
+    }
+
+    document.addEventListener('mouseover', (e) => {
+        const el = e.target.closest('[data-tip]');
+        if (!el || !el.getAttribute('data-tip') || el.disabled) { if (currentEl) hide(); return; }
+        if (el === currentEl) return;
+        clearTimeout(showTimer);
+        currentEl = el;
+        showTimer = setTimeout(() => show(el), 150);
+    });
+    document.addEventListener('mouseout', (e) => {
+        const el = e.target.closest('[data-tip]');
+        if (el === currentEl) hide();
+    });
+    // Hide on scroll/click
+    document.addEventListener('scroll', hide, true);
+    document.addEventListener('mousedown', hide);
+
+    // Convert existing title attributes to data-tip
+    document.querySelectorAll('[title]').forEach(el => {
+        if (!el.getAttribute('data-tip')) el.setAttribute('data-tip', el.title);
+        el.removeAttribute('title');
+    });
+    // Observe DOM for dynamically added title attributes
+    new MutationObserver(mutations => {
+        for (const m of mutations) {
+            if (m.type === 'attributes' && m.attributeName === 'title') {
+                const el = m.target;
+                if (el.title) {
+                    el.setAttribute('data-tip', el.title);
+                    el.removeAttribute('title');
+                }
+            }
+        }
+    }).observe(document.body, { attributes: true, attributeFilter: ['title'], subtree: true });
+})();
 
 // File Handling - Use File System Access API for lazy directory traversal
 // This prevents the browser from loading all files into memory at once

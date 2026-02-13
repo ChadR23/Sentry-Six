@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.7.20",
+      "date": "2026-02-13",
+      "title": "Minor Changes & Fixes",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Minor Changes & Fixes"
+        }
+      ]
+    },
+    {
       "version": "2026.7.15",
       "date": "2026-02-10",
       "title": "Feature Release",

@@ -890,6 +890,34 @@ export function initDevSettingsModal() {
         };
     }
     
+    // Reset Privacy & Terms
+    const devResetWelcomeScreen = $('devResetWelcomeScreen');
+    if (devResetWelcomeScreen) {
+        devResetWelcomeScreen.onclick = async () => {
+            if (window._resetWelcomeScreen) {
+                await window._resetWelcomeScreen();
+                showDevOutput('Privacy & Terms Reset\n\nThe Privacy & Terms dialog will appear on next app launch.\nOr click "Show Privacy & Terms" to see it now.');
+            } else {
+                showDevOutput('Error: Welcome screen module not loaded');
+            }
+            devResetWelcomeScreen.blur();
+        };
+    }
+    
+    // Show Privacy & Terms Now
+    const devShowWelcomeScreen = $('devShowWelcomeScreen');
+    if (devShowWelcomeScreen) {
+        devShowWelcomeScreen.onclick = () => {
+            if (window._showWelcomeScreen) {
+                closeDevSettings();
+                window._showWelcomeScreen();
+            } else {
+                showDevOutput('Error: Welcome screen module not loaded');
+            }
+            devShowWelcomeScreen.blur();
+        };
+    }
+    
 }
 
 /**

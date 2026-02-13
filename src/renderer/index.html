@@ -351,10 +351,10 @@
             <!-- Export controls - right of timeline -->
             <div class="export-group">
                 <button id="setStartMarkerBtn" class="control-btn export-marker-btn start" data-i18n-title="ui.playback.setStartMarker" title="Set export start point" disabled>
-                    <span class="marker-label">In</span>
+                    <span class="marker-label">Start</span>
                 </button>
                 <button id="setEndMarkerBtn" class="control-btn export-marker-btn end" data-i18n-title="ui.playback.setEndMarker" title="Set export end point" disabled>
-                    <span class="marker-label">Out</span>
+                    <span class="marker-label">End</span>
                 </button>
                 <button id="exportBtn" class="control-btn export-btn" data-i18n-title="ui.playback.exportVideo" title="Export video" disabled>
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -1270,14 +1270,14 @@
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerIn">Export Marker In</span>
+                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerIn">Export Marker Start</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerIn" data-action="setMarkerIn" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerIn" title="Clear">✕</button>
                             </div>
                         </div>
                         <div class="keybind-row-compact">
-                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerOut">Export Marker Out</span>
+                            <span class="keybind-label" data-i18n="ui.settings.setExportMarkerOut">Export Marker End</span>
                             <div class="keybind-input-wrapper">
                                 <input type="text" class="keybind-input" id="keybindSetMarkerOut" data-action="setMarkerOut" placeholder="—" readonly>
                                 <button class="keybind-clear" data-action="setMarkerOut" title="Clear">✕</button>
@@ -1435,6 +1435,26 @@
                 </div>
                 
                 <div class="modal-section">
+                    <div class="modal-section-title">Privacy & Terms</div>
+                    <div class="dev-grid">
+                        <button id="devResetWelcomeScreen" class="dev-card">
+                            <span class="dev-card-icon">🔄</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Reset Privacy & Terms</span>
+                                <span class="dev-card-desc">Show on next launch</span>
+                            </div>
+                        </button>
+                        <button id="devShowWelcomeScreen" class="dev-card">
+                            <span class="dev-card-icon">🛡️</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Show Privacy & Terms</span>
+                                <span class="dev-card-desc">Open dialog now</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
                     <div class="modal-section-title">Diagnostics</div>
                     <div class="dev-grid">
                         <button id="devShowPaths" class="dev-card">
@@ -1552,7 +1572,7 @@
         </div>
     </div>
 
-    <!-- Soft T&C Welcome Modal -->
+    <!-- Privacy & Terms Acceptance Modal -->
     <div id="softTcModal" class="modal hidden">
         <div class="modal-content soft-tc-modal">
             <div class="modal-header">
@@ -1566,8 +1586,22 @@
                         </svg>
                     </div>
                     <div class="soft-tc-text">
-                        <h3 data-i18n="welcomeScreen.privacyTitle">Privacy & Updates</h3>
-                        <p data-i18n="welcomeScreen.privacyMessage">To keep Sentry-Six running smoothly, the app automatically checks for updates and the latest features. We also use a randomly generated ID to see which versions are most popular. This helps us fix bugs faster, and no personal info is ever sent to our servers.</p>
+                        <h3 data-i18n="welcomeScreen.privacyTitle">Privacy & Terms</h3>
+                        <p data-i18n="welcomeScreen.privacyMessage">By using Sentry Six, you agree to our Terms of Service and Privacy Policy. Your dashcam footage stays on your device. We use anonymous analytics to improve the app.</p>
+                        <div class="soft-tc-links">
+                            <a href="#" id="softTcTermsLink" class="soft-tc-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                                </svg>
+                                <span data-i18n="welcomeScreen.termsLink">Terms of Service</span>
+                            </a>
+                            <a href="#" id="softTcPrivacyLink" class="soft-tc-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
+                                <span data-i18n="welcomeScreen.privacyLink">Privacy Policy</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1814,16 +1848,16 @@
                     <!-- Step 7: Export -->
                     <div class="welcome-step" data-step="7">
                         <h3 class="welcome-step-title" data-i18n="welcome.step7.title">Export Your Clips</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step7.desc" data-i18n-html>Set <strong>In/Out points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step7.desc" data-i18n-html>Set <strong>Start/End points</strong>, then click <strong>Export</strong>. Choose cameras, quality, and add telemetry overlay.</p>
                         <!-- Actual export controls clone -->
                         <div class="welcome-preview-container">
                             <div class="controls welcome-preview-controls" style="position: relative; display: flex; padding: 10px; border-radius: 12px;">
                                 <div class="export-group" style="display: flex; gap: 6px; margin: 0 auto;">
                                     <button class="control-btn export-marker-btn start" style="pointer-events: none;">
-                                        <span class="marker-label" data-i18n="ui.export.inPoint">In</span>
+                                        <span class="marker-label" data-i18n="ui.export.inPoint">Start</span>
                                     </button>
                                     <button class="control-btn export-marker-btn end" style="pointer-events: none;">
-                                        <span class="marker-label" data-i18n="ui.export.outPoint">Out</span>
+                                        <span class="marker-label" data-i18n="ui.export.outPoint">End</span>
                                     </button>
                                     <button class="control-btn export-btn" style="pointer-events: none;">
                                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">

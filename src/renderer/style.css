@@ -4567,6 +4567,37 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     margin: 0 auto;
 }
 
+.soft-tc-links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 16px;
+}
+
+.soft-tc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--tc-accent);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--tc-accent-soft);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.soft-tc-link:hover {
+    background: rgba(0, 212, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.soft-tc-link svg {
+    flex-shrink: 0;
+}
+
 .soft-tc-footer {
     padding: 20px 24px;
     background: linear-gradient(180deg, 
@@ -6357,4 +6388,29 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Folder status */
 .settings-accordion .folder-status {
     padding: 0 14px 8px;
+}
+
+/* Fast Custom Tooltips - JS-based, appended to body to escape all stacking contexts */
+.tooltip-popup {
+    position: fixed;
+    background: rgba(20, 20, 30, 0.95);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    padding: 5px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 2147483647;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+}
+.tooltip-popup.visible {
+    opacity: 1;
+    transform: scale(1);
 }
