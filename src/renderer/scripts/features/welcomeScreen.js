@@ -45,6 +45,9 @@ function applyModalVariant(isReturningUser) {
     }
 }
 
+// Track whether ESC handler has been added
+let escHandlerAdded = false;
+
 /**
  * Show the welcome modal
  * @param {boolean} isReturningUser - whether this is a returning user seeing updated terms
@@ -59,25 +62,49 @@ function showWelcomeModal(isReturningUser = false) {
     // Show modal
     welcomeModal.classList.remove('hidden');
     
-    // Set up external links for Terms and Privacy
+    // Set up external links for Terms and Privacy (use onclick to prevent duplicates)
     const termsLink = document.getElementById('softTcTermsLink');
     const privacyLink = document.getElementById('softTcPrivacyLink');
     
     if (termsLink) {
-        termsLink.addEventListener('click', (e) => {
+        termsLink.onclick = (e) => {
             e.preventDefault();
             window.electronAPI?.openExternal?.('https://sentry-six.com/terms');
-        });
+        };
     }
     if (privacyLink) {
-        privacyLink.addEventListener('click', (e) => {
+        privacyLink.onclick = (e) => {
             e.preventDefault();
             window.electronAPI?.openExternal?.('https://sentry-six.com/privacy');
-        });
+        };
     }
     
-    // Active acknowledgment: disable Accept button for 2 seconds
+    // Set up accept button handler (use onclick to prevent duplicate listeners)
     if (acceptBtn) {
+        acceptBtn.onclick = async () => {
+            console.log('[WELCOME] Accept button clicked, saving settings...');
+            
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('firstRunComplete', true);
+                await window.electronAPI.setSetting('acceptedPrivacyVersion', CURRENT_PRIVACY_VERSION);
+            }
+            
+            // Hide modal
+            hideWelcomeModal();
+            
+            // Trigger initial update check
+            if (window.electronAPI?.checkForUpdates) {
+                console.log('[WELCOME] Triggering initial update check');
+                window.electronAPI.checkForUpdates();
+            }
+            
+            // Show welcome guide/tour after privacy acceptance
+            if (window._checkAndShowWelcomeGuide) {
+                setTimeout(() => window._checkAndShowWelcomeGuide(), 500);
+            }
+        };
+        
+        // Active acknowledgment: disable Accept button for 2 seconds
         acceptBtn.disabled = true;
         acceptBtn.style.opacity = '0.5';
         acceptBtn.style.cursor = 'not-allowed';
@@ -87,6 +114,25 @@ function showWelcomeModal(isReturningUser = false) {
             acceptBtn.style.cursor = '';
             acceptBtn.focus();
         }, 2000);
+    }
+    
+    // Prevent closing by clicking outside (use onclick to prevent duplicates)
+    welcomeModal.onclick = (e) => {
+        if (e.target === welcomeModal) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+    
+    // Prevent ESC key from closing (only add once)
+    if (!escHandlerAdded) {
+        document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape' && welcomeModal && !welcomeModal.classList.contains('hidden')) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+        escHandlerAdded = true;
     }
 }
 
@@ -121,50 +167,6 @@ export async function initWelcomeScreen() {
             const isReturningUser = firstRunComplete === true;
             console.log('[WELCOME] Showing modal:', isReturningUser ? 'returning user' : 'first run');
             showWelcomeModal(isReturningUser);
-            
-            // Set up accept button handler
-            if (acceptBtn) {
-                acceptBtn.addEventListener('click', async () => {
-                    console.log('[WELCOME] Accept button clicked, saving settings...');
-                    
-                    if (window.electronAPI?.setSetting) {
-                        await window.electronAPI.setSetting('firstRunComplete', true);
-                        await window.electronAPI.setSetting('acceptedPrivacyVersion', CURRENT_PRIVACY_VERSION);
-                    }
-                    
-                    // Hide modal
-                    hideWelcomeModal();
-                    
-                    // Trigger initial update check
-                    if (window.electronAPI?.checkForUpdates) {
-                        console.log('[WELCOME] Triggering initial update check');
-                        window.electronAPI.checkForUpdates();
-                    }
-                    
-                    // Show welcome guide/tour after privacy acceptance
-                    if (window._checkAndShowWelcomeGuide) {
-                        setTimeout(() => window._checkAndShowWelcomeGuide(), 500);
-                    }
-                });
-            }
-            
-            // Prevent closing by clicking outside
-            if (welcomeModal) {
-                welcomeModal.addEventListener('click', (e) => {
-                    if (e.target === welcomeModal) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                });
-            }
-            
-            // Prevent ESC key from closing
-            document.addEventListener('keydown', function escHandler(e) {
-                if (e.key === 'Escape' && !welcomeModal.classList.contains('hidden')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            });
             
             return true; // Modal was shown
         }

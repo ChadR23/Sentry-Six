@@ -778,6 +778,8 @@ export function initDevSettingsModal() {
                 if (confirm('Are you sure you want to reset all settings? This will reload the app.')) {
                     const result = await window.electronAPI.devResetSettings();
                     if (result.success) {
+                        // Clear localStorage too for a true factory reset
+                        localStorage.clear();
                         showDevOutput('Settings reset successfully.\nDeleted: ' + result.path + '\n\nReloading app...');
                         setTimeout(() => { window.electronAPI?.devReloadApp?.(); }, 1500);
                     } else {
