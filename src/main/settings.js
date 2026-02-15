@@ -5,19 +5,26 @@ const fs = require('fs');
 // File-based settings storage for reliable persistence
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
+// In-memory cache — loaded once from disk, then served from RAM
+let _settingsCache = null;
+
 function loadSettings() {
+  if (_settingsCache !== null) return _settingsCache;
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf-8');
-      return JSON.parse(data);
+      _settingsCache = JSON.parse(data);
+      return _settingsCache;
     }
   } catch (err) {
     console.error('Failed to load settings:', err);
   }
-  return {};
+  _settingsCache = {};
+  return _settingsCache;
 }
 
 function saveSettings(settings) {
+  _settingsCache = settings; // Update cache immediately
   try {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
     return true;

@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Map to track wrapper functions for proper listener removal
+// Key: original callback, Value: wrapper function registered with ipcRenderer
+const listenerWrappers = new Map();
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // Folder/file operations
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
@@ -67,12 +71,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   on: (channel, callback) => {
     const allowedChannels = ['export:progress', 'share:progress', 'update:available', 'update:progress', 'update:downloaded', 'update:forceManual'];
     if (allowedChannels.includes(channel)) {
-      ipcRenderer.on(channel, (event, ...args) => callback(...args));
+      const wrapper = (event, ...args) => callback(...args);
+      listenerWrappers.set(callback, wrapper);
+      ipcRenderer.on(channel, wrapper);
     }
   },
   
   off: (channel, callback) => {
-    ipcRenderer.removeListener(channel, callback);
+    const wrapper = listenerWrappers.get(callback);
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper);
+      listenerWrappers.delete(callback);
+    }
   },
   
   removeAllListeners: (channel) => {

@@ -1,13 +1,33 @@
 {
   "versions": [
     {
-      "version": "2026.7.20",
-      "date": "2026-02-13",
-      "title": "Minor Changes & Fixes",
+      "version": "2026.8.1",
+      "date": "2026-02-16",
+      "title": "Improvements & Fixes",
       "changes": [
         {
           "type": "improvement",
-          "description": "Minor Changes & Fixes"
+          "description": "Added accelerator pedal position to the SEI Dashboard on exported videos."
+        },
+        {
+          "type": "improvement",
+          "description": "Added an option to restore privacy zones that were used in the previous export."
+        },
+        {
+          "type": "improvement",
+          "description": "Optimized Settings and Support Chat layout."
+        },
+        {
+          "type": "feature",
+          "description": "Added an light mode option for application wide in Settings. Along with a dark mode option for the minimap overlay."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed an issue where non-Tesla dashcam folder structures would not load."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed an issue where FFMPEG would freeze the entire application when you would open the export modal."
         }
       ]
     },

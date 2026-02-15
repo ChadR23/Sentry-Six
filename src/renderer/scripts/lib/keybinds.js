@@ -9,6 +9,9 @@ let recordingKeybindInput = null;
 // Keybind action handlers - set via initKeybindActions
 let keybindActions = {};
 
+// In-memory keybind cache (avoids IPC round-trip on every keypress)
+let keybindCache = null;
+
 /**
  * Initialize keybind action handlers
  * @param {Object} actions - Map of action names to handler functions
@@ -22,10 +25,12 @@ export function initKeybindActions(actions) {
  * @returns {Promise<Object>} Saved keybinds
  */
 async function loadKeybinds() {
+    if (keybindCache !== null) return keybindCache;
     try {
         if (window.electronAPI?.getSetting) {
             const saved = await window.electronAPI.getSetting('keybinds');
-            return saved || {};
+            keybindCache = saved || {};
+            return keybindCache;
         }
         return {};
     } catch (e) {
@@ -39,6 +44,7 @@ async function loadKeybinds() {
  * @param {Object} keybinds - Keybinds to save
  */
 function saveKeybinds(keybinds) {
+    keybindCache = keybinds; // Update cache immediately
     if (window.electronAPI?.setSetting) {
         window.electronAPI.setSetting('keybinds', keybinds);
     }

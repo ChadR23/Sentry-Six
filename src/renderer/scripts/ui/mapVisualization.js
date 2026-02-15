@@ -40,7 +40,16 @@ export function updateMapVisibility() {
         setTimeout(() => {
             map.invalidateSize();
             if (mapPolyline) {
-                map.fitBounds(mapPolyline.getBounds(), { padding: [20, 20] });
+                let bounds;
+                if (Array.isArray(mapPolyline) && mapPolyline.length > 0) {
+                    bounds = mapPolyline[0].getBounds();
+                    for (let i = 1; i < mapPolyline.length; i++) {
+                        bounds = bounds.extend(mapPolyline[i].getBounds());
+                    }
+                } else if (mapPolyline.getBounds) {
+                    bounds = mapPolyline.getBounds();
+                }
+                if (bounds) map.fitBounds(bounds, { padding: [20, 20] });
             } else if (mapMarker) {
                 map.setView(mapMarker.getLatLng(), 16);
             }

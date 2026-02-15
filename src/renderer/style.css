@@ -1,25 +1,96 @@
 /* Reset & Base - Liquid Glass Inspired */
 :root {
     --bg-color: #0a0a0f;
+    --bg-gradient: linear-gradient(135deg, #0a0a12 0%, #0d0d18 50%, #0a0a12 100%);
     --text-color: #f0f0f5;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --text-faint: rgba(255, 255, 255, 0.4);
     --accent-color: #00d4ff; /* Vibrant cyan */
     --accent-glow: rgba(0, 212, 255, 0.4);
+    --accent-hover: rgba(0, 212, 255, 0.15);
+    --accent-bg: rgba(0, 212, 255, 0.1);
     --dashboard-accent: #0048ff; /* Dashboard overlay accent (autopilot, active states) */
     --dashboard-accent-glow: rgba(0, 72, 255, 0.5);
     --panel-bg: rgba(20, 20, 30, 0.7);
+    --panel-bg-solid: rgb(35, 35, 40);
+    --panel-bg-gradient: linear-gradient(180deg, rgb(45, 45, 50) 0%, rgb(35, 35, 40) 50%, rgb(28, 28, 32) 100%);
     --border-color: rgba(255, 255, 255, 0.1);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.15);
     --vis-bg: rgba(0, 0, 0, 0.5);
+    --video-bg: #000;
+    --surface-hover: rgba(255, 255, 255, 0.08);
+    --surface-active: rgba(255, 255, 255, 0.12);
+    --surface-raised: rgba(255, 255, 255, 0.05);
+    --input-bg: rgba(0, 0, 0, 0.3);
+    --input-border: rgba(255, 255, 255, 0.12);
+    --overlay-bg: rgba(0, 0, 0, 0.8);
+    --overlay-light: rgba(0, 0, 0, 0.4);
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --shadow-strong: rgba(0, 0, 0, 0.7);
+    --modal-bg: linear-gradient(180deg, rgba(32, 32, 38, 0.98) 0%, rgba(24, 24, 28, 0.98) 100%);
+    --modal-header-bg: rgba(0, 0, 0, 0.3);
+    --toast-bg: rgba(20, 20, 28, 0.95);
+    --tooltip-bg: rgba(15, 15, 20, 0.95);
+    --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+    --success-color: #4caf50;
+    --error-color: #f44336;
+    --warning-color: #ff9800;
+    --info-color: #2196f3;
+    --inset-highlight: rgba(255, 255, 255, 0.08);
+    --glass-blur: 7px;
     --clips-float-width: 340px;
     --clips-dock-width: 360px;
     --clips-collapsed-width: 46px;
     --left-panel-offset: 360px;
-    --glass-blur: 7px;
+}
+
+/* =====================================================
+   LIGHT MODE THEME
+   ===================================================== */
+[data-theme="light"] {
+    --bg-color: #f0f1f5;
+    --bg-gradient: linear-gradient(135deg, #f0f1f5 0%, #e8e9ee 50%, #f0f1f5 100%);
+    --text-color: #1a1a2e;
+    --text-secondary: rgba(26, 26, 46, 0.75);
+    --text-muted: rgba(26, 26, 46, 0.55);
+    --text-faint: rgba(26, 26, 46, 0.4);
+    --accent-color: #0099cc;
+    --accent-glow: rgba(0, 153, 204, 0.3);
+    --accent-hover: rgba(0, 153, 204, 0.12);
+    --accent-bg: rgba(0, 153, 204, 0.08);
+    --panel-bg: rgba(255, 255, 255, 0.85);
+    --panel-bg-solid: rgb(248, 248, 252);
+    --panel-bg-gradient: linear-gradient(180deg, rgb(255, 255, 255) 0%, rgb(248, 248, 252) 50%, rgb(242, 242, 248) 100%);
+    --border-color: rgba(0, 0, 0, 0.1);
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.15);
+    --vis-bg: rgba(0, 0, 0, 0.5);
+    --video-bg: #e0e1e6;
+    --surface-hover: rgba(0, 0, 0, 0.05);
+    --surface-active: rgba(0, 0, 0, 0.08);
+    --surface-raised: rgba(0, 0, 0, 0.03);
+    --input-bg: rgba(0, 0, 0, 0.04);
+    --input-border: rgba(0, 0, 0, 0.12);
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --overlay-light: rgba(0, 0, 0, 0.15);
+    --shadow-color: rgba(0, 0, 0, 0.12);
+    --shadow-strong: rgba(0, 0, 0, 0.2);
+    --modal-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 248, 252, 0.98) 100%);
+    --modal-header-bg: rgba(0, 0, 0, 0.04);
+    --toast-bg: rgba(255, 255, 255, 0.95);
+    --tooltip-bg: rgba(30, 30, 40, 0.92);
+    --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+    --inset-highlight: rgba(255, 255, 255, 0.5);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
 body {
     font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: linear-gradient(135deg, #0a0a12 0%, #0d0d18 50%, #0a0a12 100%);
+    background: var(--bg-gradient);
     color: var(--text-color);
     height: 100vh;
     overflow: hidden;
@@ -41,7 +112,7 @@ body {
 .video-container {
     flex: 1;
     position: relative;
-    background: #000;
+    background: var(--video-bg);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -57,14 +128,14 @@ canvas, .video-player, .tile-video {
 .video-player {
     width: 100%;
     height: 100%;
-    background: #000;
+    background: var(--video-bg);
 }
 
 .tile-video {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background: #000;
+    background: var(--video-bg);
     pointer-events: none; /* Prevent native video click behavior (pause/play) */
 }
 
@@ -75,15 +146,15 @@ canvas, .video-player, .tile-video {
     gap: 4px;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(0, 0, 0, 0.4);
+    color: var(--text-color);
+    background: var(--overlay-light);
     padding: 6px 12px;
     border-radius: 8px;
     margin-left: 8px;
 }
 
 .time-display .time-sep {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 /* Skip button label */
@@ -93,7 +164,7 @@ canvas, .video-player, .tile-video {
     right: 4px;
     font-size: 9px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
 }
 
 .control-btn {
@@ -127,7 +198,7 @@ canvas, .video-player, .tile-video {
     border-radius: 12px;
     overflow: hidden;
     background: rgba(0, 0, 0, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -164,9 +235,9 @@ canvas, .video-player, .tile-video {
     left: 8px;
     padding: 4px 8px;
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    color: rgba(255, 255, 255, 0.85);
+    background: var(--overlay-light);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.2px;
@@ -251,7 +322,7 @@ canvas, .video-player, .tile-video {
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     z-index: 20;
     pointer-events: none;
     opacity: 0;
@@ -268,7 +339,7 @@ canvas, .video-player, .tile-video {
 .drop-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.8);
+    background: var(--overlay-bg);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -279,7 +350,37 @@ canvas, .video-player, .tile-video {
 
 .drop-overlay.hidden { display: none; }
 .drop-overlay:hover { background: rgba(0, 0, 0, 0.7); }
-.drop-message { text-align: center; color: #888; }
+
+/* Light mode: drop overlay should be light, not dark */
+[data-theme="light"] .drop-overlay {
+    background: rgba(240, 241, 245, 0.95);
+}
+[data-theme="light"] .drop-overlay:hover {
+    background: rgba(232, 233, 238, 0.95);
+}
+[data-theme="light"] .drop-message {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .drop-message h2 {
+    color: var(--text-color);
+}
+[data-theme="light"] .drop-message svg {
+    color: var(--text-muted);
+}
+
+/* Light mode: camera tile bg should be light gray (visible where video doesn't cover) */
+[data-theme="light"] .multi-tile {
+    background: var(--video-bg);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Light mode: camera labels stay dark-themed since they're over dark video */
+[data-theme="light"] .multi-label {
+    background: rgba(0, 0, 0, 0.55);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+.drop-message { text-align: center; color: var(--text-muted); }
 .drop-message svg { margin-bottom: 10px; }
 #fileInput { display: none; }
 #folderInput { display: none; }
@@ -297,16 +398,13 @@ canvas, .video-player, .tile-video {
     left: 20px;
     width: min(var(--clips-float-width), calc(100% - 40px));
     max-height: calc(100% - 100px);
-    background: linear-gradient(180deg, 
-        rgb(45, 45, 50) 0%, 
-        rgb(35, 35, 40) 50%,
-        rgb(28, 28, 32) 100%);
+    background: var(--panel-bg-gradient);
     border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid var(--border-strong);
     box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        0 2px 8px rgba(0, 0, 0, 0.3),
-        inset 0 1px 1px rgba(255, 255, 255, 0.08);
+        0 8px 32px var(--shadow-color),
+        0 2px 8px var(--shadow-color),
+        inset 0 1px 1px var(--inset-highlight);
     z-index: 90;
     overflow: hidden;
     display: flex;
@@ -504,12 +602,12 @@ canvas, .video-player, .tile-video {
 
 .clip-browser-header {
     padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border-color);
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: start;
     gap: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-raised);
 }
 
 .clip-browser-title-main {
@@ -517,14 +615,14 @@ canvas, .video-player, .tile-video {
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     white-space: nowrap;
 }
 
 .clip-browser-subtitle {
     margin-top: 2px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--text-muted);
 }
 
 .clip-browser-dayfilter {
@@ -533,7 +631,7 @@ canvas, .video-player, .tile-video {
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
 }
 
 .clip-browser-dayfilter label {
@@ -553,6 +651,16 @@ canvas, .video-player, .tile-video {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
+[data-theme="light"] .clip-browser-dayfilter select {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-strong);
+    color: var(--text-color);
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+[data-theme="light"] .clip-browser-dayfilter select option {
+    background: var(--panel-bg-solid);
+    color: var(--text-color);
+}
 
 .clip-browser-dayfilter select::-webkit-scrollbar {
     width: 6px;
@@ -563,18 +671,18 @@ canvas, .video-player, .tile-video {
 }
 
 .clip-browser-dayfilter select::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
 }
 
 .clip-browser-dayfilter select::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--scrollbar-thumb-hover);
 }
 
 .clip-item.event-item {
     margin-left: 0;
     border-left: 2px solid rgba(62, 156, 191, 0.4);
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--surface-raised);
 }
 
 .clip-item.recent-item {
@@ -592,11 +700,70 @@ canvas, .video-player, .tile-video {
 .badge.recent { background: rgba(76, 175, 80, 0.25); color: #81c784; }
 .badge.sentry { background: rgba(244, 67, 54, 0.25); color: #e57373; }
 .badge.saved { background: rgba(255, 193, 7, 0.25); color: #ffd54f; }
+.badge.custom { background: rgba(139, 92, 246, 0.25); color: #a78bfa; }
+
+.clip-item.custom-item {
+    border-left-color: rgba(139, 92, 246, 0.5);
+}
+
+/* Blur Zone Restore Banner */
+.blur-zone-restore-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.restore-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-color);
+}
+
+.restore-banner-icon {
+    font-size: 16px;
+}
+
+.restore-banner-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.restore-banner-actions .btn-small {
+    padding: 4px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+/* Custom folder info tooltip icon */
+.custom-folder-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: help;
+    margin-left: 4px;
+    flex-shrink: 0;
+}
 
 /* Event reason badges */
 .badge.reason-icon {
     background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -654,7 +821,7 @@ canvas, .video-player, .tile-video {
 }
 .delete-confirm-message {
     margin: 0 0 16px 0;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     font-size: 14px;
     line-height: 1.5;
 }
@@ -667,7 +834,7 @@ canvas, .video-player, .tile-video {
 .delete-path-label {
     display: block;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -675,7 +842,7 @@ canvas, .video-player, .tile-video {
 .delete-path-value {
     display: block;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
     word-break: break-all;
     background: rgba(0, 0, 0, 0.2);
     padding: 8px;
@@ -735,14 +902,14 @@ canvas, .video-player, .tile-video {
     height: 28px;
     padding: 0 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid var(--input-border);
+    background: var(--surface-raised);
+    color: var(--text-color);
     cursor: pointer;
     font-size: 11px;
     font-weight: 600;
 }
-.mini-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.mini-btn:hover { background: var(--surface-hover); }
 
 .icon-btn {
     width: 32px;
@@ -750,13 +917,13 @@ canvas, .video-player, .tile-video {
     border-radius: 10px;
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.86);
+    color: var(--text-color);
     display: grid;
     place-items: center;
     cursor: pointer;
     padding: 0;
 }
-.icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.icon-btn:hover { background: var(--surface-hover); }
 .icon-btn:focus-visible { outline: 2px solid rgba(62, 156, 191, 0.55); outline-offset: 2px; }
 .icon-btn svg {
     width: 17px;
@@ -783,7 +950,7 @@ canvas, .video-player, .tile-video {
     flex-direction: column;
     gap: 8px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .clip-list::-webkit-scrollbar {
@@ -795,12 +962,12 @@ canvas, .video-player, .tile-video {
 }
 
 .clip-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
 }
 
 .clip-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--scrollbar-thumb-hover);
 }
 
 .clip-item {
@@ -810,11 +977,11 @@ canvas, .video-player, .tile-video {
     gap: 10px;
     padding: 10px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
     cursor: pointer;
 }
-.clip-item:hover { background: rgba(0, 0, 0, 0.35); }
+.clip-item:hover { background: var(--surface-raised-hover); }
 .clip-item.selected { outline: 2px solid rgba(62, 156, 191, 0.55); }
 
 .clip-meta {
@@ -832,7 +999,7 @@ canvas, .video-player, .tile-video {
 .clip-title {
     font-size: 12px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -856,12 +1023,12 @@ canvas, .video-player, .tile-video {
 .badge.muted {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.10);
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--text-secondary);
 }
 
 .clip-sub {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -894,9 +1061,9 @@ canvas, .video-player, .tile-video {
 .speed-select {
     height: 30px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--input-border);
+    background: var(--surface-raised);
+    color: var(--text-color);
     padding: 0 10px;
     font-size: 12px;
     font-weight: 600;
@@ -913,8 +1080,8 @@ canvas, .video-player, .tile-video {
     box-shadow: 0 0 0 2px rgba(62, 156, 191, 0.2);
 }
 .speed-select option {
-    background: rgba(20, 20, 30, 0.95);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--panel-bg-solid);
+    color: var(--text-color);
 }
 
 /* Toggle (Autoplay) */
@@ -925,9 +1092,9 @@ canvas, .video-player, .tile-video {
     padding: 0 10px;
     height: 30px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid var(--input-border);
+    background: var(--surface-raised);
+    color: var(--text-color);
     font-size: 12px;
     user-select: none;
 }
@@ -1187,7 +1354,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .speed-unit-compact {
     font-size: clamp(10px, 1.1em, 16px);
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     display: flex;
@@ -1211,7 +1378,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .recording-time-compact {
     font-size: clamp(9px, 1em, 14px);
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     white-space: nowrap;
     text-align: center;
     font-variant-numeric: tabular-nums;
@@ -1222,7 +1389,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .autopilot-label-compact {
     font-size: clamp(9px, 1em, 14px);
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     transition: all 0.3s ease;
     white-space: nowrap;
     text-align: center;
@@ -1386,7 +1553,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: rgba(30, 30, 35, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1404,7 +1571,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .map-recenter-btn:hover {
     background: rgba(50, 50, 60, 0.95);
     color: rgba(255, 255, 255, 1);
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: var(--text-faint);
 }
 
 .map-recenter-btn:active {
@@ -1418,7 +1585,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.6);
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
     font-size: 10px;
     padding: 4px 8px;
     border-radius: 4px;
@@ -1577,7 +1744,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     right: 2px;
     font-size: 7px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
     text-transform: uppercase;
 }
 
@@ -1704,7 +1871,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .autopilot-label {
     font-size: 14px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     transition: all 0.3s ease;
     white-space: nowrap;
 }
@@ -1909,14 +2076,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
 }
 
 #recordingTimeText {
     font-size: 14px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
     letter-spacing: 0.5px;
     white-space: nowrap;
 }
@@ -1924,7 +2091,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .speed-unit {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-top: 1px;
@@ -1953,19 +2120,26 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
         rgba(28, 28, 32, 0.25) 100%);
     backdrop-filter: blur(4px) saturate(100%);
     -webkit-backdrop-filter: blur(4px) saturate(100%);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     padding: 0 20px;
     gap: 14px;
     box-shadow: 
-        0 -4px 20px rgba(0, 0, 0, 0.3),
-        inset 0 1px 1px rgba(255, 255, 255, 0.08);
+        0 -4px 20px var(--shadow-color),
+        inset 0 1px 1px var(--inset-highlight);
+}
+
+[data-theme="light"] .controls {
+    background: linear-gradient(180deg, 
+        rgba(255, 255, 255, 0.6) 0%, 
+        rgba(248, 248, 252, 0.5) 50%,
+        rgba(242, 242, 248, 0.6) 100%);
 }
 
 .control-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-hover);
+    border: 1px solid var(--input-border);
     color: var(--text-color);
     cursor: pointer;
     padding: 8px;
@@ -1976,8 +2150,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     transition: all 0.15s ease;
 }
 .control-btn:hover { 
-    background: rgba(255, 255, 255, 0.15); 
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-active); 
+    border-color: var(--border-strong);
 }
 .control-btn:disabled { color: #555; cursor: default; opacity: 0.4; }
 
@@ -1986,13 +2160,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 6px;
     -webkit-appearance: none;
     appearance: none;
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 100px;
     outline: none;
     position: relative;
 }
 .progress-bar::-webkit-slider-runnable-track {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 100px;
     height: 6px;
 }
@@ -2014,7 +2188,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .time-display {
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     min-width: 100px;
     text-align: right;
     letter-spacing: 0.5px;
@@ -2036,11 +2210,11 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: min(520px, calc(100vw - 32px));
     padding: 10px 12px;
     border-radius: 12px;
-    background: rgba(10, 10, 10, 0.86);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    background: var(--toast-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 30px var(--shadow-color);
     backdrop-filter: blur(10px);
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--text-color);
     font-size: 12px;
     line-height: 1.35;
     display: flex;
@@ -2082,7 +2256,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .toast-dismiss {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-size: 18px;
     line-height: 1;
     cursor: pointer;
@@ -2091,7 +2265,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     transition: color 0.15s ease;
 }
 .toast-dismiss:hover {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 /* Floating Export Progress Notification */
@@ -2149,7 +2323,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .export-floating-step {
     font-size: 12px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     white-space: nowrap;
 }
 .export-floating-bar {
@@ -2175,14 +2349,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s ease;
     flex-shrink: 0;
 }
 .export-floating-open-btn:hover {
     background: rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
     border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -2210,7 +2384,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .export-minimize-hint span {
     font-size: 12px;
     line-height: 1.4;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
 }
 
 /* Map arrow marker - smooth position transitions via Leaflet icon container */
@@ -2259,12 +2433,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 .loading-text {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
     margin-bottom: 8px;
 }
 .loading-progress {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     margin-bottom: 16px;
 }
 .loading-bar-container {
@@ -2582,7 +2756,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: var(--overlay-bg);
     backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
@@ -2602,15 +2776,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .modal-content {
-    background: linear-gradient(180deg, 
-        rgba(32, 32, 38, 0.98) 0%, 
-        rgba(24, 24, 28, 0.98) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--modal-bg);
+    border: 1px solid var(--border-color);
     border-radius: 20px;
     box-shadow: 
-        0 24px 80px rgba(0, 0, 0, 0.6),
-        0 0 1px rgba(255, 255, 255, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 24px 80px var(--shadow-strong),
+        0 0 1px var(--border-color),
+        inset 0 1px 0 var(--inset-highlight);
     max-width: 520px;
     width: 100%;
     max-height: calc(100vh - 40px);
@@ -2630,14 +2802,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--modal-header-bg);
 }
 
 .modal-header h2 {
     font-size: 15px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2654,7 +2826,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 28px;
     border: none;
     background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     border-radius: 8px;
     font-size: 18px;
     cursor: pointer;
@@ -2665,8 +2837,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .modal-close:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--surface-active);
+    color: var(--text-color);
 }
 
 .modal-body {
@@ -2674,7 +2846,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     overflow-y: auto;
     flex: 1;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .modal-body::-webkit-scrollbar {
@@ -2686,12 +2858,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .modal-body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
 }
 
 .modal-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--scrollbar-thumb-hover);
 }
 
 .modal-body-padded {
@@ -2721,16 +2893,16 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.6px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
 }
 
 /* Collapsible Sections - Accordion Style */
 .collapsible-section {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
     margin-bottom: 8px;
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     transition: all 0.2s ease;
 }
 
@@ -2764,20 +2936,20 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .collapsible-header-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
 .collapsible-section.open .collapsible-header-title {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 .collapsible-section-icon {
     width: 18px;
     height: 18px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     flex-shrink: 0;
     transition: color 0.2s ease;
 }
@@ -2789,7 +2961,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .collapsible-header-icon {
     width: 18px;
     height: 18px;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
     transition: transform 0.25s ease, color 0.2s ease;
     flex-shrink: 0;
 }
@@ -2820,7 +2992,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: space-between;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 6px;
     margin-bottom: 4px;
     transition: background 0.15s;
@@ -2831,7 +3003,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .toggle-row:hover {
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--surface-hover);
 }
 
 .toggle-row.disabled {
@@ -2858,12 +3030,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .toggle-row-label {
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .toggle-row-desc {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
     line-height: 1.3;
 }
 
@@ -2936,7 +3108,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: space-between;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 6px;
     margin-bottom: 4px;
 }
@@ -2944,7 +3116,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .slider-row-label {
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .slider-row-control {
@@ -2977,7 +3149,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .slider-row-value {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     min-width: 32px;
     text-align: right;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
@@ -2990,7 +3162,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: space-between;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 6px;
     margin-bottom: 4px;
 }
@@ -3006,12 +3178,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .select-row-label {
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .select-row-desc {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
 }
 
 /* Action Row */
@@ -3021,7 +3193,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: space-between;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 6px;
     margin-bottom: 4px;
 }
@@ -3032,23 +3204,23 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .action-row-label {
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 /* Settings Select Dropdown */
 .settings-select {
     padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--input-bg);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     font-size: 12px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 .settings-select:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
 }
 .settings-select:focus {
     outline: none;
@@ -3056,8 +3228,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     box-shadow: 0 0 0 2px rgba(62, 156, 191, 0.2);
 }
 .settings-select option {
-    background: rgba(20, 20, 30, 0.95);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--panel-bg-solid);
+    color: var(--text-color);
 }
 
 /* Input Row */
@@ -3070,10 +3242,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .input-row .text-input {
     flex: 1;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     font-size: 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
@@ -3084,7 +3256,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .input-row .text-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
 }
 
 /* Keybind Row - Compact */
@@ -3093,7 +3265,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 6px;
     margin-bottom: 4px;
 }
@@ -3104,7 +3276,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .keybind-row-compact .keybind-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
 }
 
 .keybind-row-compact .keybind-input-wrapper {
@@ -3116,10 +3288,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .keybind-row-compact .keybind-input {
     width: 90px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
     border-radius: 4px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     text-align: center;
@@ -3140,7 +3312,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     padding: 0;
     border: none;
     background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
     border-radius: 4px;
     font-size: 12px;
     cursor: pointer;
@@ -3151,7 +3323,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .keybind-row-compact .keybind-clear:hover {
     background: rgba(244, 67, 54, 0.3);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 /* Grid Options (for quality, cameras, etc.) */
@@ -3170,15 +3342,15 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--input-bg);
+    border: 1px solid var(--border-subtle);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .option-card:hover {
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--surface-hover);
     border-color: rgba(0, 212, 255, 0.15);
 }
 
@@ -3204,12 +3376,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .option-card-label {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .option-card-desc {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
 }
 
 .option-card.disabled {
@@ -3276,14 +3448,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
     margin-bottom: 4px;
 }
 
 .stat-value {
     font-size: 14px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 /* Dev Button Grid */
@@ -3328,12 +3500,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .dev-card-label {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .dev-card-desc {
     font-size: 9px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
     line-height: 1.3;
 }
 
@@ -3350,7 +3522,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .dev-output-box pre {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-secondary);
     white-space: pre-wrap;
     word-break: break-all;
     margin: 0;
@@ -3427,9 +3599,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .export-modal .modal-footer {
     padding: 14px 20px;
-    background: linear-gradient(180deg, 
-        rgba(0, 0, 0, 0.1) 0%, 
-        rgba(0, 0, 0, 0.15) 100%);
+    background: var(--modal-header-bg);
 }
 
 .export-modal .btn-primary {
@@ -3472,7 +3642,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .blur-zone-hint {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-muted);
     margin-top: 8px;
 }
 
@@ -3499,7 +3669,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .export-modal .stat-item {
     padding: 12px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--input-bg);
     border: 1px solid rgba(0, 212, 255, 0.1);
     border-radius: 10px;
     text-align: center;
@@ -3509,7 +3679,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     margin-bottom: 4px;
 }
 
@@ -3539,7 +3709,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Folder Status */
 .folder-status {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .folder-status:not(:empty) {
@@ -3632,7 +3802,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .layout-hint {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     text-align: center;
     padding: 8px;
     font-style: italic;
@@ -3687,7 +3857,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .progress-text {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     text-align: center;
 }
 
@@ -3718,13 +3888,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.85);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--surface-hover);
+    color: var(--text-color);
+    border-color: var(--border-strong);
 }
 
 .btn-secondary:not(:disabled):hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--surface-active);
 }
 
 /* Old update modal styles removed - see new styles at end of file */
@@ -3808,7 +3978,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .export-complete-message {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--text-muted);
 }
 
 .export-complete-actions {
@@ -3890,7 +4060,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     gap: 5px;
     margin-top: 8px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .share-link-expiry svg {
@@ -3906,7 +4076,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Shared Clips Button (control bar) */
 .shared-clips-btn {
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--text-secondary);
 }
 .shared-clips-btn:hover {
     color: #00d4ff;
@@ -3919,9 +4089,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 520px;
     border-radius: 20px;
     backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(165deg,
-        rgba(30, 30, 40, 0.95) 0%,
-        rgba(20, 20, 28, 0.98) 100%);
+    background: var(--modal-bg);
 }
 
 .shared-clips-modal .modal-header-icon {
@@ -3944,13 +4112,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     gap: 6px;
     padding: 40px 20px;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--text-faint);
 }
 
 .shared-clips-empty p {
     font-size: 14px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -4026,7 +4194,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .shared-clip-size {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .shared-clip-status {
@@ -4048,7 +4216,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: center;
     gap: 6px;
     padding: 8px;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
     font-size: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     animation: hintBounce 2s ease-in-out infinite;
@@ -4102,7 +4270,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.35);
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     pointer-events: none;
     transition: opacity 0.2s ease;
 }
@@ -4133,7 +4301,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .shared-clip-detail-size {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .shared-clip-detail-actions {
@@ -4174,9 +4342,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 440px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(165deg, 
-        rgba(30, 30, 40, 0.95) 0%, 
-        rgba(20, 20, 28, 0.98) 100%);
+    background: var(--modal-bg);
 }
 
 .update-modal .modal-header {
@@ -4204,7 +4370,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .update-modal .modal-header h2 {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 .update-modal .modal-body {
@@ -4213,9 +4379,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .update-modal .modal-footer {
     padding: 16px 22px;
-    background: linear-gradient(180deg, 
-        rgba(0, 0, 0, 0.1) 0%, 
-        rgba(0, 0, 0, 0.2) 100%);
+    background: var(--modal-header-bg);
 }
 
 .update-modal .modal-close:hover {
@@ -4247,7 +4411,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-weight: 600;
 }
 
@@ -4255,7 +4419,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 18px;
     font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .version-new .version-number {
@@ -4263,14 +4427,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .version-arrow {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
     display: flex;
     align-items: center;
 }
 
 /* Changelog Section */
 .changelog-section {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -4280,16 +4444,16 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .changelog-header svg {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .changelog-content {
@@ -4301,7 +4465,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .changelog-loading {
     text-align: center;
     padding: 20px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -4337,13 +4501,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .changelog-version-date {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .changelog-version-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
     margin-bottom: 8px;
 }
 
@@ -4358,7 +4522,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: flex-start;
     gap: 8px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     line-height: 1.4;
 }
 
@@ -4415,7 +4579,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .update-progress .progress-text {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     text-align: center;
 }
 
@@ -4463,7 +4627,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .force-manual-message {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
     line-height: 1.5;
 }
 
@@ -4493,9 +4657,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     max-width: 480px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(165deg, 
-        rgba(30, 30, 40, 0.95) 0%, 
-        rgba(20, 20, 28, 0.98) 100%);
+    background: var(--modal-bg);
 }
 
 .soft-tc-modal .modal-header {
@@ -4523,7 +4685,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 20px;
     gap: 12px;
     align-items: center;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 .soft-tc-body {
@@ -4562,7 +4724,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .soft-tc-text p {
     font-size: 14px;
     line-height: 1.7;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
     max-width: 380px;
     margin: 0 auto;
 }
@@ -4600,9 +4762,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .soft-tc-footer {
     padding: 20px 24px;
-    background: linear-gradient(180deg, 
-        rgba(0, 0, 0, 0.1) 0%, 
-        rgba(0, 0, 0, 0.2) 100%);
+    background: var(--modal-header-bg);
     text-align: center;
 }
 
@@ -4634,7 +4794,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .security-status-header {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     margin-bottom: 10px;
     letter-spacing: 0.3px;
 }
@@ -4648,7 +4808,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .security-status-table thead th {
     text-align: left;
     padding: 6px 8px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-weight: 500;
     font-size: 11px;
     text-transform: uppercase;
@@ -4658,7 +4818,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .security-status-table tbody td {
     padding: 8px 8px;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-secondary);
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     vertical-align: middle;
 }
@@ -4669,13 +4829,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .security-feature-name {
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     white-space: nowrap;
 }
 
 .security-feature-desc {
     font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
 }
 
 .security-status-badge {
@@ -4699,7 +4859,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .badge-hash {
     background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     font-size: 10.5px;
 }
@@ -4739,7 +4899,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .security-detail-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-weight: 500;
 }
 
@@ -4753,7 +4913,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Restart Message */
 .restart-message {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     margin-bottom: 12px;
     text-align: center;
 }
@@ -4782,13 +4942,13 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     justify-content: space-between;
     padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--input-bg);
     border-radius: 8px;
 }
 
 .about-version-label {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
 }
 
 .about-version-value {
@@ -4803,12 +4963,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     --changelog-accent: #00d4ff;
     --changelog-accent-glow: rgba(0, 212, 255, 0.4);
     --changelog-accent-soft: rgba(0, 212, 255, 0.15);
-    max-width: 520px;
+    max-width: 560px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(165deg, 
-        rgba(30, 30, 40, 0.95) 0%, 
-        rgba(20, 20, 28, 0.98) 100%);
+    background: var(--modal-bg);
 }
 
 .changelog-modal .modal-header {
@@ -4835,7 +4993,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .changelog-modal .modal-header h2 {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 .changelog-modal .changelog-content {
@@ -4848,9 +5006,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .changelog-modal .modal-footer {
     padding: 16px 22px;
-    background: linear-gradient(180deg, 
-        rgba(0, 0, 0, 0.1) 0%, 
-        rgba(0, 0, 0, 0.2) 100%);
+    background: var(--modal-header-bg);
 }
 
 .changelog-modal .btn-primary {
@@ -4878,13 +5034,10 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     --guide-accent: #00d4ff;
     --guide-accent-glow: rgba(0, 212, 255, 0.4);
     --guide-accent-soft: rgba(0, 212, 255, 0.15);
-    max-width: 520px;
-    min-height: 400px;
+    max-width: 600px;
     border-radius: 24px;
     backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(165deg, 
-        rgba(30, 30, 40, 0.95) 0%, 
-        rgba(20, 20, 28, 0.98) 100%);
+    background: var(--modal-bg);
 }
 
 .welcome-guide-modal .modal-header {
@@ -4907,7 +5060,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .welcome-guide-modal .modal-header h2 {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
 }
 
 .welcome-guide-modal .modal-header svg,
@@ -4989,14 +5142,14 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .welcome-step-title {
     font-size: 20px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-color);
     margin-bottom: 12px;
 }
 
 .welcome-step-desc {
     font-size: 14px;
     line-height: 1.6;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     max-width: 400px;
     margin-bottom: 16px;
 }
@@ -5009,7 +5162,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .welcome-step-tip {
     font-size: 13px;
     line-height: 1.5;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     background: rgba(0, 0, 0, 0.3);
     padding: 12px 16px;
     border-radius: 8px;
@@ -5018,7 +5171,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .welcome-step-tip strong {
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
 }
 
 .welcome-step-note {
@@ -5028,7 +5181,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border: 1px solid rgba(255, 193, 7, 0.25);
     border-radius: 6px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     text-align: center;
 }
 
@@ -5068,9 +5221,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .welcome-guide-footer {
     justify-content: space-between;
     padding: 16px 22px;
-    background: linear-gradient(180deg, 
-        rgba(0, 0, 0, 0.1) 0%, 
-        rgba(0, 0, 0, 0.2) 100%);
+    background: var(--modal-header-bg);
 }
 
 .welcome-nav-buttons {
@@ -5178,7 +5329,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .welcome-preview-clips .clip-title {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -5368,7 +5519,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border-radius: 8px;
     padding: 6px;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     transition: all 0.2s ease;
 }
 
@@ -5394,7 +5545,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     justify-content: center;
     text-align: center;
     padding: 40px 20px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
 }
 
 .support-chat-welcome.hidden {
@@ -5427,15 +5578,56 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .welcome-note {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
-/* Chat Messages */
-.chat-message {
-    max-width: 85%;
-    padding: 12px 16px;
-    border-radius: 16px;
+/* Chat Message Rows — Modern messaging layout with avatars */
+.chat-message-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
     animation: messageSlide 0.3s ease;
+}
+
+.chat-message-row.user-row {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+
+.chat-message-row.support-row {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+
+/* Avatar circles */
+.message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
+.avatar-user {
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    color: #fff;
+}
+
+.avatar-support {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: #fff;
+}
+
+/* Chat Bubbles */
+.chat-message {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 16px;
 }
 
 @keyframes messageSlide {
@@ -5444,17 +5636,24 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .user-message {
-    align-self: flex-end;
-    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    background: linear-gradient(135deg, #00b4d8, #0088a3);
     color: #fff;
     border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 180, 216, 0.2);
 }
 
 .support-message {
-    align-self: flex-start;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #fff;
     border-bottom-left-radius: 4px;
+}
+
+.message-sender-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a78bfa;
+    margin-bottom: 4px;
 }
 
 .message-content p {
@@ -5462,6 +5661,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     line-height: 1.5;
     word-wrap: break-word;
     white-space: pre-wrap;
+    margin: 0;
 }
 
 .message-attachments {
@@ -5476,7 +5676,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     padding: 4px 10px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 12px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
 }
 
 .attachment-preview img,
@@ -5487,37 +5687,42 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     cursor: pointer;
 }
 
+/* Diagnostics badge — purple/violet for contrast against both bubble colors */
 .message-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 10px;
     margin-top: 8px;
 }
 
 .message-badge.diagnostics {
-    background: rgba(46, 204, 113, 0.2);
-    color: #2ecc71;
+    background: rgba(139, 92, 246, 0.25);
+    color: #c4b5fd;
+    border: 1px solid rgba(139, 92, 246, 0.3);
 }
 
 .message-meta {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 6px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--text-faint);
 }
 
 .user-message .message-meta {
     justify-content: flex-end;
+    color: var(--text-secondary);
 }
 
 /* Chat Composer */
 .support-chat-composer {
     padding: 16px;
-    background: rgba(0, 0, 0, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--input-bg);
+    border-top: 1px solid var(--border-color);
 }
 
 .support-chat-attachments {
@@ -5552,18 +5757,18 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .attachment-size {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .attachment-remove {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 16px;
     padding: 0 4px;
@@ -5584,7 +5789,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 6px 12px;
     background: rgba(255, 255, 255, 0.05);
@@ -5594,7 +5799,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .composer-option:hover {
     background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .composer-option input[type="checkbox"] {
@@ -5636,7 +5841,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .composer-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .composer-send-btn {
@@ -5667,7 +5872,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     margin-top: 10px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-faint);
 }
 
 .char-count {
@@ -5753,7 +5958,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .ticket-closed-content p {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     margin: 0 0 16px 0;
     font-size: 14px;
 }
@@ -5800,6 +6005,146 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     --settings-accent-soft: rgba(0, 212, 255, 0.15);
     --settings-secondary: #22d3ee;
     --settings-secondary-glow: rgba(34, 211, 238, 0.3);
+}
+
+/* Horizontal settings layout */
+.settings-modal {
+    max-width: 700px !important;
+}
+
+.settings-horizontal-body {
+    display: flex;
+    padding: 0 !important;
+    max-height: 520px;
+    overflow: hidden;
+}
+
+.settings-sidebar {
+    width: 160px;
+    min-width: 160px;
+    padding: 14px 10px;
+    border-right: 1px solid var(--border-subtle);
+    background: var(--modal-header-bg);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.settings-sidebar .settings-search-wrapper {
+    margin-bottom: 4px;
+}
+
+.settings-sidebar .settings-search-input {
+    padding: 7px 28px 7px 30px;
+    font-size: 11px;
+    border-radius: 8px;
+}
+
+.settings-sidebar .settings-search-icon {
+    width: 13px;
+    height: 13px;
+    left: 9px;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    font-family: inherit;
+}
+
+.settings-nav-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.settings-nav-item:hover {
+    background: var(--surface-hover);
+    color: var(--text-color);
+}
+
+.settings-nav-item.active {
+    background: var(--accent-bg);
+    color: var(--accent-color);
+}
+
+.settings-nav-item.active svg {
+    color: var(--accent-color);
+}
+
+.settings-nav-item.search-highlight {
+    background: rgba(0, 212, 255, 0.08);
+    color: var(--accent-color);
+}
+
+.settings-nav-item.search-highlight svg {
+    color: var(--accent-color);
+}
+
+.settings-content {
+    flex: 1;
+    padding: 16px 20px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.settings-content::-webkit-scrollbar {
+    width: 6px;
+}
+.settings-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.settings-content::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+.settings-content::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* In horizontal mode, accordions start open and hide their headers */
+.settings-horizontal-body .settings-accordion {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    background: transparent;
+}
+
+.settings-horizontal-body .settings-accordion.open {
+    background: transparent;
+    border-color: transparent;
+}
+
+.settings-horizontal-body .settings-accordion .settings-accordion-header {
+    display: none;
+}
+
+.settings-horizontal-body .settings-accordion .settings-accordion-body {
+    max-height: none;
+    overflow: visible;
+}
+
+.settings-horizontal-body .settings-accordion:not(.open) {
+    display: none;
 }
 
 /* Enhanced modal chrome for settings */
@@ -5868,7 +6213,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.8px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     margin-bottom: 12px;
     display: flex;
     align-items: center;
@@ -5950,8 +6295,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Enhanced select dropdowns */
 .settings-modal .settings-select,
 .dev-modal .settings-select {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     transition: all 0.2s ease;
 }
@@ -6218,11 +6563,11 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Accordion container */
 .settings-accordion {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
     margin-bottom: 8px;
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     transition: all 0.2s ease;
 }
 
@@ -6251,16 +6596,16 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--text-faint);
     pointer-events: none;
 }
 .settings-search-input {
     width: 100%;
     padding: 10px 36px 10px 38px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--surface-raised);
+    color: var(--text-color);
     font-size: 13px;
     font-family: inherit;
     outline: none;
@@ -6268,11 +6613,11 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     box-sizing: border-box;
 }
 .settings-search-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
 }
 .settings-search-input:focus {
     border-color: rgba(0, 212, 255, 0.4);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface-hover);
 }
 .settings-search-clear {
     position: absolute;
@@ -6283,8 +6628,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 22px;
     border: none;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.5);
+    background: var(--surface-hover);
+    color: var(--text-muted);
     font-size: 14px;
     cursor: pointer;
     display: flex;
@@ -6294,12 +6639,12 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     line-height: 1;
 }
 .settings-search-clear:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--surface-active);
+    color: var(--text-color);
 }
 .settings-no-results {
     text-align: center;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--text-faint);
     font-size: 13px;
     padding: 24px 0;
 }
@@ -6339,7 +6684,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .settings-accordion-section-icon {
     width: 18px;
     height: 18px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     flex-shrink: 0;
     transition: color 0.2s ease;
 }
@@ -6351,7 +6696,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .settings-accordion-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
     transition: color 0.2s ease;
 }
 
@@ -6363,7 +6708,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .settings-accordion-chevron {
     width: 18px;
     height: 18px;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-faint);
     transition: transform 0.25s ease, color 0.2s ease;
     flex-shrink: 0;
 }
@@ -6423,7 +6768,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-accordion .select-row-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 .settings-accordion .settings-select {
@@ -6443,7 +6788,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-accordion .slider-row-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 /* Compact action rows */
@@ -6458,7 +6803,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-accordion .action-row-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
 }
 
 /* Compact keybind rows */
@@ -6486,7 +6831,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 .settings-accordion .about-version-label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
 }
 
 .settings-accordion .about-version-value {
@@ -6522,7 +6867,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .tooltip-popup {
     position: fixed;
     background: rgba(20, 20, 30, 0.95);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
     font-size: 11px;
     font-weight: 500;
     line-height: 1.3;
@@ -6541,4 +6886,772 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .tooltip-popup.visible {
     opacity: 1;
     transform: scale(1);
+}
+
+/* =====================================================
+   LIGHT MODE — Targeted Component Overrides
+   Covers all sections that still use hardcoded dark colors.
+   ===================================================== */
+
+/* Body & global scrollbars */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Clip browser */
+[data-theme="light"] .clip-browser-header {
+    border-bottom-color: var(--border-color);
+}
+[data-theme="light"] .clip-browser-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .clip-browser-subtitle {
+    color: var(--text-muted);
+}
+[data-theme="light"] .day-filter {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .day-filter option {
+    background: var(--panel-bg-solid);
+    color: var(--text-color);
+}
+[data-theme="light"] .clip-item {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .clip-item:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .clip-item.active {
+    background: var(--accent-bg);
+    border-color: var(--accent-color);
+}
+[data-theme="light"] .clip-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .clip-meta {
+    color: var(--text-muted);
+}
+[data-theme="light"] .clip-cameras {
+    color: var(--text-faint);
+}
+
+/* Buttons */
+[data-theme="light"] .btn {
+    color: var(--text-color);
+}
+[data-theme="light"] .btn-secondary {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .btn-secondary:hover {
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+}
+[data-theme="light"] .btn-primary {
+    color: #fff;
+}
+
+/* Toggle switches */
+[data-theme="light"] .toggle-switch-track {
+    background: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .toggle-row {
+    color: var(--text-color);
+}
+[data-theme="light"] .toggle-row-label {
+    color: var(--text-color);
+}
+[data-theme="light"] .select-row-label {
+    color: var(--text-color);
+}
+
+/* Settings select text color */
+[data-theme="light"] .settings-select {
+    color: var(--text-color);
+}
+
+/* Modal content border and shadow */
+[data-theme="light"] .modal-content {
+    border-color: var(--border-color);
+    box-shadow: 0 24px 80px var(--shadow-strong), 0 0 1px var(--border-color);
+}
+[data-theme="light"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+[data-theme="light"] .modal-close {
+    background: transparent;
+    color: var(--text-muted);
+}
+[data-theme="light"] .modal-footer {
+    border-top-color: var(--border-color);
+    background: var(--modal-header-bg);
+}
+
+/* Settings modal sections */
+[data-theme="light"] .modal-section-title {
+    color: var(--text-muted);
+}
+[data-theme="light"] .settings-modal .toggle-row,
+[data-theme="light"] .dev-modal .toggle-row {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .settings-modal .toggle-row:hover,
+[data-theme="light"] .dev-modal .toggle-row:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .settings-modal .select-row,
+[data-theme="light"] .dev-modal .select-row {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .settings-modal .select-row:hover,
+[data-theme="light"] .dev-modal .select-row:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .settings-modal .action-row,
+[data-theme="light"] .dev-modal .action-row {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .settings-modal .action-row:hover,
+[data-theme="light"] .dev-modal .action-row:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .action-row-label {
+    color: var(--text-color);
+}
+[data-theme="light"] .settings-modal .settings-select,
+[data-theme="light"] .dev-modal .settings-select {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Export modal */
+[data-theme="light"] .modal-content.export-modal {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .option-card {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+    color: var(--text-color);
+}
+[data-theme="light"] .option-card:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .option-card-label {
+    color: var(--text-color);
+}
+[data-theme="light"] .option-card-desc {
+    color: var(--text-muted);
+}
+[data-theme="light"] .collapsible-header {
+    color: var(--text-color);
+}
+[data-theme="light"] .collapsible-content {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .info-box {
+    color: var(--text-color);
+}
+
+/* Loading overlay */
+[data-theme="light"] .loading-overlay {
+    background: var(--overlay-bg);
+}
+[data-theme="light"] .loading-text {
+    color: var(--text-color);
+}
+[data-theme="light"] .loading-subtext {
+    color: var(--text-muted);
+}
+
+/* Time display */
+[data-theme="light"] .time-display {
+    background: var(--input-bg);
+    color: var(--text-color);
+}
+[data-theme="light"] .time-display .time-sep {
+    color: var(--text-muted);
+}
+
+/* Speed / Playback rate labels */
+[data-theme="light"] .playback-label {
+    color: var(--text-secondary);
+}
+
+/* Zoom indicator */
+[data-theme="light"] .zoom-indicator {
+    background: var(--panel-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Support chat panel */
+[data-theme="light"] .support-chat-panel {
+    background: linear-gradient(165deg,
+        rgba(255, 255, 255, 0.97) 0%,
+        rgba(248, 248, 252, 0.98) 100%);
+    border-color: var(--border-color);
+    box-shadow: 0 10px 40px var(--shadow-color);
+}
+[data-theme="light"] .support-chat-header {
+    background: linear-gradient(180deg,
+        rgba(0, 153, 204, 0.06) 0%,
+        rgba(0, 0, 0, 0.02) 100%);
+    border-bottom-color: var(--border-color);
+}
+[data-theme="light"] .support-chat-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .support-chat-btn {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+[data-theme="light"] .support-chat-btn:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+[data-theme="light"] .support-chat-welcome h3 {
+    color: var(--text-color);
+}
+[data-theme="light"] .support-chat-welcome p {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .support-message {
+    background: var(--surface-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-color);
+}
+[data-theme="light"] .message-content p {
+    color: var(--text-color);
+}
+[data-theme="light"] .support-chat-composer {
+    background: var(--surface-raised);
+    border-top-color: var(--border-color);
+}
+[data-theme="light"] .composer-textarea {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .composer-option {
+    background: var(--surface-raised);
+    color: var(--text-muted);
+}
+[data-theme="light"] .composer-option:hover {
+    background: var(--surface-hover);
+    color: var(--text-color);
+}
+
+/* Tooltip */
+[data-theme="light"] .tooltip-popup {
+    background: var(--tooltip-bg);
+    border-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+/* Changelog modal */
+[data-theme="light"] .changelog-version {
+    color: var(--text-color);
+}
+[data-theme="light"] .changelog-date {
+    color: var(--text-muted);
+}
+[data-theme="light"] .changelog-section-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .changelog-item {
+    color: var(--text-secondary);
+}
+
+/* Welcome screen / guide */
+[data-theme="light"] .welcome-step {
+    color: var(--text-color);
+}
+[data-theme="light"] .welcome-step p {
+    color: var(--text-secondary);
+}
+
+/* Input fields */
+[data-theme="light"] .text-input {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .text-input::placeholder {
+    color: var(--text-faint);
+}
+
+/* Keybind inputs */
+[data-theme="light"] .keybind-input {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Privacy modal */
+[data-theme="light"] .privacy-modal .modal-content {
+    background: var(--modal-bg);
+}
+
+/* Notification badge */
+[data-theme="light"] .support-chat-notification {
+    color: var(--text-color);
+}
+
+/* Blur zone restore banner */
+[data-theme="light"] .blur-zone-restore-banner {
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.18);
+}
+[data-theme="light"] .restore-banner-content {
+    color: var(--text-color);
+}
+
+/* Export progress */
+[data-theme="light"] .export-progress-text {
+    color: var(--text-color);
+}
+
+/* Skip label */
+[data-theme="light"] .skip-label {
+    color: var(--text-secondary);
+}
+
+/* Slider row */
+[data-theme="light"] .slider-row {
+    background: var(--surface-raised);
+}
+
+/* Map visualization panel */
+[data-theme="light"] .map-panel {
+    background: var(--panel-bg);
+    border-color: var(--border-color);
+    box-shadow: 0 4px 20px var(--shadow-color);
+}
+
+/* Clip browser scrollbar */
+[data-theme="light"] .clip-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+}
+[data-theme="light"] .clip-list::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Settings accordion */
+[data-theme="light"] .settings-accordion-header {
+    color: var(--text-color);
+}
+[data-theme="light"] .settings-accordion-content {
+    color: var(--text-secondary);
+}
+
+/* =====================================================
+   Bug 2: Shared Clips + Export Modal light mode
+   ===================================================== */
+[data-theme="light"] .modal-content.shared-clips-modal,
+[data-theme="light"] .modal-content.export-modal {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .shared-clip-item {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .shared-clip-item:hover {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .shared-clip-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .shared-clip-meta {
+    color: var(--text-muted);
+}
+[data-theme="light"] .shared-clip-size {
+    color: var(--text-muted);
+}
+[data-theme="light"] .shared-clips-empty {
+    color: var(--text-faint);
+}
+[data-theme="light"] .shared-clips-hint {
+    color: var(--text-faint);
+    border-top-color: var(--border-subtle);
+}
+[data-theme="light"] .export-modal .collapsible-section {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .export-modal .collapsible-header {
+    color: var(--text-color);
+}
+[data-theme="light"] .export-modal .collapsible-header:hover {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .export-modal .stat-label {
+    color: var(--text-muted);
+}
+[data-theme="light"] .export-modal .stat-value {
+    color: var(--accent-color);
+}
+[data-theme="light"] .export-floating-progress {
+    background: var(--toast-bg);
+    border-color: var(--border-color);
+    box-shadow: 0 10px 30px var(--shadow-color);
+}
+[data-theme="light"] .export-floating-step {
+    color: var(--text-color);
+}
+[data-theme="light"] .export-floating-bar {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .export-floating-open-btn {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+[data-theme="light"] .export-minimize-hint {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+
+/* =====================================================
+   Bug 3: Drop overlay + video area light mode
+   ===================================================== */
+[data-theme="light"] .drop-overlay {
+    background: rgba(240, 241, 245, 0.95);
+}
+[data-theme="light"] .drop-overlay:hover {
+    background: rgba(240, 241, 245, 0.9);
+}
+[data-theme="light"] .drop-message {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .drop-message h2 {
+    color: var(--text-color);
+}
+[data-theme="light"] .drop-message svg {
+    color: var(--text-muted);
+}
+
+/* =====================================================
+   Bug 4: Tooltips readable in light mode
+   ===================================================== */
+[data-theme="light"] .tooltip-popup {
+    background: rgba(255, 255, 255, 0.97);
+    color: var(--text-color);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 4px 16px var(--shadow-color);
+}
+
+/* =====================================================
+   Bug 5: Minimap overlay + center button
+   ===================================================== */
+[data-theme="light"] .map-recenter-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .map-recenter-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: var(--accent-color);
+}
+[data-theme="light"] .map-hint {
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+[data-theme="light"] .map-vis {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: var(--border-color);
+    box-shadow: 0 8px 32px var(--shadow-color);
+}
+
+/* =====================================================
+   Bug 6: Settings accordion expanded state + cyan text
+   ===================================================== */
+[data-theme="light"] .settings-accordion.open {
+    background: rgba(0, 153, 204, 0.04);
+    border-color: rgba(0, 153, 204, 0.2);
+}
+[data-theme="light"] .settings-accordion.open .settings-accordion-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .settings-accordion-header:hover {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .settings-accordion .toggle-row:hover {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .settings-accordion .toggle-row-label,
+[data-theme="light"] .settings-accordion .select-row-label,
+[data-theme="light"] .settings-accordion .slider-row-label,
+[data-theme="light"] .settings-accordion .action-row-label,
+[data-theme="light"] .settings-accordion .keybind-label {
+    color: var(--text-color);
+}
+[data-theme="light"] .settings-accordion .toggle-row-desc,
+[data-theme="light"] .settings-accordion .select-row-desc {
+    color: var(--text-muted);
+}
+/* Fix cyan/accent text readability in light mode */
+[data-theme="light"] .settings-accordion .about-version-value,
+[data-theme="light"] .settings-modal .about-version-value {
+    color: #0077aa;
+}
+[data-theme="light"] .settings-accordion.open .settings-accordion-section-icon {
+    color: #0077aa;
+}
+[data-theme="light"] .settings-accordion.open .settings-accordion-chevron {
+    color: #0077aa;
+}
+/* Settings accent overrides for better contrast in light mode */
+[data-theme="light"] .settings-modal,
+[data-theme="light"] .dev-modal {
+    --settings-accent: #0088aa;
+    --settings-accent-glow: rgba(0, 136, 170, 0.3);
+    --settings-accent-soft: rgba(0, 136, 170, 0.08);
+}
+/* Fix hover states in settings modal */
+[data-theme="light"] .settings-modal .toggle-row:hover,
+[data-theme="light"] .dev-modal .toggle-row:hover,
+[data-theme="light"] .settings-modal .select-row:hover,
+[data-theme="light"] .dev-modal .select-row:hover,
+[data-theme="light"] .settings-modal .action-row:hover,
+[data-theme="light"] .dev-modal .action-row:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-color);
+}
+[data-theme="light"] .settings-modal .keybind-row-compact:hover {
+    background: var(--surface-hover);
+}
+[data-theme="light"] .settings-modal .btn-secondary:not(:disabled):hover,
+[data-theme="light"] .dev-modal .btn-secondary:not(:disabled):hover {
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+}
+
+/* =====================================================
+   Bug 7: Changelog modal light mode
+   ===================================================== */
+[data-theme="light"] .changelog-modal .modal-content {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .changelog-modal .modal-header {
+    background: var(--modal-header-bg);
+}
+[data-theme="light"] .changelog-section {
+    background: var(--surface-raised);
+}
+[data-theme="light"] .changelog-header {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+}
+[data-theme="light"] .changelog-header svg {
+    color: var(--text-muted);
+}
+[data-theme="light"] .changelog-version-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .changelog-version-date {
+    color: var(--text-muted);
+}
+[data-theme="light"] .changelog-item {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .changelog-version-tag {
+    background: rgba(0, 136, 170, 0.1);
+    border-color: rgba(0, 136, 170, 0.3);
+    color: #0077aa;
+}
+
+/* =====================================================
+   Additional light mode fixes
+   ===================================================== */
+/* Update modal */
+[data-theme="light"] .update-modal .modal-content {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .update-progress {
+    background: var(--surface-raised);
+}
+[data-theme="light"] .version-comparison {
+    background: var(--surface-raised);
+}
+
+/* Delete confirm modal */
+[data-theme="light"] .delete-confirm-path {
+    background: var(--surface-raised);
+}
+[data-theme="light"] .delete-path-value {
+    background: var(--input-bg);
+}
+
+/* About version row */
+[data-theme="light"] .about-version-row {
+    background: var(--surface-raised);
+}
+
+/* Security details */
+[data-theme="light"] .security-status-container {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .security-status-table thead th {
+    color: var(--text-muted);
+    border-bottom-color: var(--border-color);
+}
+[data-theme="light"] .security-status-table tbody td {
+    color: var(--text-secondary);
+    border-bottom-color: var(--border-subtle);
+}
+[data-theme="light"] .security-learn-more-details {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+
+/* Restart message */
+[data-theme="light"] .restart-message code {
+    background: var(--surface-raised);
+}
+
+/* Dev modal header */
+[data-theme="light"] .dev-modal .modal-header h2 {
+    color: #e65100;
+}
+
+/* Welcome guide */
+[data-theme="light"] .welcome-step-tip {
+    background: var(--surface-raised);
+}
+[data-theme="light"] .welcome-preview-container {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .welcome-preview-drop {
+    background: var(--surface-raised);
+}
+
+/* Attachment badges */
+[data-theme="light"] .attachment-badge {
+    background: var(--surface-raised);
+}
+[data-theme="light"] .attachment-item {
+    background: var(--surface-raised);
+}
+
+/* Blur zone controls */
+[data-theme="light"] .blur-zone-controls {
+    background: var(--surface-raised);
+}
+
+/* Share link */
+[data-theme="light"] .share-link-input {
+    background: var(--surface-raised);
+    border-color: var(--border-color);
+    color: var(--accent-color);
+}
+
+/* Badge muted */
+[data-theme="light"] .badge.muted {
+    background: var(--surface-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-secondary);
+}
+
+/* Info boxes */
+[data-theme="light"] .info-box.info-blue {
+    background: rgba(0, 136, 170, 0.06);
+    border-color: rgba(0, 136, 170, 0.2);
+    color: #006080;
+}
+[data-theme="light"] .info-box.info-yellow {
+    background: rgba(255, 152, 0, 0.06);
+    border-color: rgba(255, 152, 0, 0.2);
+    color: #995700;
+}
+[data-theme="light"] .info-box.info-green {
+    background: rgba(76, 175, 80, 0.06);
+    border-color: rgba(76, 175, 80, 0.2);
+    color: #2e7d32;
+}
+
+/* Ticket closed UI */
+[data-theme="light"] .ticket-closed-ui {
+    background: var(--surface-raised);
+    border-top-color: var(--border-color);
+}
+
+/* Composer textarea */
+[data-theme="light"] .composer-textarea {
+    background: var(--surface-raised);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="light"] .composer-textarea:focus {
+    background: #fff;
+    border-color: var(--accent-color);
+}
+
+/* Loading overlay */
+[data-theme="light"] .loading-overlay {
+    background: rgba(240, 241, 245, 0.92);
+}
+
+/* Shared clip detail modal */
+[data-theme="light"] .shared-clip-detail-info {
+    color: var(--text-secondary);
+}
+[data-theme="light"] .shared-clip-detail-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .shared-clip-detail-meta {
+    color: var(--text-muted);
+}
+
+/* Privacy / T&C modals */
+[data-theme="light"] .modal-content.soft-tc-modal {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .soft-tc-text p {
+    color: var(--text-secondary);
+}
+
+/* Welcome guide modal */
+[data-theme="light"] .welcome-guide-modal .modal-content {
+    background: var(--modal-bg);
+}
+[data-theme="light"] .welcome-step-title {
+    color: var(--text-color);
+}
+[data-theme="light"] .welcome-step-desc {
+    color: var(--text-secondary);
+}
+
+/* Dev card hover in light mode */
+[data-theme="light"] .dev-card {
+    background: var(--surface-raised);
+    border-color: var(--border-subtle);
+}
+[data-theme="light"] .dev-card:hover {
+    background: rgba(255, 152, 0, 0.06);
+    border-color: rgba(255, 152, 0, 0.25);
+}
+[data-theme="light"] .dev-output-box {
+    background: var(--surface-raised);
+    border-color: rgba(255, 152, 0, 0.15);
 }

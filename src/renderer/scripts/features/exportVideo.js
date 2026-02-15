@@ -588,8 +588,28 @@ export function openExportModal() {
     const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
     exportState.defaultFilename = `tesla_${safeName}_${date}.mp4`;
     
+    // Restore last-used quality from settings (silently, async)
     const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
-    if (highQuality) highQuality.checked = true;
+    if (highQuality) highQuality.checked = true; // Default first
+    
+    if (window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('exportLastQuality').then(savedQuality => {
+            if (savedQuality && ['mobile', 'medium', 'high', 'max'].includes(savedQuality)) {
+                const qualityRadio = document.querySelector(`input[name="exportQuality"][value="${savedQuality}"]`);
+                if (qualityRadio) {
+                    qualityRadio.checked = true;
+                    updateExportSizeEstimate();
+                }
+            }
+        }).catch(() => {});
+        
+        // Check for saved blur zones and show restore banner
+        window.electronAPI.getSetting('exportLastBlurZones').then(savedZones => {
+            if (savedZones && Array.isArray(savedZones) && savedZones.length > 0 && exportState.blurZones.length === 0) {
+                showBlurZoneRestoreBanner(savedZones);
+            }
+        }).catch(() => {});
+    }
     
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
@@ -881,11 +901,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         // Load video file
         let videoUrl;
         if (entry.file.path) {
-            // Encode path to handle Unicode characters (e.g., Korean, Chinese)
-            const normalizedPath = entry.file.path.replace(/\\/g, '/');
-            videoUrl = entry.file.path.startsWith('/') 
-                ? `file://${encodeURI(entry.file.path)}` 
-                : `file:///${encodeURI(normalizedPath)}`;
+            videoUrl = filePathToUrl(entry.file.path);
         } else if (entry.file instanceof File) {
             videoUrl = URL.createObjectURL(entry.file);
         } else {
@@ -1085,6 +1101,49 @@ function initBlurZoneEditorModal() {
             }
         });
     }
+}
+
+/**
+ * Show a restore banner for previously saved blur zones
+ * @param {Array} savedZones - Array of saved blur zone objects from settings
+ */
+function showBlurZoneRestoreBanner(savedZones) {
+    // Remove existing banner if any
+    const existingBanner = $('blurZoneRestoreBanner');
+    if (existingBanner) existingBanner.remove();
+    
+    const blurSection = $('blurZoneSection') || $('addBlurZoneBtn')?.closest('.collapsible-content');
+    if (!blurSection) return;
+    
+    const banner = document.createElement('div');
+    banner.id = 'blurZoneRestoreBanner';
+    banner.className = 'blur-zone-restore-banner';
+    banner.innerHTML = `
+        <div class="restore-banner-content">
+            <span class="restore-banner-icon">🔒</span>
+            <span class="restore-banner-text">${savedZones.length} previous privacy zone${savedZones.length > 1 ? 's' : ''} found</span>
+        </div>
+        <div class="restore-banner-actions">
+            <button class="btn btn-primary btn-small restore-banner-restore">Restore</button>
+            <button class="btn btn-secondary btn-small restore-banner-dismiss">Dismiss</button>
+        </div>
+    `;
+    
+    // Insert at the top of the blur section
+    blurSection.insertBefore(banner, blurSection.firstChild);
+    
+    // Restore button
+    banner.querySelector('.restore-banner-restore').onclick = () => {
+        exportState.blurZones = [...savedZones];
+        updateBlurZoneStatusDisplay();
+        banner.remove();
+        notify('Privacy zones restored', { type: 'success' });
+    };
+    
+    // Dismiss button
+    banner.querySelector('.restore-banner-dismiss').onclick = () => {
+        banner.remove();
+    };
 }
 
 /**
@@ -1375,6 +1434,16 @@ export async function startExport() {
     
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
+    
+    // Persist blur zones and quality for next export session
+    try {
+        if (window.electronAPI?.setSetting) {
+            if (exportState.blurZones.length > 0) {
+                await window.electronAPI.setSetting('exportLastBlurZones', exportState.blurZones);
+            }
+            await window.electronAPI.setSetting('exportLastQuality', quality);
+        }
+    } catch (e) { /* ignore save errors */ }
     
     const hasBlurZones = exportState.blurZones.length > 0;
     const blurType = 'trueBlur';
@@ -1675,6 +1744,8 @@ export async function startExport() {
     if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
     
     if (window.electronAPI?.on) {
+        // Remove any stale listeners from previous exports to prevent ghost handlers
+        window.electronAPI.removeAllListeners?.('export:progress');
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
             if (receivedExportId !== exportId) return;
             

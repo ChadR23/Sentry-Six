@@ -18,8 +18,8 @@ function calculateMinimapSize(outputWidth, outputHeight, sizeOption = 'medium') 
   // Use the smaller dimension to calculate size (square minimap)
   const baseSize = Math.min(outputWidth, outputHeight);
   const targetSize = Math.round(baseSize * multiplier);
-  // Ensure even dimensions
-  const evenSize = targetSize + (targetSize % 2);
+  // Ensure even dimensions (round down, consistent with FFmpeg encoding requirements)
+  const evenSize = Math.floor(targetSize / 2) * 2 || 2;
   
   return {
     width: evenSize,
@@ -314,6 +314,9 @@ ipcMain.on('minimap:ready', (event) => {
 // Create a hidden BrowserWindow for minimap rendering
 async function createMinimapRenderer(minimapWidth, minimapHeight) {
   return new Promise((resolve, reject) => {
+    // Security note: nodeIntegration + contextIsolation:false is acceptable here because
+    // this is a hidden offscreen window that only loads local minimap-renderer.html.
+    // No remote content is ever loaded into this window.
     const minimapWindow = new BrowserWindow({
       width: minimapWidth,
       height: minimapHeight,

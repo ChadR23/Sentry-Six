@@ -60,6 +60,35 @@ export function initSettingsModal() {
     // Initialize collapsible sections (for export modal)
     initCollapsibleSections();
     
+    // Sidebar tab navigation for horizontal settings layout
+    if (settingsModal) {
+        const navItems = settingsModal.querySelectorAll('.settings-nav-item');
+        const accordions = settingsModal.querySelectorAll('.settings-accordion');
+        
+        navItems.forEach(navItem => {
+            navItem.addEventListener('click', () => {
+                const target = navItem.dataset.target;
+                
+                // Update active nav item
+                navItems.forEach(n => n.classList.remove('active'));
+                navItem.classList.add('active');
+                
+                // Show target accordion, hide others
+                accordions.forEach(acc => {
+                    if (acc.dataset.section === target) {
+                        acc.classList.add('open');
+                    } else {
+                        acc.classList.remove('open');
+                    }
+                });
+                
+                // Scroll content to top
+                const content = settingsModal.querySelector('.settings-content');
+                if (content) content.scrollTop = 0;
+            });
+        });
+    }
+    
     const closeSettingsModal = $('closeSettingsModal');
     const closeSettingsBtn = $('closeSettingsBtn');
     
@@ -203,6 +232,25 @@ export function initSettingsModal() {
                 window.updateCompactDashboardPositioning(isFixed);
             }
             settingsCompactDashboardFixed.blur();
+        };
+    }
+    
+    // App theme (Dark/Light) setting
+    const settingsAppTheme = $('settingsAppTheme');
+    if (settingsAppTheme && window.electronAPI?.getSetting) {
+        window.electronAPI.getSetting('appTheme').then(savedTheme => {
+            const theme = savedTheme || 'dark';
+            settingsAppTheme.value = theme;
+            window.applyAppTheme?.(theme);
+        });
+        
+        settingsAppTheme.onchange = async () => {
+            const theme = settingsAppTheme.value || 'dark';
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('appTheme', theme);
+            }
+            window.applyAppTheme?.(theme);
+            settingsAppTheme.blur();
         };
     }
     
@@ -1021,36 +1069,46 @@ export function initSettingsSearch() {
     if (!searchInput || !settingsModal) return;
 
     const accordions = settingsModal.querySelectorAll('.settings-accordion');
-    const savedOpenState = new Map();
+    const navItems = settingsModal.querySelectorAll('.settings-nav-item');
+    let isSearching = false;
+
+    function getActiveSection() {
+        const active = settingsModal.querySelector('.settings-nav-item.active');
+        return active?.dataset?.target || 'display';
+    }
+
+    function restoreSidebarState() {
+        const activeSection = getActiveSection();
+        accordions.forEach(acc => {
+            acc.classList.remove('search-hidden', 'search-match');
+            acc.querySelectorAll('.toggle-row, .select-row, .slider-row, .action-row, .keybind-row-compact, .input-row').forEach(row => {
+                row.classList.remove('search-hidden');
+            });
+            acc.classList.toggle('open', acc.dataset.section === activeSection);
+        });
+        navItems.forEach(n => n.classList.remove('search-highlight'));
+    }
 
     function performSearch(query) {
         const q = query.trim().toLowerCase();
         clearBtn?.classList.toggle('hidden', q.length === 0);
 
         if (!q) {
-            // Reset: show everything, restore open/closed state
-            accordions.forEach(acc => {
-                acc.classList.remove('search-hidden', 'search-match');
-                if (savedOpenState.has(acc)) {
-                    acc.classList.toggle('open', savedOpenState.get(acc));
-                }
-                acc.querySelectorAll('.toggle-row, .select-row').forEach(row => {
-                    row.classList.remove('search-hidden');
-                });
-            });
-            savedOpenState.clear();
+            isSearching = false;
+            restoreSidebarState();
             if (noResults) noResults.classList.add('hidden');
             return;
         }
 
+        isSearching = true;
         let anyVisible = false;
+
         accordions.forEach(acc => {
-            if (!savedOpenState.has(acc)) savedOpenState.set(acc, acc.classList.contains('open'));
             const title = acc.querySelector('.settings-accordion-title')?.textContent?.toLowerCase() || '';
             const sectionMatch = title.includes(q);
 
             // Check individual rows
-            const rows = acc.querySelectorAll('.toggle-row, .select-row');
+            const rows = acc.querySelectorAll('.toggle-row, .select-row, .slider-row, .action-row, .keybind-row-compact, .input-row');
             let rowMatch = false;
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
@@ -1064,16 +1122,19 @@ export function initSettingsSearch() {
 
             if (sectionMatch || rowMatch) {
                 acc.classList.remove('search-hidden');
-                acc.classList.add('search-match');
-                if (!acc.classList.contains('open')) {
-                    if (!savedOpenState.has(acc)) savedOpenState.set(acc, false);
-                    acc.classList.add('open');
-                }
+                acc.classList.add('open', 'search-match');
                 anyVisible = true;
             } else {
                 acc.classList.add('search-hidden');
-                acc.classList.remove('search-match');
+                acc.classList.remove('open', 'search-match');
             }
+        });
+
+        // Highlight matching nav items
+        navItems.forEach(nav => {
+            const target = nav.dataset.target;
+            const matchingAcc = settingsModal.querySelector(`.settings-accordion[data-section="${target}"]`);
+            nav.classList.toggle('search-highlight', matchingAcc?.classList.contains('search-match') || false);
         });
 
         if (noResults) noResults.classList.toggle('hidden', anyVisible);

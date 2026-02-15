@@ -48,7 +48,9 @@ function downloadFile(url, destPath, onProgress) {
     
     const handleResponse = (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
-        https.get(res.headers.location, options, handleResponse).on('error', reject);
+        const redirectReq = https.get(res.headers.location, options, handleResponse);
+        redirectReq.on('error', reject);
+        redirectReq.setTimeout(30000, () => { redirectReq.destroy(); reject(new Error('Redirect timeout')); });
         return;
       }
       

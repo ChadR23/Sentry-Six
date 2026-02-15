@@ -11,8 +11,9 @@ const { settingsPath, loadSettings, saveSettings, registerSettingsIpc } = requir
 const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
 const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
 const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
-const { findFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
+const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
 const { calculateMinimapSize, downloadStaticMapBackground, preRenderMinimap } = require('./main/minimap');
+const crypto = require('crypto');
 
 // ============================================
 // DIAGNOSTICS: Console capture (must be early to catch all logs)
@@ -44,6 +45,7 @@ function captureMainLog(level, args) {
     }).join(' ')
   };
   mainLogBuffer.push(entry);
+  if (mainLogBuffer.length > 5000) mainLogBuffer.shift();
 }
 
 // Override console methods to capture all logs from startup
@@ -1074,7 +1076,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     sendProgress(8, useGpu ? { key: 'ui.export.exportingWithEncoder', params: { encoder: activeEncoder.name } } : { key: 'ui.export.exportingWithCpu' });
 
     // Execute FFmpeg - no pipe needed since dashboard is pre-rendered to file
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const proc = spawn(cmd[0], cmd.slice(1), {
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -1179,6 +1181,11 @@ app.whenReady().then(async () => {
   }
   
   createWindow();
+  
+  // Pre-cache FFmpeg path in background after window is ready.
+  // This eliminates the UI freeze on macOS when opening the export modal,
+  // since findFFmpegPath uses spawnSync which blocks the main thread.
+  setTimeout(() => preCacheFFmpegPath(), 2000);
   
   // Set up electron-updater event handlers (extracted to src/main/autoUpdate.js)
   setupAutoUpdaterEvents(mainWindow);
@@ -1379,7 +1386,6 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
 const CLIP_UPLOAD_URL = 'https://api.sentry-six.com/share/upload';
 const CLIP_DELETE_URL = 'https://api.sentry-six.com/share/delete';
 const CLIP_CONFIG_URL = 'https://api.sentry-six.com/share/config';
-const crypto = require('crypto');
 
 let _shareConfigCache = null;
 
@@ -1809,10 +1815,8 @@ ipcMain.handle('ffmpeg:check', async () => {
   let hevcInfo = null;
   
   if (ffmpegPath && !fakeNoGpu) {
-    // Reset cached values to force re-detection
-    setGpuEncoder(null);
-    setGpuEncoderHEVC(null);
-    
+    // Use cached encoder values if available (detection spawns ffmpeg subprocesses)
+    // Cached values are already null on first run; detectGpuEncoder/detectHEVCEncoder cache internally
     const gpu = detectGpuEncoder(ffmpegPath);
     const hevc = detectHEVCEncoder(ffmpegPath);
     
@@ -1920,6 +1924,9 @@ ipcMain.handle('dev:setOldVersion', async () => {
   // Note: With electron-updater, version is managed by package.json
   // This can't actually change the version - just triggers a manual update check
   console.log('[DEV] Triggering manual update check...');
+  if (!autoUpdater) {
+    return { success: false, error: 'electron-updater not available in dev mode' };
+  }
   try {
     await autoUpdater.checkForUpdates();
     return { success: true, note: 'Manual update check triggered' };
@@ -1973,7 +1980,7 @@ ipcMain.handle('diagnostics:get', async () => {
     // Check for pending update
     let pendingUpdate = null; // null = up to date, string = pending version
     try {
-      const latestVersion = await getLatestVersionFromGitHub();
+      const latestVersion = await getLatestVersionFromGitHub(getUpdateBranch);
       if (latestVersion && currentVersion && latestVersion.version !== currentVersion) {
         pendingUpdate = latestVersion.version; // Store the pending version
       }

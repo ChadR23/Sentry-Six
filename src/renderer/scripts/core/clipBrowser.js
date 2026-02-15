@@ -6,6 +6,7 @@
 import { escapeHtml, cssEscape } from '../lib/utils.js';
 import { formatEventTime } from '../ui/clipListHelpers.js';
 import { t } from '../lib/i18n.js';
+import { notify } from '../ui/notifications.js';
 
 // Dependencies injected at init
 let getState = null;
@@ -96,6 +97,17 @@ export function renderClipList() {
         if (coll) {
             const timeStr = formatEventTime(eventId);
             const item = createClipItem(coll, `${t('ui.clipBrowser.saved')} · ${timeStr}`, 'saved');
+            clipList.appendChild(item);
+        }
+    }
+    
+    // 4. Custom folder clips (non-standard folder names)
+    if (dayData.custom && dayData.custom.length > 0) {
+        const customId = `custom:${selectedDay}`;
+        const customColl = library.dayCollections?.get(customId);
+        if (customColl) {
+            const folderName = dayData.custom[0]?.tag || 'Custom';
+            const item = createClipItem(customColl, `${folderName} Clips`, 'custom');
             clipList.appendChild(item);
         }
     }
@@ -312,29 +324,6 @@ export function parseTimestampKeyToEpochMs(timestampKey) {
 }
 
 /**
- * Format camera name for display.
- */
-function formatCameraName(camera) {
-    if (camera === 'front') return t('ui.cameras.front');
-    if (camera === 'back') return t('ui.cameras.back');
-    if (camera === 'left_repeater') return t('ui.cameras.leftRepeater');
-    if (camera === 'right_repeater') return t('ui.cameras.rightRepeater');
-    if (camera === 'left_pillar') return t('ui.cameras.leftPillar');
-    if (camera === 'right_pillar') return t('ui.cameras.rightPillar');
-    return camera;
-}
-
-/**
- * Format timestamp key for display.
- */
-function timestampLabel(timestampKey) {
-    return (timestampKey || '').replace('_', ' ').replace(/-/g, (m, off, s) => {
-        return m;
-    }).replace(/(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2})/, '$1 $2:$3:$4');
-}
-
-
-/**
  * Show delete confirmation modal (Step 1)
  */
 function showDeleteConfirmModal(folderPath, collectionId) {
@@ -479,9 +468,7 @@ function showFinalDeleteConfirmModal(folderPath, collectionId) {
                         onClipDeleted(collectionId, folderPath, false);
                     }
                     // Show success notification
-                    if (window.showNotification) {
-                        window.showNotification(t('ui.clipBrowser.deleteSuccess'), { type: 'success' });
-                    }
+                    notify(t('ui.clipBrowser.deleteSuccess'), { type: 'success' });
                 } else {
                     throw new Error(result.error || 'Unknown error');
                 }
@@ -490,9 +477,7 @@ function showFinalDeleteConfirmModal(folderPath, collectionId) {
             }
         } catch (err) {
             console.error('Failed to delete clip:', err);
-            if (window.showNotification) {
-                window.showNotification(`${t('ui.clipBrowser.deleteFailed')}: ${err.message}`, { type: 'error' });
-            }
+            notify(`${t('ui.clipBrowser.deleteFailed')}: ${err.message}`, { type: 'error' });
             confirmBtn.disabled = false;
             confirmBtn.innerHTML = `
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right: 6px;">

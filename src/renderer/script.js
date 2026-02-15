@@ -295,15 +295,6 @@ function formatEventReason(reason) {
     return reasonMap[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// Get icon for event reason (returns SVG or null)
-function getEventReasonIcon(reason) {
-    const icons = {
-        'sentry_aware_object_detection': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>',
-        'vehicle_auto_emergency_braking': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.83L19.13 19H4.87L12 5.83zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z"/></svg>',
-        'collision': '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.83L19.13 19H4.87L12 5.83zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z"/></svg>'
-    };
-    return icons[reason] || null;
-}
 const apText = $('apText');
 const brakeIcon = $('brakeIcon');
 const toggleExtra = $('toggleExtra');
@@ -690,9 +681,6 @@ let useMetric = false; // Will be loaded from settings
         };
     }
 
-    // Initialize Settings Modal
-    initSettingsModal();
-
     // Playback speed selector
     if (speedSelect) {
         // Restore saved playback rate
@@ -726,6 +714,12 @@ let useMetric = false; // Will be loaded from settings
             const metricToggle = $('metricToggle');
             if (metricToggle) metricToggle.checked = useMetric;
             if (speedUnit) speedUnit.textContent = useMetric ? 'KM/H' : 'MPH';
+        });
+        window.electronAPI.getSetting('appTheme').then(saved => {
+            const theme = saved || 'dark';
+            if (window.applyAppTheme) {
+                window.applyAppTheme(theme);
+            }
         });
         window.electronAPI.getSetting('accelPedMode').then(saved => {
             const mode = saved || 'iconbar';
@@ -791,8 +785,20 @@ let useMetric = false; // Will be loaded from settings
         }
     };
     
+    // Global function to apply app theme (dark/light)
+    window.applyAppTheme = (theme) => {
+        const root = document.documentElement;
+        if (theme === 'light') {
+            root.setAttribute('data-theme', 'light');
+        } else {
+            root.removeAttribute('data-theme');
+        }
+    };
+    
     // Global function to update accelerator pedal display mode for all dashboards
     window.updateAccelPedMode = (mode) => {
+        // Store globally so export flow can read it (exportVideo.js uses window._accelPedMode)
+        window._accelPedMode = mode;
         
         // Remove all mode classes
         const modes = ['mode-solid', 'mode-iconbar', 'mode-sidebar'];
@@ -1716,49 +1722,84 @@ async function scanEventFolderElectron(dirPath, clipType) {
     }
 }
 
-// Scan for loose video clips directly in a folder (no Tesla folder structure)
+// Helper: extract date from a Tesla-style or generic video filename
+function extractDateFromFilename(filename) {
+    const teslaMatch = filename.match(/^(\d{4}-\d{2}-\d{2})_/);
+    if (teslaMatch) return teslaMatch[1];
+    const compactMatch = filename.match(/(\d{4})(\d{2})(\d{2})/);
+    if (compactMatch) return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+    return 'Unknown';
+}
+
+// Register a loose date entry in folderStructure
+function registerLooseDate(date, dirPath, subfolders = null) {
+    folderStructure.dates.add(date);
+    if (!folderStructure.dateHandles.has(date)) {
+        folderStructure.dateHandles.set(date, { 
+            recent: null, 
+            sentry: new Map(), 
+            saved: new Map(),
+            loose: { path: dirPath, isLoose: true, subfolders: subfolders || [] },
+            isCustomStructure: true
+        });
+    } else {
+        const dateData = folderStructure.dateHandles.get(date);
+        dateData.isCustomStructure = true;
+        if (!dateData.loose) {
+            dateData.loose = { path: dirPath, isLoose: true, subfolders: subfolders || [] };
+        } else if (subfolders) {
+            // Merge subfolder paths
+            const existing = dateData.loose.subfolders || [];
+            dateData.loose.subfolders = [...existing, ...subfolders.filter(s => !existing.includes(s))];
+        }
+    }
+}
+
+// Scan for loose video clips in a folder (no Tesla folder structure)
+// Also recurses into subfolders (1 level) to find event-style folders with Tesla-named clips
 async function scanLooseClipsElectron(dirPath) {
     try {
         const entries = await window.electronAPI.readDir(dirPath);
+        let foundTeslaFiles = false;
+        const subfolderPaths = []; // Track subfolders that contain Tesla clips
         
         for (const entry of entries) {
-            if (!entry.isFile) continue;
-            const nameLower = entry.name.toLowerCase();
-            
-            // Check for video files
-            if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
-                // Try to extract date from Tesla-style filename: YYYY-MM-DD_HH-MM-SS-camera.mp4
-                let date = null;
-                const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                if (teslaMatch) {
-                    date = teslaMatch[1];
-                } else {
-                    // Try other common date formats in filenames
-                    // YYYYMMDD format
-                    const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                    if (compactMatch) {
-                        date = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
-                    } else {
-                        // Use file modification date as fallback - group all undated files under "Unknown"
-                        date = 'Unknown';
-                    }
+            if (entry.isFile) {
+                const nameLower = entry.name.toLowerCase();
+                // Check for video files
+                if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
+                    const date = extractDateFromFilename(entry.name);
+                    registerLooseDate(date, dirPath);
+                    if (date !== 'Unknown') foundTeslaFiles = true;
                 }
-                
-                folderStructure.dates.add(date);
-                if (!folderStructure.dateHandles.has(date)) {
-                    folderStructure.dateHandles.set(date, { 
-                        recent: null, 
-                        sentry: new Map(), 
-                        saved: new Map(),
-                        loose: { path: dirPath, isLoose: true }
-                    });
-                } else {
-                    const dateData = folderStructure.dateHandles.get(date);
-                    if (!dateData.loose) {
-                        dateData.loose = { path: dirPath, isLoose: true };
+            } else if (entry.isDirectory) {
+                // Recurse 1 level into subfolders to find Tesla-named clips
+                // This handles custom folders like "Honk/2025-01-15_10-30-00/2025-...-front.mp4"
+                try {
+                    const subEntries = await window.electronAPI.readDir(entry.path);
+                    let hasClipsInSub = false;
+                    for (const subEntry of subEntries) {
+                        if (!subEntry.isFile) continue;
+                        const subNameLower = subEntry.name.toLowerCase();
+                        if (subNameLower.endsWith('.mp4')) {
+                            const date = extractDateFromFilename(subEntry.name);
+                            if (date !== 'Unknown') {
+                                subfolderPaths.push(entry.path);
+                                registerLooseDate(date, dirPath, [entry.path]);
+                                hasClipsInSub = true;
+                                foundTeslaFiles = true;
+                            }
+                        }
                     }
+                } catch (subErr) {
+                    // Skip inaccessible subfolders
                 }
             }
+        }
+        
+        // Mark as custom structure if we found Tesla-named files
+        if (foundTeslaFiles) {
+            folderStructure.isCustomStructure = true;
         }
     } catch (err) {
         console.warn('Error scanning loose clips:', err);
@@ -1843,42 +1884,60 @@ async function loadDateContentElectron(date) {
         }
     }
     
-    // Load loose clips (folder with just video files, no Tesla structure)
+    // Load loose clips (folder with just video files, or custom folder structure)
     if (dateData.loose) {
         updateLoading('Loading clips...', 'Loading video clips...');
+        
+        // Helper to check if a file matches the target date
+        const fileMatchesDate = (filename, targetDate) => {
+            if (targetDate === 'Unknown') {
+                // For "Unknown" date, only include files without recognizable dates
+                return !filename.match(/^(\d{4}-\d{2}-\d{2})_/) && !filename.match(/(\d{4})(\d{2})(\d{2})/);
+            }
+            const fileDate = extractDateFromFilename(filename);
+            return fileDate === targetDate || fileDate === 'Unknown';
+        };
+        
+        // Helper to add a file entry
+        const addFileEntry = (entry, relPathPrefix) => {
+            files.push({
+                name: entry.name,
+                path: entry.path,
+                webkitRelativePath: `${folderStructure.root.name}/${relPathPrefix}${entry.name}`,
+                isElectronFile: true,
+                isLooseClip: true
+            });
+        };
+        
         try {
+            // Scan root folder for direct video files
             const entries = await window.electronAPI.readDir(dateData.loose.path);
             for (const entry of entries) {
                 if (!entry.isFile) continue;
                 const nameLower = entry.name.toLowerCase();
-                
-                // Check for video files
                 if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
-                    // Filter by date if not "Unknown"
-                    if (date !== 'Unknown') {
-                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                        let fileDate = null;
-                        if (teslaMatch) {
-                            fileDate = teslaMatch[1];
-                        } else if (compactMatch) {
-                            fileDate = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
-                        }
-                        if (fileDate && fileDate !== date) continue;
-                    } else {
-                        // For "Unknown" date, only include files without recognizable dates
-                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                        if (teslaMatch || compactMatch) continue;
+                    if (fileMatchesDate(entry.name, date)) {
+                        addFileEntry(entry, '');
                     }
-                    
-                    files.push({
-                        name: entry.name,
-                        path: entry.path,
-                        webkitRelativePath: `${folderStructure.root.name}/${entry.name}`,
-                        isElectronFile: true,
-                        isLooseClip: true
-                    });
+                }
+            }
+            
+            // Also scan subfolders that were discovered during initial scan
+            const subfolders = dateData.loose.subfolders || [];
+            for (const subPath of subfolders) {
+                try {
+                    const subFolderName = subPath.replace(/\\/g, '/').split('/').pop();
+                    const subEntries = await window.electronAPI.readDir(subPath);
+                    for (const subEntry of subEntries) {
+                        if (!subEntry.isFile) continue;
+                        const subNameLower = subEntry.name.toLowerCase();
+                        if (subNameLower.endsWith('.mp4') || subNameLower.endsWith('.json') || subNameLower.endsWith('.png')) {
+                            if (subNameLower.endsWith('.mp4') && !fileMatchesDate(subEntry.name, date)) continue;
+                            addFileEntry(subEntry, `${subFolderName}/`);
+                        }
+                    }
+                } catch (subErr) {
+                    console.warn('Error loading subfolder clips:', subErr);
                 }
             }
         } catch (err) {
@@ -2817,6 +2876,7 @@ function updateCameraSelect(group) {
 
 async function ingestSentryEventJson(eventAssetsByKey) {
     if (!eventAssetsByKey || eventAssetsByKey.size === 0) return;
+    let needsRender = false;
     for (const [key, assets] of eventAssetsByKey.entries()) {
         if (!assets?.jsonFile) continue;
         try {
@@ -2836,8 +2896,7 @@ async function ingestSentryEventJson(eventAssetsByKey) {
             for (const g of library.clipGroups) {
                 if (g.tag === tag && g.eventId === eventId) g.eventMeta = meta;
             }
-            // Re-render list so Sentry collections can show event marker + updated details.
-            renderClipList();
+            needsRender = true;
             // Refresh map if this event is currently active (fixes map not showing on auto-select)
             if (state.collection.active?.groups?.some(g => g.tag === tag && g.eventId === eventId)) {
                 showEventJsonLocation(state.collection.active);
@@ -2864,6 +2923,8 @@ async function ingestSentryEventJson(eventAssetsByKey) {
             console.warn(`Error parsing event.json for ${key}:`, err);
         }
     }
+    // Re-render clip list once after all event.json files are processed (not per-file)
+    if (needsRender) renderClipList();
 }
 
 // Playback Logic

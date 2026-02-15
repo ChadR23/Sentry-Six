@@ -23,53 +23,48 @@ export function hasValidGps(sei) {
 }
 
 /**
- * Extract SEI from an ArrayBuffer
+ * Extract SEI telemetry from an ArrayBuffer using DashcamMP4 parser
  * @param {ArrayBuffer} buffer - Video file buffer
- * @param {string} seiType - SEI type identifier for DashcamMP4 parser
- * @returns {{seiData: Array, mapPath: Array}}
+ * @returns {Promise<{seiData: Array, mapPath: Array}>}
  */
-export function extractSeiFromBuffer(buffer, seiType) {
+async function extractSeiFromBuffer(buffer) {
+    if (!window.DashcamMP4 || !window.DashcamHelpers) {
+        return { seiData: [], mapPath: [] };
+    }
+    
+    const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
+    const mp4 = new window.DashcamMP4(buffer);
+    const frames = mp4.parseFrames(SeiMetadata);
+    
     const seiData = [];
     const mapPath = [];
+    let runningMs = 0;
     
-    try {
-        const mp4 = new DashcamMP4(buffer);
-        const frames = mp4.parseFrames(seiType);
-        
-        for (const frame of frames) {
-            if (frame.sei) {
-                seiData.push({ timestampMs: frame.timestamp, sei: frame.sei });
-                if (hasValidGps(frame.sei)) {
-                    const lat = frame.sei.latitudeDeg ?? frame.sei.latitude_deg;
-                    const lon = frame.sei.longitudeDeg ?? frame.sei.longitude_deg;
-                    // Include autopilot state: 1 or 2 = engaged, 0 or undefined = manual
-                    const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state ?? 0;
-                    const isAutopilot = apState === 1 || apState === 2;
-                    mapPath.push({ lat, lon, autopilot: isAutopilot });
-                }
+    for (const frame of frames) {
+        runningMs += frame.duration;
+        if (frame.sei) {
+            seiData.push({ timestampMs: runningMs, sei: frame.sei });
+            if (hasValidGps(frame.sei)) {
+                const lat = Number(frame.sei.latitudeDeg ?? frame.sei.latitude_deg);
+                const lon = Number(frame.sei.longitudeDeg ?? frame.sei.longitude_deg);
+                const apState = frame.sei.autopilotState ?? frame.sei.autopilot_state;
+                const autopilot = apState != null && apState !== 0 && apState !== 'DISABLED';
+                mapPath.push({ lat, lon, timestampMs: runningMs, autopilot });
             }
         }
-    } catch (err) {
-        console.warn('Failed to extract SEI:', err);
     }
     
     return { seiData, mapPath };
 }
 
 /**
- * Extract SEI telemetry from a video File object
- * @param {File} file - Video file
- * @param {string} seiType - SEI type identifier
+ * Extract SEI telemetry from a File object
+ * @param {File} file - Video File object
  * @returns {Promise<{seiData: Array, mapPath: Array}>}
  */
-export async function extractSeiFromFile(file, seiType) {
-    try {
-        const buffer = await file.arrayBuffer();
-        return extractSeiFromBuffer(buffer, seiType);
-    } catch (err) {
-        console.warn('Failed to extract SEI from file:', err);
-        return { seiData: [], mapPath: [] };
-    }
+async function extractSeiFromFile(file) {
+    const buffer = await file.arrayBuffer();
+    return extractSeiFromBuffer(buffer);
 }
 
 /**
@@ -87,7 +82,7 @@ export async function extractSeiFromEntry(entry, seiType) {
             const fileUrl = filePathToUrl(entry.file.path);
             const response = await fetch(fileUrl);
             const buffer = await response.arrayBuffer();
-            return extractSeiFromBuffer(buffer, seiType);
+            return extractSeiFromBuffer(buffer);
         } catch (err) {
             console.warn('Failed to extract SEI from Electron file:', err);
             return { seiData: [], mapPath: [] };
@@ -96,7 +91,7 @@ export async function extractSeiFromEntry(entry, seiType) {
     
     // Regular File object
     if (entry.file && entry.file instanceof File) {
-        return extractSeiFromFile(entry.file, seiType);
+        return extractSeiFromFile(entry.file);
     }
     
     return { seiData: [], mapPath: [] };
@@ -111,17 +106,21 @@ export async function extractSeiFromEntry(entry, seiType) {
 export function findSeiAtTime(seiData, timestampMs) {
     if (!seiData || !seiData.length) return null;
     
-    let closest = seiData[0];
-    let minDiff = Math.abs(seiData[0].timestampMs - timestampMs);
+    // Binary search for the closest timestamp (data is sorted by timestampMs)
+    let lo = 0, hi = seiData.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (seiData[mid].timestampMs <= timestampMs) lo = mid;
+        else hi = mid - 1;
+    }
     
-    for (let i = 1; i < seiData.length; i++) {
-        const diff = Math.abs(seiData[i].timestampMs - timestampMs);
-        if (diff < minDiff) {
-            minDiff = diff;
-            closest = seiData[i];
-        }
-        // Since data is sorted, if diff starts increasing, we passed the closest
-        if (seiData[i].timestampMs > timestampMs && diff > minDiff) break;
+    // lo is now the last entry with timestampMs <= target.
+    // Check if lo+1 is closer (if it exists).
+    let closest = seiData[lo];
+    if (lo + 1 < seiData.length) {
+        const diffLo = Math.abs(seiData[lo].timestampMs - timestampMs);
+        const diffHi = Math.abs(seiData[lo + 1].timestampMs - timestampMs);
+        if (diffHi < diffLo) closest = seiData[lo + 1];
     }
     
     return closest?.sei || null;

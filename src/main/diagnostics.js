@@ -120,43 +120,6 @@ function retrieveFromSupportServer(serverUrl, supportId, passcode) {
   });
 }
 
-// Fetch content from URL (kept for backwards compatibility)
-function fetchFromUrl(url) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const httpModule = urlObj.protocol === 'https:' ? https : http;
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-      path: urlObj.pathname,
-      method: 'GET'
-    };
-
-    const req = httpModule.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            reject(new Error('Invalid JSON in paste'));
-          }
-        } else {
-          reject(new Error(`Fetch error: ${res.statusCode}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(10000, () => {
-      req.destroy();
-      reject(new Error('Fetch timeout'));
-    });
-    req.end();
-  });
-}
-
 function registerDiagnosticsStorageIpc(serverUrl) {
   // Upload diagnostics to support server (no auth required for upload)
   ipcMain.handle('diagnostics:upload', async (_event, _unused, diagnostics) => {

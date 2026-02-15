@@ -6,6 +6,7 @@
 import { collectDiagnostics } from './diagnostics.js';
 import { notify } from './notifications.js';
 import { t } from '../lib/i18n.js';
+import { escapeHtml } from '../lib/utils.js';
 
 const $ = id => document.getElementById(id);
 
@@ -575,7 +576,7 @@ function handleNewTicket() {
     composer.classList.remove('hidden');
     
     // Clear messages and show welcome
-    const messages = messagesContainer.querySelectorAll('.chat-message');
+    const messages = messagesContainer.querySelectorAll('.chat-message-row');
     messages.forEach(m => m.remove());
     welcome.classList.remove('hidden');
     
@@ -609,9 +610,11 @@ function addMessageToUI(msg) {
         return;
     }
     
-    const msgEl = document.createElement('div');
-    msgEl.className = `chat-message ${msg.sender === 'user' ? 'user-message' : 'support-message'}`;
-    if (msg.id) msgEl.dataset.msgId = msg.id;
+    const isUser = msg.sender === 'user';
+    
+    const msgRow = document.createElement('div');
+    msgRow.className = `chat-message-row ${isUser ? 'user-row' : 'support-row'}`;
+    if (msg.id) msgRow.dataset.msgId = msg.id;
     
     const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
@@ -644,22 +647,30 @@ function addMessageToUI(msg) {
     
     let badgesHtml = '';
     if (msg.hasDiagnostics) {
-        badgesHtml += '<span class="message-badge diagnostics">📊 Diagnostics</span>';
+        badgesHtml += '<span class="message-badge diagnostics">📊 Diagnostics attached</span>';
     }
     
-    msgEl.innerHTML = `
-        <div class="message-content">
-            ${msg.content ? `<p>${escapeHtml(msg.content)}</p>` : ''}
-            ${attachmentsHtml}
-            ${badgesHtml}
+    const avatarLabel = isUser ? 'You' : 'S6';
+    const avatarClass = isUser ? 'avatar-user' : 'avatar-support';
+    const senderName = isUser ? 'You' : (msg.responder || 'Support');
+    
+    msgRow.innerHTML = `
+        ${!isUser ? `<div class="message-avatar ${avatarClass}">${avatarLabel}</div>` : ''}
+        <div class="chat-message ${isUser ? 'user-message' : 'support-message'}">
+            ${!isUser ? `<div class="message-sender-name">${senderName}</div>` : ''}
+            <div class="message-content">
+                ${msg.content ? `<p>${escapeHtml(msg.content)}</p>` : ''}
+                ${attachmentsHtml}
+                ${badgesHtml}
+            </div>
+            <div class="message-meta">
+                <span class="message-time">${time}</span>
+            </div>
         </div>
-        <div class="message-meta">
-            <span class="message-sender">${msg.sender === 'user' ? 'You' : (msg.responder || 'Support')}</span>
-            <span class="message-time">${time}</span>
-        </div>
+        ${isUser ? `<div class="message-avatar ${avatarClass}">${avatarLabel}</div>` : ''}
     `;
     
-    messagesContainer.appendChild(msgEl);
+    messagesContainer.appendChild(msgRow);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
@@ -870,12 +881,6 @@ function getFileIcon(mimeType) {
 
 function isImageOrVideo(mimeType) {
     return mimeType?.startsWith('image/') || mimeType?.startsWith('video/');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 function readFileAsBase64(file) {

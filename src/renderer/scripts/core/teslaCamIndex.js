@@ -208,7 +208,8 @@ export function buildDayCollections(groups) {
             byDay.set(day, {
                 recent: [],
                 sentry: new Map(),
-                saved: new Map()
+                saved: new Map(),
+                custom: []
             });
         }
         const dayData = byDay.get(day);
@@ -221,6 +222,9 @@ export function buildDayCollections(groups) {
         } else if (type === 'savedclips' && g.eventId) {
             if (!dayData.saved.has(g.eventId)) dayData.saved.set(g.eventId, []);
             dayData.saved.get(g.eventId).push(g);
+        } else {
+            // Custom folder structure (not RecentClips/SentryClips/SavedClips)
+            dayData.custom.push(g);
         }
     }
 
@@ -252,6 +256,15 @@ export function buildDayCollections(groups) {
             const coll = buildCollectionFromGroups(id, day, 'SavedClips', sortedGroups);
             coll.eventId = eventId;
             coll.eventTime = eventId.split('_')[1]?.replace(/-/g, ':') || '';
+            collections.set(id, coll);
+        }
+
+        // Custom folder clips (non-standard folder names)
+        if (dayData.custom && dayData.custom.length > 0) {
+            const customGroups = dayData.custom.sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
+            const id = `custom:${day}`;
+            const coll = buildCollectionFromGroups(id, day, 'Custom', customGroups);
+            coll.isCustomStructure = true;
             collections.set(id, coll);
         }
     }

@@ -143,10 +143,6 @@ function getSpeedUnit(useMetric, language = 'en') {
   return useMetric ? translations.speedUnit.kmh : translations.speedUnit.mph;
 }
 
-// Legacy mappings for backward compatibility (fallback to English)
-const GEAR_TEXT = DASHBOARD_TRANSLATIONS.en.gear;
-const AP_TEXT = DASHBOARD_TRANSLATIONS.en.ap;
-
 /**
  * Generate ASS header with styles
  * @param {number} playResX - Coordinate space width (e.g., 1920)

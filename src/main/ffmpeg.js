@@ -8,6 +8,7 @@ const { spawnSync } = require('child_process');
 let gpuEncoder = null;
 let gpuEncoderHEVC = null;
 let cachedGpuHardware = undefined; // undefined = not checked, null = checked but not found
+let cachedFFmpegPath = undefined; // undefined = not checked, null = checked but not found
 
 /**
  * Ensures macOS/Linux FFmpeg binaries are executable.
@@ -31,6 +32,9 @@ function ensureExecutable(filePath) {
 }
 
 function findFFmpegPath() {
+  // Return cached path if already found
+  if (cachedFFmpegPath !== undefined) return cachedFFmpegPath;
+  
   const isMac = process.platform === 'darwin';
   const isWin = process.platform === 'win32';
   
@@ -131,6 +135,7 @@ function findFFmpegPath() {
       
       if (result.status === 0) {
         console.log(`[OK] Found FFmpeg at: ${p}`);
+        cachedFFmpegPath = p;
         return p;
       }
     } catch (err) {
@@ -139,7 +144,20 @@ function findFFmpegPath() {
   }
   
   console.warn('[ERROR] FFmpeg not found in any of the checked paths');
+  cachedFFmpegPath = null;
   return null;
+}
+
+/**
+ * Pre-cache FFmpeg path at startup (runs in background via setTimeout).
+ * This eliminates the UI freeze when opening the export modal on macOS,
+ * since findFFmpegPath uses spawnSync which blocks the main thread.
+ */
+function preCacheFFmpegPath() {
+  if (cachedFFmpegPath !== undefined) return; // Already cached
+  console.log('[STARTUP] Pre-caching FFmpeg path...');
+  const result = findFFmpegPath();
+  console.log(`[STARTUP] FFmpeg pre-cache complete: ${result ? 'found' : 'not found'}`);
 }
 
 /**
@@ -408,10 +426,6 @@ function detectHEVCEncoder(ffmpegPath) {
   return gpuEncoderHEVC;
 }
 
-function makeEven(n) {
-  return Math.floor(n / 2) * 2;
-}
-
 // Getters/setters for mutable encoder state (used by video export and diagnostics)
 function getGpuEncoder() { return gpuEncoder; }
 function setGpuEncoder(val) { gpuEncoder = val; }
@@ -420,6 +434,7 @@ function setGpuEncoderHEVC(val) { gpuEncoderHEVC = val; }
 
 module.exports = {
   findFFmpegPath,
+  preCacheFFmpegPath,
   formatExportDuration,
   detectGpuHardware,
   detectGpuEncoder,
