@@ -11,6 +11,10 @@
         },
         {
           "type": "improvement",
+          "description": "Steering wheel now tracks near 1:1 like Tesla's instrument cluster. Reduced peak lag from 170° to under 8° during fast maneuvers like U-turns and 3-point turns."
+        },
+        {
+          "type": "improvement",
           "description": "Added accelerator pedal position to the SEI Dashboard on exported videos."
         },
         {
