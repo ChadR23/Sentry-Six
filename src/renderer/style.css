@@ -1321,7 +1321,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .turn-signal-compact.active {
     color: #22c55e;
     filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
-    animation: blink-signal 0.8s ease-in-out infinite;
+    animation: blink-signal 0.7s linear infinite;
 }
 
 .turn-signal-compact.active.paused {
@@ -2013,7 +2013,7 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .center-cluster .turn-signal.active {
     color: #22c55e;
     filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.7));
-    animation: blink-signal 0.8s ease-in-out infinite;
+    animation: blink-signal 0.7s linear infinite;
 }
 
 /* Pause blinker animation when video is paused */
@@ -2022,8 +2022,8 @@ body > .dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 @keyframes blink-signal {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.2; }
+    0%, 57.14% { opacity: 1; }
+    57.15%, 100% { opacity: 0.15; }
 }
 
 /* Speed Display */

@@ -492,8 +492,14 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const totalFrames = Math.ceil((durationMs / 1000) * FPS);
   const frameTimeMs = 1000 / FPS;
   
-  // Blinker animation: 0.8s cycle at 36fps = ~29 frames per cycle
-  const framesPerBlinkerCycle = 29;
+  // Blinker animation: Tesla uses 400ms on / 300ms off = 700ms cycle
+  // At 36fps: 700ms / (1000/36) ≈ 25 frames per cycle
+  const framesPerBlinkerCycle = 25;
+  const blinkerOnFrames = 14; // 14/36 ≈ 389ms ≈ 400ms on
+  let prevLeftBlinkerOn = false;
+  let prevRightBlinkerOn = false;
+  let leftBlinkerStartFrame = 0;
+  let rightBlinkerStartFrame = 0;
   
   // Find SEI data for a given video time
   function findSeiAtTime(videoTimeMs) {
@@ -569,11 +575,15 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     
     const steeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
     
-    // Blinker animation state (frame-based)
-    const frameInCycle = frame % framesPerBlinkerCycle;
-    const isBlinkOn = frameInCycle < Math.floor(framesPerBlinkerCycle / 2);
-    const leftBlinkVisible = leftBlinkerOn && isBlinkOn;
-    const rightBlinkVisible = rightBlinkerOn && isBlinkOn;
+    // Blinker animation state (frame-based, phase resets on activation)
+    if (leftBlinkerOn && !prevLeftBlinkerOn) leftBlinkerStartFrame = frame;
+    if (rightBlinkerOn && !prevRightBlinkerOn) rightBlinkerStartFrame = frame;
+    const leftFrameInCycle = (frame - leftBlinkerStartFrame) % framesPerBlinkerCycle;
+    const rightFrameInCycle = (frame - rightBlinkerStartFrame) % framesPerBlinkerCycle;
+    const leftBlinkVisible = leftBlinkerOn && leftFrameInCycle < blinkerOnFrames;
+    const rightBlinkVisible = rightBlinkerOn && rightFrameInCycle < blinkerOnFrames;
+    prevLeftBlinkerOn = leftBlinkerOn;
+    prevRightBlinkerOn = rightBlinkerOn;
     
     const displayTime = formatDisplayTime(actualTimestampMs, timeFormat);
     const displayDate = formatDisplayDate(actualTimestampMs, dateFormat);

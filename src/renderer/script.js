@@ -215,6 +215,7 @@ function resetDashboardAndMap() {
     
     // Clear SEI data cache and tracking flags
     if (nativeVideo) {
+        stopTelemetryLoop();
         nativeVideo.seiData = [];
         nativeVideo.mapPath = [];
         nativeVideo.lastSeiTimeMs = -Infinity;
@@ -1235,6 +1236,7 @@ function handleClipDeleted(collectionId, folderPath, unloadOnly = false) {
             }
             
             // Clear native video state
+            stopTelemetryLoop();
             nativeVideo.master = null;
             nativeVideo.seiData = null;
             nativeVideo.mapPath = null;
@@ -3267,11 +3269,33 @@ function updateVisualization(sei) {
     if (gearState) gearState.textContent = gearText;
     if (gearStateCompact) gearStateCompact.textContent = gearText;
 
-    // Blinkers - pause animation when video is not playing
+    // Blinkers - Tesla uses 400ms on / 300ms off (700ms cycle)
     const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
     const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
     const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
-    
+
+    // Reset blink animation phase on activation (off→on) so cycle starts from "on" state
+    const prevLeft = updateVisualization._prevLeft || false;
+    const prevRight = updateVisualization._prevRight || false;
+    if (leftBlinkerOn && !prevLeft) {
+        for (const el of [blinkLeft, blinkLeftCompact]) {
+            if (!el) continue;
+            el.style.animation = 'none';
+            void el.offsetHeight;
+            el.style.animation = '';
+        }
+    }
+    if (rightBlinkerOn && !prevRight) {
+        for (const el of [blinkRight, blinkRightCompact]) {
+            if (!el) continue;
+            el.style.animation = 'none';
+            void el.offsetHeight;
+            el.style.animation = '';
+        }
+    }
+    updateVisualization._prevLeft = leftBlinkerOn;
+    updateVisualization._prevRight = rightBlinkerOn;
+
     blinkLeft?.classList.toggle('active', leftBlinkerOn);
     blinkRight?.classList.toggle('active', rightBlinkerOn);
     blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
@@ -3416,7 +3440,8 @@ const nativeVideo = {
     isTransitioning: false, // Guard to prevent double-triggering segment transitions
     isSeeking: false,       // Guard to prevent progress bar updates during user-initiated seeks
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
-    dashboardReset: false   // Track if dashboard has been reset for no-SEI section
+    dashboardReset: false,  // Track if dashboard has been reset for no-SEI section
+    telemetryRafId: null    // requestAnimationFrame ID for ~60Hz telemetry polling
 };
 
 /**
@@ -3533,15 +3558,60 @@ function initNativeVideoPlayback() {
             if (vid === nativeVideo.master) {
                 nativeVideo.playing = true;
                 updatePlayButton();
+                startTelemetryLoop();
             }
         });
         vid.addEventListener('pause', () => {
             if (vid === nativeVideo.master) {
                 nativeVideo.playing = false;
                 updatePlayButton();
+                stopTelemetryLoop();
             }
         });
     });
+}
+
+// Telemetry Animation Loop — polls SEI data at ~60Hz via requestAnimationFrame
+// The HTML5 timeupdate event only fires ~4Hz which skips intermediate speed values
+function telemetryAnimationLoop() {
+    const vid = nativeVideo.master || videoMain;
+    if (!vid || !nativeVideo.playing) {
+        nativeVideo.telemetryRafId = null;
+        return;
+    }
+    
+    if (!nativeVideo.isTransitioning) {
+        const currentVidMs = (vid.currentTime || 0) * 1000;
+        
+        const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
+        if (sei) {
+            updateVisualization(sei);
+            nativeVideo.lastSeiTimeMs = currentVidMs;
+            nativeVideo.dashboardReset = false;
+        } else {
+            const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;
+            const timeSinceLastSei = currentVidMs - lastSei;
+            if (timeSinceLastSei > 2000 && !nativeVideo.dashboardReset) {
+                resetDashboardElements();
+                nativeVideo.dashboardReset = true;
+            }
+        }
+    }
+    
+    nativeVideo.telemetryRafId = requestAnimationFrame(telemetryAnimationLoop);
+}
+
+function startTelemetryLoop() {
+    if (!nativeVideo.telemetryRafId) {
+        nativeVideo.telemetryRafId = requestAnimationFrame(telemetryAnimationLoop);
+    }
+}
+
+function stopTelemetryLoop() {
+    if (nativeVideo.telemetryRafId) {
+        cancelAnimationFrame(nativeVideo.telemetryRafId);
+        nativeVideo.telemetryRafId = null;
+    }
 }
 
 function onMasterTimeUpdate() {
@@ -3557,21 +3627,21 @@ function onMasterTimeUpdate() {
     const currentVidSec = vid.currentTime || 0;
     const currentVidMs = currentVidSec * 1000;
     
-    // Update telemetry overlay from pre-extracted SEI data
-    const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
-    if (sei) {
-        updateVisualization(sei);
-        nativeVideo.lastSeiTimeMs = currentVidMs;
-        nativeVideo.dashboardReset = false;
-    } else {
-        // No SEI data at this timestamp - check if we should show "no data" state
-        // Only reset if we haven't had SEI data for 2+ seconds of video time
-        const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;
-        const timeSinceLastSei = currentVidMs - lastSei;
-        if (timeSinceLastSei > 2000 && !nativeVideo.dashboardReset) {
-            // Show "no data" state for dashboard (but keep any event.json map marker)
-            resetDashboardElements();
-            nativeVideo.dashboardReset = true;
+    // Telemetry is now updated at ~60Hz by telemetryAnimationLoop — only update here as fallback
+    // when the rAF loop isn't running (e.g. during scrub/seek while paused)
+    if (!nativeVideo.telemetryRafId) {
+        const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
+        if (sei) {
+            updateVisualization(sei);
+            nativeVideo.lastSeiTimeMs = currentVidMs;
+            nativeVideo.dashboardReset = false;
+        } else {
+            const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;
+            const timeSinceLastSei = currentVidMs - lastSei;
+            if (timeSinceLastSei > 2000 && !nativeVideo.dashboardReset) {
+                resetDashboardElements();
+                nativeVideo.dashboardReset = true;
+            }
         }
     }
     
@@ -3700,6 +3770,7 @@ async function loadNativeSegment(segIdx) {
     state.collection.active.currentSegmentIdx = segIdx;
     
     // Clear stale SEI data immediately to prevent old segment data from showing during transition
+    stopTelemetryLoop();
     nativeVideo.seiData = [];
     nativeVideo.mapPath = [];
     nativeVideo.lastSeiTimeMs = -Infinity;
