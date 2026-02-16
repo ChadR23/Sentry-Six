@@ -1,10 +1,14 @@
 {
   "versions": [
     {
-      "version": "2026.8.2",
+      "version": "2026.8.3",
       "date": "2026-02-16",
       "title": "Improvements & Fixes",
       "changes": [
+        {
+          "type": "improvement",
+          "description": "Increased SEI dashboard telemetry polling rate by 15x during playback. Speed, steering wheel, and all other telemetry values now update every frame instead of skipping values."
+        },
         {
           "type": "improvement",
           "description": "Added accelerator pedal position to the SEI Dashboard on exported videos."
@@ -28,6 +32,10 @@
         {
           "type": "fix",
           "description": "Fixed an issue where FFMPEG would freeze the entire application when you would open the export modal."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed turn signal blink timing to match Tesla's 400ms on / 300ms off cycle for both the dashboard overlay and exported videos."
         }
       ]
     },

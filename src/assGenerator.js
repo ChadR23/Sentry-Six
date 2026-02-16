@@ -501,6 +501,10 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   let leftBlinkerStartFrame = 0;
   let rightBlinkerStartFrame = 0;
   
+  // Steering smoothing: frame-rate-independent exponential tracking (matches live playback)
+  let smoothedSteeringAngle = 0;
+  const steerFactor = 1 - Math.exp(-45 * (frameTimeMs / 1000)); // STEERING_TRACKING_SPEED=45
+  
   // Find SEI data for a given video time
   function findSeiAtTime(videoTimeMs) {
     if (!seiData || seiData.length === 0) return null;
@@ -573,7 +577,9 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     const accelPct = accelPos > 1 ? Math.min(100, accelPos) : Math.min(100, accelPos * 100);
     const accelActive = accelPct > 5;
     
-    const steeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
+    const rawSteeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
+    smoothedSteeringAngle += (rawSteeringAngle - smoothedSteeringAngle) * steerFactor;
+    const steeringAngle = smoothedSteeringAngle;
     
     // Blinker animation state (frame-based, phase resets on activation)
     if (leftBlinkerOn && !prevLeftBlinkerOn) leftBlinkerStartFrame = frame;

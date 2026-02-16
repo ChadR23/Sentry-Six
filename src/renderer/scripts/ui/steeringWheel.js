@@ -1,13 +1,11 @@
 /**
  * Steering Wheel Animation
- * Smooth spring-damper physics for realistic steering wheel movement
+ * Frame-rate-independent exponential tracking for Tesla-like 1:1 steering response
  */
 
 // Animation state
 let steeringPosition = 0;      // Current displayed angle
-let steeringVelocity = 0;      // Current angular velocity
 let steeringTarget = 0;        // Target angle from SEI data
-let smoothedTarget = 0;        // Smoothed target (reduces noise)
 let steeringAnimationId = null;
 let lastSteeringTime = 0;
 
@@ -15,10 +13,10 @@ let lastSteeringTime = 0;
 let steeringIcon = null;
 let steeringIconCompact = null;
 
-// Spring-damper physics base constants (tuned for 1x playback)
-const STEERING_STIFFNESS_BASE = 15.0;  // Spring force
-const STEERING_DAMPING_BASE = 6.5;     // Damping
-const TARGET_SMOOTHING_BASE = 0.25;    // Smoothing factor
+// Tracking speed: higher = more responsive. 45 gives ~95% tracking in ~67ms (~4 frames at 60fps)
+// Tesla's instrument cluster uses near-1:1 tracking; this matches that feel while
+// filtering sub-pixel jitter (0.1° noise → 0.05° display movement = invisible)
+const STEERING_TRACKING_SPEED = 45;
 
 // Playback rate getter (set via init)
 let getPlaybackRate = () => 1;
@@ -55,24 +53,11 @@ function animateSteeringWheel() {
     const dt = Math.min((now - lastSteeringTime) / 1000, 0.1);
     lastSteeringTime = now;
     
-    // Scale physics by playback rate so animation keeps up at higher speeds
+    // Frame-rate-independent exponential tracking: factor approaches 1.0 for large dt
+    // Scales with playback rate so animation keeps up at higher speeds
     const playbackRate = getPlaybackRate();
-    const stiffness = STEERING_STIFFNESS_BASE * playbackRate;
-    const damping = STEERING_DAMPING_BASE * Math.sqrt(playbackRate);
-    const smoothing = Math.min(0.7, TARGET_SMOOTHING_BASE * playbackRate);
-    
-    // First, smooth the target to reduce noise from SEI data
-    smoothedTarget += (steeringTarget - smoothedTarget) * smoothing;
-    
-    // Spring-damper physics:
-    // F = -k*(x - target) - b*v
-    const springForce = stiffness * (smoothedTarget - steeringPosition);
-    const dampingForce = -damping * steeringVelocity;
-    const acceleration = springForce + dampingForce;
-    
-    // Update velocity and position
-    steeringVelocity += acceleration * dt;
-    steeringPosition += steeringVelocity * dt;
+    const factor = 1 - Math.exp(-STEERING_TRACKING_SPEED * playbackRate * dt);
+    steeringPosition += (steeringTarget - steeringPosition) * factor;
     
     // Apply to DOM
     if (steeringIcon) {
@@ -82,14 +67,9 @@ function animateSteeringWheel() {
         steeringIconCompact.style.transform = `rotate(${steeringPosition}deg)`;
     }
     
-    // Check if we're settled (very close to target with low velocity)
-    const settleThreshold = 0.1 * playbackRate;
-    const settled = Math.abs(smoothedTarget - steeringPosition) < settleThreshold && 
-                    Math.abs(steeringVelocity) < 0.5 * playbackRate;
-    
-    if (settled) {
-        steeringPosition = smoothedTarget;
-        steeringVelocity = 0;
+    // Check if we're settled (very close to target)
+    if (Math.abs(steeringTarget - steeringPosition) < 0.05) {
+        steeringPosition = steeringTarget;
         if (steeringIcon) {
             steeringIcon.style.transform = `rotate(${steeringPosition}deg)`;
         }
@@ -120,9 +100,7 @@ export function stopSteeringAnimation() {
 export function resetSteeringWheel() {
     stopSteeringAnimation();
     steeringPosition = 0;
-    steeringVelocity = 0;
     steeringTarget = 0;
-    smoothedTarget = 0;
     if (!steeringIcon) {
         steeringIcon = document.getElementById('steeringIcon');
     }
