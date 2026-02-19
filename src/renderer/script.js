@@ -3439,6 +3439,7 @@ const nativeVideo = {
     cumulativeStarts: [],   // Cumulative start time of each segment in seconds
     isTransitioning: false, // Guard to prevent double-triggering segment transitions
     isSeeking: false,       // Guard to prevent progress bar updates during user-initiated seeks
+    _pendingSeekSec: null,  // Queued seek target for "latest wins" pattern
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
     dashboardReset: false,  // Track if dashboard has been reset for no-SEI section
     telemetryRafId: null    // requestAnimationFrame ID for ~60Hz telemetry polling
@@ -3734,7 +3735,17 @@ function onMasterEnded() {
                 playNative();
             }).catch(err => {
                 nativeVideo.isTransitioning = false;
-                console.error('Failed to load next segment:', err);
+                console.error('Failed to load segment', nextSegIdx, '- skipping to next:', err);
+                // Skip to the next segment instead of stopping playback entirely
+                const skipIdx = nextSegIdx + 1;
+                if (skipIdx < state.collection.active.groups.length) {
+                    nativeVideo.currentSegmentIdx = nextSegIdx;
+                    onMasterEnded();
+                } else {
+                    console.log('No more segments to try');
+                    nativeVideo.playing = false;
+                    updatePlayButton();
+                }
             });
             return;
         } else {
@@ -3830,9 +3841,19 @@ async function loadNativeSegment(segIdx) {
             }
         }
         
-        // Set master to front camera or first available
+        // Set master to front camera — fall back to first camera that has a file
         const masterCam = multi.masterCamera || 'front';
-        const masterSlotDef = slotsArr.find(s => s.camera === masterCam);
+        let masterSlotDef = slotsArr.find(s => s.camera === masterCam);
+        
+        // If the preferred master camera has no file for this segment, pick the first slot that does
+        if (!group.filesByCamera.has(masterSlotDef?.camera)) {
+            const fallback = slotsArr.find(s => group.filesByCamera.has(s.camera));
+            if (fallback) {
+                console.warn('Master camera', masterCam, 'missing for segment, falling back to', fallback.camera);
+                masterSlotDef = fallback;
+            }
+        }
+        
         const masterSlot = masterSlotDef?.slot;
         nativeVideo.master = masterSlot ? videoBySlot[masterSlot] : videoMain;
         
@@ -4142,57 +4163,66 @@ async function seekNativeDayCollectionBySec(targetSec) {
     const cumStarts = nativeVideo.cumulativeStarts;
     if (!cumStarts.length) return;
     
-    // If a seek is already in progress, ignore this one to prevent race conditions
+    // "Latest wins" pattern: if a seek is in progress, queue this one and return.
+    // When the current seek finishes it will pick up the queued target.
     if (nativeVideo.isSeeking) {
-        console.log('Seek already in progress, ignoring new seek to', targetSec.toFixed(1) + 's');
+        nativeVideo._pendingSeekSec = targetSec;
         return;
     }
     
-    // Set seeking flag to prevent progress bar updates and overlapping seeks
     nativeVideo.isSeeking = true;
     
-    const totalSec = cumStarts[cumStarts.length - 1];
-    const clampedSec = Math.max(0, Math.min(totalSec, targetSec));
-    
-    // Find which segment contains this time using cumulative starts
-    let segIdx = 0;
-    for (let i = 0; i < cumStarts.length - 1; i++) {
-        if (clampedSec >= cumStarts[i] && clampedSec < cumStarts[i + 1]) {
-            segIdx = i;
-            break;
-        }
-        if (i === cumStarts.length - 2) segIdx = i; // Last segment
-    }
-    
-    const localSec = clampedSec - (cumStarts[segIdx] || 0);
-    
-    // Load segment if different
-    const wasPlaying = nativeVideo.playing;
-    if (segIdx !== nativeVideo.currentSegmentIdx) {
-        await loadNativeSegment(segIdx);
-    }
-    
-    // Seek within segment
-    const vid = nativeVideo.master;
-    if (vid) {
-        vid.currentTime = Math.min(localSec, vid.duration || 60);
-        syncMultiVideos(vid.currentTime);
+    try {
+        const totalSec = cumStarts[cumStarts.length - 1];
+        const clampedSec = Math.max(0, Math.min(totalSec, targetSec));
         
-        // Update progress bar and time display immediately
-        const pct = (clampedSec / totalSec) * 100;
-        progressBar.value = Math.min(100, pct);
-        updateTimeDisplayNew(Math.floor(clampedSec), Math.floor(totalSec));
-        
-        // Resume playback if it was playing before seek
-        if (wasPlaying) {
-            playNative();
+        // Find which segment contains this time using cumulative starts
+        let segIdx = 0;
+        for (let i = 0; i < cumStarts.length - 1; i++) {
+            if (clampedSec >= cumStarts[i] && clampedSec < cumStarts[i + 1]) {
+                segIdx = i;
+                break;
+            }
+            if (i === cumStarts.length - 2) segIdx = i; // Last segment
         }
+        
+        const localSec = clampedSec - (cumStarts[segIdx] || 0);
+        
+        // Load segment if different
+        const wasPlaying = nativeVideo.playing;
+        if (segIdx !== nativeVideo.currentSegmentIdx) {
+            await loadNativeSegment(segIdx);
+        }
+        
+        // Seek within segment
+        const vid = nativeVideo.master;
+        if (vid) {
+            vid.currentTime = Math.min(localSec, vid.duration || 60);
+            syncMultiVideos(vid.currentTime);
+            
+            // Update progress bar and time display immediately
+            const pct = (clampedSec / totalSec) * 100;
+            progressBar.value = Math.min(100, pct);
+            updateTimeDisplayNew(Math.floor(clampedSec), Math.floor(totalSec));
+            
+            // Resume playback if it was playing before seek
+            if (wasPlaying) {
+                playNative();
+            }
+        }
+    } catch (err) {
+        console.error('Seek failed:', err);
+    } finally {
+        // Always clear seeking flag, then drain any queued seek
+        setTimeout(() => {
+            nativeVideo.isSeeking = false;
+            const pending = nativeVideo._pendingSeekSec;
+            if (pending != null) {
+                nativeVideo._pendingSeekSec = null;
+                seekNativeDayCollectionBySec(pending);
+            }
+        }, 100);
     }
-    
-    // Clear seeking flag after a short delay to let the video element settle
-    setTimeout(() => {
-        nativeVideo.isSeeking = false;
-    }, 100);
 }
 
 // Event Timeline Markers
