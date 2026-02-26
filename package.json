@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.8.3",
+  "version": "2026.8.4",
   "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
@@ -40,7 +40,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "verifyUpdateCodeSignature": false,
@@ -64,7 +66,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "category": "public.app-category.utilities",
@@ -73,7 +77,9 @@
       "identity": "Scott Vandereems (6733Y82885)",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
-      "signIgnore": ["\\.pak$"],
+      "signIgnore": [
+        "\\.pak$"
+      ],
       "notarize": true,
       "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
