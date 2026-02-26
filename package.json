@@ -19,7 +19,7 @@
     "sentry",
     "electron"
   ],
-  "author": "Sentry Six Revamped",
+  "author": "Scott Vandereems",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -33,7 +33,7 @@
     "protobufjs": "^7.5.4"
   },
   "build": {
-    "appId": "com.sentrysix.revamped",
+    "appId": "com.sentry-six.revamped",
     "productName": "Sentry-Six-Revamped",
     "win": {
       "icon": "assets/Sentry_Six.ico",
@@ -72,9 +72,13 @@
         }
       ],
       "category": "public.app-category.utilities",
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "identity": null,
+      "identity": "Scott Vandereems (6733Y82885)",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "signIgnore": ["\\.pak$"],
+      "notarize": true,
       "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
       "asarUnpack": [
