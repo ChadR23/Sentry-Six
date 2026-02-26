@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.8.4",
+      "date": "2026-02-26",
+      "title": "MacOS App Notarization",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "The MacOS App is now signed and notarized by Apple for builds 2026.8.4 and above."
+        }
+      ]
+    },
+    {
       "version": "2026.8.3",
       "date": "2026-02-16",
       "title": "Improvements & Fixes",
