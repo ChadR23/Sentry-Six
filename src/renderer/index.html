@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Six Revamped</title>
+    <title>Sentry Studio</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="style.css">
 </head>
@@ -793,7 +793,7 @@
                             <label class="toggle-row" id="shareClipToggleRow">
                                 <div class="toggle-row-info">
                                     <span class="toggle-row-label" data-i18n="ui.export.generateShareableLink">Generate Shareable Link</span>
-                                    <span class="toggle-row-desc" data-i18n="ui.export.generateShareableLinkDesc">Upload to Sentry Six servers after export</span>
+                                    <span class="toggle-row-desc" data-i18n="ui.export.generateShareableLinkDesc">Upload to Sentry Studio servers after export</span>
                                 </div>
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="shareClipToggle">
@@ -880,7 +880,7 @@
                     <div class="progress-bar-container">
                         <div id="shareUploadProgressBar" class="progress-bar-fill"></div>
                     </div>
-                    <div id="shareUploadProgressText" class="progress-text">Uploading to Sentry Six...</div>
+                    <div id="shareUploadProgressText" class="progress-text">Uploading to Sentry Studio...</div>
                 </div>
                 
                 <!-- Share link result (shown after upload completes) -->
@@ -988,7 +988,7 @@
                     <span data-i18n="ui.sharedClips.deleteConfirm">Are you sure you want to delete</span> <strong id="deleteClipName" style="color: #fff;"></strong>?
                 </p>
                 <p style="color: rgba(255,255,255,0.45); font-size: 12px; margin: 10px 0 0 0;">
-                    <span data-i18n="ui.sharedClips.deleteWarning">This will permanently remove the clip from Sentry Six servers. Anyone with the link will no longer be able to view or download it.</span>
+                    <span data-i18n="ui.sharedClips.deleteWarning">This will permanently remove the clip from Sentry Studio servers. Anyone with the link will no longer be able to view or download it.</span>
                 </p>
             </div>
             <div class="modal-footer">
@@ -1645,7 +1645,7 @@
     <div id="softTcModal" class="modal hidden">
         <div class="modal-content soft-tc-modal">
             <div class="modal-header">
-                <h2 data-i18n="welcomeScreen.title">Welcome to Sentry-Six</h2>
+                <h2 data-i18n="welcomeScreen.title">Welcome to Sentry Studio</h2>
             </div>
             <div class="modal-body soft-tc-body">
                 <div class="soft-tc-content">
@@ -1656,7 +1656,7 @@
                     </div>
                     <div class="soft-tc-text">
                         <h3 id="softTcPrivacyTitle" data-i18n="welcomeScreen.privacyTitle">Privacy & Security</h3>
-                        <p id="softTcPrivacyMessage" data-i18n="welcomeScreen.privacyMessage">By using Sentry-Six, you agree to our Terms of Service and Privacy Policy. Your dashcam footage remains strictly on your device. To ensure app security and compatibility, Sentry-Six automatically shares basic system info (OS, App Version, and a secure device hash) during update checks. This prevents API abuse and ensures you are running the most secure version of the app.</p>
+                        <p id="softTcPrivacyMessage" data-i18n="welcomeScreen.privacyMessage">By using Sentry Studio, you agree to our Terms of Service and Privacy Policy. Your dashcam footage remains strictly on your device. To ensure app security and compatibility, Sentry Studio automatically shares basic system info (OS, App Version, and a secure device hash) during update checks. This prevents API abuse and ensures you are running the most secure version of the app.</p>
                         <div class="soft-tc-links">
                             <a href="#" id="softTcTermsLink" class="soft-tc-link">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1693,7 +1693,7 @@
                     <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #00d4ff;">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
-                    <span data-i18n="welcome.modalTitle">Welcome to Sentry Six</span>
+                    <span data-i18n="welcome.modalTitle">Welcome to Sentry Studio</span>
                 </h2>
                 <button id="closeWelcomeGuide" class="modal-close">&times;</button>
             </div>
@@ -1709,7 +1709,7 @@
                             </svg>
                         </div>
                         <h3 class="welcome-step-title" data-i18n="welcome.step1.title">Welcome!</h3>
-                        <p class="welcome-step-desc" data-i18n="welcome.step1.desc">Sentry Six is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
+                        <p class="welcome-step-desc" data-i18n="welcome.step1.desc">Sentry Studio is a powerful viewer for Tesla dashcam footage. Let's take a quick tour to help you get started.</p>
                         
                         <!-- Language Selector -->
                         <div class="setting-group" style="margin-top: 24px; max-width: 300px; margin-left: auto; margin-right: auto;">

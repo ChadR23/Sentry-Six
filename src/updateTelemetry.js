@@ -103,7 +103,7 @@ function httpsPost(host, path, data, timeoutMs) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
-        'User-Agent': `Sentry-Six/${app.getVersion()}`
+        'User-Agent': `Sentry-Studio/${app.getVersion()}`
       },
       timeout: timeoutMs
     };
