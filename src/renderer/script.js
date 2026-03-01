@@ -2541,7 +2541,7 @@ async function handleFolderFiles(fileList, directoryName = null) {
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
     library.folderLabel = built.inferredRoot || directoryName || 'Folder';
 
-    // Build virtual day-level collections (Sentry Six–style day timelines)
+    // Build virtual day-level collections (Sentry Studio–style day timelines)
     const dayResult = buildDayCollections(library.clipGroups);
     library.dayCollections = dayResult.collections;
     library.allDates = dayResult.allDates;

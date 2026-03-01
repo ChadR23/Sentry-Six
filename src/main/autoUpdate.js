@@ -26,7 +26,7 @@ try {
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
     const options = {
-      headers: { 'User-Agent': 'Sentry-Six-Updater' }
+      headers: { 'User-Agent': 'Sentry-Studio-Updater' }
     };
     https.get(url, options, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
@@ -43,7 +43,7 @@ function httpsGet(url) {
 function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const options = {
-      headers: { 'User-Agent': 'Sentry-Six-Updater' }
+      headers: { 'User-Agent': 'Sentry-Studio-Updater' }
     };
     
     const handleResponse = (res) => {

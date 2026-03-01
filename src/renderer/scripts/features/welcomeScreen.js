@@ -37,11 +37,11 @@ function applyModalVariant(isReturningUser) {
     if (isReturningUser) {
         if (titleEl) titleEl.textContent = t('welcomeScreen.returningTitle') || 'Quick Update: Privacy & Security';
         if (subtitleEl) subtitleEl.textContent = t('welcomeScreen.returningSubtitle') || 'What Changed';
-        if (messageEl) messageEl.textContent = t('welcomeScreen.returningMessage') || "We've updated Sentry-Six to improve security. Your footage still stays on your device. To prevent API abuse and ensure compatibility, the app now shares basic system info (OS, App Version, and a secure device hash) during update checks.";
+        if (messageEl) messageEl.textContent = t('welcomeScreen.returningMessage') || "We've updated Sentry Studio to improve security. Your footage still stays on your device. To prevent API abuse and ensure compatibility, the app now shares basic system info (OS, App Version, and a secure device hash) during update checks.";
     } else {
-        if (titleEl) titleEl.textContent = t('welcomeScreen.title') || 'Welcome to Sentry-Six';
+        if (titleEl) titleEl.textContent = t('welcomeScreen.title') || 'Welcome to Sentry Studio';
         if (subtitleEl) subtitleEl.textContent = t('welcomeScreen.privacyTitle') || 'Privacy & Security';
-        if (messageEl) messageEl.textContent = t('welcomeScreen.privacyMessage') || 'By using Sentry-Six, you agree to our Terms of Service and Privacy Policy. Your dashcam footage remains strictly on your device. To ensure app security and compatibility, Sentry-Six automatically shares basic system info (OS, App Version, and a secure device hash) during update checks. This prevents API abuse and ensures you are running the most secure version of the app.';
+        if (messageEl) messageEl.textContent = t('welcomeScreen.privacyMessage') || 'By using Sentry Studio, you agree to our Terms of Service and Privacy Policy. Your dashcam footage remains strictly on your device. To ensure app security and compatibility, Sentry Studio automatically shares basic system info (OS, App Version, and a secure device hash) during update checks. This prevents API abuse and ensures you are running the most secure version of the app.';
     }
 }
 

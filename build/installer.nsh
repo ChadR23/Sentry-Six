@@ -1,10 +1,10 @@
-; Custom NSIS installer script for Sentry-Six-Revamped
+; Custom NSIS installer script for Sentry-Studio
 ; Handles corrupted old installations and file locking issues
 
 !macro customCheckAppRunning
   ; Force kill any running instance and child processes
   nsExec::ExecToStack `taskkill /f /im "${APP_EXECUTABLE_FILENAME}" /t`
-  nsExec::ExecToStack `taskkill /f /im "Sentry-Six-Revamped.exe" /t`
+  nsExec::ExecToStack `taskkill /f /im "Sentry-Studio.exe" /t`
   Sleep 2000
 !macroend
 
@@ -27,7 +27,7 @@
     
     ; Kill any running processes first
     nsExec::ExecToStack `taskkill /f /im "${APP_EXECUTABLE_FILENAME}" /t`
-    nsExec::ExecToStack `taskkill /f /im "Sentry-Six-Revamped.exe" /t`
+    nsExec::ExecToStack `taskkill /f /im "Sentry-Studio.exe" /t`
     Sleep 1000
     
     ; Proactively remove old installation to avoid uninstaller issues
@@ -35,8 +35,8 @@
     RMDir /r "$oldInstallDir"
     
     ; Also check common alternative locations
-    RMDir /r "$LOCALAPPDATA\Programs\Sentry Six Revamped"
-    RMDir /r "$LOCALAPPDATA\Programs\Sentry-Six-Revamped"
+    RMDir /r "$LOCALAPPDATA\Programs\Sentry Studio"
+    RMDir /r "$LOCALAPPDATA\Programs\Sentry-Studio"
     
     ; Clean up registry so installer doesn't try to run broken uninstaller
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_GUID}"
@@ -50,7 +50,7 @@
     nsExec::ExecToStack `taskkill /f /im "${APP_EXECUTABLE_FILENAME}" /t`
     Sleep 1000
     RMDir /r "$oldInstallDir"
-    RMDir /r "$PROGRAMFILES\Sentry-Six-Revamped"
+    RMDir /r "$PROGRAMFILES\Sentry-Studio"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_GUID}"
   ${endIf}
 !macroend
@@ -63,14 +63,14 @@
   
   ; Kill any running processes first
   nsExec::ExecToStack `taskkill /f /im "${APP_EXECUTABLE_FILENAME}" /t`
-  nsExec::ExecToStack `taskkill /f /im "Sentry-Six-Revamped.exe" /t`
+  nsExec::ExecToStack `taskkill /f /im "Sentry-Studio.exe" /t`
   Sleep 1500
   
   ; Find and delete old installation directories in common locations
-  RMDir /r "$LOCALAPPDATA\Programs\Sentry Six Revamped"
-  RMDir /r "$LOCALAPPDATA\Programs\Sentry-Six-Revamped"
-  RMDir /r "$PROGRAMFILES\Sentry-Six-Revamped"
-  RMDir /r "$PROGRAMFILES\Sentry Six Revamped"
+  RMDir /r "$LOCALAPPDATA\Programs\Sentry Studio"
+  RMDir /r "$LOCALAPPDATA\Programs\Sentry-Studio"
+  RMDir /r "$PROGRAMFILES\Sentry-Studio"
+  RMDir /r "$PROGRAMFILES\Sentry Studio"
   
   ; Clean up registry entries for old installation
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_GUID}"

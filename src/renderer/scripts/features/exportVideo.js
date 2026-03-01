@@ -2114,7 +2114,7 @@ function showExportCompletePanel(outputPath, message) {
 }
 
 /**
- * Upload the exported clip to Sentry Six server for sharing
+ * Upload the exported clip to Sentry Studio server for sharing
  */
 async function uploadShareClip(filePath) {
     const shareUploadProgress = $('shareUploadProgress');
@@ -2139,7 +2139,7 @@ async function uploadShareClip(filePath) {
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
     if (shareUploadProgressBar) shareUploadProgressBar.style.width = '0%';
-    if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Six...';
+    if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Studio...';
     
     // Listen for progress updates
     const progressHandler = (progress) => {

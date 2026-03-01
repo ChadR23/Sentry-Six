@@ -1,9 +1,9 @@
-# Sentry Six Revamped
+# Sentry Studio
 #### View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration. All in one beautiful app.
 
 🌐 **Website**: [sentry-six.com](https://sentry-six.com)
 
-Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
+Sentry Studio is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
 
 ## Features
 - **Simple UI**
@@ -53,7 +53,7 @@ Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. Vi
 
 - **Clip Sharing**
   - Generate a shareable link after exporting a clip
-  - Clips are hosted on Sentry Six servers for 48 hours at clip.sentry-six.com
+  - Clips are hosted on Sentry Studio servers for 48 hours at clip.sentry-six.com
   - Manage your shared clips from the "My Shared Clips" modal
     - Preview, copy link, open in browser, or delete shared clips
   - Available for exports under 5 minutes
@@ -82,14 +82,14 @@ Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. Vi
 
 ## Privacy & Updates
 
-Sentry Six includes a privacy-first approach to updates and analytics:
+Sentry Studio includes a privacy-first approach to updates and analytics:
 
 - **Automatic Updates**: The app checks for updates to keep running smoothly with the latest features
 - **Anonymous Version Stats**: A random ID helps us see which versions are most popular so we can fix bugs faster
 - **No Personal Info**: We never collect or send any personal information to our servers
 - **First-Time Notice**: You'll see a one-time notification about these features when you first launch the app
 
-This helps us improve Sentry Six while keeping everything private and transparent.
+This helps us improve Sentry Studio while keeping everything private and transparent.
 
 📄 **[Privacy Policy](https://sentry-six.com/privacy)** · **[Terms of Service](https://sentry-six.com/terms)**
 
@@ -103,10 +103,10 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 - Windows / MacOS 10.12+ / Linux
 
 ## Automatic Installation for Windows & MacOS (Recommended, easiest)
-1. Go to the Sentry Six [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
-2. Download the SentrySixRevampedSetup.exe (SentrySixRevamped.dmg for MacOS) 
+1. Go to the Sentry Studio [Releases](https://github.com/ChadR23/Sentry-Six/releases/) page
+2. Download the SentryStudioSetup.exe (SentryStudio.dmg for MacOS) 
 3. Run the installer
-4. Run Sentry Six Revamped
+4. Run Sentry Studio
 
 **Note for macOS users:** You may encounter a security warning because this app is not digitally signed. As this is an open-source project, we do not maintain a paid subscription to the Apple Developer Program. To launch the app, navigate to **System Settings > Privacy & Security**, scroll down, and click **"Open Anyway."**
 
@@ -116,10 +116,10 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 ## Manual Installation
 
 1. Install [node.js](https://nodejs.org/en/download)
-2. Extract Sentry Six to your desired location.
-3. Open a new Terminal (Command Prompt or Power Shell) and head to the Sentry Six folder `cd C:\users\yourname\downloads\Sentry-Six-Revamped`
-4. In your Sentry Six folder, use the following command: `npm install`
-6. To run Sentry Six, use `npm start`
+2. Extract Sentry Studio to your desired location.
+3. Open a new Terminal (Command Prompt or Power Shell) and head to the Sentry Studio folder `cd C:\users\yourname\downloads\Sentry-Studio`
+4. In your Sentry Studio folder, use the following command: `npm install`
+6. To run Sentry Studio, use `npm start`
 
 ## Usage
 

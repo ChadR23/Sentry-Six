@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.9.1",
+      "date": "2026-02-28",
+      "title": "Sentry Six is now Sentry Studio",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Our app Sentry Six has now been rebranded to Sentry Studio as we prepare to launch Sentry USB and Sentry Connect in the coming weeks."
+        }
+      ]
+    },
+    {
       "version": "2026.8.4",
       "date": "2026-02-26",
       "title": "MacOS App Notarization",
@@ -653,7 +664,7 @@
     {
       "version": "2026.1.5",
       "date": "2026-01-01",
-      "title": "Sentry Six Revamped Public Release",
+      "title": "Sentry Studio Public Release",
       "changes": [
         {
           "type": "fix",
@@ -708,7 +719,7 @@
     {
       "version": "2026.1",
       "date": "2026-01-01",
-      "title": "Sentry Six Revamped Public Release",
+      "title": "Sentry Studio Public Release",
       "changes": [
         {
           "type": "improvement",
@@ -761,7 +772,7 @@
       "changes": [
         {
           "type": "feature",
-          "description": "Added a new diagnostics button to the settings modal that will generate a shareable id to share with the Sentry Six team for debugging purposes."
+          "description": "Added a new diagnostics button to the settings modal that will generate a shareable id to share with the Sentry Studio team for debugging purposes."
         }
       ]
     },

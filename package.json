@@ -1,7 +1,7 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.8.4",
-  "description": "Sentry Six Revamped - Tesla Dashcam Viewer",
+  "version": "2026.9.1",
+  "description": "Sentry Studio - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -34,7 +34,7 @@
   },
   "build": {
     "appId": "com.sentry-six.revamped",
-    "productName": "Sentry-Six-Revamped",
+    "productName": "Sentry-Studio",
     "win": {
       "icon": "assets/Sentry_Six.ico",
       "target": [
@@ -81,7 +81,7 @@
         "\\.pak$"
       ],
       "notarize": true,
-      "artifactName": "SentrySixRevamped-${version}-macOS.${ext}",
+      "artifactName": "SentryStudio-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
       "asarUnpack": [
         "node_modules/canvas/**/*",
@@ -150,7 +150,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "artifactName": "SentrySixRevampedSetup${version}.${ext}",
+      "artifactName": "SentryStudioSetup${version}.${ext}",
       "include": "build/installer.nsh"
     },
     "publish": {

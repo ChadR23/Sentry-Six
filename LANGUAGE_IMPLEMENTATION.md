@@ -1,7 +1,7 @@
 # Multi-Language Support Implementation
 
 ## Overview
-This document describes the multi-language (internationalization/i18n) system implemented for Sentry-Six Revamped.
+This document describes the multi-language (internationalization/i18n) system implemented for Sentry Studio.
 
 ## Features
 - **13 Languages Supported**: English, Spanish, French, German, Chinese (Simplified), Japanese, Korean, Portuguese, Russian, Italian, Dutch, Polish, Turkish

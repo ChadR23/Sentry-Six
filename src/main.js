@@ -71,7 +71,7 @@ function createWindow() {
     height: 900,
     minWidth: 1384,
     minHeight: 861,
-    title: 'Sentry Six Revamped',
+    title: 'Sentry Studio',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1381,7 +1381,7 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
 });
 
 // ============================================
-// CLIP SHARING - Upload export to Sentry Six server
+// CLIP SHARING - Upload export to Sentry Studio server
 // ============================================
 const CLIP_UPLOAD_URL = 'https://api.sentry-six.com/share/upload';
 const CLIP_DELETE_URL = 'https://api.sentry-six.com/share/delete';
