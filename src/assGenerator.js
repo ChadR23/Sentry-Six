@@ -34,79 +34,118 @@ const DASHBOARD_TRANSLATIONS = {
     gear: { 0: 'PARK', 1: 'DRIVE', 2: 'REVERSE', 3: 'NEUTRAL' },
     ap: { 0: 'Manual', 1: 'Self Driving', 2: 'Autosteer', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'No Data'
+    noData: 'No Data',
+    labels: { speed: 'Speed', gear: 'Gear', steering: 'Steering', accelerator: 'Accelerator', brake: 'Brake', blinkers: 'Blinkers', autopilot: 'Autopilot', gps: 'GPS', heading: 'Heading', gForce: 'G-Force', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    brakeStates: { on: 'ON', off: 'OFF' },
+    apStates: { off: 'OFF', fsd: 'FSD Supervised', autopilot: 'Autopilot', tacc: 'TACC' }
   },
   es: {
     gear: { 0: 'PARK', 1: 'CONDUCIR', 2: 'REVERSA', 3: 'NEUTRAL' },
     ap: { 0: 'Manual', 1: 'Autónomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Sin Datos'
+    noData: 'Sin Datos',
+    labels: { speed: 'Velocidad', gear: 'Marcha', steering: 'Dirección', accelerator: 'Acelerador', brake: 'Freno', blinkers: 'Intermitentes', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Rumbo', gForce: 'Fuerza G', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    brakeStates: { on: 'SÍ', off: 'NO' },
+    apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopiloto', tacc: 'TACC' }
   },
   fr: {
     gear: { 0: 'PARK', 1: 'MARCHE', 2: 'MARCHE AR', 3: 'NEUTRE' },
     ap: { 0: 'Manuel', 1: 'Autonome', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Pas de Données'
+    noData: 'Pas de Données',
+    labels: { speed: 'Vitesse', gear: 'Rapport', steering: 'Direction', accelerator: 'Accélérateur', brake: 'Frein', blinkers: 'Clignotants', autopilot: 'Pilote Auto', gps: 'GPS', heading: 'Cap', gForce: 'Force G', lateral: 'Latéral', longitudinal: 'Longitudinal' },
+    brakeStates: { on: 'ACT', off: 'DÉSACT' },
+    apStates: { off: 'OFF', fsd: 'FSD Supervisé', autopilot: 'Autopilote', tacc: 'TACC' }
   },
   de: {
     gear: { 0: 'PARK', 1: 'FAHREN', 2: 'RÜCKWÄRTS', 3: 'NEUTRAL' },
     ap: { 0: 'Manuell', 1: 'Autonom', 2: 'Autosteer', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Keine Daten'
+    noData: 'Keine Daten',
+    labels: { speed: 'Geschw.', gear: 'Gang', steering: 'Lenkung', accelerator: 'Gaspedal', brake: 'Bremse', blinkers: 'Blinker', autopilot: 'Autopilot', gps: 'GPS', heading: 'Richtung', gForce: 'G-Kraft', lateral: 'Lateral', longitudinal: 'Längs' },
+    brakeStates: { on: 'EIN', off: 'AUS' },
+    apStates: { off: 'AUS', fsd: 'FSD Auto.', autopilot: 'Autopilot', tacc: 'TACC' }
   },
   zh: {
     gear: { 0: '驻车', 1: '行驶', 2: '倒车', 3: '空档' },
     ap: { 0: '手动', 1: '自动驾驶', 2: '自动转向', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: '无数据'
+    noData: '无数据',
+    labels: { speed: '速度', gear: '挡位', steering: '转向', accelerator: '油门', brake: '刹车', blinkers: '转向灯', autopilot: '自动驾驶', gps: 'GPS', heading: '航向', gForce: 'G力', lateral: '侧向', longitudinal: '纵向' },
+    brakeStates: { on: '开', off: '关' },
+    apStates: { off: '关', fsd: 'FSD监督', autopilot: '自动驾驶', tacc: 'TACC' }
   },
   ja: {
     gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
     ap: { 0: '手動', 1: '自動運転', 2: 'オートステア', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'データなし'
+    noData: 'データなし',
+    labels: { speed: '速度', gear: 'ギア', steering: '操舵', accelerator: '加速', brake: 'ブレーキ', blinkers: 'ウインカ', autopilot: 'AP', gps: 'GPS', heading: '方位', gForce: 'G値', lateral: '横G', longitudinal: '縦G' },
+    brakeStates: { on: 'ON', off: 'OFF' },
+    apStates: { off: 'OFF', fsd: 'FSD監視', autopilot: 'AP', tacc: 'TACC' }
   },
   ko: {
     gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
     ap: { 0: '수동', 1: '자율주행', 2: '자동조향', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: '데이터 없음'
+    noData: '데이터 없음',
+    labels: { speed: '속도', gear: '기어', steering: '조향', accelerator: '가속', brake: '브레이크', blinkers: '방향등', autopilot: 'AP', gps: 'GPS', heading: '방향', gForce: 'G력', lateral: '횡G', longitudinal: '종G' },
+    brakeStates: { on: '켜짐', off: '꺼짐' },
+    apStates: { off: 'OFF', fsd: 'FSD', autopilot: 'AP', tacc: 'TACC' }
   },
   pt: {
     gear: { 0: 'PARK', 1: 'CONDUZIR', 2: 'RÉ', 3: 'NEUTRO' },
     ap: { 0: 'Manual', 1: 'Autônomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Sem Dados'
+    noData: 'Sem Dados',
+    labels: { speed: 'Velocidade', gear: 'Marcha', steering: 'Direção', accelerator: 'Acelerador', brake: 'Freio', blinkers: 'Pisca', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Direção', gForce: 'Força G', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    brakeStates: { on: 'LIGADO', off: 'DESL.' },
+    apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopiloto', tacc: 'TACC' }
   },
   ru: {
     gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
     ap: { 0: 'Ручной', 1: 'Автопилот', 2: 'Автоулр.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Нет данных'
+    noData: 'Нет данных',
+    labels: { speed: 'Скорость', gear: 'Передача', steering: 'Руль', accelerator: 'Акселер.', brake: 'Тормоз', blinkers: 'Поворот.', autopilot: 'Автопилот', gps: 'GPS', heading: 'Направ.', gForce: 'Перегрузка', lateral: 'Боковая', longitudinal: 'Продольная' },
+    brakeStates: { on: 'ВКЛ', off: 'ВЫКЛ' },
+    apStates: { off: 'ВЫКЛ', fsd: 'FSD Надзор', autopilot: 'Автопилот', tacc: 'TACC' }
   },
   it: {
     gear: { 0: 'PARK', 1: 'GUIDA', 2: 'RETROMARCIA', 3: 'FOLLE' },
     ap: { 0: 'Manuale', 1: 'Autonomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Nessun Dato'
+    noData: 'Nessun Dato',
+    labels: { speed: 'Velocità', gear: 'Marcia', steering: 'Sterzo', accelerator: 'Acceleratore', brake: 'Freno', blinkers: 'Frecce', autopilot: 'Autopilota', gps: 'GPS', heading: 'Direzione', gForce: 'Forza G', lateral: 'Laterale', longitudinal: 'Longitudinale' },
+    brakeStates: { on: 'SÌ', off: 'NO' },
+    apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopilota', tacc: 'TACC' }
   },
   nl: {
     gear: { 0: 'PARK', 1: 'RIJDEN', 2: 'ACHTERUIT', 3: 'NEUTRAAL' },
     ap: { 0: 'Handmatig', 1: 'Zelfrijdend', 2: 'Autostuur', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Geen Data'
+    noData: 'Geen Data',
+    labels: { speed: 'Snelheid', gear: 'Versnelling', steering: 'Stuur', accelerator: 'Gas', brake: 'Rem', blinkers: 'Richting', autopilot: 'Autopiloot', gps: 'GPS', heading: 'Koers', gForce: 'G-Kracht', lateral: 'Lateraal', longitudinal: 'Longitudinaal' },
+    brakeStates: { on: 'AAN', off: 'UIT' },
+    apStates: { off: 'UIT', fsd: 'FSD Beg.', autopilot: 'Autopiloot', tacc: 'TACC' }
   },
   pl: {
     gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
     ap: { 0: 'Ręczny', 1: 'Autonomiczny', 2: 'Autokier.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Brak Danych'
+    noData: 'Brak Danych',
+    labels: { speed: 'Prędkość', gear: 'Bieg', steering: 'Kierow.', accelerator: 'Gaz', brake: 'Hamulec', blinkers: 'Kierunki', autopilot: 'Autopilot', gps: 'GPS', heading: 'Kierunek', gForce: 'Siła G', lateral: 'Boczna', longitudinal: 'Wzdłużna' },
+    brakeStates: { on: 'WŁ', off: 'WYŁ' },
+    apStates: { off: 'WYŁ', fsd: 'FSD Nadz.', autopilot: 'Autopilot', tacc: 'TACC' }
   },
   tr: {
     gear: { 0: 'P', 1: 'D', 2: 'R', 3: 'N' },
     ap: { 0: 'Manuel', 1: 'Otonom', 2: 'Otomatik', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
-    noData: 'Veri Yok'
+    noData: 'Veri Yok',
+    labels: { speed: 'Hız', gear: 'Vites', steering: 'Direksiyon', accelerator: 'Gaz', brake: 'Fren', blinkers: 'Sinyal', autopilot: 'Otopilot', gps: 'GPS', heading: 'Yön', gForce: 'G-Kuv.', lateral: 'Yanal', longitudinal: 'Boylamasına' },
+    brakeStates: { on: 'AÇIK', off: 'KAPALI' },
+    apStates: { off: 'KAPALI', fsd: 'FSD Denet.', autopilot: 'Otopilot', tacc: 'TACC' }
   }
 };
 
@@ -1447,6 +1486,11 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
     language = 'en'
   } = options;
 
+  const tLang = DASHBOARD_TRANSLATIONS[language] || DASHBOARD_TRANSLATIONS.en;
+  const labels = tLang.labels || DASHBOARD_TRANSLATIONS.en.labels;
+  const brakeStates = tLang.brakeStates || DASHBOARD_TRANSLATIONS.en.brakeStates;
+  const apStates = tLang.apStates || DASHBOARD_TRANSLATIONS.en.apStates;
+
   // Dashboard dimensions
   const sizeMultipliers = {
     'small': 0.30,
@@ -1557,10 +1601,10 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
 
     const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state') || 0;
     const apActive = apState === 1 || apState === 2;
-    let apDisplayText = 'OFF';
-    if (apState === 1) apDisplayText = 'FSD Supervised';
-    else if (apState === 2) apDisplayText = 'Autopilot';
-    else if (apState === 3) apDisplayText = 'TACC';
+    let apDisplayText = apStates.off;
+    if (apState === 1) apDisplayText = apStates.fsd;
+    else if (apState === 2) apDisplayText = apStates.autopilot;
+    else if (apState === 3) apDisplayText = apStates.tacc;
 
     const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
 
@@ -1634,7 +1678,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         const row0Y = getRowY(0);
         // Label (centered)
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row0Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Speed`
+          `{\\an4\\pos(${contentLeft},${row0Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.speed}`
         ));
         // Large speed value centered
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
@@ -1650,7 +1694,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 1: Gear ===
         const row1Y = getRowY(1);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row1Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Gear`
+          `{\\an4\\pos(${contentLeft},${row1Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.gear}`
         ));
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
           `{\\an5\\pos(${centerX},${row1Y + rowHeight * 0.58})\\bord0\\shad0\\fs${Math.round(fontSize * 1.5)}\\1c&HFFFFFF&\\b1}${prev.gearText}`
@@ -1661,7 +1705,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 2: Steering ===
         const row2Y = getRowY(2);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row2Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Steering`
+          `{\\an4\\pos(${contentLeft},${row2Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.steering}`
         ));
         // Horizontal layout: icon on left, angle text on right
         const steerIconRadius = Math.round(iconSize * 0.45);
@@ -1691,7 +1735,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 3: Accelerator ===
         const row3Y = getRowY(3);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row3Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Accelerator`
+          `{\\an4\\pos(${contentLeft},${row3Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.accelerator}`
         ));
         // Percentage value
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
@@ -1720,9 +1764,9 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 4: Brake ===
         const row4Y = getRowY(4);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row4Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Brake`
+          `{\\an4\\pos(${contentLeft},${row4Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.brake}`
         ));
-        const brakeText = prev.brakeApplied ? 'ON' : 'OFF';
+        const brakeText = prev.brakeApplied ? brakeStates.on : brakeStates.off;
         const brakeColor = prev.brakeApplied ? '&H0000FF&' : '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
           `{\\an5\\pos(${centerX},${row4Y + rowHeight * 0.58})\\bord0\\shad0\\fs${Math.round(fontSize * 1.3)}\\1c${brakeColor}\\b1}${brakeText}`
@@ -1733,7 +1777,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 5: Blinkers ===
         const row5Y = getRowY(5);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row5Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Blinkers`
+          `{\\an4\\pos(${contentLeft},${row5Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.blinkers}`
         ));
         // Left arrow
         const arrowScale = iconSize / 100 * 0.42;
@@ -1758,7 +1802,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 6: Autopilot ===
         const row6Y = getRowY(6);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row6Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Autopilot`
+          `{\\an4\\pos(${contentLeft},${row6Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.autopilot}`
         ));
         const apColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
@@ -1770,7 +1814,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 7: GPS ===
         const row7Y = getRowY(7);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row7Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}GPS`
+          `{\\an4\\pos(${contentLeft},${row7Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.gps}`
         ));
         // Coordinates
         const gpsText = `${prev.latStr}, ${prev.lonStr}`;
@@ -1779,7 +1823,7 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         ));
         // Heading
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an5\\pos(${centerX},${row7Y + rowHeight * 0.68})\\bord0\\shad0\\fs${smallFontSize}\\1c&HA0A0A0&}Heading: ${prev.headingStr}`
+          `{\\an5\\pos(${centerX},${row7Y + rowHeight * 0.68})\\bord0\\shad0\\fs${smallFontSize}\\1c&HA0A0A0&}${labels.heading}: ${prev.headingStr}`
         ));
 
         drawSectionSep(startAssTime, endAssTime, row7Y + rowHeight);
@@ -1787,14 +1831,14 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         // === Row 8: G-Force ===
         const row8Y = getRowY(8);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an4\\pos(${contentLeft},${row8Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}G-Force`
+          `{\\an4\\pos(${contentLeft},${row8Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.gForce}`
         ));
         const accelFontSz = Math.round(smallFontSize);
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.42})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}Lateral:  ${prev.gForceXStr} G`
+          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.42})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}${labels.lateral}:  ${prev.gForceXStr} G`
         ));
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.68})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}Longitudinal:  ${prev.gForceYStr} G`
+          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.68})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}${labels.longitudinal}:  ${prev.gForceYStr} G`
         ));
       }
 
