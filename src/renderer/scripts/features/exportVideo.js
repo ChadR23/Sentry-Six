@@ -86,6 +86,7 @@ export function initExportModule(deps) {
 const EXPORT_OVERLAY_SETTINGS = {
     includeTimestamp: 'exportIncludeTimestamp',
     includeDashboard: 'exportIncludeDashboard',
+    dashboardStyle: 'exportDashboardStyle',
     dashboardPosition: 'exportDashboardPosition',
     dashboardSize: 'exportDashboardSize',
     includeMinimap: 'exportIncludeMinimap',
@@ -99,6 +100,7 @@ const EXPORT_OVERLAY_SETTINGS = {
 const EXPORT_OVERLAY_DEFAULTS = {
     includeTimestamp: true,
     includeDashboard: false,
+    dashboardStyle: 'compact',
     dashboardPosition: 'bottom-center',
     dashboardSize: 'medium',
     includeMinimap: false,
@@ -113,20 +115,20 @@ const EXPORT_OVERLAY_DEFAULTS = {
  */
 async function loadExportOverlaySettings() {
     if (!window.electronAPI?.getSetting) return;
-    
+
     // Setup save handlers first (only once)
     setupExportOverlaySaveHandlers();
-    
+
     // Load each setting and apply to the corresponding element
     for (const [elementId, settingKey] of Object.entries(EXPORT_OVERLAY_SETTINGS)) {
         const element = $(elementId);
         if (!element) continue;
-        
+
         try {
             const savedValue = await window.electronAPI.getSetting(settingKey);
             const defaultValue = EXPORT_OVERLAY_DEFAULTS[elementId];
             const value = savedValue !== undefined ? savedValue : defaultValue;
-            
+
             if (element.type === 'checkbox') {
                 element.checked = value === true;
             } else if (element.tagName === 'SELECT') {
@@ -136,7 +138,7 @@ async function loadExportOverlaySettings() {
             console.warn(`Failed to load export setting ${settingKey}:`, err);
         }
     }
-    
+
     // Update options visibility based on loaded checkbox states
     const dashboardCheckbox = $('includeDashboard');
     const dashboardOptions = $('dashboardOptions');
@@ -155,13 +157,13 @@ async function loadExportOverlaySettings() {
             }
         }
     }
-    
+
     const minimapCheckbox = $('includeMinimap');
     const minimapOptions = $('minimapOptions');
     if (minimapCheckbox && minimapOptions) {
         minimapOptions.classList.toggle('hidden', !minimapCheckbox.checked);
     }
-    
+
     // Timelapse options visibility
     const timelapseCheckbox = $('enableTimelapse');
     const timelapseOptions = $('timelapseOptions');
@@ -171,7 +173,7 @@ async function loadExportOverlaySettings() {
             updateTimelapseDurationEstimate();
         }
     }
-    
+
     // Update duration display now that all settings (including timelapse) are loaded
     updateExportRangeDisplay();
 }
@@ -185,27 +187,27 @@ let exportOverlaySaveHandlersInitialized = false;
 function setupExportOverlaySaveHandlers() {
     if (exportOverlaySaveHandlersInitialized) return;
     exportOverlaySaveHandlersInitialized = true;
-    
+
     for (const [elementId, settingKey] of Object.entries(EXPORT_OVERLAY_SETTINGS)) {
         const element = $(elementId);
         if (!element) continue;
-        
+
         element.addEventListener('change', async () => {
             if (!window.electronAPI?.setSetting) return;
-            
+
             let value;
             if (element.type === 'checkbox') {
                 value = element.checked;
             } else if (element.tagName === 'SELECT') {
                 value = element.value;
             }
-            
+
             try {
                 await window.electronAPI.setSetting(settingKey, value);
             } catch (err) {
                 console.warn(`Failed to save export setting ${settingKey}:`, err);
             }
-            
+
             // Handle options visibility for checkboxes
             if (elementId === 'includeMinimap') {
                 const minimapOptions = $('minimapOptions');
@@ -236,6 +238,88 @@ function setupExportOverlaySaveHandlers() {
     }
 }
 
+// ============================================================
+// Feature NEW Badge Management
+// Badges disappear after first interaction, persisted in settings
+// ============================================================
+const FEATURE_BADGE_KEYS = {
+    overlaysNewBadge: 'featureSeen_detailedStyle',
+    styleNewBadge: 'featureSeen_detailedStyle',
+    shareClipNewBadge: 'featureSeen_shareClip'
+};
+
+let featureBadgesInitialized = false;
+
+/**
+ * Initialize feature badges - check settings and show/hide accordingly
+ * Called each time the export modal opens
+ */
+async function initFeatureBadges() {
+    if (!window.electronAPI?.getSetting) return;
+
+    for (const [badgeId, settingKey] of Object.entries(FEATURE_BADGE_KEYS)) {
+        const badge = $(badgeId);
+        if (!badge) continue;
+
+        try {
+            const seen = await window.electronAPI.getSetting(settingKey);
+            if (seen) {
+                badge.classList.add('hidden');
+            } else {
+                badge.classList.remove('hidden');
+            }
+        } catch {
+            badge.classList.remove('hidden');
+        }
+    }
+
+    // Setup dismiss handlers (only once)
+    if (!featureBadgesInitialized) {
+        featureBadgesInitialized = true;
+
+        // Style dropdown - dismiss both style dot and overlays badge
+        const styleSelect = $('dashboardStyle');
+        if (styleSelect) {
+            styleSelect.addEventListener('change', () => {
+                dismissFeatureBadge('styleNewBadge');
+                dismissFeatureBadge('overlaysNewBadge');
+            });
+        }
+
+        // Overlays section header click - dismiss overlays badge and style dot
+        const overlaysSection = document.querySelector('[data-section="overlays"] .collapsible-header');
+        if (overlaysSection) {
+            overlaysSection.addEventListener('click', () => {
+                dismissFeatureBadge('overlaysNewBadge');
+                dismissFeatureBadge('styleNewBadge');
+            });
+        }
+
+        // Share Clip toggle - dismiss on first interaction
+        const shareToggle = $('shareClipToggle');
+        if (shareToggle) {
+            shareToggle.addEventListener('change', () => dismissFeatureBadge('shareClipNewBadge'));
+        }
+    }
+}
+
+/**
+ * Dismiss a feature badge permanently
+ */
+async function dismissFeatureBadge(badgeId) {
+    const badge = $(badgeId);
+    if (!badge || badge.classList.contains('hidden')) return;
+    badge.classList.add('hidden');
+    const settingKey = FEATURE_BADGE_KEYS[badgeId];
+    if (settingKey && window.electronAPI?.setSetting) {
+        try {
+            await window.electronAPI.setSetting(settingKey, true);
+        } catch (err) {
+            console.warn(`Failed to save badge state ${settingKey}:`, err);
+        }
+    }
+}
+
 /**
  * Update the timelapse duration estimate text based on selected speed and export range
  */
@@ -243,19 +327,19 @@ function updateTimelapseDurationEstimate() {
     const speedSelect = $('timelapseSpeed');
     const durationText = $('timelapseDurationText');
     if (!speedSelect || !durationText) return;
-    
+
     const speed = parseFloat(speedSelect.value) || 8;
-    
+
     // Try to calculate actual output duration from export range
     const nativeVideo = getNativeVideo?.();
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 0;
-    
+
     if (totalSec > 0) {
         const startPct = exportState.startMarkerPct ?? 0;
         const endPct = exportState.endMarkerPct ?? 100;
         const rangeSec = Math.abs((endPct - startPct) / 100 * totalSec);
         const outputSec = rangeSec / speed;
-        
+
         // Format duration nicely
         const formatDuration = (sec) => {
             if (sec < 60) return `${Math.round(sec)}s`;
@@ -266,10 +350,10 @@ function updateTimelapseDurationEstimate() {
             const remainMins = mins % 60;
             return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
         };
-        
+
         durationText.textContent = `${formatDuration(rangeSec)} → ${formatDuration(outputSec)} at ${speed}x speed`;
     } else {
-        durationText.textContent = speed < 1 ? `Output will be ~${1/speed}x longer than selected range` : `Output will be ~${speed}x shorter than selected range`;
+        durationText.textContent = speed < 1 ? `Output will be ~${1 / speed}x longer than selected range` : `Output will be ~${speed}x shorter than selected range`;
     }
 }
 
@@ -282,9 +366,9 @@ function updateTimelapseDurationEstimate() {
 function detectAvailableCameras(state) {
     const availableCameras = new Set();
     const collection = state?.collection?.active;
-    
+
     if (!collection?.groups) return availableCameras;
-    
+
     // Scan all groups in the collection for available cameras
     for (const group of collection.groups) {
         if (group.filesByCamera) {
@@ -293,7 +377,7 @@ function detectAvailableCameras(state) {
             }
         }
     }
-    
+
     return availableCameras;
 }
 
@@ -305,16 +389,16 @@ function detectAvailableCameras(state) {
 function updateCameraCheckboxVisibility(availableCameras) {
     const allCameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]');
     const hasPillarCameras = availableCameras.has('left_pillar') || availableCameras.has('right_pillar');
-    
+
     allCameraCheckboxes.forEach(checkbox => {
         const camera = checkbox.dataset.camera;
         const card = checkbox.closest('.option-card');
-        
+
         if (!card) return;
-        
+
         // Check if this camera is a pillar camera
         const isPillarCamera = camera === 'left_pillar' || camera === 'right_pillar';
-        
+
         if (isPillarCamera && !hasPillarCameras) {
             // Hide pillar cameras for HW3 vehicles
             card.style.display = 'none';
@@ -325,7 +409,7 @@ function updateCameraCheckboxVisibility(availableCameras) {
             checkbox.checked = availableCameras.has(camera);
         }
     });
-    
+
     // Update the grid layout - switch to 2x2 for 4 cameras (option-grid defaults to 2 cols)
     const layoutSection = document.querySelector('.collapsible-section[data-section="layout"]');
     const optionGrid = layoutSection?.querySelector('.option-grid');
@@ -345,14 +429,14 @@ function updateCameraCheckboxVisibility(availableCameras) {
 export function setExportMarker(type) {
     const state = getState?.();
     const progressBar = getProgressBar?.();
-    
+
     if (!state?.collection?.active) {
         notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
-    
+
     const currentPct = parseFloat(progressBar?.value) || 0;
-    
+
     if (type === 'start') {
         exportState.startMarkerPct = currentPct;
         if (exportState.endMarkerPct !== null && exportState.endMarkerPct <= currentPct) {
@@ -366,7 +450,7 @@ export function setExportMarker(type) {
         }
         notify(t('ui.notifications.endMarkerSet'), { type: 'success' });
     }
-    
+
     updateExportMarkers();
     updateExportButtonState();
 }
@@ -377,7 +461,7 @@ export function setExportMarker(type) {
 export function updateExportMarkers() {
     const markersContainer = $('timelineMarkers');
     if (!markersContainer) return;
-    
+
     // Get or create start marker
     let startMarker = markersContainer.querySelector('.export-marker.start');
     if (exportState.startMarkerPct !== null) {
@@ -389,7 +473,7 @@ export function updateExportMarkers() {
     } else if (startMarker) {
         startMarker.remove();
     }
-    
+
     // Get or create end marker
     let endMarker = markersContainer.querySelector('.export-marker.end');
     if (exportState.endMarkerPct !== null) {
@@ -401,7 +485,7 @@ export function updateExportMarkers() {
     } else if (endMarker) {
         endMarker.remove();
     }
-    
+
     // Get or create highlight between markers
     let highlight = markersContainer.querySelector('.export-range-highlight');
     if (exportState.startMarkerPct !== null && exportState.endMarkerPct !== null) {
@@ -429,7 +513,7 @@ function createMarkerElement(type) {
     marker.className = `export-marker ${type}`;
     const markerType = type === 'start' ? t('ui.export.start') : t('ui.export.end');
     marker.title = `${t('ui.export.exportBtn')} ${markerType} point (drag to adjust)`;
-    
+
     // Add remove button (X)
     const removeBtn = document.createElement('div');
     removeBtn.className = 'marker-remove';
@@ -441,7 +525,7 @@ function createMarkerElement(type) {
         removeMarker(type);
     });
     marker.appendChild(removeBtn);
-    
+
     makeMarkerDraggable(marker, type);
     return marker;
 }
@@ -462,7 +546,7 @@ function removeMarker(type) {
 
 function makeMarkerDraggable(marker, type) {
     let isDragging = false;
-    
+
     marker.addEventListener('mousedown', (e) => {
         // Ignore clicks on the remove button
         if (e.target.closest('.marker-remove')) return;
@@ -470,24 +554,24 @@ function makeMarkerDraggable(marker, type) {
         marker.style.cursor = 'grabbing';
         e.preventDefault();
         e.stopPropagation();
-        
+
         const onMouseMove = (moveEvent) => {
             if (!isDragging) return;
             const timelineContainer = marker.closest('.timeline-container');
             if (!timelineContainer) return;
-            
+
             const rect = timelineContainer.getBoundingClientRect();
             const pct = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
-            
+
             if (type === 'start') {
                 exportState.startMarkerPct = pct;
             } else {
                 exportState.endMarkerPct = pct;
             }
-            
+
             updateExportMarkers();
         };
-        
+
         const onMouseUp = () => {
             isDragging = false;
             marker.style.cursor = 'ew-resize';
@@ -495,7 +579,7 @@ function makeMarkerDraggable(marker, type) {
             document.removeEventListener('mouseup', onMouseUp);
             updateExportButtonState();
         };
-        
+
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     });
@@ -509,9 +593,9 @@ export function updateExportButtonState() {
     const setStartMarkerBtn = $('setStartMarkerBtn');
     const setEndMarkerBtn = $('setEndMarkerBtn');
     const exportBtn = $('exportBtn');
-    
+
     const hasCollection = !!state?.collection?.active;
-    
+
     if (setStartMarkerBtn) setStartMarkerBtn.disabled = !hasCollection;
     if (setEndMarkerBtn) setEndMarkerBtn.disabled = !hasCollection;
     if (exportBtn) exportBtn.disabled = !hasCollection;
@@ -526,32 +610,35 @@ export function openExportModal() {
         reopenExportModal();
         return;
     }
-    
+
     const state = getState?.();
     if (!state?.collection?.active) {
         notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
-    
+
     const modal = $('exportModal');
     if (!modal) return;
-    
+
     // Detect available cameras from the collection
     const availableCameras = detectAvailableCameras(state);
     updateCameraCheckboxVisibility(availableCameras);
-    
+
     // Show modal first so dimensions are accurate
     modal.classList.remove('hidden');
-    
+
     // Fetch share config (expiration hours) from server
     fetchShareConfig();
-    
+
     // Load saved export overlay settings
     loadExportOverlaySettings();
-    
+
+    // Initialize dismissible NEW badges
+    initFeatureBadges();
+
     updateExportRangeDisplay();
     checkFFmpegAvailability();
-    
+
     // Initialize Layout Lab and collapsible sections after modal is visible
     import('../ui/layoutLab.js').then(({ initLayoutLab, setAvailableCameras }) => {
         // Pass available cameras to Layout Lab
@@ -560,7 +647,7 @@ export function openExportModal() {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 initLayoutLab();
-                
+
                 // Initialize collapsible sections
                 modal.querySelectorAll('.collapsible-header').forEach(header => {
                     // Remove existing listener to avoid duplicates
@@ -574,24 +661,24 @@ export function openExportModal() {
             });
         });
     });
-    
+
     const progressEl = $('exportProgress');
     const progressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
     if (progressEl) progressEl.classList.add('hidden');
     if (progressBar) progressBar.style.width = '0%';
     if (progressText) progressText.textContent = t('ui.export.preparing');
-    
+
     // Generate default filename (used when saving via dialog)
     const date = new Date().toISOString().slice(0, 10);
     const collName = state.collection.active?.label || 'export';
     const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
     exportState.defaultFilename = `tesla_${safeName}_${date}.mp4`;
-    
+
     // Restore last-used quality from settings (silently, async)
     const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
     if (highQuality) highQuality.checked = true; // Default first
-    
+
     if (window.electronAPI?.getSetting) {
         window.electronAPI.getSetting('exportLastQuality').then(savedQuality => {
             if (savedQuality && ['mobile', 'medium', 'high', 'max'].includes(savedQuality)) {
@@ -601,25 +688,25 @@ export function openExportModal() {
                     updateExportSizeEstimate();
                 }
             }
-        }).catch(() => {});
-        
+        }).catch(() => { });
+
         // Check for saved blur zones and show restore banner
         window.electronAPI.getSetting('exportLastBlurZones').then(savedZones => {
             if (savedZones && Array.isArray(savedZones) && savedZones.length > 0 && exportState.blurZones.length === 0) {
                 showBlurZoneRestoreBanner(savedZones);
             }
-        }).catch(() => {});
+        }).catch(() => { });
     }
-    
+
     const qualityInputs = document.querySelectorAll('input[name="exportQuality"]');
     qualityInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     const cameraInputs = document.querySelectorAll('.option-card input[data-camera]');
     cameraInputs.forEach(input => { input.onchange = updateExportSizeEstimate; });
     updateExportSizeEstimate();
-    
+
     const startBtn = $('startExportBtn');
     if (startBtn) startBtn.disabled = false;
-    
+
     // Ensure close button is enabled when modal opens
     const closeBtn = $('closeExportModal');
     if (closeBtn) {
@@ -627,17 +714,17 @@ export function openExportModal() {
         closeBtn.style.cursor = 'pointer';
         closeBtn.style.opacity = '1';
     }
-    
+
     // Initialize blur zone editor modal
     initBlurZoneEditorModal();
-    
+
     // Update blur zone status display
     updateBlurZoneStatusDisplay();
-    
+
     // Hide completion panel when opening fresh
     const completePanel = $('exportCompletePanel');
     if (completePanel) completePanel.classList.add('hidden');
-    
+
     // Reset share upload UI
     const shareUploadProgress = $('shareUploadProgress');
     const shareLinkResult = $('shareLinkResult');
@@ -645,10 +732,10 @@ export function openExportModal() {
     if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
-    
+
     // Initialize share clip toggle based on export duration
     initShareClipToggle();
-    
+
     // Initialize minimap toggle and options
     const minimapCheckbox = $('includeMinimap');
     const minimapOptions = $('minimapOptions');
@@ -656,15 +743,15 @@ export function openExportModal() {
     const minimapRenderMode = $('minimapRenderMode');
     const minimapModeDesc = $('minimapModeDesc');
     const minimapModeInfo = $('minimapModeInfo');
-    
+
     if (minimapCheckbox) {
         // Enable minimap checkbox - GPS availability is checked during export
         // Note: Don't reset checked state here - it's loaded from settings in loadExportOverlaySettings()
         minimapCheckbox.disabled = false;
-        
+
         // Hide warning by default
         if (minimapNoGpsWarning) minimapNoGpsWarning.classList.add('hidden');
-        
+
         // Initialize options visibility based on current checkbox state (set by loadExportOverlaySettings)
         if (minimapOptions) {
             if (minimapCheckbox.checked) {
@@ -674,7 +761,7 @@ export function openExportModal() {
             }
         }
     }
-    
+
     // Handle minimap render mode change
     if (minimapRenderMode && minimapModeDesc && minimapModeInfo) {
         const updateMinimapModeInfo = () => {
@@ -691,7 +778,7 @@ export function openExportModal() {
                 minimapModeInfo.querySelector('.info-box-icon').textContent = '🗺️';
             }
         };
-        
+
         minimapRenderMode.onchange = updateMinimapModeInfo;
         updateMinimapModeInfo(); // Set initial state
     }
@@ -703,7 +790,7 @@ export function openExportModal() {
 export function closeExportModal() {
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
-    
+
     // Restore modal body/footer if completion panel was showing
     const completePanel = $('exportCompletePanel');
     if (completePanel && !completePanel.classList.contains('hidden')) {
@@ -713,10 +800,10 @@ export function closeExportModal() {
         if (modalBody) modalBody.classList.remove('hidden');
         if (modalFooter) modalFooter.classList.remove('hidden');
     }
-    
+
     // Clean up share progress listener
     window.electronAPI?.removeAllListeners?.('share:progress');
-    
+
     // If exporting, show floating progress instead of canceling
     if (exportState.isExporting && exportState.currentExportId) {
         exportState.modalMinimized = true;
@@ -786,7 +873,7 @@ function translateMessage(message) {
 function updateFloatingProgress(step, percentage) {
     const stepEl = $('exportFloatingStep');
     const barFill = $('exportFloatingBarFill');
-    
+
     if (stepEl) stepEl.textContent = translateMessage(step) || t('ui.export.exporting');
     if (barFill) barFill.style.width = `${percentage || 0}%`;
 }
@@ -803,35 +890,35 @@ async function captureVideoSnapshot(timeSec, videoElement) {
             reject(new Error('No video element provided'));
             return;
         }
-        
+
         const wasPlaying = !videoElement.paused;
         const originalTime = videoElement.currentTime;
-        
+
         // Seek to target time
         videoElement.currentTime = timeSec;
-        
+
         const onSeeked = () => {
             videoElement.removeEventListener('seeked', onSeeked);
-            
+
             // Create canvas and draw video frame
             const canvas = document.createElement('canvas');
             canvas.width = videoElement.videoWidth || videoElement.clientWidth;
             canvas.height = videoElement.videoHeight || videoElement.clientHeight;
-            
+
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            
+
             // Restore original state
             videoElement.currentTime = originalTime;
             if (wasPlaying) {
-                videoElement.play().catch(() => {});
+                videoElement.play().catch(() => { });
             }
-            
+
             resolve(canvas.toDataURL('image/png'));
         };
-        
+
         videoElement.addEventListener('seeked', onSeeked, { once: true });
-        
+
         // Timeout fallback
         setTimeout(() => {
             videoElement.removeEventListener('seeked', onSeeked);
@@ -849,30 +936,30 @@ async function captureVideoSnapshot(timeSec, videoElement) {
 async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editIndex = null) {
     const state = getState?.();
     const nativeVideo = getNativeVideo?.();
-    
+
     if (!state?.collection?.active) {
         notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
     }
-    
+
     // Use current viewer playback time (cumulative position across all segments)
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const segIdx = nativeVideo?.currentSegmentIdx || 0;
     const cumStart = nativeVideo?.cumulativeStarts?.[segIdx] || 0;
     const masterTime = nativeVideo?.master?.currentTime || 0;
     const currentPlaybackSec = cumStart + masterTime;
-    
+
     // Use current playback time directly (don't clamp to export range - user wants to see what's playing)
     const snapshotSec = Math.max(0, Math.min(totalSec, currentPlaybackSec));
-    
+
     try {
         notify(t('ui.notifications.capturingSnapshot'));
-        
+
         // Find the video file for the snapshot camera at the current playback position
         const groups = state.collection.active.groups || [];
         const cumStarts = nativeVideo?.cumulativeStarts || [];
         let targetSegment = 0;
-        
+
         for (let i = 0; i < cumStarts.length - 1; i++) {
             if (snapshotSec >= cumStarts[i] && snapshotSec < cumStarts[i + 1]) {
                 targetSegment = i;
@@ -882,22 +969,22 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         if (snapshotSec >= cumStarts[cumStarts.length - 1]) {
             targetSegment = groups.length - 1;
         }
-        
+
         const group = groups[targetSegment];
         const entry = group?.filesByCamera?.get(snapshotCamera);
-        
+
         if (!entry?.file) {
             notify(t('ui.notifications.couldNotFindVideoFile', { camera: snapshotCamera }), { type: 'error' });
             return;
         }
-        
+
         // Create temporary video element
         const tempVideo = document.createElement('video');
         tempVideo.muted = true;
         tempVideo.playsInline = true;
         tempVideo.style.display = 'none';
         document.body.appendChild(tempVideo);
-        
+
         // Load video file
         let videoUrl;
         if (entry.file.path) {
@@ -908,48 +995,48 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
             notify(t('ui.notifications.unsupportedFileType'), { type: 'error' });
             return;
         }
-        
+
         tempVideo.src = videoUrl;
-        
+
         await new Promise((resolve, reject) => {
             tempVideo.onloadedmetadata = resolve;
             tempVideo.onerror = reject;
             setTimeout(reject, 10000);
         });
-        
+
         // Calculate local time within segment
         const segmentStartSec = cumStarts[targetSegment] || 0;
         const localTimeSec = Math.min(snapshotSec - segmentStartSec, tempVideo.duration);
-        
+
         // Capture snapshot
         const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
-        
+
         // Clean up
         tempVideo.src = '';
         document.body.removeChild(tempVideo);
         if (videoUrl.startsWith('blob:')) {
             URL.revokeObjectURL(videoUrl);
         }
-        
+
         // Get video dimensions
         const videoWidth = tempVideo.videoWidth || 1448;
         const videoHeight = tempVideo.videoHeight || 938;
-        
+
         // Store which camera this zone is for
         exportState.blurZoneCamera = snapshotCamera;
         exportState.blurZoneEditIndex = editIndex;
-        
+
         // Load existing coordinates if editing
         const savedCoords = editIndex !== null ? exportState.blurZones[editIndex]?.coordinates : null;
-        
+
         // Mirror the snapshot for cameras that are mirrored in viewer/export (back and repeaters only)
         // Respect the global mirrorCameras setting
         const shouldMirror = window._mirrorCameras !== false && ['back', 'left_repeater', 'right_repeater'].includes(snapshotCamera);
-        
+
         // Initialize editor with snapshot
         editorModal.classList.remove('hidden');
         initBlurZoneEditor(snapshotDataUrl, videoWidth, videoHeight, savedCoords, shouldMirror);
-        
+
     } catch (err) {
         console.error('Failed to capture snapshot:', err);
         notify(t('ui.notifications.failedToCaptureSnapshot', { error: err.message }), { type: 'error' });
@@ -962,7 +1049,7 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
 function renderBlurZoneList() {
     const listEl = $('blurZoneList');
     if (!listEl) return;
-    
+
     const cameraNames = {
         front: t('ui.cameras.front'),
         back: t('ui.cameras.back'),
@@ -971,12 +1058,12 @@ function renderBlurZoneList() {
         left_pillar: t('ui.cameras.leftPillar'),
         right_pillar: t('ui.cameras.rightPillar')
     };
-    
+
     if (exportState.blurZones.length === 0) {
         listEl.innerHTML = '';
         return;
     }
-    
+
     listEl.innerHTML = exportState.blurZones.map((zone, index) => `
         <div class="blur-zone-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 6px;">
             <span style="color: var(--text-secondary);">
@@ -988,7 +1075,7 @@ function renderBlurZoneList() {
             </div>
         </div>
     `).join('');
-    
+
     // Add event listeners for edit/remove buttons
     listEl.querySelectorAll('.blur-zone-edit-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -1000,7 +1087,7 @@ function renderBlurZoneList() {
             }
         });
     });
-    
+
     listEl.querySelectorAll('.blur-zone-remove-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const index = parseInt(btn.dataset.index, 10);
@@ -1017,65 +1104,65 @@ function renderBlurZoneList() {
 function initBlurZoneEditorModal() {
     // Prevent duplicate initialization
     if (blurZoneModalInitialized) return;
-    
+
     const addBtn = $('addBlurZoneBtn');
     const editorModal = $('blurZoneEditorModal');
     const closeBtn = $('closeBlurZoneEditorModal');
     const cancelBtn = $('cancelBlurZoneBtn');
     const saveBtn = $('saveBlurZoneBtn');
-    
+
     if (!addBtn || !editorModal) return;
-    
+
     blurZoneModalInitialized = true;
-    
+
     addBtn.addEventListener('click', async () => {
         // Get camera from dropdown
         const cameraSelect = $('blurZoneCameraSelect');
         const snapshotCamera = cameraSelect?.value || 'back';
-        
+
         await openBlurZoneEditorForCamera(snapshotCamera, editorModal);
     });
-    
+
     const closeEditor = () => {
         editorModal.classList.add('hidden');
         resetBlurZoneEditor();
         exportState.blurZoneEditIndex = null;
     };
-    
+
     if (closeBtn) closeBtn.addEventListener('click', closeEditor);
     if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
-    
+
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
             try {
                 const coords = getNormalizedCoordinates();
-                
+
                 if (!coords || coords.length < 3) {
                     notify(t('ui.notifications.blurZoneMinPoints'), { type: 'warn' });
                     return;
                 }
-                
+
                 // Generate mask image
                 const maskImageDataUrl = await generateMaskImage();
                 if (!maskImageDataUrl) {
                     notify(t('ui.notifications.failedToGenerateMask'), { type: 'error' });
                     return;
                 }
-                
+
                 // Extract base64 data
                 const base64Data = maskImageDataUrl.split(',')[1];
                 if (!base64Data) {
                     notify(t('ui.notifications.failedToExtractMaskData'), { type: 'error' });
                     return;
                 }
-                
+
                 // Get canvas dimensions
                 const canvasDims = getCanvasDimensions();
                 if (!canvasDims) {
                     notify(t('ui.notifications.failedToGetCanvasDimensions'), { type: 'error' });
                     return;
                 }
-                
+
                 const newZone = {
                     coordinates: coords,
                     camera: exportState.blurZoneCamera || 'back',
@@ -1083,7 +1170,7 @@ function initBlurZoneEditorModal() {
                     maskWidth: canvasDims.width,
                     maskHeight: canvasDims.height
                 };
-                
+
                 // Update existing zone if editing, or add new zone
                 if (exportState.blurZoneEditIndex !== null) {
                     exportState.blurZones[exportState.blurZoneEditIndex] = newZone;
@@ -1091,7 +1178,7 @@ function initBlurZoneEditorModal() {
                     // Always add as new zone (allow multiple zones per camera)
                     exportState.blurZones.push(newZone);
                 }
-                
+
                 updateBlurZoneStatusDisplay();
                 notify(t('ui.notifications.blurZoneSaved'), { type: 'success' });
                 closeEditor();
@@ -1111,10 +1198,10 @@ function showBlurZoneRestoreBanner(savedZones) {
     // Remove existing banner if any
     const existingBanner = $('blurZoneRestoreBanner');
     if (existingBanner) existingBanner.remove();
-    
+
     const blurSection = $('blurZoneSection') || $('addBlurZoneBtn')?.closest('.collapsible-content');
     if (!blurSection) return;
-    
+
     const banner = document.createElement('div');
     banner.id = 'blurZoneRestoreBanner';
     banner.className = 'blur-zone-restore-banner';
@@ -1128,10 +1215,10 @@ function showBlurZoneRestoreBanner(savedZones) {
             <button class="btn btn-secondary btn-small restore-banner-dismiss">Dismiss</button>
         </div>
     `;
-    
+
     // Insert at the top of the blur section
     blurSection.insertBefore(banner, blurSection.firstChild);
-    
+
     // Restore button
     banner.querySelector('.restore-banner-restore').onclick = () => {
         exportState.blurZones = [...savedZones];
@@ -1139,7 +1226,7 @@ function showBlurZoneRestoreBanner(savedZones) {
         banner.remove();
         notify('Privacy zones restored', { type: 'success' });
     };
-    
+
     // Dismiss button
     banner.querySelector('.restore-banner-dismiss').onclick = () => {
         banner.remove();
@@ -1153,10 +1240,10 @@ function updateBlurZoneStatusDisplay() {
     const statusEl = $('blurZoneStatus');
     const statusTextEl = $('blurZoneStatusText');
     const addBtn = $('addBlurZoneBtn');
-    
+
     // Render the blur zone list
     renderBlurZoneList();
-    
+
     if (exportState.blurZones.length > 0) {
         if (statusEl) statusEl.classList.remove('hidden');
         const cameras = [...new Set(exportState.blurZones.map(z => z.camera))];
@@ -1173,7 +1260,7 @@ function updateBlurZoneStatusDisplay() {
         if (statusEl) statusEl.classList.add('hidden');
         if (addBtn) addBtn.textContent = 'Add Zone';
     }
-    
+
 }
 
 /**
@@ -1184,22 +1271,22 @@ export function updateExportRangeDisplay() {
     const startTimeEl = $('exportStartTime');
     const endTimeEl = $('exportEndTime');
     const durationEl = $('exportDuration');
-    
+
     const state = getState?.();
     if (!state?.collection?.active) return;
-    
+
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
-    
+
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
-    
+
     const startSec = (startPct / 100) * totalSec;
     const endSec = (endPct / 100) * totalSec;
     const durationSec = Math.abs(endSec - startSec);
-    
+
     if (startTimeEl) startTimeEl.textContent = formatTimeHMS(Math.min(startSec, endSec));
     if (endTimeEl) endTimeEl.textContent = formatTimeHMS(Math.max(startSec, endSec));
-    
+
     // Show effective duration when timelapse is enabled
     const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
     const timelapseSpeed = timelapseEnabled ? (parseFloat($('timelapseSpeed')?.value) || 8) : 1;
@@ -1215,7 +1302,7 @@ export function updateExportRangeDisplay() {
         if (durationLabel) durationLabel.textContent = t('ui.export.duration');
         if (durationItem) durationItem.classList.remove('timelapse-active');
     }
-    
+
     // Update share toggle availability based on new duration
     initShareClipToggle();
 }
@@ -1229,26 +1316,26 @@ export function updateExportSizeEstimate() {
     const estimateEl = $('exportSizeEstimate');
     const warningEl = $('frontCamWarning');
     if (!estimateEl || !state?.collection?.active) return;
-    
+
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
     const durationMin = Math.abs((endPct - startPct) / 100 * totalSec) / 60;
-    
+
     const selectedCameras = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameraCount = selectedCameras.length || 6;
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
-    
+
     if (warningEl) warningEl.classList.toggle('hidden', !hasFrontAndOthers);
-    
+
     let cols, rows;
     if (cameraCount <= 1) { cols = 1; rows = 1; }
     else if (cameraCount === 2) { cols = 2; rows = 1; }
     else if (cameraCount === 3) { cols = 3; rows = 1; }
     else if (cameraCount === 4) { cols = 2; rows = 2; }
     else { cols = 3; rows = 2; }
-    
+
     const quality = document.querySelector('input[name="exportQuality"]:checked')?.value || 'high';
     let perCam;
     if (isFrontOnly) {
@@ -1256,10 +1343,10 @@ export function updateExportSizeEstimate() {
     } else {
         perCam = { mobile: [484, 314], medium: [724, 469], high: [1086, 704], max: [1448, 938] }[quality] || [1086, 704];
     }
-    
+
     const gridW = perCam[0] * cols;
     const gridH = perCam[1] * rows;
-    
+
     // Show warning for Maximum quality (exceeds GPU encoder limits)
     const maxQualityWarningEl = $('maxQualityWarning');
     if (maxQualityWarningEl) {
@@ -1270,7 +1357,7 @@ export function updateExportSizeEstimate() {
     const mbPerMin = pixels * 0.000018;
     const estimatedMB = Math.round(durationMin * mbPerMin);
     const estimatedGB = (estimatedMB / 1024).toFixed(1);
-    
+
     let sizeText = estimatedMB > 1024 ? `~${estimatedGB} GB` : `~${estimatedMB} MB`;
     estimateEl.textContent = `${t('ui.export.output')}: ${gridW}×${gridH} • ${sizeText}`;
 }
@@ -1288,7 +1375,7 @@ export async function checkFFmpegAvailability() {
     const timestampCheckbox = $('includeTimestamp');
     const timestampOptions = $('timestampOptions');
     const timestampToggleRow = timestampCheckbox?.closest('.toggle-row');
-    
+
     // Set up dashboard checkbox toggle for options visibility
     if (dashboardCheckbox && dashboardOptions) {
         dashboardCheckbox.addEventListener('change', () => {
@@ -1311,7 +1398,7 @@ export async function checkFFmpegAvailability() {
             }
         });
     }
-    
+
     // Set up timestamp checkbox toggle for options visibility
     if (timestampCheckbox && timestampOptions) {
         timestampCheckbox.addEventListener('change', () => {
@@ -1322,11 +1409,11 @@ export async function checkFFmpegAvailability() {
             }
         });
     }
-    
+
     if (!statusEl) return;
-    
+
     statusEl.innerHTML = `<span class="status-icon">⏳</span><span class="status-text">${t('ui.export.checkingFfmpeg')}</span>`;
-    
+
     try {
         if (window.electronAPI?.checkFFmpeg) {
             const result = await window.electronAPI.checkFFmpeg();
@@ -1335,7 +1422,7 @@ export async function checkFFmpegAvailability() {
             exportState.gpuName = result.gpu?.name || null;
             exportState.hevcAvailable = !!result.hevc;
             exportState.hevcName = result.hevc?.name || null;
-            
+
             if (result.available) {
                 // Build status text with GPU info
                 let statusText = t('ui.export.ffmpegReady');
@@ -1350,17 +1437,17 @@ export async function checkFFmpegAvailability() {
                 if (result.fakeNoGpu) {
                     statusText += ' [DEV: Fake No GPU]';
                 }
-                
+
                 statusEl.innerHTML = `<span class="status-icon" style="color: #4caf50;">✓</span><span class="status-text">${statusText}</span>`;
                 if (startBtn) startBtn.disabled = false;
-                
+
                 // Dashboard overlay requires GPU - show warning if no GPU
                 if (!result.gpu && dashboardGpuWarning) {
                     dashboardGpuWarning.classList.remove('hidden');
                 } else if (dashboardGpuWarning) {
                     dashboardGpuWarning.classList.add('hidden');
                 }
-                
+
             } else {
                 const isMac = navigator.platform.toLowerCase().includes('mac');
                 if (isMac) {
@@ -1397,29 +1484,29 @@ export async function startExport() {
         notify(t('ui.notifications.exportAlreadyInProgress') || 'Export already in progress', { type: 'warn' });
         return;
     }
-    
+
     const state = getState?.();
     const nativeVideo = getNativeVideo?.();
     const baseFolderPath = getBaseFolderPath?.();
-    
+
     if (!state?.collection?.active || !window.electronAPI?.startExport) {
         notify(t('ui.notifications.exportNotAvailable'), { type: 'error' });
         return;
     }
-    
+
     if (!baseFolderPath) {
         notify(t('ui.notifications.exportRequiresFolder'), { type: 'warn' });
         return;
     }
-    
+
     const cameraCheckboxes = document.querySelectorAll('.option-card input[data-camera]:checked');
     const cameras = Array.from(cameraCheckboxes).map(cb => cb.dataset.camera);
-    
+
     if (cameras.length === 0) {
         notify(t('ui.notifications.selectAtLeastOneCamera'), { type: 'warn' });
         return;
     }
-    
+
     // Get layout data from Layout Lab
     let layoutData = null;
     try {
@@ -1428,13 +1515,13 @@ export async function startExport() {
     } catch (err) {
         console.error('Failed to get layout data:', err);
     }
-    
+
     // Use the default filename generated when modal opened
     let filename = exportState.defaultFilename || `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`;
-    
+
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
-    
+
     // Persist blur zones and quality for next export session
     try {
         if (window.electronAPI?.setSetting) {
@@ -1444,12 +1531,12 @@ export async function startExport() {
             await window.electronAPI.setSetting('exportLastQuality', quality);
         }
     } catch (e) { /* ignore save errors */ }
-    
+
     const hasBlurZones = exportState.blurZones.length > 0;
     const blurType = 'trueBlur';
     const includeDashboardCheckbox = $('includeDashboard');
     let includeDashboard = includeDashboardCheckbox?.checked ?? false;
-    
+
     // Check for blur zones on unselected cameras and warn user
     if (hasBlurZones) {
         const blurCameras = [...new Set(exportState.blurZones.map(z => z.camera))];
@@ -1460,11 +1547,11 @@ export async function startExport() {
             notify(t('ui.export.blurZonesWarning', { cameras: names }), { type: 'warn' });
         }
     }
-    
+
     const dashboardStyle = $('dashboardStyle')?.value || 'standard';
     const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
     const dashboardSize = $('dashboardSize')?.value || 'medium';
-    
+
     // Minimap settings
     const includeMinimapCheckbox = $('includeMinimap');
     const includeMinimap = includeMinimapCheckbox?.checked ?? false;
@@ -1472,84 +1559,84 @@ export async function startExport() {
     const minimapSize = $('minimapSize')?.value || 'small';
     const minimapRenderMode = $('minimapRenderMode')?.value || 'ass'; // 'ass' or 'leaflet'
     const minimapDarkMode = window._mapDarkMode === true;
-    
+
     console.log(`[MINIMAP] UI state: checkbox=${includeMinimapCheckbox?.checked}, includeMinimap=${includeMinimap}`);
     console.log(`[MINIMAP] Position=${minimapPosition}, Size=${minimapSize}, RenderMode=${minimapRenderMode}`);
-    
+
     const includeTimestampCheckbox = $('includeTimestamp');
     const includeTimestamp = includeTimestampCheckbox?.checked ?? false;
     const timestampPosition = $('timestampPosition')?.value || 'bottom-center';
     const timestampDateFormat = window._dateFormat || 'ymd'; // Use global date format setting
     const timestampTimeFormat = window._timeFormat || '12h'; // Use global time format setting (12h/24h)
-    
+
     // Timelapse settings
     const enableTimelapseCheckbox = $('enableTimelapse');
     const enableTimelapse = enableTimelapseCheckbox?.checked ?? false;
     const timelapseSpeed = parseFloat($('timelapseSpeed')?.value) || 8;
-    
+
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
-    
+
     const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
-    
+
     // Open file dialog FIRST for instant response, before any heavy processing
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
         defaultPath: filename
     });
-    
+
     if (!outputPath) {
         notify(t('ui.notifications.exportCancelled'), { type: 'info' });
         return;
     }
-    
+
     // Lock export state and disable button BEFORE SEI extraction to prevent duplicate exports
     // This is critical for NAS/network files where SEI extraction can take minutes
     const startBtn = $('startExportBtn');
     const progressEl = $('exportProgress');
     const exportProgressBar = $('exportProgressBar');
     const progressText = $('exportProgressText');
-    
+
     exportState.isExporting = true;
     if (startBtn) startBtn.disabled = true;
-    
+
     // Only extract SEI data if dashboard or minimap is enabled - skip entirely if both disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
     // This happens AFTER file dialog so user gets instant feedback
     let seiData = null;
     let mapPath = []; // GPS path for minimap
-    
+
     if (includeDashboard || includeMinimap) {
         try {
             // Show persistent progress bar during SEI extraction (not just a toast)
             if (progressEl) progressEl.classList.remove('hidden');
             if (exportProgressBar) exportProgressBar.style.width = '0%';
             if (progressText) progressText.textContent = t('ui.notifications.extractingTelemetry') || 'Extracting telemetry data...';
-            
+
             const cumStarts = nativeVideo?.cumulativeStarts || [];
             const groups = state.collection.active.groups || [];
             const allSeiData = [];
             const allMapPath = []; // Collect GPS coordinates
-            
+
             if (!window.DashcamMP4 || !window.DashcamHelpers) {
                 throw new Error('Dashcam parser not available');
             }
-            
+
             const DashcamMP4 = window.DashcamMP4;
             const { SeiMetadata } = await window.DashcamHelpers.initProtobuf();
-            
+
             // Helper to check for valid GPS coordinates
             // SEI uses latitude_deg/longitude_deg field names
             const hasValidGps = (sei) => {
                 const lat = sei?.latitude_deg;
                 const lon = sei?.longitude_deg;
-                return lat !== undefined && lon !== undefined && 
-                       Number.isFinite(lat) && Number.isFinite(lon) &&
-                       !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
+                return lat !== undefined && lon !== undefined &&
+                    Number.isFinite(lat) && Number.isFinite(lon) &&
+                    !(Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001);
             };
-            
+
             // Count segments in range so we can show accurate progress
             const segmentsInRange = [];
             for (let i = 0; i < groups.length; i++) {
@@ -1561,7 +1648,7 @@ export async function startExport() {
                 }
             }
             const totalSegsToProcess = segmentsInRange.length;
-            
+
             // Extract SEI data one segment at a time to minimize RAM usage
             for (let i = 0; i < groups.length; i++) {
                 // Check for cancellation before processing each segment
@@ -1571,30 +1658,30 @@ export async function startExport() {
                     mapPath = [];
                     break;
                 }
-                
+
                 const group = groups[i];
                 const segStartMs = (cumStarts[i] || 0) * 1000;
                 const segDurationMs = (nativeVideo?.segmentDurations?.[i] || 60) * 1000;
                 const segEndMs = segStartMs + segDurationMs;
-                
+
                 if (segEndMs > startTimeMs && segStartMs < endTimeMs) {
                     // Update progress bar for SEI extraction
                     const segIdx = segmentsInRange.indexOf(i);
                     const seiPct = totalSegsToProcess > 0 ? Math.round(((segIdx + 1) / totalSegsToProcess) * 100) : 0;
                     if (exportProgressBar) exportProgressBar.style.width = `${seiPct}%`;
                     if (progressText) progressText.textContent = `${t('ui.notifications.extractingTelemetry') || 'Extracting telemetry data...'} (${segIdx + 1}/${totalSegsToProcess})`;
-                    
+
                     // Prefer front camera for SEI extraction, fallback to any available camera
                     let entry = group.filesByCamera?.get('front');
                     if (!entry) {
                         const firstCamera = group.filesByCamera?.keys().next().value;
                         entry = firstCamera ? group.filesByCamera?.get(firstCamera) : null;
                     }
-                    
+
                     if (entry?.file) {
                         try {
                             let buffer = null;
-                            
+
                             // Load file into buffer (one at a time)
                             if (entry.file?.isElectronFile && entry.file?.path) {
                                 const fileUrl = filePathToUrl(entry.file.path);
@@ -1607,12 +1694,12 @@ export async function startExport() {
                                 const response = await fetch(fileUrl);
                                 buffer = await response.arrayBuffer();
                             }
-                            
+
                             if (buffer) {
                                 // Extract SEI data from this segment
                                 const mp4 = new DashcamMP4(buffer);
                                 const frames = mp4.parseFrames(SeiMetadata);
-                                
+
                                 // Convert segment-relative timestamps to absolute time
                                 for (const frame of frames) {
                                     if (frame.sei) {
@@ -1620,14 +1707,14 @@ export async function startExport() {
                                             timestampMs: segStartMs + frame.timestamp,
                                             sei: frame.sei
                                         });
-                                        
+
                                         // Extract GPS coordinates for minimap path
                                         if (includeMinimap && hasValidGps(frame.sei)) {
                                             allMapPath.push([frame.sei.latitude_deg, frame.sei.longitude_deg]);
                                         }
                                     }
                                 }
-                                
+
                                 // Explicitly clear buffer reference to help GC
                                 buffer = null;
                             }
@@ -1638,12 +1725,12 @@ export async function startExport() {
                     }
                 }
             }
-            
+
             // Sort by timestamp for efficient lookup during rendering
             allSeiData.sort((a, b) => a.timestampMs - b.timestampMs);
-            
+
             console.log(`[MINIMAP] SEI extraction complete: ${allSeiData.length} SEI frames, ${allMapPath.length} GPS points`);
-            
+
             if (allSeiData.length > 0) {
                 seiData = allSeiData;
                 mapPath = allMapPath;
@@ -1668,21 +1755,21 @@ export async function startExport() {
             seiData = null;
             mapPath = [];
         }
-        
+
         // Reset progress bar after SEI extraction before FFmpeg phase
         if (exportProgressBar) exportProgressBar.style.width = '0%';
         if (progressText) progressText.textContent = t('ui.export.preparing') || 'Preparing...';
     }
     // If dashboard and minimap are both disabled, seiData remains null and no files are loaded into memory
-    
+
     const segments = [];
     const groups2 = state.collection.active.groups || [];
     const cumStarts2 = nativeVideo?.cumulativeStarts || [];
-    
+
     for (let i = 0; i < groups2.length; i++) {
         const group = groups2[i];
         const durationSec = nativeVideo?.segmentDurations?.[i] || 60;
-        
+
         const files = {};
         for (const camera of cameras) {
             const entry = group.filesByCamera?.get(camera);
@@ -1697,10 +1784,10 @@ export async function startExport() {
                 }
             }
         }
-        
+
         // Parse timestamp from group's timestampKey for ASS dashboard overlay
         const timestamp = parseTimestampKeyToEpochMs(group.timestampKey) || null;
-        
+
         segments.push({
             index: i,
             durationSec,
@@ -1710,7 +1797,7 @@ export async function startExport() {
             timestamp // Epoch ms for this segment's start time (UTC)
         });
     }
-    
+
     const hasFiles = segments.some(seg => Object.keys(seg.files).length > 0);
     if (!hasFiles) {
         notify(t('ui.notifications.noVideoFilesForExport'), { type: 'error' });
@@ -1719,18 +1806,18 @@ export async function startExport() {
         if (progressEl) progressEl.classList.add('hidden');
         return;
     }
-    
+
     if (progressEl) progressEl.classList.remove('hidden');
     if (exportProgressBar) exportProgressBar.style.width = '0%';
     if (progressText) progressText.textContent = t('ui.export.preparing');
-    
+
     // Show hint during export
     const minimizeHint = $('exportMinimizeHint');
     if (minimizeHint) minimizeHint.classList.remove('hidden');
-    
+
     const exportId = `export_${Date.now()}`;
     exportState.currentExportId = exportId;
-    
+
     // Get dashboard and minimap progress elements
     const dashboardProgressEl = $('dashboardProgress');
     const dashboardProgressBar = $('dashboardProgressBar');
@@ -1738,26 +1825,26 @@ export async function startExport() {
     const minimapProgressEl = $('minimapProgress');
     const minimapProgressBar = $('minimapProgressBar');
     const minimapProgressText = $('minimapProgressText');
-    
+
     // Hide dashboard and minimap progress bars initially
     if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
     if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
-    
+
     if (window.electronAPI?.on) {
         // Remove any stale listeners from previous exports to prevent ghost handlers
         window.electronAPI.removeAllListeners?.('export:progress');
         window.electronAPI.on('export:progress', (receivedExportId, progress) => {
             if (receivedExportId !== exportId) return;
-            
+
             if (progress.type === 'progress') {
                 const translatedMessage = translateMessage(progress.message);
                 if (exportProgressBar) exportProgressBar.style.width = `${progress.percentage}%`;
                 if (progressText) progressText.textContent = translatedMessage;
-                
+
                 // Track progress for floating notification
                 exportState.currentStep = translatedMessage;
                 exportState.currentProgress = progress.percentage;
-                
+
                 // Update floating notification if modal is minimized
                 if (exportState.modalMinimized) {
                     updateFloatingProgress(translatedMessage, progress.percentage);
@@ -1769,7 +1856,7 @@ export async function startExport() {
                 if (dashboardProgressEl) dashboardProgressEl.classList.remove('hidden');
                 if (dashboardProgressBar) dashboardProgressBar.style.width = `${progress.percentage}%`;
                 if (dashboardProgressText) dashboardProgressText.textContent = progress.message;
-                
+
                 if (exportState.modalMinimized) {
                     updateFloatingProgress(progress.message, progress.percentage);
                 }
@@ -1780,7 +1867,7 @@ export async function startExport() {
                 if (minimapProgressEl) minimapProgressEl.classList.remove('hidden');
                 if (minimapProgressBar) minimapProgressBar.style.width = `${progress.percentage}%`;
                 if (minimapProgressText) minimapProgressText.textContent = progress.message;
-                
+
                 if (exportState.modalMinimized) {
                     updateFloatingProgress(progress.message, progress.percentage);
                 }
@@ -1791,36 +1878,36 @@ export async function startExport() {
                 exportState.modalMinimized = false;
                 exportState.currentStep = '';
                 exportState.currentProgress = 0;
-                
+
                 // Hide floating notification on complete
                 hideFloatingProgress();
-                
+
                 // Hide hint and overlay progress bars
                 const minHint = $('exportMinimizeHint');
                 if (minHint) minHint.classList.add('hidden');
                 if (dashboardProgressEl) dashboardProgressEl.classList.add('hidden');
                 if (minimapProgressEl) minimapProgressEl.classList.add('hidden');
-                
+
                 const translatedMessage = translateMessage(progress.message);
-                
+
                 if (progress.success) {
                     if (exportProgressBar) exportProgressBar.style.width = '100%';
                     if (progressText) progressText.textContent = translatedMessage;
                     notify(translatedMessage, { type: 'success' });
-                    
+
                     // Show modal if it was minimized so user sees completion
                     const modal = $('exportModal');
                     if (modal?.classList.contains('hidden')) {
                         modal.classList.remove('hidden');
                     }
-                    
+
                     // Show completion panel instead of confirm dialog
                     showExportCompletePanel(outputPath, translatedMessage);
                 } else {
                     if (progressText) progressText.textContent = translatedMessage;
                     notify(translatedMessage, { type: 'error' });
                     if (startBtn) startBtn.disabled = false;
-                    
+
                     // Show modal on error so user sees what happened
                     const modal = $('exportModal');
                     if (modal?.classList.contains('hidden')) {
@@ -1830,7 +1917,7 @@ export async function startExport() {
             }
         });
     }
-    
+
     // Check for cancellation after SEI extraction but before starting export
     if (exportState.cancelled) {
         console.log('Export cancelled before starting FFmpeg');
@@ -1839,7 +1926,7 @@ export async function startExport() {
         if (startBtn) startBtn.disabled = false;
         return;
     }
-    
+
     try {
         const exportData = {
             segments,
@@ -1882,9 +1969,9 @@ export async function startExport() {
             enableTimelapse,
             timelapseSpeed // Speed multiplier (0.5, 2, 4, 8, 16, 32, 64)
         };
-        
+
         console.log(`[MINIMAP] Export data: includeMinimap=${exportData.includeMinimap}, mapPath.length=${mapPath.length}, position=${minimapPosition}, size=${minimapSize}, renderMode=${minimapRenderMode}`);
-        
+
         await window.electronAPI.startExport(exportId, exportData);
     } catch (err) {
         console.error('Export error:', err);
@@ -1902,32 +1989,32 @@ export async function startExport() {
 export async function cancelExport() {
     // Set cancellation flag immediately so SEI extraction loop can check it
     exportState.cancelled = true;
-    
+
     if (exportState.currentExportId && window.electronAPI?.cancelExport) {
         await window.electronAPI.cancelExport(exportState.currentExportId);
         notify(t('ui.notifications.exportCancelled'), { type: 'info' });
     }
-    
+
     exportState.isExporting = false;
     exportState.currentExportId = null;
     exportState.cancelled = false;
     exportState.modalMinimized = false;
     exportState.currentStep = '';
     exportState.currentProgress = 0;
-    
+
     // Hide floating progress if visible
     hideFloatingProgress();
-    
+
     // Hide hint
     const minimizeHint = $('exportMinimizeHint');
     if (minimizeHint) minimizeHint.classList.add('hidden');
-    
+
     const progressEl = $('exportProgress');
     const startBtn = $('startExportBtn');
-    
+
     if (progressEl) progressEl.classList.add('hidden');
     if (startBtn) startBtn.disabled = false;
-    
+
     // Restore modal body/footer if completion panel was showing
     const completePanel = $('exportCompletePanel');
     if (completePanel && !completePanel.classList.contains('hidden')) {
@@ -1938,10 +2025,10 @@ export async function cancelExport() {
         if (modalBody) modalBody.classList.remove('hidden');
         if (modalFooter) modalFooter.classList.remove('hidden');
     }
-    
+
     // Clean up share progress listener
     window.electronAPI?.removeAllListeners?.('share:progress');
-    
+
     // Close modal completely when cancelled
     const modal = $('exportModal');
     if (modal) modal.classList.add('hidden');
@@ -1955,21 +2042,21 @@ function initShareClipToggle() {
     const shareToggleRow = $('shareClipToggleRow');
     const shareWarning = $('shareClipWarning');
     const shareInfo = $('shareClipInfo');
-    
+
     if (!shareToggle) return;
-    
+
     const nativeVideo = getNativeVideo?.();
     const totalSec = nativeVideo?.cumulativeStarts?.[nativeVideo.cumulativeStarts.length - 1] || 60;
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
     const rawDurationSec = Math.abs((endPct - startPct) / 100 * totalSec);
     const maxDurationSec = 5 * 60; // 5 minutes
-    
+
     // If timelapse is enabled, use effective output duration (raw / speed)
     const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
     const timelapseSpeed = timelapseEnabled ? (parseFloat($('timelapseSpeed')?.value) || 8) : 1;
     const effectiveDurationSec = rawDurationSec / timelapseSpeed;
-    
+
     if (effectiveDurationSec > maxDurationSec) {
         // Export too long for sharing
         shareToggle.checked = false;
@@ -1983,10 +2070,10 @@ function initShareClipToggle() {
         if (shareWarning) shareWarning.classList.add('hidden');
         if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
     }
-    
+
     // Apply max quality restriction based on current toggle state
     updateMaxQualityForSharing(shareToggle.checked);
-    
+
     // Update toggle state when duration changes
     shareToggle.onchange = () => {
         if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
@@ -2001,9 +2088,9 @@ function initShareClipToggle() {
 function updateMaxQualityForSharing(sharingEnabled) {
     const maxRadio = document.querySelector('input[name="exportQuality"][value="max"]');
     if (!maxRadio) return;
-    
+
     const maxCard = maxRadio.closest('.option-card');
-    
+
     if (sharingEnabled) {
         // If max is currently selected, switch to high
         if (maxRadio.checked) {
@@ -2018,7 +2105,7 @@ function updateMaxQualityForSharing(sharingEnabled) {
         maxRadio.disabled = false;
         if (maxCard) maxCard.classList.remove('disabled');
     }
-    
+
     // Refresh size estimate to reflect any quality change
     updateExportSizeEstimate();
 }
@@ -2038,36 +2125,36 @@ function showExportCompletePanel(outputPath, message) {
     const shareUploadProgress = $('shareUploadProgress');
     const shareLinkResult = $('shareLinkResult');
     const shareError = $('shareError');
-    
+
     if (!completePanel) return;
-    
+
     // Get file size for display
     const fileSizeText = message || 'Export completed successfully';
-    
+
     // Set completion text
     if (completeTitleEl) completeTitleEl.textContent = 'Export Complete!';
     if (completeMessageEl) completeMessageEl.textContent = fileSizeText;
-    
+
     // Reset share UI
     if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
-    
+
     // Hide modal body and footer, show completion panel
     if (modalBody) modalBody.classList.add('hidden');
     if (modalFooter) modalFooter.classList.add('hidden');
     completePanel.classList.remove('hidden');
-    
+
     // Check if share was pre-selected
     const shareToggle = $('shareClipToggle');
     const wasShareSelected = shareToggle?.checked && !shareToggle?.disabled;
-    
+
     // If share was pre-selected, hide the share button (it auto-starts) 
     // If not pre-selected, show it as an option
     if (shareBtn) {
         shareBtn.classList.toggle('hidden', wasShareSelected);
     }
-    
+
     // Wire up button handlers
     if (doneBtn) {
         doneBtn.onclick = () => {
@@ -2077,13 +2164,13 @@ function showExportCompletePanel(outputPath, message) {
             closeExportModal();
         };
     }
-    
+
     if (openFolderBtn) {
         openFolderBtn.onclick = () => {
             window.electronAPI?.showItemInFolder(outputPath);
         };
     }
-    
+
     if (shareBtn) {
         shareBtn.onclick = () => {
             shareBtn.disabled = true;
@@ -2091,7 +2178,7 @@ function showExportCompletePanel(outputPath, message) {
             uploadShareClip(outputPath);
         };
     }
-    
+
     // Copy link button
     const copyBtn = $('shareLinkCopyBtn');
     if (copyBtn) {
@@ -2106,7 +2193,7 @@ function showExportCompletePanel(outputPath, message) {
             }
         };
     }
-    
+
     // Auto-start upload if share was pre-selected
     if (wasShareSelected) {
         uploadShareClip(outputPath);
@@ -2125,7 +2212,7 @@ async function uploadShareClip(filePath) {
     const shareError = $('shareError');
     const shareErrorText = $('shareErrorText');
     const shareBtn = $('exportShareBtn');
-    
+
     // Disable Done button during upload
     const doneBtn = $('exportDoneBtn');
     if (doneBtn) {
@@ -2133,14 +2220,14 @@ async function uploadShareClip(filePath) {
         doneBtn.style.opacity = '0.4';
         doneBtn.style.cursor = 'not-allowed';
     }
-    
+
     // Show upload progress
     if (shareUploadProgress) shareUploadProgress.classList.remove('hidden');
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
     if (shareUploadProgressBar) shareUploadProgressBar.style.width = '0%';
     if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Studio...';
-    
+
     // Listen for progress updates
     const progressHandler = (progress) => {
         if (progress.type === 'progress') {
@@ -2155,16 +2242,16 @@ async function uploadShareClip(filePath) {
             if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
             if (shareLinkResult) shareLinkResult.classList.remove('hidden');
             if (shareLinkInput) shareLinkInput.value = progress.url;
-            
+
             // Re-enable Done button
             if (doneBtn) {
                 doneBtn.disabled = false;
                 doneBtn.style.opacity = '';
                 doneBtn.style.cursor = '';
             }
-            
+
             notify('Clip shared successfully!', { type: 'success' });
-            
+
             // Remove listener
             window.electronAPI?.off('share:progress', progressHandler);
         } else if (progress.type === 'error') {
@@ -2172,29 +2259,29 @@ async function uploadShareClip(filePath) {
             if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
             if (shareError) shareError.classList.remove('hidden');
             if (shareErrorText) shareErrorText.textContent = `Upload failed: ${progress.error}`;
-            
+
             // Re-enable Done button
             if (doneBtn) {
                 doneBtn.disabled = false;
                 doneBtn.style.opacity = '';
                 doneBtn.style.cursor = '';
             }
-            
+
             // Re-show share button for retry
             if (shareBtn) {
                 shareBtn.classList.remove('hidden');
                 shareBtn.disabled = false;
             }
-            
+
             // Remove listener
             window.electronAPI?.off('share:progress', progressHandler);
         }
     };
-    
+
     if (window.electronAPI?.on) {
         window.electronAPI.on('share:progress', progressHandler);
     }
-    
+
     try {
         await window.electronAPI.uploadShareClip(filePath);
     } catch (err) {
@@ -2227,13 +2314,13 @@ export async function renderSharedClipsList() {
     const emptyEl = document.getElementById('sharedClipsEmpty');
     const detailEl = document.getElementById('sharedClipDetail');
     const layoutEl = document.querySelector('.shared-clips-layout');
-    
+
     if (!listEl) return;
-    
+
     // Reset detail panel
     if (detailEl) detailEl.classList.add('hidden');
     _selectedClipData = null;
-    
+
     let clips = [];
     try {
         // Sync with server to remove clips deleted by admin or expired
@@ -2245,19 +2332,19 @@ export async function renderSharedClipsList() {
             clips = await window.electronAPI?.getSharedClips() || [];
         } catch { /* ignore */ }
     }
-    
+
     if (clips.length === 0) {
         if (emptyEl) emptyEl.classList.remove('hidden');
         if (layoutEl) layoutEl.style.display = 'none';
         listEl.innerHTML = '';
         return;
     }
-    
+
     if (emptyEl) emptyEl.classList.add('hidden');
     if (layoutEl) layoutEl.style.display = '';
-    
+
     const now = Date.now();
-    
+
     listEl.innerHTML = clips.map(clip => {
         const expiresAt = new Date(clip.expiresAt).getTime();
         const isExpired = expiresAt <= now;
@@ -2267,7 +2354,7 @@ export async function renderSharedClipsList() {
         const statusClass = isExpired ? 'expired' : 'active';
         const statusText = isExpired ? 'Expired' : `${remainingHours}h left`;
         const displayName = clip.fileName || clip.code;
-        
+
         return `
         <div class="shared-clip-item ${statusClass}" data-code="${clip.code}">
             <div class="shared-clip-info">
@@ -2279,18 +2366,18 @@ export async function renderSharedClipsList() {
             </div>
         </div>`;
     }).join('');
-    
+
     // Wire up click-to-select on each clip row
     listEl.querySelectorAll('.shared-clip-item').forEach(item => {
         item.onclick = () => {
             const code = item.dataset.code;
             const clip = clips.find(c => c.code === code);
             if (!clip) return;
-            
+
             // Toggle selection
             const wasSelected = item.classList.contains('selected');
             listEl.querySelectorAll('.shared-clip-item').forEach(el => el.classList.remove('selected'));
-            
+
             const hintEl = document.getElementById('sharedClipsHint');
             if (wasSelected) {
                 // Deselect
@@ -2300,16 +2387,16 @@ export async function renderSharedClipsList() {
                 return;
             }
             if (hintEl) hintEl.classList.add('hidden');
-            
+
             item.classList.add('selected');
             _selectedClipData = clip;
-            
+
             // Populate detail panel
             const expiresAt = new Date(clip.expiresAt).getTime();
             const isExpired = expiresAt <= now;
             const remainingHours = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60)));
             const sizeMB = clip.fileSize ? (clip.fileSize / 1048576).toFixed(1) : '?';
-            
+
             const nameEl = document.getElementById('sharedClipDetailName');
             const sizeEl = document.getElementById('sharedClipDetailSize');
             const statusEl = document.getElementById('sharedClipDetailStatus');
@@ -2317,14 +2404,14 @@ export async function renderSharedClipsList() {
             const copyBtn = document.getElementById('sharedClipCopyBtn');
             const openBtn = document.getElementById('sharedClipOpenBtn');
             const deleteBtn = document.getElementById('sharedClipDeleteBtn');
-            
+
             if (nameEl) nameEl.textContent = clip.fileName || clip.code;
             if (sizeEl) sizeEl.textContent = `${sizeMB} MB`;
             if (statusEl) {
                 statusEl.textContent = isExpired ? 'Expired' : `${remainingHours}h left`;
                 statusEl.className = `shared-clip-status ${isExpired ? 'expired' : 'active'}`;
             }
-            
+
             // Load video preview (first frame) from server
             if (previewVideo && clip.url && !isExpired) {
                 const videoUrl = clip.url.replace(/\/([^/]+)$/, '/video/$1');
@@ -2333,19 +2420,19 @@ export async function renderSharedClipsList() {
             } else if (previewVideo) {
                 previewVideo.removeAttribute('src');
             }
-            
+
             // Show/hide buttons based on expired state
             if (copyBtn) copyBtn.style.display = isExpired ? 'none' : '';
             if (openBtn) openBtn.style.display = isExpired ? 'none' : '';
             if (deleteBtn) {
                 deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="ui.sharedClips.delete">${t('ui.sharedClips.delete')}</span>`;
             }
-            
+
             if (detailEl) detailEl.classList.remove('hidden');
             if (hintEl) hintEl.classList.add('hidden');
         };
     });
-    
+
     // Wire up detail panel action buttons
     _wireDetailButtons(listEl, emptyEl, layoutEl);
 }
@@ -2357,7 +2444,7 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
     const copyBtn = document.getElementById('sharedClipCopyBtn');
     const openBtn = document.getElementById('sharedClipOpenBtn');
     const deleteBtn = document.getElementById('sharedClipDeleteBtn');
-    
+
     if (copyBtn) {
         copyBtn.onclick = () => {
             if (!_selectedClipData?.url) return;
@@ -2368,7 +2455,7 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
             });
         };
     }
-    
+
     if (openBtn) {
         openBtn.onclick = () => {
             if (_selectedClipData?.url) {
@@ -2376,7 +2463,7 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
             }
         };
     }
-    
+
     if (deleteBtn) {
         deleteBtn.onclick = () => {
             if (!_selectedClipData) return;
@@ -2387,36 +2474,36 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
             if (deleteModal) deleteModal.classList.remove('hidden');
         };
     }
-    
+
     // Wire up delete confirmation modal buttons
     const cancelDeleteBtn = document.getElementById('cancelDeleteClipBtn');
     const confirmDeleteBtn = document.getElementById('confirmDeleteClipBtn');
     const closeDeleteModalBtn = document.getElementById('closeDeleteSharedClipModal');
     const deleteModal = document.getElementById('deleteSharedClipModal');
     const detailEl = document.getElementById('sharedClipDetail');
-    
+
     const closeDeleteModal = () => {
         if (deleteModal) deleteModal.classList.add('hidden');
     };
-    
+
     if (cancelDeleteBtn) cancelDeleteBtn.onclick = closeDeleteModal;
     if (closeDeleteModalBtn) closeDeleteModalBtn.onclick = closeDeleteModal;
-    
+
     if (confirmDeleteBtn) {
         confirmDeleteBtn.onclick = async () => {
             if (!_selectedClipData) return;
-            
+
             const code = _selectedClipData.code;
             const token = _selectedClipData.deleteToken;
-            
+
             confirmDeleteBtn.disabled = true;
             confirmDeleteBtn.textContent = 'Deleting...';
-            
+
             try {
                 await window.electronAPI?.deleteSharedClip(code, token);
-                
+
                 closeDeleteModal();
-                
+
                 // Remove from list with animation
                 const item = listEl?.querySelector(`.shared-clip-item[data-code="${code}"]`);
                 if (item) {
@@ -2431,11 +2518,11 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
                         }
                     }, 250);
                 }
-                
+
                 // Hide detail panel
                 if (detailEl) detailEl.classList.add('hidden');
                 _selectedClipData = null;
-                
+
             } catch (err) {
                 console.error('[SHARE] Delete failed:', err);
             } finally {

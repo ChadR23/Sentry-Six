@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync } = require('child_process');
-const { writeCompactDashboardAss, writeMinimapAss } = require('./assGenerator');
+const { writeCompactDashboardAss, writeDetailedDashboardAss, writeMinimapAss } = require('./assGenerator');
 let _canvas = null;
 function getCanvas() { if (!_canvas) _canvas = require('canvas'); return _canvas; }
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
@@ -191,9 +191,9 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
 // Video Export Implementation
 async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const { segments, startTimeMs, endTimeMs, outputPath, cameras, mobileExport, quality, includeDashboard, seiData, layoutData, useMetric, dashboardStyle = 'standard', dashboardPosition = 'bottom-center', dashboardSize = 'medium', includeTimestamp = false, timestampPosition = 'bottom-center', timestampDateFormat = 'mdy', timestampTimeFormat = '12h', blurZones = [], blurType = 'solid', language = 'en', includeMinimap = false, minimapPosition = 'top-right', minimapSize = 'small', minimapRenderMode = 'ass', minimapDarkMode = false, mapPath = [], mirrorCameras = true, accelPedMode = 'iconbar', enableTimelapse = false, timelapseSpeed = 1 } = exportData;
-  
+
   console.log(`[EXPORT] Received exportData - includeMinimap: ${includeMinimap}, mapPath.length: ${mapPath?.length || 0}, minimapPosition: ${minimapPosition}, minimapSize: ${minimapSize}, renderMode: ${minimapRenderMode}`);
-  
+
   const tempFiles = [];
   const CAMERA_ORDER = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
   const FPS = 36; // Tesla cameras record at ~36fps
@@ -201,11 +201,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
   const sendProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'progress', percentage, message });
   };
-  
+
   const sendDashboardProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'dashboard-progress', percentage, message });
   };
-  
+
   const sendMinimapProgress = (percentage, message) => {
     event.sender.send('export:progress', exportId, { type: 'minimap-progress', percentage, message });
   };
@@ -214,7 +214,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
   };
 
-  const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch {} });
+  const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch { } });
 
   // Minimap temp file path (set during pre-render)
   let minimapTempPath = null;
@@ -259,7 +259,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     for (const camera of CAMERA_ORDER) {
       // Skip if not selected
       if (!selectedCameras.has(camera)) continue;
-      
+
       const files = relevantSegments
         .map(seg => seg.files?.[camera])
         .filter(p => p && fs.existsSync(p));
@@ -279,7 +279,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         const concatPath = path.join(os.tmpdir(), `export_${camera}_${Date.now()}.txt`);
         fs.writeFileSync(concatPath, files.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n'));
         tempFiles.push(concatPath);
-        
+
         const firstSeg = relevantSegments.find(s => s.files?.[camera] === files[0]);
         cameraInputMap.set(camera, inputs.length);
         inputs.push({
@@ -302,25 +302,25 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     const isFrontOnly = selectedCameras.size === 1 && selectedCameras.has('front');
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
-    
+
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile':   w = 724;  h = 469;  crf = 28; break;
-        case 'medium':   w = 1448; h = 938;  crf = 26; break;
-        case 'high':     w = 2172; h = 1407; crf = 23; break;
-        case 'max':      w = 2896; h = 1876; crf = 20; break;  // Full front native
-        default:         w = 1448; h = 938;  crf = 23;
+        case 'mobile': w = 724; h = 469; crf = 28; break;
+        case 'medium': w = 1448; h = 938; crf = 26; break;
+        case 'high': w = 2172; h = 1407; crf = 23; break;
+        case 'max': w = 2896; h = 1876; crf = 20; break;  // Full front native
+        default: w = 1448; h = 938; crf = 23;
       }
       console.log('[RESOLUTION] Front camera only - using full front camera resolution');
     } else {
       // Multi-camera - scale to side camera resolution
       switch (q) {
-        case 'mobile':   w = 484;  h = 314;  crf = 28; break;  // 0.33x side native
-        case 'medium':   w = 724;  h = 470;  crf = 26; break;  // 0.5x side native (h must be even)
-        case 'high':     w = 1086; h = 704;  crf = 23; break;  // 0.75x side native
-        case 'max':      w = 1448; h = 938;  crf = 20; break;  // Side native (front scaled down)
-        default:         w = 1086; h = 704;  crf = 23;
+        case 'mobile': w = 484; h = 314; crf = 28; break;  // 0.33x side native
+        case 'medium': w = 724; h = 470; crf = 26; break;  // 0.5x side native (h must be even)
+        case 'high': w = 1086; h = 704; crf = 23; break;  // 0.75x side native
+        case 'max': w = 1448; h = 938; crf = 20; break;  // Side native (front scaled down)
+        default: w = 1086; h = 704; crf = 23;
       }
     }
 
@@ -329,13 +329,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     // Build FFmpeg command with memory optimization flags
     const cmd = [ffmpegPath, '-y'];
-    
+
     // Memory optimization: limit input buffer sizes and reduce buffering
     // Note: thread_queue_size applies to all inputs, keeping it low reduces RAM
     cmd.push('-thread_queue_size', '512'); // Limit input queue size (default is often 8MB+ per input)
     cmd.push('-probesize', '32M'); // Limit probe size for format detection
     cmd.push('-analyzeduration', '10M'); // Limit analysis duration
-    
+
     // Additional memory optimizations
     cmd.push('-fflags', '+genpts+discardcorrupt'); // Generate PTS and discard corrupt frames (reduces buffering)
     cmd.push('-flags', '+low_delay'); // Low delay mode (reduces buffering)
@@ -359,55 +359,55 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // Calculate output dimensions
     let totalW, totalH, cols, rows;
     let baseInputIdx = null;
-    
+
     if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
       // Use custom layout - map canvas positions to video coordinates
       const cameraLayouts = layoutData.cameras;
-      
+
       // Get card dimensions from layout (all cards have the same size)
       // This is the size of each card on the canvas
       const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
       const cardWidth = firstLayout?.width || 200;
       const cardHeight = firstLayout?.height || 112;
-      
+
       // Scale factors: map canvas card size to native camera size
       // Each card on the canvas represents one camera at native size (w x h)
       const scaleX = w / cardWidth; // Map card width to camera width
       const scaleY = h / cardHeight; // Map card height to camera height
-      
+
       // Calculate bounding box: find min position and max position + camera size
       let minX = Infinity, minY = Infinity;
       let maxRight = -Infinity, maxBottom = -Infinity;
-      
+
       for (const camera of activeCamerasForGrid) {
         const layout = cameraLayouts[camera];
         if (!layout) continue;
-        
+
         // Position in video coordinates (scale from canvas)
         const videoX = layout.x * scaleX;
         const videoY = layout.y * scaleY;
-        
+
         // Camera ends at position + native size
         const cameraRight = videoX + w;
         const cameraBottom = videoY + h;
-        
+
         if (videoX < minX) minX = videoX;
         if (videoY < minY) minY = videoY;
         if (cameraRight > maxRight) maxRight = cameraRight;
         if (cameraBottom > maxBottom) maxBottom = cameraBottom;
       }
-      
+
       // Total output size is from 0 to max (we'll offset positions to start at 0)
       totalW = Math.ceil(maxRight - minX);
       totalH = Math.ceil(maxBottom - minY);
-      
+
       // Ensure even dimensions for video encoding
       totalW = totalW + (totalW % 2);
       totalH = totalH + (totalH % 2);
-      
+
       cols = 0; rows = 0; // Not used for custom layout
       console.log(`📐 Custom layout: ${totalW}x${totalH} (cameras at native ${w}x${h}, card ${cardWidth}x${cardHeight}, scale ${scaleX.toFixed(3)}x/${scaleY.toFixed(3)}y)`);
-      
+
       // Add base canvas input for custom layout (after black source)
       baseInputIdx = inputs.length + 1;
       cmd.push('-f', 'lavfi', '-i', `color=c=black:s=${totalW}x${totalH}:r=${FPS}:d=${durationSec}`);
@@ -419,282 +419,288 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       else if (numStreams === 3) { cols = 3; rows = 1; }
       else if (numStreams === 4) { cols = 2; rows = 2; }
       else { cols = 3; rows = 2; }
-      
+
       totalW = w * cols;
       totalH = h * rows;
     }
 
-        let useAssDashboard = false;
-        let assTempPath = null;
+    let useAssDashboard = false;
+    let assTempPath = null;
 
-        if (includeDashboard && seiData && seiData.length > 0) {
-          if (cancelledExports.has(exportId)) {
-            console.log('Export cancelled before dashboard generation');
-            throw new Error('Export cancelled');
-          }
-          
-          try {
-            sendDashboardProgress(5, 'Generating dashboard overlay...');
-            const cumStarts = segments.map(seg => seg.startSec || 0);
-            
-            assTempPath = await writeCompactDashboardAss(exportId, seiData, startTimeMs, endTimeMs, {
-              playResX: totalW,
-              playResY: totalH,
-              position: dashboardPosition,
-              size: dashboardSize,
-              useMetric,
-              segments,
-              cumStarts,
-              dateFormat: timestampDateFormat,
-              timeFormat: timestampTimeFormat,
-              language,
-              accelPedMode
-            });
-            tempFiles.push(assTempPath);
-            useAssDashboard = true;
-            
-            sendDashboardProgress(100, 'Dashboard overlay ready');
-            console.log(`[ASS] Generated dashboard: ${assTempPath}`);
-          } catch (err) {
-            if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
-              throw err;
-            }
-            console.error('[ASS] Failed to generate dashboard:', err);
-            sendDashboardProgress(0, `Dashboard generation failed: ${err.message}. Continuing without overlay...`);
-            useAssDashboard = false;
-          }
-        }
-        
-        // Minimap rendering (if enabled and we have GPS data)
-        // Two modes: 'ass' (fast, vector-based) or 'leaflet' (slow, map tiles)
-        let useAssMinimap = false;
-        let useLeafletMinimap = false;
-        let minimapAssTempPath = null;
-        console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}, renderMode=${minimapRenderMode}`);
-        
-        if (includeMinimap && mapPath && mapPath.length > 0 && seiData && seiData.length > 0) {
-          if (cancelledExports.has(exportId)) {
-            console.log('Export cancelled before minimap render');
-            throw new Error('Export cancelled');
-          }
-          
-          if (minimapRenderMode === 'ass') {
-            // ASS Mode: Download map tiles + overlay ASS route/markers
-            try {
-              const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
-              const minimapTargetSize = minimapDims.width; // Square minimap
-              
-              sendMinimapProgress(0, 'Downloading map tiles...');
-              
-              // Step 1: Download static map background image
-              let mapBgPath = null;
-              let mapBounds = null;
-              
-              try {
-                const mapResult = await downloadStaticMapBackground(
-                  exportId,
-                  mapPath,
-                  minimapTargetSize,
-                  ffmpegPath
-                );
-                mapBgPath = mapResult.imagePath;
-                mapBounds = mapResult.bounds;
-                tempFiles.push(mapBgPath);
-                console.log(`[MINIMAP] Downloaded map background: ${mapBgPath}`);
-              } catch (mapErr) {
-                console.warn(`[MINIMAP] Failed to download map tiles: ${mapErr.message}. Using dark background.`);
-                // Continue without map background - will use dark bg from ASS
-              }
-              
-              sendMinimapProgress(30, 'Generating route overlay...');
-              
-              // Step 2: Generate ASS with route path and markers
-              // If we have a map background, use standalone mode with map bounds
-              // Otherwise, use normal mode with dark background
-              if (mapBgPath && mapBounds) {
-                // Standalone mode: ASS coordinates are 0,0 to minimapTargetSize
-                minimapAssTempPath = await writeMinimapAss(
-                  exportId,
-                  seiData,
-                  mapPath,
-                  startTimeMs,
-                  endTimeMs,
-                  {
-                    standaloneMode: true,
-                    standaloneSize: minimapTargetSize,
-                    customBounds: mapBounds,
-                    includeBackground: false // Map image is the background
-                  }
-                );
-              } else {
-                // Normal mode: ASS includes dark background
-                minimapAssTempPath = await writeMinimapAss(
-                  exportId,
-                  seiData,
-                  mapPath,
-                  startTimeMs,
-                  endTimeMs,
-                  {
-                    standaloneMode: true,
-                    standaloneSize: minimapTargetSize,
-                    includeBackground: true // Use ASS dark background
-                  }
-                );
-              }
-              tempFiles.push(minimapAssTempPath);
-              
-              sendMinimapProgress(50, 'Creating minimap video...');
-              
-              // Step 3: Create composite minimap video (map bg + ASS overlay)
-              // This pre-renders the minimap so FFmpeg can just overlay it on the main video
-              const minimapVideoPath = path.join(os.tmpdir(), `minimap_video_${exportId}_${Date.now()}.mov`);
-              
-              const escapedAssPath = minimapAssTempPath
-                .replace(/\\/g, '/')
-                .replace(/:/g, '\\:');
-              
-              let minimapFfmpegArgs;
-              if (mapBgPath) {
-                // Use map image as background, loop it for video duration
-                const escapedMapPath = mapBgPath.replace(/\\/g, '/');
-                minimapFfmpegArgs = [
-                  '-y',
-                  '-loop', '1',
-                  '-i', mapBgPath,
-                  '-t', durationSec.toString(),
-                  '-vf', `scale=${minimapTargetSize}:${minimapTargetSize},ass='${escapedAssPath}'`,
-                  '-c:v', 'qtrle',
-                  '-pix_fmt', 'argb',
-                  '-r', '36',
-                  minimapVideoPath
-                ];
-              } else {
-                // Use black background with ASS (includes dark panel)
-                minimapFfmpegArgs = [
-                  '-y',
-                  '-f', 'lavfi',
-                  '-i', `color=c=black@0:s=${minimapTargetSize}x${minimapTargetSize}:d=${durationSec}:r=36,format=rgba`,
-                  '-vf', `ass='${escapedAssPath}'`,
-                  '-c:v', 'qtrle',
-                  '-pix_fmt', 'argb',
-                  '-r', '36',
-                  minimapVideoPath
-                ];
-              }
-              
-              console.log(`[MINIMAP] Creating composite video: ${ffmpegPath} ${minimapFfmpegArgs.join(' ')}`);
-              
-              await new Promise((resolve, reject) => {
-                const proc = spawn(ffmpegPath, minimapFfmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
-                let stderr = '';
-                proc.stderr.on('data', d => stderr += d.toString());
-                proc.on('close', code => {
-                  if (code === 0) resolve();
-                  else reject(new Error(`FFmpeg minimap composite failed: ${stderr.slice(-500)}`));
-                });
-                proc.on('error', reject);
-              });
-              
-              // Use the composite video as the minimap (same as Leaflet mode)
-              minimapTempPath = minimapVideoPath;
-              tempFiles.push(minimapVideoPath);
-              useLeafletMinimap = true; // Use video overlay mode
-              useAssMinimap = false; // Not using direct ASS mode
-              
-              sendMinimapProgress(100, 'Minimap ready');
-              console.log(`[MINIMAP] Created ASS minimap with map background: ${minimapVideoPath}`);
-            } catch (err) {
-              if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
-                throw err;
-              }
-              console.error('[MINIMAP] Failed to generate ASS minimap:', err);
-              sendMinimapProgress(0, `Minimap generation failed: ${err.message}. Continuing without minimap...`);
-              useAssMinimap = false;
-              useLeafletMinimap = false;
-            }
-          } else {
-            // Leaflet Mode: Slow BrowserWindow pre-rendering with map tiles
-            try {
-              const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
-              const minimapWidth = minimapDims.width;
-              const minimapHeight = minimapDims.height;
-              console.log(`[MINIMAP] Leaflet mode - Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
-              
-              sendMinimapProgress(0, 'Pre-rendering minimap overlay (Leaflet)...');
-              
-              minimapTempPath = await preRenderMinimap(
-                exportId,
-                seiData,
-                mapPath,
-                startTimeMs,
-                endTimeMs,
-                minimapWidth,
-                minimapHeight,
-                ffmpegPath,
-                sendMinimapProgress,
-                cancelledExports,
-                minimapDarkMode
-              );
-              
-              tempFiles.push(minimapTempPath);
-              useLeafletMinimap = true;
-              sendMinimapProgress(100, 'Minimap overlay ready (Leaflet)');
-              console.log(`[MINIMAP] Pre-rendered Leaflet minimap: ${minimapTempPath}`);
-            } catch (err) {
-              if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
-                throw err;
-              }
-              console.error('[MINIMAP] Failed to pre-render Leaflet minimap:', err);
-              sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
-              useLeafletMinimap = false;
-            }
-          }
+    if (includeDashboard && seiData && seiData.length > 0) {
+      if (cancelledExports.has(exportId)) {
+        console.log('Export cancelled before dashboard generation');
+        throw new Error('Export cancelled');
+      }
+
+      try {
+        sendDashboardProgress(5, 'Generating dashboard overlay...');
+        const cumStarts = segments.map(seg => seg.startSec || 0);
+
+        const dashOpts = {
+          playResX: totalW,
+          playResY: totalH,
+          position: dashboardPosition,
+          size: dashboardSize,
+          useMetric,
+          segments,
+          cumStarts,
+          dateFormat: timestampDateFormat,
+          timeFormat: timestampTimeFormat,
+          language,
+          accelPedMode
+        };
+
+        if (dashboardStyle === 'detailed') {
+          assTempPath = await writeDetailedDashboardAss(exportId, seiData, startTimeMs, endTimeMs, dashOpts);
         } else {
-          console.log('[MINIMAP] Skipping - conditions not met');
+          assTempPath = await writeCompactDashboardAss(exportId, seiData, startTimeMs, endTimeMs, dashOpts);
         }
-        
-        let useTimestamp = includeTimestamp && !useAssDashboard;
-        
-        // Calculate timestamp basetime from first relevant segment
-        let timestampBasetimeUs = null;
-        if (useTimestamp) {
-          // Find the first segment's timestamp from filename
-          const firstSeg = relevantSegments[0];
-          if (firstSeg) {
-            const files = firstSeg.files || {};
-            let filename = files.front ? path.basename(files.front) : null;
-            if (!filename) {
-              const firstCamera = Object.keys(files)[0];
-              if (firstCamera) filename = path.basename(files[firstCamera]);
-            }
-            
-            if (filename) {
-              const timestampKey = parseTimestampKeyFromFilename(filename);
-              if (timestampKey) {
-                const segmentStartEpochMs = parseTimestampKeyToEpochMs(timestampKey);
-                if (segmentStartEpochMs) {
-                  // Add the offset within the first segment (if export starts mid-segment)
-                  const firstSegStartMs = firstSeg.segStartMs || 0;
-                  const offsetWithinFirstSegMs = Math.max(0, startTimeMs - firstSegStartMs);
-                  const exportStartEpochMs = segmentStartEpochMs + offsetWithinFirstSegMs;
-                  timestampBasetimeUs = Math.floor(exportStartEpochMs * 1000); // Convert ms to microseconds
-                  console.log(`[TIMESTAMP] Basetime calculated: ${new Date(exportStartEpochMs).toISOString()}`);
-                }
+        tempFiles.push(assTempPath);
+        useAssDashboard = true;
+
+        sendDashboardProgress(100, 'Dashboard overlay ready');
+        console.log(`[ASS] Generated dashboard: ${assTempPath}`);
+      } catch (err) {
+        if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+          throw err;
+        }
+        console.error('[ASS] Failed to generate dashboard:', err);
+        sendDashboardProgress(0, `Dashboard generation failed: ${err.message}. Continuing without overlay...`);
+        useAssDashboard = false;
+      }
+    }
+
+    // Minimap rendering (if enabled and we have GPS data)
+    // Two modes: 'ass' (fast, vector-based) or 'leaflet' (slow, map tiles)
+    let useAssMinimap = false;
+    let useLeafletMinimap = false;
+    let minimapAssTempPath = null;
+    console.log(`[MINIMAP] Checking conditions: includeMinimap=${includeMinimap}, mapPath.length=${mapPath?.length || 0}, seiData.length=${seiData?.length || 0}, renderMode=${minimapRenderMode}`);
+
+    if (includeMinimap && mapPath && mapPath.length > 0 && seiData && seiData.length > 0) {
+      if (cancelledExports.has(exportId)) {
+        console.log('Export cancelled before minimap render');
+        throw new Error('Export cancelled');
+      }
+
+      if (minimapRenderMode === 'ass') {
+        // ASS Mode: Download map tiles + overlay ASS route/markers
+        try {
+          const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
+          const minimapTargetSize = minimapDims.width; // Square minimap
+
+          sendMinimapProgress(0, 'Downloading map tiles...');
+
+          // Step 1: Download static map background image
+          let mapBgPath = null;
+          let mapBounds = null;
+
+          try {
+            const mapResult = await downloadStaticMapBackground(
+              exportId,
+              mapPath,
+              minimapTargetSize,
+              ffmpegPath
+            );
+            mapBgPath = mapResult.imagePath;
+            mapBounds = mapResult.bounds;
+            tempFiles.push(mapBgPath);
+            console.log(`[MINIMAP] Downloaded map background: ${mapBgPath}`);
+          } catch (mapErr) {
+            console.warn(`[MINIMAP] Failed to download map tiles: ${mapErr.message}. Using dark background.`);
+            // Continue without map background - will use dark bg from ASS
+          }
+
+          sendMinimapProgress(30, 'Generating route overlay...');
+
+          // Step 2: Generate ASS with route path and markers
+          // If we have a map background, use standalone mode with map bounds
+          // Otherwise, use normal mode with dark background
+          if (mapBgPath && mapBounds) {
+            // Standalone mode: ASS coordinates are 0,0 to minimapTargetSize
+            minimapAssTempPath = await writeMinimapAss(
+              exportId,
+              seiData,
+              mapPath,
+              startTimeMs,
+              endTimeMs,
+              {
+                standaloneMode: true,
+                standaloneSize: minimapTargetSize,
+                customBounds: mapBounds,
+                includeBackground: false // Map image is the background
               }
+            );
+          } else {
+            // Normal mode: ASS includes dark background
+            minimapAssTempPath = await writeMinimapAss(
+              exportId,
+              seiData,
+              mapPath,
+              startTimeMs,
+              endTimeMs,
+              {
+                standaloneMode: true,
+                standaloneSize: minimapTargetSize,
+                includeBackground: true // Use ASS dark background
+              }
+            );
+          }
+          tempFiles.push(minimapAssTempPath);
+
+          sendMinimapProgress(50, 'Creating minimap video...');
+
+          // Step 3: Create composite minimap video (map bg + ASS overlay)
+          // This pre-renders the minimap so FFmpeg can just overlay it on the main video
+          const minimapVideoPath = path.join(os.tmpdir(), `minimap_video_${exportId}_${Date.now()}.mov`);
+
+          const escapedAssPath = minimapAssTempPath
+            .replace(/\\/g, '/')
+            .replace(/:/g, '\\:');
+
+          let minimapFfmpegArgs;
+          if (mapBgPath) {
+            // Use map image as background, loop it for video duration
+            const escapedMapPath = mapBgPath.replace(/\\/g, '/');
+            minimapFfmpegArgs = [
+              '-y',
+              '-loop', '1',
+              '-i', mapBgPath,
+              '-t', durationSec.toString(),
+              '-vf', `scale=${minimapTargetSize}:${minimapTargetSize},ass='${escapedAssPath}'`,
+              '-c:v', 'qtrle',
+              '-pix_fmt', 'argb',
+              '-r', '36',
+              minimapVideoPath
+            ];
+          } else {
+            // Use black background with ASS (includes dark panel)
+            minimapFfmpegArgs = [
+              '-y',
+              '-f', 'lavfi',
+              '-i', `color=c=black@0:s=${minimapTargetSize}x${minimapTargetSize}:d=${durationSec}:r=36,format=rgba`,
+              '-vf', `ass='${escapedAssPath}'`,
+              '-c:v', 'qtrle',
+              '-pix_fmt', 'argb',
+              '-r', '36',
+              minimapVideoPath
+            ];
+          }
+
+          console.log(`[MINIMAP] Creating composite video: ${ffmpegPath} ${minimapFfmpegArgs.join(' ')}`);
+
+          await new Promise((resolve, reject) => {
+            const proc = spawn(ffmpegPath, minimapFfmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+            let stderr = '';
+            proc.stderr.on('data', d => stderr += d.toString());
+            proc.on('close', code => {
+              if (code === 0) resolve();
+              else reject(new Error(`FFmpeg minimap composite failed: ${stderr.slice(-500)}`));
+            });
+            proc.on('error', reject);
+          });
+
+          // Use the composite video as the minimap (same as Leaflet mode)
+          minimapTempPath = minimapVideoPath;
+          tempFiles.push(minimapVideoPath);
+          useLeafletMinimap = true; // Use video overlay mode
+          useAssMinimap = false; // Not using direct ASS mode
+
+          sendMinimapProgress(100, 'Minimap ready');
+          console.log(`[MINIMAP] Created ASS minimap with map background: ${minimapVideoPath}`);
+        } catch (err) {
+          if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+            throw err;
+          }
+          console.error('[MINIMAP] Failed to generate ASS minimap:', err);
+          sendMinimapProgress(0, `Minimap generation failed: ${err.message}. Continuing without minimap...`);
+          useAssMinimap = false;
+          useLeafletMinimap = false;
+        }
+      } else {
+        // Leaflet Mode: Slow BrowserWindow pre-rendering with map tiles
+        try {
+          const minimapDims = calculateMinimapSize(totalW, totalH, minimapSize);
+          const minimapWidth = minimapDims.width;
+          const minimapHeight = minimapDims.height;
+          console.log(`[MINIMAP] Leaflet mode - Dimensions: ${minimapWidth}x${minimapHeight}, position: ${minimapPosition}`);
+
+          sendMinimapProgress(0, 'Pre-rendering minimap overlay (Leaflet)...');
+
+          minimapTempPath = await preRenderMinimap(
+            exportId,
+            seiData,
+            mapPath,
+            startTimeMs,
+            endTimeMs,
+            minimapWidth,
+            minimapHeight,
+            ffmpegPath,
+            sendMinimapProgress,
+            cancelledExports,
+            minimapDarkMode
+          );
+
+          tempFiles.push(minimapTempPath);
+          useLeafletMinimap = true;
+          sendMinimapProgress(100, 'Minimap overlay ready (Leaflet)');
+          console.log(`[MINIMAP] Pre-rendered Leaflet minimap: ${minimapTempPath}`);
+        } catch (err) {
+          if (err.message === 'Export cancelled' || cancelledExports.has(exportId)) {
+            throw err;
+          }
+          console.error('[MINIMAP] Failed to pre-render Leaflet minimap:', err);
+          sendMinimapProgress(0, `Minimap rendering failed: ${err.message}. Continuing without minimap...`);
+          useLeafletMinimap = false;
+        }
+      }
+    } else {
+      console.log('[MINIMAP] Skipping - conditions not met');
+    }
+
+    let useTimestamp = includeTimestamp && !useAssDashboard;
+
+    // Calculate timestamp basetime from first relevant segment
+    let timestampBasetimeUs = null;
+    if (useTimestamp) {
+      // Find the first segment's timestamp from filename
+      const firstSeg = relevantSegments[0];
+      if (firstSeg) {
+        const files = firstSeg.files || {};
+        let filename = files.front ? path.basename(files.front) : null;
+        if (!filename) {
+          const firstCamera = Object.keys(files)[0];
+          if (firstCamera) filename = path.basename(files[firstCamera]);
+        }
+
+        if (filename) {
+          const timestampKey = parseTimestampKeyFromFilename(filename);
+          if (timestampKey) {
+            const segmentStartEpochMs = parseTimestampKeyToEpochMs(timestampKey);
+            if (segmentStartEpochMs) {
+              // Add the offset within the first segment (if export starts mid-segment)
+              const firstSegStartMs = firstSeg.segStartMs || 0;
+              const offsetWithinFirstSegMs = Math.max(0, startTimeMs - firstSegStartMs);
+              const exportStartEpochMs = segmentStartEpochMs + offsetWithinFirstSegMs;
+              timestampBasetimeUs = Math.floor(exportStartEpochMs * 1000); // Convert ms to microseconds
+              console.log(`[TIMESTAMP] Basetime calculated: ${new Date(exportStartEpochMs).toISOString()}`);
             }
           }
-          
-          if (!timestampBasetimeUs) {
-            console.warn('[TIMESTAMP] Could not calculate timestamp basetime, disabling timestamp overlay');
-            useTimestamp = false;
-          }
         }
-        
-        // Check for cancellation after dashboard/timestamp setup, before building filters
-        if (cancelledExports.has(exportId)) {
-          console.log('Export cancelled before building filters');
-          throw new Error('Export cancelled');
-        }
+      }
+
+      if (!timestampBasetimeUs) {
+        console.warn('[TIMESTAMP] Could not calculate timestamp basetime, disabling timestamp overlay');
+        useTimestamp = false;
+      }
+    }
+
+    // Check for cancellation after dashboard/timestamp setup, before building filters
+    if (cancelledExports.has(exportId)) {
+      console.log('Export cancelled before building filters');
+      throw new Error('Export cancelled');
+    }
 
     const filters = [];
     const streamTags = [];
@@ -702,18 +708,18 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     if (layoutData && layoutData.cameras && Object.keys(layoutData.cameras).length > 0) {
       // Custom layout using overlay filters (base canvas already added as input)
       // Cameras use native size (w x h), only positioning comes from layout
-      
+
       const cameraLayouts = layoutData.cameras;
-      
+
       // Get card dimensions from layout (all cards have the same size)
       const firstLayout = cameraLayouts[Object.keys(cameraLayouts)[0]];
       const cardWidth = firstLayout?.width || 200;
       const cardHeight = firstLayout?.height || 112;
-      
+
       // Calculate scale factors: map canvas card size to native camera size
       const scaleX = w / cardWidth;
       const scaleY = h / cardHeight;
-      
+
       // Find minimum positions to offset all cameras (so output starts at 0,0)
       let minX = Infinity, minY = Infinity;
       for (const camera of activeCamerasForGrid) {
@@ -724,40 +730,40 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         if (videoX < minX) minX = videoX;
         if (videoY < minY) minY = videoY;
       }
-      
+
       const cameraStreams = [];
-      
+
       for (let i = 0; i < activeCamerasForGrid.length; i++) {
         const camera = activeCamerasForGrid[i];
         const layout = cameraLayouts[camera];
         if (!layout) continue;
-        
+
         const inputIdx = cameraInputMap.get(camera);
         const hasVideo = inputIdx !== undefined;
         const srcIdx = hasVideo ? inputIdx : blackInputIdx;
         const isMirrored = mirrorCameras && ['back', 'left_repeater', 'right_repeater'].includes(camera);
-        
+
         // Scale camera to native size (w x h) - exactly like old grid code
         // Ensure even dimensions
         const finalW = w + (w % 2);
         const finalH = h + (h % 2);
-        
+
         // Calculate position from canvas layout (scale and offset)
         const x = Math.round((layout.x * scaleX) - minX);
         const y = Math.round((layout.y * scaleY) - minY);
-        
+
         // Use smoother frame rate conversion
         // Normalize timestamps, convert frame rate, mirror if needed, scale to target size
         let chain = `[${srcIdx}:v]setpts=PTS-STARTPTS`;
         chain += `,fps=${FPS}:round=near`; // Smooth frame rate conversion
         if (hasVideo && isMirrored) chain += ',hflip';
         chain += `,scale=${finalW}:${finalH}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
-        
+
         filters.push(chain);
         const streamTag = `[v${i}]`;
         cameraStreams.push({ camera, tag: streamTag, x, y });
       }
-      
+
       // Apply blur zones to individual camera streams BEFORE grid composition
       await applyBlurZonesToStreams({
         blurZones, blurType, streams: cameraStreams, streamTags: null,
@@ -765,7 +771,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         filters, cmd, tempFiles, inputCount: inputs.length,
         extraOffset: baseInputIdx !== null ? 1 : 0, exportId, FPS
       });
-      
+
       // Chain overlays: start with base, overlay each camera in order
       let currentTag = `[${baseInputIdx}:v]`;
       for (let i = 0; i < cameraStreams.length; i++) {
@@ -774,12 +780,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         filters.push(`${currentTag}${stream.tag}overlay=${stream.x}:${stream.y}:format=auto${nextTag}`);
         currentTag = nextTag;
       }
-      
+
       // If no cameras, just copy base to grid
       if (cameraStreams.length === 0) {
         filters.push(`[${baseInputIdx}:v]copy[grid]`);
       }
-      
+
     } else {
       // Grid layout (original code)
       const gridStreams = [];
@@ -797,12 +803,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         chain += `,fps=${FPS}:round=near`; // Smooth frame rate conversion
         if (hasVideo && isMirrored) chain += ',hflip';
         chain += `,scale=${w}:${h}:force_original_aspect_ratio=disable:flags=lanczos,setsar=1[v${i}]`;
-        
+
         filters.push(chain);
         gridStreams.push({ camera, tag: `[v${i}]` });
         streamTags.push(`[v${i}]`);
       }
-      
+
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
       await applyBlurZonesToStreams({
         blurZones, blurType, streams: gridStreams, streamTags,
@@ -810,7 +816,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         filters, cmd, tempFiles, inputCount: inputs.length,
         extraOffset: 0, exportId, FPS
       });
-      
+
       const numStreams = activeCamerasForGrid.length;
       if (numStreams > 1) {
         const layout = [];
@@ -822,20 +828,20 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         filters.push(`${streamTags[0]}copy[grid]`);
       }
     }
-    
+
     // Determine if GPU encoding can be used
     // H.264 GPU encoders: 4096px limit, HEVC GPU encoders: 8192px limit
     const h264MaxRes = 4096;
     const hevcMaxRes = 8192;
-    
+
     // Check HEVC encoder for high resolutions (Maximum quality often exceeds H.264 limits)
     const hevcGpu = detectHEVCEncoder(ffmpegPath);
-    
+
     // Determine best encoder: prefer H.264 GPU, fall back to HEVC GPU for high res, then CPU
     let useGpu = false;
     let useHEVC = false;
     let activeEncoder = null;
-    
+
     if (!mobileExport && gpu) {
       if (totalW <= h264MaxRes && totalH <= h264MaxRes) {
         // Resolution within H.264 GPU limits - use H.264 GPU
@@ -851,7 +857,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
 
     let currentStreamTag = '[grid]'; // Track the current stream tag for chaining filters
-    
+
     // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
     const padding = 20; // Padding from edges
     const positionExprs = {
@@ -862,7 +868,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'top-left': `${padding}:${padding}`,
       'top-right': `W-w-${padding}:${padding}`
     };
-    
+
     // Minimap position expressions (corner positions only)
     const minimapPosExprs = {
       'top-left': `${padding}:${padding}`,
@@ -870,7 +876,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       'bottom-left': `${padding}:H-h-${padding}`,
       'bottom-right': `W-w-${padding}:H-h-${padding}`
     };
-    
+
     // Add Leaflet minimap video as input if enabled (Leaflet mode only)
     let minimapInputIdx = -1;
     if (useLeafletMinimap && minimapTempPath) {
@@ -878,10 +884,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       cmd.push('-stream_loop', '-1', '-i', minimapTempPath);
       console.log(`[MINIMAP] Added Leaflet minimap input at index ${minimapInputIdx}: ${minimapTempPath}`);
     }
-    
+
     // Build overlay pipeline based on enabled features
     // Order: Base video -> Dashboard ASS -> Minimap ASS -> Leaflet Minimap overlay
-    
+
     if (useAssDashboard && assTempPath) {
       // ASS SUBTITLE DASHBOARD (compact style) - High-speed GPU-accelerated rendering
       // The ASS filter burns subtitles directly into the video at GPU encoder speed
@@ -890,7 +896,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       const escapedAssPath = assTempPath
         .replace(/\\/g, '/')           // Convert backslashes to forward slashes
         .replace(/:/g, '\\:');         // Escape colons (Windows drive letters)
-      
+
       if (useAssMinimap && minimapAssTempPath) {
         // Dashboard ASS + Minimap ASS: Chain both ASS filters
         const escapedMinimapAssPath = minimapAssTempPath
@@ -933,7 +939,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         'top-right': `x=w-text_w-${padding}:y=${padding}`
       };
       const drawtextPos = drawtextPositions[timestampPosition] || drawtextPositions['bottom-center'];
-      
+
       // Date format strings for strftime
       const dateFormats = {
         'mdy': '%m/%d/%Y',  // US: MM/DD/YYYY
@@ -944,7 +950,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       // Time format: 12h uses %I (12-hour) with %p (AM/PM), 24h uses %H (24-hour)
       const timeFormat = timestampTimeFormat === '24h' ? '%H\\:%M\\:%S' : '%I\\:%M\\:%S %p';
       const timestampText = `${dateFormat} ${timeFormat}`;
-      
+
       // Build drawtext filter with timestamp (similar to old version)
       const drawtextFilter = [
         "drawtext=font='Arial'",
@@ -958,7 +964,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         'boxborderw=5',
         drawtextPos
       ].join(':');
-      
+
       filters.push(`${currentStreamTag}${drawtextFilter}[out]`);
       console.log(`[TIMESTAMP] Using drawtext filter at position: ${timestampPosition}, format: ${timestampDateFormat}`);
     } else {
@@ -975,7 +981,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
-    
+
     // Time-lapse: remove audio (modified-speed audio is noise)
     if (enableTimelapse && timelapseSpeed !== 1) {
       cmd.push('-an');
@@ -984,7 +990,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // Configure video encoder based on GPU availability
     if (useGpu && activeEncoder) {
       cmd.push('-c:v', activeEncoder.codec);
-      
+
       if (activeEncoder.codec === 'h264_nvenc' || activeEncoder.codec === 'hevc_nvenc') {
         // NVIDIA NVENC: CQP mode prevents quality pulsing/glitches
         const cq = Math.max(0, Math.min(51, crf));
@@ -996,7 +1002,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         let quality = 'quality';
         if (crf >= 28) quality = 'speed';
         else if (crf >= 24) quality = 'balanced';
-        
+
         cmd.push('-quality', quality);
         cmd.push('-rc', 'cqp');
         cmd.push('-qp_i', Math.max(18, Math.min(46, crf)).toString());
@@ -1041,19 +1047,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       cmd.push('-threads', maxThreads.toString());
       cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`);
     }
-    
+
     // Time-lapse: adjust output duration
     const outputDurationSec = (enableTimelapse && timelapseSpeed !== 1) ? durationSec / timelapseSpeed : durationSec;
     cmd.push('-t', outputDurationSec.toString());
     cmd.push('-movflags', '+faststart');
-    
+
     // Set pixel format - VideoToolbox handles this internally, others need explicit setting
     // The filter chain already converts to yuv420p, but CPU encoders need the output hint
     const isVideoToolbox = activeEncoder?.codec?.includes('videotoolbox');
     if (!isVideoToolbox) {
       cmd.push('-pix_fmt', 'yuv420p');
     }
-    
+
     // GPU encoders: use constant frame rate to prevent frame drops
     if (useGpu) {
       cmd.push('-vsync', 'cfr');
@@ -1066,13 +1072,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     cmd.push(outputPath);
 
     console.log('[FFMPEG] FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
-    
+
     // Final cancellation check before spawning FFmpeg
     if (cancelledExports.has(exportId)) {
       console.log('Export cancelled before spawning FFmpeg process');
       throw new Error('Export cancelled');
     }
-    
+
     sendProgress(8, useGpu ? { key: 'ui.export.exportingWithEncoder', params: { encoder: activeEncoder.name } } : { key: 'ui.export.exportingWithCpu' });
 
     // Execute FFmpeg - no pipe needed since dashboard is pre-rendered to file
@@ -1080,7 +1086,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       const proc = spawn(cmd[0], cmd.slice(1), {
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      
+
       // Limit stderr buffer to prevent excessive RAM usage (keep only last 100KB)
       let stderr = '', lastPct = 0;
       const MAX_STDERR_SIZE = 100 * 1024; // 100KB max
@@ -1114,9 +1120,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         if (code === 0) {
           const exportDurationMs = Date.now() - exportStartTime;
           const formattedDuration = formatExportDuration(exportDurationMs);
-          
+
           console.log(`[EXPORT] ✅ Export completed in ${formattedDuration}`);
-          
+
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
           sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } });
           resolve(true);
@@ -1136,7 +1142,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       // Register export early so cancellation can find it
       activeExports[exportId] = proc;
-      
+
       // Check for cancellation immediately after spawning (race condition protection)
       if (cancelledExports.has(exportId)) {
         console.log('Export cancelled immediately after spawning FFmpeg, killing process');
@@ -1160,7 +1166,7 @@ app.whenReady().then(async () => {
   // Check for new packages after update (dev mode only)
   // This runs before window creation to ensure packages are installed
   const packageResult = await checkAndInstallPackages();
-  
+
   if (packageResult.installed && packageResult.count > 0) {
     // New packages were installed - show dialog and ask to restart
     const response = await dialog.showMessageBox({
@@ -1172,21 +1178,21 @@ app.whenReady().then(async () => {
       defaultId: 0,
       cancelId: 1
     });
-    
+
     if (response.response === 0) {
       // User chose to exit
       app.quit();
       return;
     }
   }
-  
+
   createWindow();
-  
+
   // Pre-cache FFmpeg path in background after window is ready.
   // This eliminates the UI freeze on macOS when opening the export modal,
   // since findFFmpegPath uses spawnSync which blocks the main thread.
   setTimeout(() => preCacheFFmpegPath(), 2000);
-  
+
   // Set up electron-updater event handlers (extracted to src/main/autoUpdate.js)
   setupAutoUpdaterEvents(mainWindow);
 
@@ -1243,11 +1249,11 @@ async function checkAndInstallPackages() {
   if (app.isPackaged) {
     return { needed: false, installed: false };
   }
-  
+
   try {
     const settings = loadSettings();
     const versionPath = path.join(__dirname, '..', 'version.json');
-    
+
     // Read current version
     let currentVersion = '0.0.0';
     if (fs.existsSync(versionPath)) {
@@ -1258,27 +1264,27 @@ async function checkAndInstallPackages() {
         console.log('[STARTUP] Could not read version.json');
       }
     }
-    
+
     const lastRunVersion = settings.lastRunVersion || '0.0.0';
-    
+
     // If version hasn't changed, no need to check
     if (currentVersion === lastRunVersion) {
       return { needed: false, installed: false };
     }
-    
+
     console.log(`[STARTUP] Version changed from ${lastRunVersion} to ${currentVersion}, checking for new packages...`);
-    
+
     // Run npm install and capture output
     const projectRoot = path.join(__dirname, '..');
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    
+
     const result = spawnSync(npmCmd, ['install'], {
       cwd: projectRoot,
       encoding: 'utf-8',
       timeout: 120000, // 2 minute timeout
       shell: true
     });
-    
+
     if (result.error) {
       console.error('[STARTUP] npm install error:', result.error);
       // Still update version so we don't keep trying
@@ -1286,26 +1292,26 @@ async function checkAndInstallPackages() {
       saveSettings(settings);
       return { needed: true, installed: false, error: result.error.message };
     }
-    
+
     const output = (result.stdout || '') + (result.stderr || '');
-    
+
     // Check if new packages were actually installed
     // npm install outputs "added X packages" when new packages are installed
     const addedMatch = output.match(/added (\d+) package/i);
     const packagesAdded = addedMatch ? parseInt(addedMatch[1], 10) : 0;
-    
+
     // Update last run version
     settings.lastRunVersion = currentVersion;
     saveSettings(settings);
-    
+
     if (packagesAdded > 0) {
       console.log(`[STARTUP] Installed ${packagesAdded} new package(s)`);
       return { needed: true, installed: true, count: packagesAdded };
     }
-    
+
     console.log('[STARTUP] No new packages needed');
     return { needed: true, installed: false };
-    
+
   } catch (err) {
     console.error('[STARTUP] Package check error:', err);
     return { needed: false, installed: false, error: err.message };
@@ -1332,7 +1338,7 @@ ipcMain.handle('dialog:saveFile', async (_event, options) => {
 
 ipcMain.handle('export:start', async (event, exportId, exportData) => {
   console.log('[EXPORT] Starting export:', exportId);
-  
+
   // Check if already cancelled before starting
   if (cancelledExports.has(exportId)) {
     console.log('Export cancelled before starting:', exportId);
@@ -1344,7 +1350,7 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
     });
     return false;
   }
-  
+
   try {
     const ffmpegPath = findFFmpegPath();
     if (!ffmpegPath) {
@@ -1368,7 +1374,7 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
 ipcMain.handle('export:cancel', async (_event, exportId) => {
   // Mark as cancelled immediately so dashboard rendering loop can check it
   cancelledExports.add(exportId);
-  
+
   const proc = activeExports[exportId];
   if (proc) {
     proc.kill('SIGTERM');
@@ -1423,22 +1429,22 @@ ipcMain.handle('share:getConfig', async () => {
 
 ipcMain.handle('share:upload', async (event, filePath) => {
   console.log('[SHARE] Starting clip upload:', filePath);
-  
+
   try {
     if (!fs.existsSync(filePath)) {
       throw new Error('Export file not found');
     }
-    
+
     const stat = fs.statSync(filePath);
     const totalBytes = stat.size;
-    
+
     // Generate delete token client-side
     const deleteToken = crypto.randomBytes(24).toString('hex');
-    
+
     // Build multipart form data manually to stream the file with progress tracking
     const boundary = `----SentrySixUpload${Date.now()}${Math.random().toString(36).slice(2)}`;
     const fileName = path.basename(filePath);
-    
+
     // Form data: deleteToken field + video file
     const deleteTokenPart = Buffer.from(
       `--${boundary}\r\n` +
@@ -1452,11 +1458,11 @@ ipcMain.handle('share:upload', async (event, filePath) => {
     );
     const footerPart = Buffer.from(`\r\n--${boundary}--\r\n`);
     const contentLength = deleteTokenPart.length + filePart.length + totalBytes + footerPart.length;
-    
+
     return new Promise((resolve, reject) => {
       const urlObj = new URL(CLIP_UPLOAD_URL);
       const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
-      
+
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
@@ -1467,7 +1473,7 @@ ipcMain.handle('share:upload', async (event, filePath) => {
           'Content-Length': contentLength
         }
       };
-      
+
       const req = httpModule.request(options, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
@@ -1476,7 +1482,7 @@ ipcMain.handle('share:upload', async (event, filePath) => {
             const result = JSON.parse(body);
             if (res.statusCode === 200 && result.success) {
               console.log(`[SHARE] Upload complete: ${result.url}`);
-              
+
               // Auto-save to local shared clips list
               try {
                 const settings = loadSettings();
@@ -1496,7 +1502,7 @@ ipcMain.handle('share:upload', async (event, filePath) => {
               } catch (saveErr) {
                 console.error('[SHARE] Failed to save clip to settings:', saveErr.message);
               }
-              
+
               event.sender.send('share:progress', { type: 'complete', ...result });
               resolve(result);
             } else {
@@ -1511,22 +1517,22 @@ ipcMain.handle('share:upload', async (event, filePath) => {
           }
         });
       });
-      
+
       req.on('error', (err) => {
         console.error('[SHARE] Upload network error:', err.message);
         event.sender.send('share:progress', { type: 'error', error: err.message });
         reject(err);
       });
-      
+
       // Write deleteToken field first, then file header
       req.write(deleteTokenPart);
       req.write(filePart);
-      
+
       // Stream file with progress tracking
       let bytesUploaded = 0;
       let lastProgressPct = 0;
       const fileStream = fs.createReadStream(filePath, { highWaterMark: 256 * 1024 }); // 256KB chunks
-      
+
       fileStream.on('data', (chunk) => {
         req.write(chunk);
         bytesUploaded += chunk.length;
@@ -1541,7 +1547,7 @@ ipcMain.handle('share:upload', async (event, filePath) => {
           });
         }
       });
-      
+
       fileStream.on('end', () => {
         req.write(footerPart);
         req.end();
@@ -1552,14 +1558,14 @@ ipcMain.handle('share:upload', async (event, filePath) => {
           totalBytes
         });
       });
-      
+
       fileStream.on('error', (err) => {
         console.error('[SHARE] File read error:', err.message);
         req.destroy();
         reject(err);
       });
     });
-    
+
   } catch (err) {
     console.error('[SHARE] Upload error:', err.message);
     event.sender.send('share:progress', { type: 'error', error: err.message });
@@ -1584,12 +1590,12 @@ ipcMain.handle('share:syncClips', async () => {
     const settings = loadSettings();
     const clips = settings.sharedClips || [];
     if (clips.length === 0) return clips;
-    
+
     const codes = clips.map(c => c.code);
     const payload = JSON.stringify({ codes });
     const urlObj = new URL('https://api.sentry-six.com/share/check-codes');
     const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
-    
+
     const result = await new Promise((resolve, reject) => {
       const req = httpModule.request({
         hostname: urlObj.hostname,
@@ -1616,12 +1622,12 @@ ipcMain.handle('share:syncClips', async () => {
       req.write(payload);
       req.end();
     });
-    
+
     if (!result || !result.statuses) {
       // Server unreachable, return local clips as-is
       return clips;
     }
-    
+
     // Update local clips: remove deleted ones, update expiry times
     const updatedClips = [];
     for (const clip of clips) {
@@ -1636,7 +1642,7 @@ ipcMain.handle('share:syncClips', async () => {
       }
       updatedClips.push(clip);
     }
-    
+
     settings.sharedClips = updatedClips;
     saveSettings(settings);
     return updatedClips;
@@ -1650,12 +1656,12 @@ ipcMain.handle('share:syncClips', async () => {
 // Delete a shared clip (sends delete request to server + removes from local settings)
 ipcMain.handle('share:deleteClip', async (_event, code, deleteToken) => {
   console.log('[SHARE] Deleting clip:', code);
-  
+
   try {
     const urlObj = new URL(CLIP_DELETE_URL);
     const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
     const payload = JSON.stringify({ code, deleteToken });
-    
+
     const result = await new Promise((resolve, reject) => {
       const req = httpModule.request({
         hostname: urlObj.hostname,
@@ -1681,21 +1687,21 @@ ipcMain.handle('share:deleteClip', async (_event, code, deleteToken) => {
       req.write(payload);
       req.end();
     });
-    
+
     // Remove from local settings regardless of server response
     try {
       const settings = loadSettings();
       settings.sharedClips = (settings.sharedClips || []).filter(c => c.code !== code);
       saveSettings(settings);
     } catch (e) { /* ignore */ }
-    
+
     if (result.statusCode === 200 && result.data.success) {
       console.log(`[SHARE] Clip ${code} deleted successfully`);
       return { success: true };
     } else {
       return { success: false, error: result.data.error || 'Delete failed' };
     }
-    
+
   } catch (err) {
     console.error('[SHARE] Delete error:', err.message);
     // Still remove from local settings
@@ -1721,12 +1727,12 @@ ipcMain.handle('fs:deleteFolder', async (_event, folderPath) => {
     if (!fs.existsSync(folderPath)) {
       return { success: false, error: 'Folder does not exist' };
     }
-    
+
     const stats = fs.statSync(folderPath);
     if (!stats.isDirectory()) {
       return { success: false, error: 'Path is not a directory' };
     }
-    
+
     // Try using shell.trashItem first (moves to recycle bin, works better with locked files on Windows)
     try {
       await shell.trashItem(folderPath);
@@ -1752,22 +1758,22 @@ ipcMain.handle('fs:deleteFolderWithReload', async (_event, folderPath, baseFolde
     if (!fs.existsSync(folderPath)) {
       return { success: false, error: 'Folder does not exist' };
     }
-    
+
     const stats = fs.statSync(folderPath);
     if (!stats.isDirectory()) {
       return { success: false, error: 'Path is not a directory' };
     }
-    
+
     // Store the pending deletion info
     pendingDeleteFolder = { folderPath, baseFolderPath };
-    
+
     // Reload the main window to release all file handles
     if (mainWindow && !mainWindow.isDestroyed()) {
       console.log('[DELETE] Reloading window to release file handles...');
       mainWindow.webContents.reload();
       return { success: true, reloading: true };
     }
-    
+
     return { success: false, error: 'Window not available' };
   } catch (err) {
     console.error('[DELETE] Failed to schedule deletion:', err);
@@ -1780,12 +1786,12 @@ ipcMain.handle('fs:checkPendingDelete', async () => {
   if (!pendingDeleteFolder) {
     return { hasPending: false };
   }
-  
+
   const { folderPath, baseFolderPath } = pendingDeleteFolder;
   pendingDeleteFolder = null; // Clear it
-  
+
   console.log('[DELETE] Processing pending deletion after reload:', folderPath);
-  
+
   try {
     // Try trash first
     try {
@@ -1806,20 +1812,20 @@ ipcMain.handle('fs:checkPendingDelete', async () => {
 
 ipcMain.handle('ffmpeg:check', async () => {
   const ffmpegPath = findFFmpegPath();
-  
+
   // Check for fake no GPU setting (developer mode)
   const settings = loadSettings();
   const fakeNoGpu = settings.devFakeNoGpu === true;
-  
+
   let gpuInfo = null;
   let hevcInfo = null;
-  
+
   if (ffmpegPath && !fakeNoGpu) {
     // Use cached encoder values if available (detection spawns ffmpeg subprocesses)
     // Cached values are already null on first run; detectGpuEncoder/detectHEVCEncoder cache internally
     const gpu = detectGpuEncoder(ffmpegPath);
     const hevc = detectHEVCEncoder(ffmpegPath);
-    
+
     if (gpu) {
       gpuInfo = { name: gpu.name, codec: gpu.codec };
     }
@@ -1827,9 +1833,9 @@ ipcMain.handle('ffmpeg:check', async () => {
       hevcInfo = { name: hevc.name, codec: hevc.codec };
     }
   }
-  
-  return { 
-    available: !!ffmpegPath, 
+
+  return {
+    available: !!ffmpegPath,
     path: ffmpegPath,
     gpu: gpuInfo,
     hevc: hevcInfo,
@@ -1976,7 +1982,7 @@ ipcMain.handle('system:getInfo', async () => {
 ipcMain.handle('diagnostics:get', async () => {
   try {
     const currentVersion = app.getVersion();
-    
+
     // Check for pending update
     let pendingUpdate = null; // null = up to date, string = pending version
     try {
@@ -1985,7 +1991,7 @@ ipcMain.handle('diagnostics:get', async () => {
         pendingUpdate = latestVersion.version; // Store the pending version
       }
     } catch { /* ignore update check errors */ }
-    
+
     // Get OS name (friendly format)
     const getOSName = () => {
       const platform = os.platform();
@@ -2002,19 +2008,19 @@ ipcMain.handle('diagnostics:get', async () => {
       }
       return platform;
     };
-    
+
     // Check FFmpeg and GPU
     const ffmpegPath = findFFmpegPath();
     const ffmpegDetected = ffmpegPath !== null;
-    
+
     // Detect GPU if not already done
     if (ffmpegDetected && getGpuEncoder() === null) {
       detectGpuEncoder(ffmpegPath);
     }
-    
+
     // Detect actual GPU hardware
     const gpuHardware = detectGpuHardware();
-    
+
     return {
       os: getOSName(),
       appVersion: currentVersion || 'unknown',

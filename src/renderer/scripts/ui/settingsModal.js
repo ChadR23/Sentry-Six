@@ -53,26 +53,26 @@ export function initSettingsModalDeps(deps) {
 export function initSettingsModal() {
     const state = getState?.();
     const useMetric = getUseMetric?.();
-    
+
     const settingsBtn = $('settingsBtn');
     const settingsModal = $('settingsModal');
-    
+
     // Initialize collapsible sections (for export modal)
     initCollapsibleSections();
-    
+
     // Sidebar tab navigation for horizontal settings layout
     if (settingsModal) {
         const navItems = settingsModal.querySelectorAll('.settings-nav-item');
         const accordions = settingsModal.querySelectorAll('.settings-accordion');
-        
+
         navItems.forEach(navItem => {
             navItem.addEventListener('click', () => {
                 const target = navItem.dataset.target;
-                
+
                 // Update active nav item
                 navItems.forEach(n => n.classList.remove('active'));
                 navItem.classList.add('active');
-                
+
                 // Show target accordion, hide others
                 accordions.forEach(acc => {
                     if (acc.dataset.section === target) {
@@ -81,42 +81,42 @@ export function initSettingsModal() {
                         acc.classList.remove('open');
                     }
                 });
-                
+
                 // Scroll content to top
                 const content = settingsModal.querySelector('.settings-content');
                 if (content) content.scrollTop = 0;
             });
         });
     }
-    
+
     const closeSettingsModal = $('closeSettingsModal');
     const closeSettingsBtn = $('closeSettingsBtn');
-    
+
     const settingsDashboardToggle = $('settingsDashboardToggle');
     const settingsMapToggle = $('settingsMapToggle');
     const settingsMetricToggle = $('settingsMetricToggle');
-    
+
     const dashboardToggle = $('dashboardToggle');
     const mapToggle = $('mapToggle');
     const metricToggle = $('metricToggle');
-    
+
     const defaultFolderPath = $('defaultFolderPath');
     const browseDefaultFolderBtn = $('browseDefaultFolderBtn');
     const clearDefaultFolderBtn = $('clearDefaultFolderBtn');
     const defaultFolderStatus = $('defaultFolderStatus');
-    
+
     // Initialize settings values
     if (settingsDashboardToggle && state) settingsDashboardToggle.checked = state.ui.dashboardEnabled;
     if (settingsMapToggle && state) settingsMapToggle.checked = state.ui.mapEnabled;
     if (settingsMetricToggle) settingsMetricToggle.checked = useMetric;
-    
+
     // Load saved default folder
     if (window.electronAPI?.getSetting && defaultFolderPath) {
         window.electronAPI.getSetting('defaultFolder').then(savedFolder => {
             if (savedFolder) defaultFolderPath.value = savedFolder;
         });
     }
-    
+
     // Open settings modal
     if (settingsBtn) {
         settingsBtn.onclick = (e) => {
@@ -127,44 +127,44 @@ export function initSettingsModal() {
                 if (settingsDashboardToggle && currentState) settingsDashboardToggle.checked = currentState.ui.dashboardEnabled;
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
-                
+
                 // Sync map mode dropdown
                 const settingsMapMode = $('settingsMapMode');
                 if (settingsMapMode) settingsMapMode.value = window._mapDarkMode ? 'dark' : 'light';
-                
+
                 // Sync layout style toggle
                 const settingsLayoutStyle = $('settingsLayoutStyle');
                 if (settingsLayoutStyle) {
                     const currentStyle = getLayoutStyle?.() || 'modern';
                     settingsLayoutStyle.checked = currentStyle === 'classic';
                 }
-                
+
                 const disableAutoUpdate = $('settingsDisableAutoUpdate');
                 if (disableAutoUpdate && window.electronAPI?.getSetting) {
                     window.electronAPI.getSetting('disableAutoUpdate').then(savedValue => {
                         disableAutoUpdate.checked = savedValue === true;
                     });
                 }
-                
+
                 settingsModal.classList.remove('hidden');
             }
             settingsBtn.blur();
         };
     }
-    
+
     function closeSettings() {
         if (settingsModal) settingsModal.classList.add('hidden');
     }
-    
+
     if (closeSettingsModal) closeSettingsModal.onclick = closeSettings;
     if (closeSettingsBtn) closeSettingsBtn.onclick = closeSettings;
-    
+
     if (settingsModal) {
         settingsModal.onclick = (e) => {
             if (e.target === settingsModal) closeSettings();
         };
     }
-    
+
     // Dashboard toggle
     if (settingsDashboardToggle) {
         settingsDashboardToggle.onchange = () => {
@@ -175,16 +175,16 @@ export function initSettingsModal() {
             settingsDashboardToggle.blur();
         };
     }
-    
+
     // Dashboard layout setting
     const settingsDashboardLayout = $('settingsDashboardLayout');
     const settingsCompactDashboardFixedRow = $('settingsCompactDashboardFixedRow');
     const settingsCompactDashboardFixed = $('settingsCompactDashboardFixed');
-    
+
     if (settingsDashboardLayout && window.electronAPI?.getSetting) {
         window.electronAPI.getSetting('dashboardLayout').then(savedLayout => {
             settingsDashboardLayout.value = savedLayout || 'default';
-            
+
             // Show/hide fixed toggle based on saved layout
             if (savedLayout === 'compact') {
                 if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
@@ -192,14 +192,14 @@ export function initSettingsModal() {
                 if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.add('hidden');
             }
         });
-        
+
         // Load saved fixed/movable setting
         if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
             window.electronAPI.getSetting('compactDashboardFixed').then(savedFixed => {
                 settingsCompactDashboardFixed.checked = savedFixed !== false; // Default to true (fixed)
             });
         }
-        
+
         settingsDashboardLayout.onchange = async () => {
             const layout = settingsDashboardLayout.value || 'default';
             if (window.electronAPI?.setSetting) {
@@ -209,7 +209,7 @@ export function initSettingsModal() {
             if (window.updateDashboardLayout) {
                 window.updateDashboardLayout(layout);
             }
-            
+
             // Show/hide fixed toggle based on selected layout
             if (layout === 'compact') {
                 if (settingsCompactDashboardFixedRow) settingsCompactDashboardFixedRow.classList.remove('hidden');
@@ -219,7 +219,7 @@ export function initSettingsModal() {
             settingsDashboardLayout.blur();
         };
     }
-    
+
     // Compact dashboard fixed/movable toggle
     if (settingsCompactDashboardFixed && window.electronAPI?.getSetting) {
         settingsCompactDashboardFixed.onchange = async () => {
@@ -234,7 +234,7 @@ export function initSettingsModal() {
             settingsCompactDashboardFixed.blur();
         };
     }
-    
+
     // App theme (Dark/Light) setting
     const settingsAppTheme = $('settingsAppTheme');
     if (settingsAppTheme && window.electronAPI?.getSetting) {
@@ -243,7 +243,7 @@ export function initSettingsModal() {
             settingsAppTheme.value = theme;
             window.applyAppTheme?.(theme);
         });
-        
+
         settingsAppTheme.onchange = async () => {
             const theme = settingsAppTheme.value || 'dark';
             if (window.electronAPI?.setSetting) {
@@ -253,7 +253,7 @@ export function initSettingsModal() {
             settingsAppTheme.blur();
         };
     }
-    
+
     // Accelerator pedal display mode setting
     const settingsAccelPedMode = $('settingsAccelPedMode');
     if (settingsAccelPedMode && window.electronAPI?.getSetting) {
@@ -264,7 +264,7 @@ export function initSettingsModal() {
                 window.updateAccelPedMode(savedMode || 'iconbar');
             }
         });
-        
+
         settingsAccelPedMode.onchange = async () => {
             const mode = settingsAccelPedMode.value || 'iconbar';
             if (window.electronAPI?.setSetting) {
@@ -277,7 +277,7 @@ export function initSettingsModal() {
             settingsAccelPedMode.blur();
         };
     }
-    
+
     // Map toggle
     if (settingsMapToggle) {
         settingsMapToggle.onchange = () => {
@@ -288,14 +288,14 @@ export function initSettingsModal() {
             settingsMapToggle.blur();
         };
     }
-    
+
     // Map mode dropdown (light/dark)
     const settingsMapMode = $('settingsMapMode');
     if (settingsMapMode && window.electronAPI?.getSetting) {
         window.electronAPI.getSetting('mapDarkMode').then(saved => {
             settingsMapMode.value = saved === true ? 'dark' : 'light';
         });
-        
+
         settingsMapMode.onchange = async () => {
             const enabled = settingsMapMode.value === 'dark';
             window._mapDarkMode = enabled;
@@ -308,7 +308,7 @@ export function initSettingsModal() {
             settingsMapMode.blur();
         };
     }
-    
+
     // Metric toggle
     if (settingsMetricToggle) {
         settingsMetricToggle.onchange = () => {
@@ -319,7 +319,7 @@ export function initSettingsModal() {
             settingsMetricToggle.blur();
         };
     }
-    
+
     // Date format setting
     const settingsDateFormat = $('settingsDateFormat');
     if (settingsDateFormat) {
@@ -332,8 +332,8 @@ export function initSettingsModal() {
         } else {
             window._dateFormat = 'ymd';
         }
-        
-        settingsDateFormat.addEventListener('change', async function() {
+
+        settingsDateFormat.addEventListener('change', async function () {
             const format = this.value;
             window._dateFormat = format;
             if (window.electronAPI?.setSetting) {
@@ -344,7 +344,7 @@ export function initSettingsModal() {
             settingsDateFormat.blur();
         });
     }
-    
+
     // Time format setting (12h/24h)
     const settingsTimeFormat = $('settingsTimeFormat');
     if (settingsTimeFormat) {
@@ -357,8 +357,8 @@ export function initSettingsModal() {
         } else {
             window._timeFormat = '12h';
         }
-        
-        settingsTimeFormat.addEventListener('change', async function() {
+
+        settingsTimeFormat.addEventListener('change', async function () {
             const format = this.value;
             window._timeFormat = format;
             if (window.electronAPI?.setSetting) {
@@ -369,7 +369,7 @@ export function initSettingsModal() {
             settingsTimeFormat.blur();
         });
     }
-    
+
     // Mirror cameras setting
     const settingsMirrorCameras = $('settingsMirrorCameras');
     if (settingsMirrorCameras) {
@@ -383,8 +383,8 @@ export function initSettingsModal() {
         } else {
             window._mirrorCameras = true;
         }
-        
-        settingsMirrorCameras.addEventListener('change', async function() {
+
+        settingsMirrorCameras.addEventListener('change', async function () {
             const mirrorEnabled = this.checked;
             window._mirrorCameras = mirrorEnabled;
             if (window.electronAPI?.setSetting) {
@@ -395,20 +395,20 @@ export function initSettingsModal() {
             settingsMirrorCameras.blur();
         });
     }
-    
+
     // Language selector
     const settingsLanguage = $('settingsLanguage');
     if (settingsLanguage) {
         // Load saved language
         const currentLang = getCurrentLanguage();
         settingsLanguage.value = currentLang;
-        
-        settingsLanguage.addEventListener('change', async function() {
+
+        settingsLanguage.addEventListener('change', async function () {
             const newLang = this.value;
             await setLanguage(newLang);
             settingsLanguage.blur();
         });
-        
+
         // Listen for language changes from other sources (e.g., welcome guide)
         onLanguageChange((newLang) => {
             if (settingsLanguage.value !== newLang) {
@@ -416,21 +416,21 @@ export function initSettingsModal() {
             }
         });
     }
-    
+
     // Layout style toggle (Modern floating vs Classic sidebar)
     const settingsLayoutStyle = $('settingsLayoutStyle');
     if (settingsLayoutStyle) {
         // Initialize checkbox state from current layout
         const currentStyle = getLayoutStyle?.() || 'modern';
         settingsLayoutStyle.checked = currentStyle === 'classic';
-        
+
         settingsLayoutStyle.onchange = () => {
             const newStyle = settingsLayoutStyle.checked ? 'classic' : 'modern';
             setLayoutStyle?.(newStyle);
             settingsLayoutStyle.blur();
         };
     }
-    
+
     // Browse for default folder
     if (browseDefaultFolderBtn) {
         browseDefaultFolderBtn.onclick = async (e) => {
@@ -468,7 +468,7 @@ export function initSettingsModal() {
             browseDefaultFolderBtn.blur();
         };
     }
-    
+
     // Clear default folder
     if (clearDefaultFolderBtn) {
         clearDefaultFolderBtn.onclick = async (e) => {
@@ -485,17 +485,17 @@ export function initSettingsModal() {
             clearDefaultFolderBtn.blur();
         };
     }
-    
+
     // Initialize keybind settings
     initKeybindSettings();
-    
+
     // Skip duration setting
     const settingsSkipDuration = $('settingsSkipDuration');
     const skipForwardLabel = $('skipForwardLabel');
     const skipBackwardLabel = $('skipBackwardLabel');
     const skipBackBtn = $('skipBackBtn');
     const skipForwardBtn = $('skipForwardBtn');
-    
+
     function updateSkipLabels(duration) {
         // Update settings modal labels
         if (skipForwardLabel) skipForwardLabel.textContent = `${t('ui.settings.skipForward')} ${duration}s`;
@@ -512,7 +512,7 @@ export function initSettingsModal() {
             skipForwardBtn.title = `${t('ui.settings.skipForward')} ${duration} ${t('ui.settings.seconds')}`;
         }
     }
-    
+
     if (settingsSkipDuration) {
         // Load saved skip duration
         if (window.electronAPI?.getSetting) {
@@ -526,8 +526,8 @@ export function initSettingsModal() {
             window._skipDuration = 15;
             updateSkipLabels(15);
         }
-        
-        settingsSkipDuration.addEventListener('change', async function() {
+
+        settingsSkipDuration.addEventListener('change', async function () {
             const duration = parseInt(this.value, 10);
             window._skipDuration = duration;
             updateSkipLabels(duration);
@@ -536,7 +536,7 @@ export function initSettingsModal() {
             }
         });
     }
-    
+
     // Support Chat button (in control bar)
     const supportChatBtn = $('supportChatBtn');
     if (supportChatBtn) {
@@ -551,7 +551,7 @@ export function initSettingsModal() {
             supportChatBtn.blur();
         };
     }
-    
+
     // Support Chat button (in settings modal)
     const openSupportChatFromSettings = $('openSupportChatFromSettings');
     if (openSupportChatFromSettings) {
@@ -560,7 +560,7 @@ export function initSettingsModal() {
                 // Close settings modal
                 const settingsModal = $('settingsModal');
                 if (settingsModal) settingsModal.classList.add('hidden');
-                
+
                 // Open support chat
                 const { showSupportChat, initSupportChat } = await import('./supportChat.js');
                 initSupportChat();
@@ -571,7 +571,7 @@ export function initSettingsModal() {
             openSupportChatFromSettings.blur();
         };
     }
-    
+
     // Privacy Policy & Terms of Service links
     const openPrivacyPolicy = $('openPrivacyPolicy');
     if (openPrivacyPolicy) {
@@ -591,7 +591,7 @@ export function initSettingsModal() {
             }
         };
     }
-    
+
     // Initialize support chat on startup (for message polling)
     (async () => {
         try {
@@ -601,11 +601,11 @@ export function initSettingsModal() {
             console.error('Failed to initialize support chat:', err);
         }
     })();
-    
+
     // Advanced settings toggle
     const advancedSettingsToggle = $('advancedSettingsToggle');
     const advancedSettingsSection = $('advancedSettingsSection');
-    
+
     if (advancedSettingsToggle && advancedSettingsSection) {
         advancedSettingsToggle.onclick = (e) => {
             e.preventDefault();
@@ -614,7 +614,7 @@ export function initSettingsModal() {
             advancedSettingsToggle.blur();
         };
     }
-    
+
     // Check for updates button
     const checkForUpdatesBtn = $('checkForUpdatesBtn');
     if (checkForUpdatesBtn) {
@@ -654,7 +654,7 @@ export function initSettingsModal() {
             checkForUpdatesBtn.blur();
         };
     }
-    
+
     // Sentry camera highlight toggle
     const settingsSentryCameraHighlight = $('settingsSentryCameraHighlight');
     if (settingsSentryCameraHighlight) {
@@ -668,8 +668,8 @@ export function initSettingsModal() {
         } else {
             window._sentryCameraHighlightEnabled = true;
         }
-        
-        settingsSentryCameraHighlight.addEventListener('change', async function() {
+
+        settingsSentryCameraHighlight.addEventListener('change', async function () {
             window._sentryCameraHighlightEnabled = this.checked;
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('sentryCameraHighlight', this.checked);
@@ -678,7 +678,7 @@ export function initSettingsModal() {
             settingsSentryCameraHighlight.blur();
         });
     }
-    
+
     // Saved camera highlight toggle
     const settingsSavedCameraHighlight = $('settingsSavedCameraHighlight');
     if (settingsSavedCameraHighlight) {
@@ -692,8 +692,8 @@ export function initSettingsModal() {
         } else {
             window._savedCameraHighlightEnabled = true;
         }
-        
-        settingsSavedCameraHighlight.addEventListener('change', async function() {
+
+        settingsSavedCameraHighlight.addEventListener('change', async function () {
             window._savedCameraHighlightEnabled = this.checked;
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('savedCameraHighlight', this.checked);
@@ -702,7 +702,7 @@ export function initSettingsModal() {
             settingsSavedCameraHighlight.blur();
         });
     }
-    
+
     // Reset camera order button (use onclick to prevent duplicate listeners)
     const resetCameraOrderBtn = $('resetCameraOrderBtn');
     if (resetCameraOrderBtn) {
@@ -712,36 +712,36 @@ export function initSettingsModal() {
             resetCameraOrderBtn.blur();
         };
     }
-    
+
     // Glass blur slider
     const settingsGlassBlur = $('settingsGlassBlur');
     const glassBlurValue = $('glassBlurValue');
-    
+
     function applyGlassBlur(value) {
         document.documentElement.style.setProperty('--glass-blur', `${value}px`);
         if (glassBlurValue) glassBlurValue.textContent = `${value}px`;
         if (settingsGlassBlur) settingsGlassBlur.value = value;
     }
-    
+
     if (window.electronAPI?.getSetting) {
         window.electronAPI.getSetting('glassBlur').then(savedValue => {
             applyGlassBlur(savedValue !== undefined ? savedValue : 7);
         });
     }
-    
+
     if (settingsGlassBlur) {
-        settingsGlassBlur.addEventListener('input', function() {
+        settingsGlassBlur.addEventListener('input', function () {
             applyGlassBlur(parseInt(this.value, 10));
         });
-        
-        settingsGlassBlur.addEventListener('change', async function() {
+
+        settingsGlassBlur.addEventListener('change', async function () {
             if (window.electronAPI?.setSetting) {
                 await window.electronAPI.setSetting('glassBlur', parseInt(this.value, 10));
             }
             settingsGlassBlur.blur();
         });
     }
-    
+
     // Include Dashboard toggle in export modal - show/hide options
     const includeDashboard = document.getElementById('includeDashboard');
     const dashboardOptions = document.getElementById('dashboardOptions');
@@ -750,21 +750,21 @@ export function initSettingsModal() {
             dashboardOptions.classList.toggle('hidden', !includeDashboard.checked);
         });
     }
-    
+
     // Hidden Developer Settings trigger - click Settings title 5 times
     const settingsModalHeader = settingsModal?.querySelector('.modal-header h2');
     let settingsTitleClickCount = 0;
     let settingsTitleClickTimer = null;
-    
+
     if (settingsModalHeader) {
         settingsModalHeader.style.cursor = 'default';
         settingsModalHeader.addEventListener('click', (e) => {
             e.stopPropagation();
             settingsTitleClickCount++;
-            
+
             clearTimeout(settingsTitleClickTimer);
             settingsTitleClickTimer = setTimeout(() => { settingsTitleClickCount = 0; }, 10000);
-            
+
             if (settingsTitleClickCount >= 5) {
                 settingsTitleClickCount = 0;
                 closeSettings();
@@ -781,13 +781,13 @@ export function initDevSettingsModal() {
     const devSettingsModal = $('devSettingsModal');
     const closeDevSettingsModal_btn = $('closeDevSettingsModal');
     const closeDevSettingsBtn = $('closeDevSettingsBtn');
-    
+
     function closeDevSettings() {
         if (devSettingsModal) devSettingsModal.classList.add('hidden');
         const devOutput = $('devOutput');
         if (devOutput) devOutput.classList.add('hidden');
     }
-    
+
     function showDevOutput(text) {
         const devOutput = $('devOutput');
         const devOutputText = $('devOutputText');
@@ -796,16 +796,16 @@ export function initDevSettingsModal() {
             devOutput.classList.remove('hidden');
         }
     }
-    
+
     if (closeDevSettingsModal_btn) closeDevSettingsModal_btn.onclick = closeDevSettings;
     if (closeDevSettingsBtn) closeDevSettingsBtn.onclick = closeDevSettings;
-    
+
     if (devSettingsModal) {
         devSettingsModal.onclick = (e) => {
             if (e.target === devSettingsModal) closeDevSettings();
         };
     }
-    
+
     // Open DevTools
     const devOpenConsole = $('devOpenConsole');
     if (devOpenConsole) {
@@ -817,7 +817,7 @@ export function initDevSettingsModal() {
             devOpenConsole.blur();
         };
     }
-    
+
     // Reset Settings
     const devResetSettings = $('devResetSettings');
     if (devResetSettings) {
@@ -838,7 +838,7 @@ export function initDevSettingsModal() {
             devResetSettings.blur();
         };
     }
-    
+
     // Show App Paths
     const devShowPaths = $('devShowPaths');
     if (devShowPaths) {
@@ -857,7 +857,7 @@ export function initDevSettingsModal() {
             devShowPaths.blur();
         };
     }
-    
+
     // Fake No GPU Toggle
     const devFakeNoGpu = $('devFakeNoGpu');
     if (devFakeNoGpu) {
@@ -865,17 +865,17 @@ export function initDevSettingsModal() {
         window.electronAPI?.getSetting?.('devFakeNoGpu').then(value => {
             devFakeNoGpu.checked = value === true;
         });
-        
+
         devFakeNoGpu.onchange = async () => {
             const value = devFakeNoGpu.checked;
             await window.electronAPI?.setSetting?.('devFakeNoGpu', value);
-            showDevOutput(value 
+            showDevOutput(value
                 ? 'Fake No GPU: ENABLED\n\nFFmpeg will report no GPU encoder.\nRe-open Export panel to see the effect.'
                 : 'Fake No GPU: DISABLED\n\nGPU encoder detection restored.\nRe-open Export panel to see the effect.');
             devFakeNoGpu.blur();
         };
     }
-    
+
     // Disable API Requests Toggle
     const devDisableApiRequests = $('devDisableApiRequests');
     if (devDisableApiRequests) {
@@ -883,17 +883,17 @@ export function initDevSettingsModal() {
         window.electronAPI?.getSetting?.('devDisableApiRequests').then(value => {
             devDisableApiRequests.checked = value === true;
         });
-        
+
         devDisableApiRequests.onchange = async () => {
             const value = devDisableApiRequests.checked;
             await window.electronAPI?.setSetting?.('devDisableApiRequests', value);
-            showDevOutput(value 
+            showDevOutput(value
                 ? 'API Requests: DISABLED\n\nNo update checks or API calls will be made.\nRestart app for full effect.'
                 : 'API Requests: ENABLED\n\nUpdate checks and API calls restored.\nRestart app for full effect.');
             devDisableApiRequests.blur();
         };
     }
-    
+
     // Reset Welcome Guide
     const devResetWelcomeGuide = $('devResetWelcomeGuide');
     if (devResetWelcomeGuide) {
@@ -907,7 +907,7 @@ export function initDevSettingsModal() {
             devResetWelcomeGuide.blur();
         };
     }
-    
+
     // Show Welcome Guide Now
     const devShowWelcomeGuide = $('devShowWelcomeGuide');
     if (devShowWelcomeGuide) {
@@ -921,7 +921,7 @@ export function initDevSettingsModal() {
             devShowWelcomeGuide.blur();
         };
     }
-    
+
     // Reset Privacy & Terms
     const devResetWelcomeScreen = $('devResetWelcomeScreen');
     if (devResetWelcomeScreen) {
@@ -935,7 +935,7 @@ export function initDevSettingsModal() {
             devResetWelcomeScreen.blur();
         };
     }
-    
+
     // Show Privacy & Terms Now
     const devShowWelcomeScreen = $('devShowWelcomeScreen');
     if (devShowWelcomeScreen) {
@@ -949,7 +949,37 @@ export function initDevSettingsModal() {
             devShowWelcomeScreen.blur();
         };
     }
-    
+
+    // Reset NEW Badges (show all)
+    const devResetBadges = $('devResetBadges');
+    if (devResetBadges) {
+        devResetBadges.onclick = async () => {
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip'];
+            for (const key of badgeKeys) {
+                await window.electronAPI?.setSetting?.(key, false);
+            }
+            // Show badges immediately
+            document.querySelectorAll('.feature-new-badge, .share-new-badge, .style-new-dot').forEach(el => el.classList.remove('hidden'));
+            showDevOutput('NEW Badges Reset\n\nAll NEW badges will now appear again in the Export modal.');
+            devResetBadges.blur();
+        };
+    }
+
+    // Dismiss All Badges (hide all)
+    const devDismissBadges = $('devDismissBadges');
+    if (devDismissBadges) {
+        devDismissBadges.onclick = async () => {
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip'];
+            for (const key of badgeKeys) {
+                await window.electronAPI?.setSetting?.(key, true);
+            }
+            // Hide badges immediately
+            document.querySelectorAll('.feature-new-badge, .share-new-badge, .style-new-dot').forEach(el => el.classList.add('hidden'));
+            showDevOutput('All Badges Dismissed\n\nAll NEW badges have been hidden.');
+            devDismissBadges.blur();
+        };
+    }
+
 }
 
 /**
@@ -971,37 +1001,37 @@ export function initChangelogModal() {
     const closeChangelogBtn = $('closeChangelogBtn');
     const viewChangelogBtn = $('viewChangelogBtn');
     const settingsCurrentVersion = $('settingsCurrentVersion');
-    
+
     // Load and display current version in settings
     if (settingsCurrentVersion && window.electronAPI?.devGetCurrentVersion) {
         window.electronAPI.devGetCurrentVersion().then(versionInfo => {
             settingsCurrentVersion.textContent = 'v' + (versionInfo.version || 'unknown');
         });
     }
-    
+
     function closeChangelog() {
         if (changelogModal) changelogModal.classList.add('hidden');
     }
-    
+
     if (closeChangelogModal) closeChangelogModal.onclick = () => { closeChangelog(); closeChangelogModal.blur(); };
     if (closeChangelogBtn) closeChangelogBtn.onclick = () => { closeChangelog(); closeChangelogBtn.blur(); };
-    
+
     if (changelogModal) {
         changelogModal.onclick = (e) => {
             if (e.target === changelogModal) closeChangelog();
         };
     }
-    
+
     // View Changelog button
     if (viewChangelogBtn) {
         viewChangelogBtn.onclick = async () => {
             if (changelogModal) {
                 changelogModal.classList.remove('hidden');
-                
+
                 const fullChangelogContent = $('fullChangelogContent');
                 if (fullChangelogContent) {
                     fullChangelogContent.innerHTML = '<div class="changelog-loading">Loading changelog...</div>';
-                    
+
                     // Load changelog
                     if (window.electronAPI?.getChangelog) {
                         const changelog = await window.electronAPI.getChangelog();
@@ -1023,13 +1053,13 @@ function renderFullChangelog(versions) {
     if (!versions || versions.length === 0) {
         return '<div class="changelog-loading">No changelog available</div>';
     }
-    
+
     const typeIcons = {
         feature: '✦',
         improvement: '↑',
         fix: '✓'
     };
-    
+
     const formatDate = (dateStr) => {
         try {
             const date = new Date(dateStr);
@@ -1038,7 +1068,7 @@ function renderFullChangelog(versions) {
             return dateStr;
         }
     };
-    
+
     return versions.map(entry => `
         <div class="changelog-version">
             <div class="changelog-version-header">

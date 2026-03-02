@@ -154,7 +154,7 @@ function generateAssHeader(playResX, playResY, fontSize) {
   const scaledFontSize = Math.round(fontSize);
   const smallFontSize = Math.round(fontSize * 0.7);
   const largeFontSize = Math.round(fontSize * 1.4);
-  
+
   return `[Script Info]
 Title: Tesla Compact Dashboard
 ScriptType: v4.00+
@@ -199,7 +199,7 @@ function formatAssTime(ms) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
   const centiseconds = Math.floor((totalSeconds % 1) * 100);
-  
+
   return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
 }
 
@@ -215,7 +215,7 @@ function formatDisplayTime(timestampMs, timeFormat = '12h') {
   let h = date.getHours();
   const m = date.getMinutes();
   const s = date.getSeconds();
-  
+
   if (timeFormat === '24h') {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   } else {
@@ -237,7 +237,7 @@ function formatDisplayDate(timestampMs, dateFormat = 'mdy') {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  
+
   switch (dateFormat) {
     case 'dmy':
       return `${d}/${m}/${y}`;
@@ -271,7 +271,7 @@ function getSeiValue(sei, camel, snake) {
  */
 function calculatePosition(position, playResX, playResY, dashWidth, dashHeight) {
   const margin = 40; // Margin from edges
-  
+
   const positions = {
     'bottom-center': { x: playResX / 2, y: playResY - margin - dashHeight / 2 },
     'bottom-left': { x: margin + dashWidth / 2, y: playResY - margin - dashHeight / 2 },
@@ -280,7 +280,7 @@ function calculatePosition(position, playResX, playResY, dashWidth, dashHeight) 
     'top-left': { x: margin + dashWidth / 2, y: margin + dashHeight / 2 },
     'top-right': { x: playResX - margin - dashWidth / 2, y: margin + dashHeight / 2 }
   };
-  
+
   return positions[position] || positions['bottom-center'];
 }
 
@@ -442,7 +442,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     language = 'en',
     accelPedMode = 'iconbar'
   } = options;
-  
+
   // Dashboard dimensions - fixed size based on 1920px reference width
   // This ensures the dashboard is the same size regardless of camera count
   // Size options: small (25%), medium (35%), large (45%), xlarge (55% - for high-res exports)
@@ -453,7 +453,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     'xlarge': 0.55
   };
   const sizeMultiplier = sizeMultipliers[size] || 0.35;
-  
+
   // Compact style aspect ratio: 480x56 (8.57:1)
   // Always use 1920px reference so dashboard size is consistent across camera counts
   // Cap at video width minus margins to prevent overflow on very small exports
@@ -462,10 +462,10 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const dashHeight = Math.round(dashWidth / 8.57);
   const fontSize = Math.round(dashHeight * 0.45);
   const iconSize = Math.round(dashHeight * 0.5);
-  
+
   const pos = calculatePosition(position, playResX, playResY, dashWidth, dashHeight);
   const events = [];
-  
+
   // Calculate element positions - evenly distributed across dashboard width
   // Layout: [Brake] [Date/Time] [<] [Speed+Unit] [Gear/AP] [>] [Steering] [Accel]
   // 8 elements, evenly spaced with extra gap between Speed and Gear/AP
@@ -474,7 +474,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const usableWidth = dashWidth - (padding * 2);
   const spacing = usableWidth / (numElements - 1);
   const startX = pos.x - dashWidth / 2 + padding;
-  
+
   // Even spacing for all elements, with speed/gearAp shifted for extra gap
   const extraGap = spacing * 0.22; // Extra gap between speed and gear/AP (and away from blinkers)
   const positions = {
@@ -487,11 +487,11 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     steering: startX + spacing * 6,
     accel: startX + spacing * 7
   };
-  
+
   const durationMs = endTimeMs - startTimeMs;
   const totalFrames = Math.ceil((durationMs / 1000) * FPS);
   const frameTimeMs = 1000 / FPS;
-  
+
   // Blinker animation: Tesla uses 400ms on / 300ms off = 700ms cycle
   // At 36fps: 700ms / (1000/36) ≈ 25 frames per cycle
   const framesPerBlinkerCycle = 25;
@@ -500,18 +500,18 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   let prevRightBlinkerOn = false;
   let leftBlinkerStartFrame = 0;
   let rightBlinkerStartFrame = 0;
-  
+
   // Steering smoothing: frame-rate-independent exponential tracking (matches live playback)
   let smoothedSteeringAngle = 0;
   const steerFactor = 1 - Math.exp(-45 * (frameTimeMs / 1000)); // STEERING_TRACKING_SPEED=45
-  
+
   // Find SEI data for a given video time
   function findSeiAtTime(videoTimeMs) {
     if (!seiData || seiData.length === 0) return null;
-    
+
     let closest = seiData[0];
     let minDiff = Math.abs(seiData[0].timestampMs - videoTimeMs);
-    
+
     for (let i = 1; i < seiData.length; i++) {
       const diff = Math.abs(seiData[i].timestampMs - videoTimeMs);
       if (diff < minDiff) {
@@ -520,19 +520,19 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
       }
       if (seiData[i].timestampMs > videoTimeMs && diff > minDiff) break;
     }
-    
+
     return closest?.sei || null;
   }
-  
+
   // Convert video time to actual timestamp for display
   function convertVideoTimeToTimestamp(videoTimeMs) {
     if (!segments || segments.length === 0) return videoTimeMs;
-    
+
     for (let i = 0; i < segments.length; i++) {
       const segStart = (cumStarts[i] || 0) * 1000;
       const segDuration = (segments[i]?.durationSec || 60) * 1000;
       const segEnd = segStart + segDuration;
-      
+
       if (videoTimeMs >= segStart && videoTimeMs < segEnd) {
         const segmentTimestamp = segments[i]?.timestamp;
         if (segmentTimestamp) {
@@ -541,46 +541,46 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         }
       }
     }
-    
+
     return videoTimeMs;
   }
-  
+
   // Track previous state to only emit events when data changes
   let prevState = null;
   let eventStartFrame = 0;
-  
+
   for (let frame = 0; frame <= totalFrames; frame++) {
     const currentTimeMs = startTimeMs + (frame * frameTimeMs);
     const sei = findSeiAtTime(currentTimeMs);
     const actualTimestampMs = convertVideoTimeToTimestamp(currentTimeMs);
-    
+
     // Extract telemetry values
     const mps = Math.abs(getSeiValue(sei, 'vehicleSpeedMps', 'vehicle_speed_mps') || 0);
     const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
     const speedUnit = getSpeedUnit(useMetric, language);
-    
+
     const gear = getSeiValue(sei, 'gearState', 'gear_state');
     const gearText = getGearText(gear, language);
-    
+
     const leftBlinkerOn = !!getSeiValue(sei, 'blinkerOnLeft', 'blinker_on_left');
     const rightBlinkerOn = !!getSeiValue(sei, 'blinkerOnRight', 'blinker_on_right');
-    
+
     const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state');
     const apActive = apState === 1 || apState === 2;
     const apText = getApText(apState, language);
-    
+
     const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
     const brakeActive = brakeApplied;
-    
+
     const accelPos = getSeiValue(sei, 'acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
     // Normalize to 0-100 range (SEI data can be 0-1 or 0-100 depending on version)
     const accelPct = accelPos > 1 ? Math.min(100, accelPos) : Math.min(100, accelPos * 100);
     const accelActive = accelPct > 5;
-    
+
     const rawSteeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
     smoothedSteeringAngle += (rawSteeringAngle - smoothedSteeringAngle) * steerFactor;
     const steeringAngle = smoothedSteeringAngle;
-    
+
     // Blinker animation state (frame-based, phase resets on activation)
     if (leftBlinkerOn && !prevLeftBlinkerOn) leftBlinkerStartFrame = frame;
     if (rightBlinkerOn && !prevRightBlinkerOn) rightBlinkerStartFrame = frame;
@@ -590,29 +590,29 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
     const rightBlinkVisible = rightBlinkerOn && rightFrameInCycle < blinkerOnFrames;
     prevLeftBlinkerOn = leftBlinkerOn;
     prevRightBlinkerOn = rightBlinkerOn;
-    
+
     const displayTime = formatDisplayTime(actualTimestampMs, timeFormat);
     const displayDate = formatDisplayDate(actualTimestampMs, dateFormat);
-    
+
     // Create state signature for change detection
     const currentState = JSON.stringify({
       speed, gearText, leftBlinkVisible, rightBlinkVisible,
       apActive, apText, brakeActive, accelPct: Math.round(accelPct),
       steeringAngle: Math.round(steeringAngle), displayTime, displayDate
     });
-    
+
     // Emit events when state changes or at the end
     if (currentState !== prevState || frame === totalFrames) {
       if (prevState !== null && eventStartFrame < frame) {
         const startAssTime = formatAssTime((eventStartFrame * frameTimeMs));
         const endAssTime = formatAssTime((frame * frameTimeMs));
-        
+
         // Parse previous state for event generation
         const prev = JSON.parse(prevState);
-        
+
         // Corner radius for rounded rectangle
         const cornerRadius = Math.round(dashHeight * 0.35);
-        
+
         // Background panel - semi-transparent dark rounded rectangle
         // Using absolute coordinates for the rectangle (not relative to pos)
         const bgLeft = pos.x - dashWidth / 2;
@@ -620,7 +620,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         const bgTop = pos.y - dashHeight / 2;
         const bgBottom = pos.y + dashHeight / 2;
         const r = cornerRadius;
-        
+
         // Draw rounded rectangle using ASS vector drawing with absolute positioning
         // The \an7 (top-left alignment) + \pos(0,0) makes coordinates absolute
         events.push(dialogueLine(0, startAssTime, endAssTime, 'CompactDash',
@@ -635,7 +635,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           `l ${bgLeft} ${bgTop + r} ` +
           `b ${bgLeft} ${bgTop} ${bgLeft + r} ${bgTop} ${bgLeft + r} ${bgTop}{\\p0}`
         ));
-        
+
         // Brake pedal icon - from Illustrator export, centered at (0,0)
         const brakeColor = prev.brakeActive ? '&H0000FF&' : '&H606060&'; // Red when active, gray when off
         // Base path is ~773 units wide (from -386.87 to 386.05), scale to fit iconSize
@@ -652,12 +652,12 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           `{\\an7\\pos(${brakeX},${brakeY})\\bord0\\shad0\\1c${brakeColor}\\p1}` +
           drawBrakePedalTab(pedalScale) + `{\\p0}`
         ));
-        
+
         // Speed and gear font sizes (declared early as used by gear display)
         const speedNumSize = Math.round(fontSize * 1.4);
         const speedUnitSize = Math.round(fontSize * 0.55);
         const smallTextSize = Math.round(fontSize * 0.7);
-        
+
         // Date and Time display (stacked vertically) - at position 1 (where Gear was)
         // Date on top, Time below - both same size as the old time display
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
@@ -666,7 +666,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an5\\pos(${positions.dateTime},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c&HA0A0A0&}${prev.displayTime}`
         ));
-        
+
         // Left blinker arrow - from Illustrator export, centered at (0,0)
         const leftColor = prev.leftBlinkVisible ? '&H22C55E&' : '&H505050&'; // Green when on
         // Base arrow path is ~195 units wide, scale to fit iconSize
@@ -677,7 +677,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           `{\\an7\\pos(${leftX},${leftY})\\bord0\\shad0\\1c${leftColor}\\p1}` +
           drawLeftArrow(arrowScale) + `{\\p0}`
         ));
-        
+
         // Speed display - number with unit beside it (e.g. "32 MPH")
         const speedGap = fontSize * 0.15; // Small gap between number and unit
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
@@ -686,7 +686,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an4\\pos(${positions.speed + speedGap},${pos.y})\\bord0\\shad0\\fs${speedUnitSize}\\1c&H909090&}${speedUnit}`
         ));
-        
+
         // Gear and Autopilot label (stacked vertically) - at position 4 (where Time was)
         // Gear on top (same size as time text), AP label below
         const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
@@ -697,7 +697,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c${apColor}}${prev.apText}`
         ));
-        
+
         // Right blinker arrow - from Illustrator export, centered at (0,0)
         const rightColor = prev.rightBlinkVisible ? '&H22C55E&' : '&H505050&';
         const rightX = Math.round(positions.rightBlinker);
@@ -706,7 +706,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           `{\\an7\\pos(${rightX},${rightY})\\bord0\\shad0\\1c${rightColor}\\p1}` +
           drawRightArrow(arrowScale) + `{\\p0}`
         ));
-        
+
         // Steering wheel - from testwheel.svg (Illustrator export), centered at (0,0) for proper rotation
         const steerColor = prev.apActive ? '&HFF4800&' : '&H707070&'; // Blue when AP active
         // ASS \frz rotates counter-clockwise for positive angles, but CSS rotate() is clockwise
@@ -716,29 +716,29 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         const steerScale = iconSize / 446.5 * 0.5; // Scale to ~50% of iconSize
         const steerX = Math.round(positions.steering);
         const steerY = Math.round(pos.y);
-        
+
         // For ASS vector drawings, \an7 with \pos places the drawing origin (0,0) at pos
         // Since our paths are centered at (0,0), this should center the wheel at steerX, steerY
         // \org sets the rotation origin to the same point
-        
+
         // Outer filled circle (blue/gray background)
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an7\\pos(${steerX},${steerY})\\org(${steerX},${steerY})\\bord0\\shad0\\1c${steerColor}\\frz${angle}\\p1}` +
           drawSteeringWheelOuter(steerScale) + `{\\p0}`
         ));
-        
+
         // Inner white ring with grip cutouts
         events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
           `{\\an7\\pos(${steerX},${steerY})\\org(${steerX},${steerY})\\bord0\\shad0\\1c&HFFFFFF&\\frz${angle}\\p1}` +
           drawSteeringWheelInner(steerScale) + `{\\p0}`
         ));
-        
+
         // Accelerator pedal icon - from Illustrator export, centered at (0,0)
         const accelX = Math.round(positions.accel);
         const accelY = Math.round(pos.y);
         const accelPctVal = prev.accelPct || 0;
         const accelActive = accelPctVal > 5;
-        
+
         if (accelPedMode === 'solid') {
           // Mode: solid - Simple on/off color change, no fill overlay
           const solidColor = accelActive ? '&HFF4800&' : '&H606060&';
@@ -788,7 +788,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           const pedalTop = accelY - pedalHalfHeight;
           const pedalBottom = accelY + pedalHalfHeight;
           const clipY = Math.round(pedalBottom - (pedalBottom - pedalTop) * (accelPctVal / 100));
-          
+
           // Main pedal body - gray base
           events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
             `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
@@ -799,7 +799,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
             `{\\an7\\pos(${accelX},${accelY})\\bord0\\shad0\\1c&H606060&\\p1}` +
             drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
           ));
-          
+
           // Colored fill overlay - clipped from bottom based on percentage
           if (accelPctVal > 0) {
             const pedalHalfWidth = Math.round(200 * pedalScale);
@@ -816,12 +816,12 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           }
         }
       }
-      
+
       prevState = currentState;
       eventStartFrame = frame;
     }
   }
-  
+
   return events.join('\n');
 }
 
@@ -835,15 +835,15 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
  */
 function generateCompactDashboardAss(seiData, startTimeMs, endTimeMs, options) {
   const { playResX = 1920, playResY = 1080 } = options;
-  
+
   // Calculate font size based on resolution
   const dashWidth = Math.round(playResX * 0.25);
   const dashHeight = Math.round(dashWidth * (76 / 500));
   const fontSize = Math.round(dashHeight * 0.4);
-  
+
   const header = generateAssHeader(playResX, playResY, fontSize);
   const events = generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options);
-  
+
   return header + events;
 }
 
@@ -859,10 +859,10 @@ function generateCompactDashboardAss(seiData, startTimeMs, endTimeMs, options) {
 async function writeCompactDashboardAss(exportId, seiData, startTimeMs, endTimeMs, options) {
   const assContent = generateCompactDashboardAss(seiData, startTimeMs, endTimeMs, options);
   const tempPath = path.join(os.tmpdir(), `dashboard_${exportId}_${Date.now()}.ass`);
-  
+
   await fs.promises.writeFile(tempPath, assContent, 'utf8');
   console.log(`[ASS] Generated compact dashboard subtitle: ${tempPath}`);
-  
+
   return tempPath;
 }
 
@@ -881,28 +881,28 @@ function calculateGpsBounds(gpsPath, padding = 0.15) {
   if (!gpsPath || gpsPath.length === 0) {
     return { minLat: 0, maxLat: 1, minLon: 0, maxLon: 1, centerLat: 0.5, centerLon: 0.5 };
   }
-  
+
   let minLat = Infinity, maxLat = -Infinity;
   let minLon = Infinity, maxLon = -Infinity;
-  
+
   for (const [lat, lon] of gpsPath) {
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
   }
-  
+
   // Add padding
   const latRange = maxLat - minLat || 0.001;
   const lonRange = maxLon - minLon || 0.001;
   const latPad = latRange * padding;
   const lonPad = lonRange * padding;
-  
+
   minLat -= latPad;
   maxLat += latPad;
   minLon -= lonPad;
   maxLon += lonPad;
-  
+
   return {
     minLat,
     maxLat,
@@ -925,15 +925,15 @@ function calculateGpsBounds(gpsPath, padding = 0.15) {
  */
 function gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY) {
   const { minLat, maxLat, minLon, maxLon } = bounds;
-  
+
   // Normalize to 0-1 range
   const normalX = (lon - minLon) / (maxLon - minLon || 1);
   const normalY = 1 - (lat - minLat) / (maxLat - minLat || 1); // Flip Y (lat increases north)
-  
+
   // Apply margin inside the minimap (10% on each side)
   const margin = mapSize * 0.1;
   const usableSize = mapSize - margin * 2;
-  
+
   return {
     x: Math.round(mapX + margin + normalX * usableSize),
     y: Math.round(mapY + margin + normalY * usableSize)
@@ -983,14 +983,14 @@ function calculateMinimapLayout(playResX, playResY, position, sizeOption) {
     'xlarge': 0.55
   };
   const multiplier = sizeMultipliers[sizeOption] || 0.25;
-  
+
   // Square minimap based on smaller dimension
   const baseSize = Math.min(playResX, playResY);
   const mapSize = Math.round(baseSize * multiplier);
   const margin = Math.round(Math.min(playResX, playResY) * 0.02); // 2% margin from edge
-  
+
   let mapX, mapY;
-  
+
   switch (position) {
     case 'top-left':
       mapX = margin;
@@ -1012,7 +1012,7 @@ function calculateMinimapLayout(playResX, playResY, position, sizeOption) {
       mapX = playResX - mapSize - margin;
       mapY = margin;
   }
-  
+
   return { mapX, mapY, mapSize, margin };
 }
 
@@ -1028,15 +1028,15 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
   const startTime = formatAssTime(0);
   const endTime = formatAssTime(durationMs);
   const cornerRadius = Math.round(mapSize * 0.05);
-  
+
   const r = cornerRadius;
   const left = mapX;
   const top = mapY;
   const right = mapX + mapSize;
   const bottom = mapY + mapSize;
-  
+
   // Rounded rectangle with semi-transparent dark fill
-  const bgPath = 
+  const bgPath =
     `m ${left + r} ${top} ` +
     `l ${right - r} ${top} ` +
     `b ${right} ${top} ${right} ${top + r} ${right} ${top + r} ` +
@@ -1046,27 +1046,27 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
     `b ${left} ${bottom} ${left} ${bottom - r} ${left} ${bottom - r} ` +
     `l ${left} ${top + r} ` +
     `b ${left} ${top} ${left + r} ${top} ${left + r} ${top}`;
-  
+
   const events = [];
-  
+
   // Main background
   events.push(`Dialogue: 0,${startTime},${endTime},MinimapBg,,0,0,0,,{\\an7\\pos(0,0)\\bord1\\shad0\\1c&H282828&\\3c&H404040&\\1a&H20&\\p1}${bgPath}{\\p0}`);
-  
+
   // Add subtle grid lines for schematic appearance
   const gridSpacing = Math.round(mapSize / 5);
   const gridLineWidth = 1;
   let gridPath = '';
-  
+
   // Vertical grid lines
   for (let x = left + gridSpacing; x < right; x += gridSpacing) {
     gridPath += `m ${x} ${top + r} l ${x} ${bottom - r} `;
   }
-  
+
   // Horizontal grid lines  
   for (let y = top + gridSpacing; y < bottom; y += gridSpacing) {
     gridPath += `m ${left + r} ${y} l ${right - r} ${y} `;
   }
-  
+
   // Draw grid as thin lines (using small rectangles for visibility)
   if (gridPath) {
     // Convert line paths to thin rectangles for ASS
@@ -1079,7 +1079,7 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
     }
     events.push(`Dialogue: 0,${startTime},${endTime},MinimapBg,,0,0,0,,{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H383838&\\1a&H60&\\p1}${gridRects}{\\p0}`);
   }
-  
+
   return events.join('\n');
 }
 
@@ -1096,13 +1096,13 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
  */
 function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs) {
   if (!gpsPath || gpsPath.length < 2) return '';
-  
+
   const startTime = formatAssTime(0);
   const endTime = formatAssTime(durationMs);
-  
+
   // Convert all GPS points to pixel coordinates
   const points = gpsPath.map(([lat, lon]) => gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY));
-  
+
   // Downsample points to reduce complexity (keep every Nth point)
   const maxPoints = 200;
   let sampledPoints = points;
@@ -1110,29 +1110,29 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     const step = Math.ceil(points.length / maxPoints);
     sampledPoints = points.filter((_, i) => i % step === 0 || i === points.length - 1);
   }
-  
+
   // Line thickness based on map size - thicker for better visibility like live map
   const strokeWidth = Math.max(4, Math.round(mapSize / 50));
-  
+
   // Build path as a series of thin filled rectangles (stroke segments)
   // For each segment, create a quadrilateral perpendicular to the line direction
   let pathStr = '';
-  
+
   for (let i = 0; i < sampledPoints.length - 1; i++) {
     const p1 = sampledPoints[i];
     const p2 = sampledPoints[i + 1];
-    
+
     // Calculate direction vector
     const dx = p2.x - p1.x;
     const dy = p2.y - p1.y;
     const len = Math.sqrt(dx * dx + dy * dy);
-    
+
     if (len < 0.5) continue; // Skip tiny segments
-    
+
     // Perpendicular unit vector for stroke width
     const px = (-dy / len) * strokeWidth / 2;
     const py = (dx / len) * strokeWidth / 2;
-    
+
     // Four corners of the line segment rectangle
     const x1 = Math.round(p1.x + px);
     const y1 = Math.round(p1.y + py);
@@ -1142,29 +1142,29 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     const y3 = Math.round(p2.y - py);
     const x4 = Math.round(p2.x + px);
     const y4 = Math.round(p2.y + py);
-    
+
     // Draw as filled quadrilateral
     pathStr += `m ${x1} ${y1} l ${x2} ${y2} l ${x3} ${y3} l ${x4} ${y4} `;
   }
-  
+
   // Add circles at start and end points for rounded caps
   const capRadius = strokeWidth * 1.2;
   const startPt = sampledPoints[0];
   const endPt = sampledPoints[sampledPoints.length - 1];
-  
+
   // Simple circle approximation using bezier curves
   const circleAt = (cx, cy, r) => {
     const k = 0.552284749831; // Bezier circle constant
     return `m ${cx} ${cy - r} ` +
-           `b ${cx + r*k} ${cy - r} ${cx + r} ${cy - r*k} ${cx + r} ${cy} ` +
-           `b ${cx + r} ${cy + r*k} ${cx + r*k} ${cy + r} ${cx} ${cy + r} ` +
-           `b ${cx - r*k} ${cy + r} ${cx - r} ${cy + r*k} ${cx - r} ${cy} ` +
-           `b ${cx - r} ${cy - r*k} ${cx - r*k} ${cy - r} ${cx} ${cy - r} `;
+      `b ${cx + r * k} ${cy - r} ${cx + r} ${cy - r * k} ${cx + r} ${cy} ` +
+      `b ${cx + r} ${cy + r * k} ${cx + r * k} ${cy + r} ${cx} ${cy + r} ` +
+      `b ${cx - r * k} ${cy + r} ${cx - r} ${cy + r * k} ${cx - r} ${cy} ` +
+      `b ${cx - r} ${cy - r * k} ${cx - r * k} ${cy - r} ${cx} ${cy - r} `;
   };
-  
+
   pathStr += circleAt(startPt.x, startPt.y, capRadius);
   pathStr += circleAt(endPt.x, endPt.y, capRadius);
-  
+
   // Route line with blue color
   return `Dialogue: 1,${startTime},${endTime},MinimapPath,,0,0,0,,{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF7200&\\p1}${pathStr}{\\p0}`;
 }
@@ -1183,23 +1183,23 @@ function generateArrowPath(scale = 1) {
   // Base size is ~302 units tall, we scale to fit
   const baseScale = scale / 15; // Scale factor to make it appropriate size for minimap
   const s = baseScale;
-  
+
   // Arrow path centered at (0,0) - pointing up
   // Right half of arrow
-  const path = `m ${(0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
-    `b ${(15.24*s).toFixed(2)} ${(159*s).toFixed(2)} ${(29.98*s).toFixed(2)} ${(167*s).toFixed(2)} ${(44.72*s).toFixed(2)} ${(175.08*s).toFixed(2)} ` +
-    `${(108.97*s).toFixed(2)} ${(210.28*s).toFixed(2)} ${(156.82*s).toFixed(2)} ${(193.32*s).toFixed(2)} ${(132.86*s).toFixed(2)} ${(129.62*s).toFixed(2)} ` +
-    `${(106.86*s).toFixed(2)} ${(69.24*s).toFixed(2)} ${(24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ${(24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ` +
-    `${(16.03*s).toFixed(2)} ${(-142.33*s).toFixed(2)} ${(8.22*s).toFixed(2)} ${(-150.11*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ` +
-    `${(0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(50.57*s).toFixed(2)} ${(0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
+  const path = `m ${(0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
+    `b ${(15.24 * s).toFixed(2)} ${(159 * s).toFixed(2)} ${(29.98 * s).toFixed(2)} ${(167 * s).toFixed(2)} ${(44.72 * s).toFixed(2)} ${(175.08 * s).toFixed(2)} ` +
+    `${(108.97 * s).toFixed(2)} ${(210.28 * s).toFixed(2)} ${(156.82 * s).toFixed(2)} ${(193.32 * s).toFixed(2)} ${(132.86 * s).toFixed(2)} ${(129.62 * s).toFixed(2)} ` +
+    `${(106.86 * s).toFixed(2)} ${(69.24 * s).toFixed(2)} ${(24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ${(24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ` +
+    `${(16.03 * s).toFixed(2)} ${(-142.33 * s).toFixed(2)} ${(8.22 * s).toFixed(2)} ${(-150.11 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ` +
+    `${(0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(50.57 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
     // Left half of arrow (mirrored)
-    `m ${(-0.5*s).toFixed(2)} ${(151*s).toFixed(2)} ` +
-    `b ${(-15.24*s).toFixed(2)} ${(159*s).toFixed(2)} ${(-29.98*s).toFixed(2)} ${(167*s).toFixed(2)} ${(-44.72*s).toFixed(2)} ${(175.08*s).toFixed(2)} ` +
-    `${(-108.97*s).toFixed(2)} ${(210.28*s).toFixed(2)} ${(-156.82*s).toFixed(2)} ${(193.32*s).toFixed(2)} ${(-132.86*s).toFixed(2)} ${(129.62*s).toFixed(2)} ` +
-    `${(-106.86*s).toFixed(2)} ${(69.24*s).toFixed(2)} ${(-24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ${(-24.97*s).toFixed(2)} ${(-121.96*s).toFixed(2)} ` +
-    `${(-16.03*s).toFixed(2)} ${(-142.33*s).toFixed(2)} ${(-8.22*s).toFixed(2)} ${(-150.11*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ` +
-    `${(-0.5*s).toFixed(2)} ${(-150.44*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(50.57*s).toFixed(2)} ${(-0.5*s).toFixed(2)} ${(151*s).toFixed(2)}`;
-  
+    `m ${(-0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
+    `b ${(-15.24 * s).toFixed(2)} ${(159 * s).toFixed(2)} ${(-29.98 * s).toFixed(2)} ${(167 * s).toFixed(2)} ${(-44.72 * s).toFixed(2)} ${(175.08 * s).toFixed(2)} ` +
+    `${(-108.97 * s).toFixed(2)} ${(210.28 * s).toFixed(2)} ${(-156.82 * s).toFixed(2)} ${(193.32 * s).toFixed(2)} ${(-132.86 * s).toFixed(2)} ${(129.62 * s).toFixed(2)} ` +
+    `${(-106.86 * s).toFixed(2)} ${(69.24 * s).toFixed(2)} ${(-24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ${(-24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ` +
+    `${(-16.03 * s).toFixed(2)} ${(-142.33 * s).toFixed(2)} ${(-8.22 * s).toFixed(2)} ${(-150.11 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ` +
+    `${(-0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(50.57 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)}`;
+
   return path;
 }
 
@@ -1217,65 +1217,65 @@ function generateArrowPath(scale = 1) {
  */
 function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs) {
   if (!seiData || seiData.length === 0) return '';
-  
+
   const events = [];
   // Smaller scale for the arrow marker
   const markerScale = Math.max(0.8, mapSize / 250);
-  
+
   // Group consecutive frames with same position to reduce ASS events
   let prevState = null;
   let eventStartMs = 0; // Start from 0 (relative to export start)
-  
+
   for (let i = 0; i < seiData.length; i++) {
     const { timestampMs, sei } = seiData[i];
-    
+
     // Get GPS coordinates
     const lat = sei?.latitude_deg ?? sei?.latitudeDeg ?? 0;
     const lon = sei?.longitude_deg ?? sei?.longitudeDeg ?? 0;
     const heading = sei?.heading_deg ?? sei?.headingDeg ?? 0;
-    
+
     // Skip invalid coordinates
     if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) continue;
-    
+
     // Convert to pixel position
     const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY);
-    
+
     // Round heading to reduce event count (5 degree increments)
     const roundedHeading = Math.round(heading / 5) * 5;
-    
+
     // Create state signature
     const currentState = `${pos.x},${pos.y},${roundedHeading}`;
-    
+
     // Calculate relative time from export start
     const relativeTimeMs = timestampMs - startTimeMs;
-    
+
     if (currentState !== prevState) {
       // Emit previous event if exists
       if (prevState !== null && eventStartMs < relativeTimeMs) {
         const [px, py, ph] = prevState.split(',').map(Number);
         const startAssTime = formatAssTime(Math.max(0, eventStartMs));
         const endAssTime = formatAssTime(Math.max(0, relativeTimeMs));
-        
+
         // Red arrow with white border, rotated to heading direction
         // Color: &H0000FF& = pure red in BGR format
         events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
       }
-      
+
       prevState = currentState;
       eventStartMs = relativeTimeMs;
     }
   }
-  
+
   // Emit final event
   if (prevState !== null) {
     const [px, py, ph] = prevState.split(',').map(Number);
     const startAssTime = formatAssTime(Math.max(0, eventStartMs));
     const endAssTime = formatAssTime(Math.max(0, endTimeMs - startTimeMs));
-    
+
     // Red arrow with white border
     events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
   }
-  
+
   return events.join('\n');
 }
 
@@ -1300,11 +1300,11 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
     customBounds = null,     // Custom GPS bounds (e.g., from map tiles)
     includeBackground = true // Whether to include the dark background
   } = options;
-  
+
   const durationMs = endTimeMs - startTimeMs;
-  
+
   let mapX, mapY, mapSize;
-  
+
   if (standaloneMode) {
     // Standalone mode: ASS coordinates are 0,0 to standaloneSize,standaloneSize
     mapX = 0;
@@ -1317,20 +1317,20 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
     mapY = layout.mapY;
     mapSize = layout.mapSize;
   }
-  
+
   // Use custom bounds if provided (e.g., from map tile boundaries), otherwise calculate from path
   const bounds = customBounds || calculateGpsBounds(mapPath);
-  
+
   // Generate header with appropriate resolution
   const headerResX = standaloneMode ? standaloneSize : playResX;
   const headerResY = standaloneMode ? standaloneSize : playResY;
   let assContent = generateMinimapAssHeader(headerResX, headerResY);
-  
+
   // Generate background panel (skip in standalone mode if we have a map image background)
   if (includeBackground) {
     assContent += generateMinimapBackground(mapX, mapY, mapSize, durationMs) + '\n';
   }
-  
+
   // Generate route path - extract GPS from seiData to ensure path matches arrow position
   // This ensures the blue line follows the same coordinates as the arrow marker
   const seiGpsPath = seiData
@@ -1342,7 +1342,7 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
       return [lat, lon];
     })
     .filter(coord => coord !== null);
-  
+
   // Use seiGpsPath if available, otherwise fall back to mapPath
   // IMPORTANT: Recalculate bounds from seiGpsPath to ensure route and markers align
   const routeGpsPath = seiGpsPath.length > 0 ? seiGpsPath : mapPath;
@@ -1351,13 +1351,13 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
   if (routePath) {
     assContent += routePath + '\n';
   }
-  
+
   // Generate position markers - use same bounds as route path for alignment
   const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs);
   if (markers) {
     assContent += markers + '\n';
   }
-  
+
   return assContent;
 }
 
@@ -1374,14 +1374,483 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
 async function writeMinimapAss(exportId, seiData, mapPath, startTimeMs, endTimeMs, options) {
   const assContent = generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options);
   const tempPath = path.join(os.tmpdir(), `minimap_${exportId}_${Date.now()}.ass`);
-  
+
   await fs.promises.writeFile(tempPath, assContent, 'utf8');
   console.log(`[ASS] Generated minimap overlay: ${tempPath} (${mapPath?.length || 0} GPS points)`);
-  
+
+  return tempPath;
+}
+
+// ============================================
+// ASS DETAILED DASHBOARD GENERATION
+// Vertical list-based telemetry dashboard using ASS drawings
+// ============================================
+
+/**
+ * Generate ASS header with styles for detailed dashboard
+ * @param {number} playResX - Coordinate space width
+ * @param {number} playResY - Coordinate space height
+ * @param {number} fontSize - Base font size
+ * @returns {string} ASS header section
+ */
+function generateDetailedAssHeader(playResX, playResY, fontSize) {
+  const scaledFontSize = Math.round(fontSize);
+  const smallFontSize = Math.round(fontSize * 0.7);
+  const largeFontSize = Math.round(fontSize * 1.8);
+  const labelFontSize = Math.round(fontSize * 0.6);
+
+  return `[Script Info]
+Title: Tesla Detailed Dashboard
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: DetailedDash,Segoe UI,${scaledFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: DetailedLabel,Segoe UI,${labelFontSize},&H00909090,&H00909090,${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedValue,Segoe UI,${scaledFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedLarge,Segoe UI,${largeFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedSmall,Segoe UI,${smallFontSize},&H00A0A0A0,&H00A0A0A0,${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedGreen,Segoe UI,${scaledFontSize},${COLORS.green},${COLORS.green},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedBlue,Segoe UI,${scaledFontSize},${COLORS.blue},${COLORS.blue},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: DetailedRed,Segoe UI,${scaledFontSize},${COLORS.red},${COLORS.red},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+}
+
+/**
+ * Generate detailed dashboard events for a time range
+ * Vertical list layout matching the reference image with app theme
+ * @param {Array} seiData - Array of {timestampMs, sei} objects
+ * @param {number} startTimeMs - Export start time in ms
+ * @param {number} endTimeMs - Export end time in ms
+ * @param {Object} options - Export options
+ * @returns {string} ASS events section
+ */
+function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, options) {
+  const {
+    playResX = 1920,
+    playResY = 1080,
+    position = 'bottom-center',
+    size = 'medium',
+    useMetric = false,
+    segments = [],
+    cumStarts = [],
+    dateFormat = 'mdy',
+    timeFormat = '12h',
+    language = 'en'
+  } = options;
+
+  // Dashboard dimensions
+  const sizeMultipliers = {
+    'small': 0.30,
+    'medium': 0.40,
+    'large': 0.50,
+    'xlarge': 0.60
+  };
+  const sizeMultiplier = sizeMultipliers[size] || 0.40;
+
+  // Detailed layout: vertical panel that fits within the video frame
+  const dashWidth = Math.min(Math.round(1920 * sizeMultiplier * 0.50), playResX - 80);
+  const numRows = 9; // Speed, Gear, Steering, Accel, Brake, Blinkers, Autopilot, GPS, Acceleration
+  // Calculate row height to fit within 80% of video height
+  const maxHeight = Math.round(playResY * 0.80);
+  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / (numRows + 1)));
+  const dashHeight = Math.min(Math.round(rowHeight * (numRows + 1)), maxHeight); // +1 for top/bottom padding
+  const fontSize = Math.max(12, Math.round(rowHeight * 0.42));
+  const labelFontSize = Math.max(10, Math.round(fontSize * 0.75));
+  const largeFontSize = Math.round(fontSize * 2.0);
+  const smallFontSize = Math.round(fontSize * 0.82);
+  const iconSize = Math.round(rowHeight * 0.70);
+  const padding = Math.round(dashWidth * 0.06);
+
+  const pos = calculatePosition(position, playResX, playResY, dashWidth, dashHeight);
+  const events = [];
+
+  // Panel bounds
+  const panelLeft = pos.x - dashWidth / 2;
+  const panelRight = pos.x + dashWidth / 2;
+  const panelTop = pos.y - dashHeight / 2;
+  const panelBottom = pos.y + dashHeight / 2;
+  const contentLeft = panelLeft + padding;
+  const contentRight = panelRight - padding;
+  const contentWidth = contentRight - contentLeft;
+  const centerX = pos.x;
+
+  // Row Y positions (top of each row's content area)
+  const rowPadding = Math.round(rowHeight * 0.18);
+  const getRowY = (rowIndex) => panelTop + padding + (rowIndex * rowHeight);
+
+  const durationMs = endTimeMs - startTimeMs;
+  const totalFrames = Math.ceil((durationMs / 1000) * FPS);
+  const frameTimeMs = 1000 / FPS;
+
+  // Blinker animation
+  const framesPerBlinkerCycle = 25;
+  const blinkerOnFrames = 14;
+  let prevLeftBlinkerOn = false;
+  let prevRightBlinkerOn = false;
+  let leftBlinkerStartFrame = 0;
+  let rightBlinkerStartFrame = 0;
+
+  // Steering smoothing
+  let smoothedSteeringAngle = 0;
+  const steerFactor = 1 - Math.exp(-45 * (frameTimeMs / 1000));
+
+  // Find SEI data for a given video time
+  function findSeiAtTime(videoTimeMs) {
+    if (!seiData || seiData.length === 0) return null;
+    let closest = seiData[0];
+    let minDiff = Math.abs(seiData[0].timestampMs - videoTimeMs);
+    for (let i = 1; i < seiData.length; i++) {
+      const diff = Math.abs(seiData[i].timestampMs - videoTimeMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = seiData[i];
+      }
+      if (seiData[i].timestampMs > videoTimeMs && diff > minDiff) break;
+    }
+    return closest?.sei || null;
+  }
+
+  // Track previous state for change detection
+  let prevState = null;
+  let eventStartFrame = 0;
+
+  // Corner radius for rounded rect
+  const cornerRadius = Math.round(dashWidth * 0.04);
+
+  // Section separator helper: visible line across the panel
+  function drawSectionSep(startAssTime, endAssTime, y) {
+    const sepY = Math.round(y);
+    const sepLeft = Math.round(panelLeft + padding * 0.5);
+    const sepRight = Math.round(panelRight - padding * 0.5);
+    const sepH = 2; // 2px thick for visibility
+    events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+      `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H555555&\\p1}` +
+      `m ${sepLeft} ${sepY} l ${sepRight} ${sepY} l ${sepRight} ${sepY + sepH} l ${sepLeft} ${sepY + sepH}{\\p0}`
+    ));
+  }
+
+  for (let frame = 0; frame <= totalFrames; frame++) {
+    const currentTimeMs = startTimeMs + (frame * frameTimeMs);
+    const sei = findSeiAtTime(currentTimeMs);
+
+    // Extract telemetry values
+    const mps = Math.abs(getSeiValue(sei, 'vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+    const speedKmh = mps * MPS_TO_KMH;
+    const speedMph = mps * MPS_TO_MPH;
+    const primarySpeed = useMetric ? speedKmh.toFixed(1) : speedMph.toFixed(1);
+    const primaryUnit = getSpeedUnit(useMetric, language);
+
+    const gear = getSeiValue(sei, 'gearState', 'gear_state');
+    const gearText = getGearText(gear, language);
+
+    const leftBlinkerOn = !!getSeiValue(sei, 'blinkerOnLeft', 'blinker_on_left');
+    const rightBlinkerOn = !!getSeiValue(sei, 'blinkerOnRight', 'blinker_on_right');
+
+    const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state') || 0;
+    const apActive = apState === 1 || apState === 2;
+    let apDisplayText = 'OFF';
+    if (apState === 1) apDisplayText = 'FSD Supervised';
+    else if (apState === 2) apDisplayText = 'Autopilot';
+    else if (apState === 3) apDisplayText = 'TACC';
+
+    const brakeApplied = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
+
+    const accelPos = getSeiValue(sei, 'acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+    const accelPct = accelPos > 1 ? Math.min(100, Math.round(accelPos)) : Math.min(100, Math.round(accelPos * 100));
+
+    const rawSteeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
+    smoothedSteeringAngle += (rawSteeringAngle - smoothedSteeringAngle) * steerFactor;
+    const steeringAngle = smoothedSteeringAngle;
+
+    // Blinker animation
+    if (leftBlinkerOn && !prevLeftBlinkerOn) leftBlinkerStartFrame = frame;
+    if (rightBlinkerOn && !prevRightBlinkerOn) rightBlinkerStartFrame = frame;
+    const leftFrameInCycle = (frame - leftBlinkerStartFrame) % framesPerBlinkerCycle;
+    const rightFrameInCycle = (frame - rightBlinkerStartFrame) % framesPerBlinkerCycle;
+    const leftBlinkVisible = leftBlinkerOn && leftFrameInCycle < blinkerOnFrames;
+    const rightBlinkVisible = rightBlinkerOn && rightFrameInCycle < blinkerOnFrames;
+    prevLeftBlinkerOn = leftBlinkerOn;
+    prevRightBlinkerOn = rightBlinkerOn;
+
+    // GPS data
+    const lat = getSeiValue(sei, 'latitudeDeg', 'latitude_deg');
+    const lon = getSeiValue(sei, 'longitudeDeg', 'longitude_deg');
+    const heading = getSeiValue(sei, 'headingDeg', 'heading_deg');
+    const latStr = (lat !== undefined && lat !== null) ? lat.toFixed(6) : '--';
+    const lonStr = (lon !== undefined && lon !== null) ? lon.toFixed(6) : '--';
+    const headingStr = (heading !== undefined && heading !== null) ? heading.toFixed(1) + '°' : '--';
+
+    // G-Force data (convert m/s² to G)
+    const GRAVITY = 9.81;
+    const rawAccelX = getSeiValue(sei, 'linearAccelerationMps2X', 'linear_acceleration_mps2_x');
+    const rawAccelY = getSeiValue(sei, 'linearAccelerationMps2Y', 'linear_acceleration_mps2_y');
+    const gForceX = (rawAccelX !== undefined && rawAccelX !== null) ? (rawAccelX / GRAVITY) : null;
+    const gForceY = (rawAccelY !== undefined && rawAccelY !== null) ? (rawAccelY / GRAVITY) : null;
+    const gForceXStr = gForceX !== null ? ((gForceX >= 0 ? '+' : '') + gForceX.toFixed(2)) : '0.00';
+    const gForceYStr = gForceY !== null ? ((gForceY >= 0 ? '+' : '') + gForceY.toFixed(2)) : '0.00';
+
+    // Create state signature
+    const currentState = JSON.stringify({
+      primarySpeed, gearText,
+      leftBlinkVisible, rightBlinkVisible,
+      apActive, apDisplayText, brakeApplied, accelPct,
+      steeringAngle: Math.round(steeringAngle * 10) / 10,
+      latStr, lonStr, headingStr,
+      gForceXStr, gForceYStr
+    });
+
+    // Emit events when state changes or at end
+    if (currentState !== prevState || frame === totalFrames) {
+      if (prevState !== null && eventStartFrame < frame) {
+        const startAssTime = formatAssTime(eventStartFrame * frameTimeMs);
+        const endAssTime = formatAssTime(frame * frameTimeMs);
+        const prev = JSON.parse(prevState);
+        const r = cornerRadius;
+
+        // === Background Panel ===
+        events.push(dialogueLine(0, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(0,0)\\bord1\\shad0\\1c&H282828&\\3c&H404040&\\1a&H30&\\p1}` +
+          `m ${panelLeft + r} ${panelTop} ` +
+          `l ${panelRight - r} ${panelTop} ` +
+          `b ${panelRight} ${panelTop} ${panelRight} ${panelTop + r} ${panelRight} ${panelTop + r} ` +
+          `l ${panelRight} ${panelBottom - r} ` +
+          `b ${panelRight} ${panelBottom} ${panelRight - r} ${panelBottom} ${panelRight - r} ${panelBottom} ` +
+          `l ${panelLeft + r} ${panelBottom} ` +
+          `b ${panelLeft} ${panelBottom} ${panelLeft} ${panelBottom - r} ${panelLeft} ${panelBottom - r} ` +
+          `l ${panelLeft} ${panelTop + r} ` +
+          `b ${panelLeft} ${panelTop} ${panelLeft + r} ${panelTop} ${panelLeft + r} ${panelTop}{\\p0}`
+        ));
+
+        // === Row 0: Speed ===
+        const row0Y = getRowY(0);
+        // Label (centered)
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row0Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Speed`
+        ));
+        // Large speed value centered
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an6\\pos(${centerX},${row0Y + rowHeight * 0.55})\\bord0\\shad0\\fs${largeFontSize}\\1c&H00CC44&\\b1}${prev.primarySpeed}`
+        ));
+        // Unit label to the right of speed number
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${centerX + Math.round(fontSize * 0.3)},${row0Y + rowHeight * 0.55})\\bord0\\shad0\\fs${smallFontSize}\\1c&HA0A0A0&}${primaryUnit}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row0Y + rowHeight);
+
+        // === Row 1: Gear ===
+        const row1Y = getRowY(1);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row1Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Gear`
+        ));
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row1Y + rowHeight * 0.58})\\bord0\\shad0\\fs${Math.round(fontSize * 1.5)}\\1c&HFFFFFF&\\b1}${prev.gearText}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row1Y + rowHeight);
+
+        // === Row 2: Steering ===
+        const row2Y = getRowY(2);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row2Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Steering`
+        ));
+        // Horizontal layout: icon on left, angle text on right
+        const steerIconRadius = Math.round(iconSize * 0.45);
+        const steerWheelX = Math.round(centerX - dashWidth * 0.10);
+        const steerWheelY = Math.round(row2Y + rowHeight * 0.50);
+        const steerScale = iconSize / 446.5 * 0.55;
+        const steerAngleAss = -(prev.steeringAngle || 0);
+        // Outer circle
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(${steerWheelX},${steerWheelY})\\org(${steerWheelX},${steerWheelY})\\bord0\\shad0\\1c&HFF4800&\\frz${steerAngleAss}\\p1}` +
+          drawSteeringWheelOuter(steerScale) + `{\\p0}`
+        ));
+        // Inner ring
+        events.push(dialogueLine(2, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(${steerWheelX},${steerWheelY})\\org(${steerWheelX},${steerWheelY})\\bord0\\shad0\\1c&HFFFFFF&\\frz${steerAngleAss}\\p1}` +
+          drawSteeringWheelInner(steerScale) + `{\\p0}`
+        ));
+        // Steering angle value to the right of the icon
+        const steerAngleDisplay = prev.steeringAngle.toFixed(1) + '°';
+        const steerTextX = Math.round(steerWheelX + steerIconRadius + padding);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${steerTextX},${steerWheelY})\\bord0\\shad0\\fs${Math.round(fontSize * 1.3)}\\1c&H00CC44&\\b1}${steerAngleDisplay}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row2Y + rowHeight);
+
+        // === Row 3: Accelerator ===
+        const row3Y = getRowY(3);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row3Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Accelerator`
+        ));
+        // Percentage value
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row3Y + rowHeight * 0.40})\\bord0\\shad0\\fs${Math.round(fontSize * 1.3)}\\1c&H00CC44&\\b1}${prev.accelPct}`
+        ));
+        // Horizontal bar background
+        const barLeft = Math.round(contentLeft);
+        const barRight = Math.round(contentRight);
+        const barY = Math.round(row3Y + rowHeight * 0.68);
+        const barHeight = Math.max(4, Math.round(rowHeight * 0.10));
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H404040&\\p1}` +
+          `m ${barLeft} ${barY} l ${barRight} ${barY} l ${barRight} ${barY + barHeight} l ${barLeft} ${barY + barHeight}{\\p0}`
+        ));
+        // Bar fill (green)
+        if (prev.accelPct > 0) {
+          const fillRight = Math.round(barLeft + (barRight - barLeft) * prev.accelPct / 100);
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'DetailedDash',
+            `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H00CC44&\\p1}` +
+            `m ${barLeft} ${barY} l ${fillRight} ${barY} l ${fillRight} ${barY + barHeight} l ${barLeft} ${barY + barHeight}{\\p0}`
+          ));
+        }
+
+        drawSectionSep(startAssTime, endAssTime, row3Y + rowHeight);
+
+        // === Row 4: Brake ===
+        const row4Y = getRowY(4);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row4Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Brake`
+        ));
+        const brakeText = prev.brakeApplied ? 'ON' : 'OFF';
+        const brakeColor = prev.brakeApplied ? '&H0000FF&' : '&HFFFFFF&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row4Y + rowHeight * 0.58})\\bord0\\shad0\\fs${Math.round(fontSize * 1.3)}\\1c${brakeColor}\\b1}${brakeText}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row4Y + rowHeight);
+
+        // === Row 5: Blinkers ===
+        const row5Y = getRowY(5);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row5Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Blinkers`
+        ));
+        // Left arrow
+        const arrowScale = iconSize / 100 * 0.42;
+        const leftArrowX = Math.round(centerX - dashWidth * 0.14);
+        const leftArrowY = Math.round(row5Y + rowHeight * 0.58);
+        const leftColor = prev.leftBlinkVisible ? '&H22C55E&' : '&H505050&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(${leftArrowX},${leftArrowY})\\bord0\\shad0\\1c${leftColor}\\p1}` +
+          drawLeftArrow(arrowScale) + `{\\p0}`
+        ));
+        // Right arrow
+        const rightArrowX = Math.round(centerX + dashWidth * 0.14);
+        const rightArrowY = leftArrowY;
+        const rightColor = prev.rightBlinkVisible ? '&H22C55E&' : '&H505050&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an7\\pos(${rightArrowX},${rightArrowY})\\bord0\\shad0\\1c${rightColor}\\p1}` +
+          drawRightArrow(arrowScale) + `{\\p0}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row5Y + rowHeight);
+
+        // === Row 6: Autopilot ===
+        const row6Y = getRowY(6);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row6Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}Autopilot`
+        ));
+        const apColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row6Y + rowHeight * 0.58})\\bord0\\shad0\\fs${Math.round(fontSize * 1.3)}\\1c${apColor}\\b1}${prev.apDisplayText}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row6Y + rowHeight);
+
+        // === Row 7: GPS ===
+        const row7Y = getRowY(7);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row7Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}GPS`
+        ));
+        // Coordinates
+        const gpsText = `${prev.latStr}, ${prev.lonStr}`;
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row7Y + rowHeight * 0.42})\\bord0\\shad0\\fs${smallFontSize}\\1c&HCCCCCC&}${gpsText}`
+        ));
+        // Heading
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row7Y + rowHeight * 0.68})\\bord0\\shad0\\fs${smallFontSize}\\1c&HA0A0A0&}Heading: ${prev.headingStr}`
+        ));
+
+        drawSectionSep(startAssTime, endAssTime, row7Y + rowHeight);
+
+        // === Row 8: G-Force ===
+        const row8Y = getRowY(8);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an4\\pos(${contentLeft},${row8Y + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}G-Force`
+        ));
+        const accelFontSz = Math.round(smallFontSize);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.42})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}Lateral:  ${prev.gForceXStr} G`
+        ));
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+          `{\\an5\\pos(${centerX},${row8Y + rowHeight * 0.68})\\bord0\\shad0\\fs${accelFontSz}\\1c&HCCCCCC&}Longitudinal:  ${prev.gForceYStr} G`
+        ));
+      }
+
+      prevState = currentState;
+      eventStartFrame = frame;
+    }
+  }
+
+  return events.join('\n');
+}
+
+/**
+ * Generate complete ASS subtitle file for detailed dashboard
+ * @param {Array} seiData - Array of {timestampMs, sei} objects
+ * @param {number} startTimeMs - Export start time in ms
+ * @param {number} endTimeMs - Export end time in ms
+ * @param {Object} options - Export options
+ * @returns {string} Complete ASS file content
+ */
+function generateDetailedDashboardAss(seiData, startTimeMs, endTimeMs, options) {
+  const { playResX = 1920, playResY = 1080 } = options;
+
+  // Calculate font size based on resolution (must match generateDetailedDashboardEvents)
+  const sizeMultiplier = { 'small': 0.30, 'medium': 0.40, 'large': 0.50, 'xlarge': 0.60 }[options.size] || 0.40;
+  const dashWidth = Math.min(Math.round(1920 * sizeMultiplier * 0.50), playResX - 80);
+  const maxHeight = Math.round(playResY * 0.80);
+  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / 10));
+  const fontSize = Math.max(12, Math.round(rowHeight * 0.42));
+
+  const header = generateDetailedAssHeader(playResX, playResY, fontSize);
+  const events = generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, options);
+
+  return header + events;
+}
+
+/**
+ * Write detailed dashboard ASS subtitle file to temp directory
+ * @param {string} exportId - Export ID for unique filename
+ * @param {Array} seiData - SEI telemetry data
+ * @param {number} startTimeMs - Start time in ms
+ * @param {number} endTimeMs - End time in ms
+ * @param {Object} options - Export options
+ * @returns {Promise<string>} Path to generated ASS file
+ */
+async function writeDetailedDashboardAss(exportId, seiData, startTimeMs, endTimeMs, options) {
+  const assContent = generateDetailedDashboardAss(seiData, startTimeMs, endTimeMs, options);
+  const tempPath = path.join(os.tmpdir(), `dashboard_detailed_${exportId}_${Date.now()}.ass`);
+
+  await fs.promises.writeFile(tempPath, assContent, 'utf8');
+  console.log(`[ASS] Generated detailed dashboard subtitle: ${tempPath}`);
+
   return tempPath;
 }
 
 module.exports = {
   writeCompactDashboardAss,
+  writeDetailedDashboardAss,
   writeMinimapAss
 };
