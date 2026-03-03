@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.10.1",
+      "date": "2026-03-02",
+      "title": "Added IPv6 Support",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "We have added IPv6 support to Sentry Studio for the Clip Sharing, Updates, and other features such as the support chat."
+        }
+      ]
+    },
+    {
       "version": "2026.9.2",
       "date": "2026-03-01",
       "title": "New Export Dashboard Layout",
