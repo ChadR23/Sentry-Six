@@ -105,7 +105,8 @@ function httpsPost(host, path, data, timeoutMs) {
         'Content-Length': Buffer.byteLength(postData),
         'User-Agent': `Sentry-Studio/${app.getVersion()}`
       },
-      timeout: timeoutMs
+      timeout: timeoutMs,
+      family: 0
     };
     
     const req = https.request(options, (res) => {

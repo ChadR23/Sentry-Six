@@ -1405,7 +1405,8 @@ ipcMain.handle('share:getConfig', async () => {
         hostname: urlObj.hostname,
         port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
         path: urlObj.pathname,
-        method: 'GET'
+        method: 'GET',
+        family: 0
       }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
@@ -1471,7 +1472,8 @@ ipcMain.handle('share:upload', async (event, filePath) => {
         headers: {
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Content-Length': contentLength
-        }
+        },
+        family: 0
       };
 
       const req = httpModule.request(options, (res) => {
@@ -1605,7 +1607,8 @@ ipcMain.handle('share:syncClips', async () => {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payload)
-        }
+        },
+        family: 0
       }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
@@ -1671,7 +1674,8 @@ ipcMain.handle('share:deleteClip', async (_event, code, deleteToken) => {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payload)
-        }
+        },
+        family: 0
       }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);

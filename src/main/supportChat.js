@@ -27,7 +27,8 @@ function makeSupportRequest(method, reqPath, payload = null, authToken = null, t
       port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
       path: reqPath,
       method: method,
-      headers: headers
+      headers: headers,
+      family: 0
     };
 
     const httpModule = urlObj.protocol === 'https:' ? https : http;
