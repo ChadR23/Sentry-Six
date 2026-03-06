@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   
+  // Build environment
+  isMas: process.mas === true,
+
   // System info (for Settings "Learn More")
   getSystemInfo: () => ipcRenderer.invoke('system:getInfo'),
   

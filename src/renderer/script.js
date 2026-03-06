@@ -1752,8 +1752,10 @@ async function checkForUpdatesOnStartup() {
     }
 }
 
-// Delay update check to allow app to fully initialize
-setTimeout(checkForUpdatesOnStartup, 2000);
+// Delay update check to allow app to fully initialize (not applicable in MAS builds)
+if (!window.electronAPI?.isMas) {
+    setTimeout(checkForUpdatesOnStartup, 2000);
+}
 
 // Show welcome guide for first-time users (only if privacy already accepted)
 // If privacy modal is showing, the guide will be triggered after acceptance via welcomeScreen.js
@@ -4618,8 +4620,10 @@ setTimeout(updateExportButtonState, 500);
 console.log('[SCRIPT] Initializing welcome screen...');
 initWelcomeScreen();
 
-// Auto-Update System
-initAutoUpdate();
+// Auto-Update System (disabled in Mac App Store builds)
+if (!window.electronAPI?.isMas) {
+    initAutoUpdate();
+}
 
 // Camera Rearrangement
 initCameraRearrange({

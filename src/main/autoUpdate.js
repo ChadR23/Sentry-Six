@@ -141,6 +141,12 @@ function copyDirectoryRecursive(src, dest) {
  * @param {function} deps.processApiResponse - Process telemetry API response
  */
 function registerAutoUpdateIpc(deps) {
+  // Mac App Store builds update exclusively via the App Store — skip all GitHub update logic
+  if (process.mas) {
+    console.log('[UPDATE] Mac App Store build detected — auto-update disabled');
+    return;
+  }
+
   const { getMainWindow, getUpdateBranch, loadSettings, checkUpdateWithTelemetry, processApiResponse } = deps;
 
   /**
