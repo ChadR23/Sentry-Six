@@ -8276,6 +8276,45 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     line-height: 1.5;
 }
 
+.drive-list-no-data {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    gap: 4px;
+}
+
+.drive-no-data-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 4px;
+}
+
+.drive-no-data-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0 0 10px;
+    max-width: 220px;
+    line-height: 1.6;
+}
+
+.drive-select-file-btn {
+    margin-bottom: 8px;
+}
+
+.drive-learn-more-link {
+    font-size: 11px;
+    color: var(--accent-color, #3e9cbf);
+    text-decoration: none;
+    opacity: 0.8;
+}
+
+.drive-learn-more-link:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
 /* Date group header */
 .drive-date-header {
     font-size: 10px;
@@ -8384,28 +8423,6 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border-color: var(--accent-color, #3e9cbf);
 }
 
-/* Drive route hover map tooltip */
-.drive-route-tooltip {
-    position: fixed;
-    z-index: 9999;
-    background: rgba(18, 18, 26, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
-    padding: 8px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.12s ease;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-}
-
-.drive-route-tooltip.visible {
-    opacity: 1;
-}
-
-.drive-route-tooltip canvas {
-    display: block;
-    border-radius: 4px;
-}
 
 /* Settings description text */
 .settings-section-description {

@@ -158,8 +158,8 @@
                         </button>
                     </div>
                 </div>
-                <!-- Tab bar - only shown when drives data is loaded -->
-                <div id="clipDriveTabBar" class="clip-drive-tab-bar" style="display:none;">
+                <!-- Tab bar - always visible -->
+                <div id="clipDriveTabBar" class="clip-drive-tab-bar">
                     <button class="clip-drive-tab active" data-panel="clips">Clips</button>
                     <button class="clip-drive-tab" id="drivesTabBtn" data-panel="drives">
                         Drives
@@ -1705,6 +1705,14 @@
                                     title="Clear">✕</button>
                             </div>
                             <div id="defaultFolderStatus" class="folder-status"></div>
+                            <div class="settings-sub-label" style="margin-top:12px;margin-bottom:4px;font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:0.05em;">SentryUSB Drive Data</div>
+                            <div class="input-row">
+                                <input type="text" id="driveDataFilePath" class="text-input"
+                                    placeholder="No drive-data.json selected" readonly>
+                                <button id="browseDriveDataFileBtn" class="btn btn-secondary btn-small">Browse</button>
+                                <button id="clearDriveDataFileBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
+                            </div>
+                            <div id="driveDataFileStatus" class="folder-status"></div>
                         </div>
                     </div>
 
@@ -1712,29 +1720,41 @@
                     <div class="settings-accordion" data-section="sentryusb">
                         <div class="settings-accordion-header" onclick="this.parentElement.classList.toggle('open')">
                             <div class="settings-accordion-header-left">
-                                <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2">
+                                <svg class="settings-accordion-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="2" y="6" width="20" height="12" rx="2"/>
                                     <path d="M6 10h.01M6 14h.01M10 10h4M10 14h4"/>
                                 </svg>
-                                <span class="settings-accordion-title">SentryUSB Drive Data</span>
+                                <span class="settings-accordion-title">SentryUSB</span>
                             </div>
                             <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </div>
                         <div class="settings-accordion-body">
-                            <p class="settings-section-description">
-                                Select your SentryUSB <code>drive-data.json</code> file to view your archived drives
-                                alongside your footage. The file is loaded automatically on startup.
-                            </p>
-                            <div class="input-row">
-                                <input type="text" id="driveDataFilePath" class="text-input"
-                                    placeholder="No drive data file selected" readonly>
-                                <button id="browseDriveDataFileBtn" class="btn btn-secondary btn-small">Browse</button>
-                                <button id="clearDriveDataFileBtn" class="btn btn-secondary btn-small" title="Clear">✕</button>
-                            </div>
-                            <div id="driveDataFileStatus" class="folder-status"></div>
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Show Drive Stats</span>
+                                    <span class="toggle-row-desc">Display acceleration events and FSD disengagement counts on each drive.</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="settingsShowDriveStats" checked>
+                                    <div class="toggle-switch-track">
+                                        <div class="toggle-switch-thumb"></div>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label">Show FSD Events on Map</span>
+                                    <span class="toggle-row-desc">Show accelerator push and FSD disengagement markers on the route map when a drive is selected.</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="settingsShowFsdEvents" checked>
+                                    <div class="toggle-switch-track">
+                                        <div class="toggle-switch-thumb"></div>
+                                    </div>
+                                </div>
+                            </label>
                         </div>
                     </div>
 

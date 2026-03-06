@@ -6,20 +6,13 @@
 import { escapeHtml } from '../lib/utils.js';
 import { formatDriveDuration, formatDriveDistance } from './driveGrouper.js';
 
-// Route map colors — match the main map polyline colors in script.js
-const FSD_COLOR = '#1e5af1';
-const MANUAL_COLOR = '#4d4c4c';
-
 // Injected dependencies
 let getState = null;
 let getDriveState = null;
 let driveList = null;
 let onDriveSelected = null;
 let getUseMetric = null;
-
-// Shared hover tooltip for route map preview
-let routeTooltip = null;
-let routeCanvas = null;
+let getShowDriveStats = null;
 
 /**
  * Initialize the drive browser with dependencies.
@@ -30,15 +23,7 @@ export function initDriveBrowser(deps) {
     driveList = deps.driveList;
     onDriveSelected = deps.onDriveSelected;
     getUseMetric = deps.getUseMetric;
-
-    // Create shared route map tooltip (appended to body so it escapes any overflow:hidden containers)
-    routeTooltip = document.createElement('div');
-    routeTooltip.className = 'drive-route-tooltip';
-    routeCanvas = document.createElement('canvas');
-    routeCanvas.width = 220;
-    routeCanvas.height = 160;
-    routeTooltip.appendChild(routeCanvas);
-    document.body.appendChild(routeTooltip);
+    getShowDriveStats = deps.getShowDriveStats ?? (() => true);
 }
 
 // Active filter state
@@ -55,8 +40,14 @@ export function renderDriveList() {
     const driveState = getDriveState?.();
     if (!driveState?.loaded || !driveState.drives?.length) {
         driveList.innerHTML = `
-            <div class="drive-list-placeholder">
-                No drive data loaded. Select a drive-data.json file in Settings &gt; Storage.
+            <div class="drive-list-placeholder drive-list-no-data">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:10px;">
+                    <rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M6 14h.01M10 10h4M10 14h4"/>
+                </svg>
+                <p class="drive-no-data-title">No drive data loaded</p>
+                <p class="drive-no-data-desc">SentryUSB Drive Data shows your full driving history with GPS routes, speed, and FSD stats. Requires a SentryUSB <code>drive-data.json</code> file.</p>
+                <button class="btn btn-secondary btn-small drive-select-file-btn" onclick="document.getElementById('browseDriveDataFileBtn')?.click()">Select drive-data.json</button>
+                <a href="https://sentry-six.com/sentry-usb" target="_blank" class="drive-learn-more-link">Learn more about SentryUSB</a>
             </div>`;
         return;
     }
@@ -94,6 +85,8 @@ export function renderDriveList() {
         driveList.appendChild(dateHeader);
 
         const dayDrives = byDate.get(date);
+        // Sort drives within a day latest → earliest (newest at top)
+        dayDrives.sort((a, b) => b.startMs - a.startMs);
         for (const drive of dayDrives) {
             const item = createDriveItem(drive, hasFootage?.has(drive.id) ?? false, useMetric);
             driveList.appendChild(item);
@@ -101,97 +94,6 @@ export function renderDriveList() {
     }
 
     highlightSelectedDrive();
-}
-
-/**
- * Draw the drive route on a canvas element, coloring segments by autopilot state.
- * Points are 5-tuples: [lat, lng, timeMs, speedMps, autopilotState]
- */
-function renderRouteOnCanvas(canvas, drive) {
-    const pts = drive.points;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    if (!pts || pts.length < 2) {
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('No GPS data', W / 2, H / 2);
-        return;
-    }
-
-    // Compute bounding box
-    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-    for (const p of pts) {
-        if (p[0] < minLat) minLat = p[0];
-        if (p[0] > maxLat) maxLat = p[0];
-        if (p[1] < minLng) minLng = p[1];
-        if (p[1] > maxLng) maxLng = p[1];
-    }
-
-    const pad = 14;
-    const latRange = maxLat - minLat || 0.001;
-    const lngRange = maxLng - minLng || 0.001;
-
-    // Preserve aspect ratio
-    const drawW = W - pad * 2;
-    const drawH = H - pad * 2;
-    const scaleX = drawW / lngRange;
-    const scaleY = drawH / latRange;
-    const scale = Math.min(scaleX, scaleY);
-    const offX = pad + (drawW - lngRange * scale) / 2;
-    const offY = pad + (drawH - latRange * scale) / 2;
-
-    const project = (lat, lng) => [
-        offX + (lng - minLng) * scale,
-        offY + (maxLat - lat) * scale,
-    ];
-
-    // Draw route as colored segments based on autopilot state
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    let segStart = 0;
-    let curAp = pts[0][4];
-
-    const flushSegment = (endIdx) => {
-        if (endIdx <= segStart) return;
-        ctx.beginPath();
-        ctx.strokeStyle = curAp > 0 ? FSD_COLOR : MANUAL_COLOR;
-        const [sx, sy] = project(pts[segStart][0], pts[segStart][1]);
-        ctx.moveTo(sx, sy);
-        for (let i = segStart + 1; i <= endIdx; i++) {
-            const [x, y] = project(pts[i][0], pts[i][1]);
-            ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    };
-
-    for (let i = 1; i < pts.length; i++) {
-        if (pts[i][4] !== curAp) {
-            flushSegment(i - 1);
-            segStart = i - 1; // overlap by 1 point for continuity
-            curAp = pts[i][4];
-        }
-    }
-    flushSegment(pts.length - 1);
-
-    // Draw start dot
-    const [sx, sy] = project(pts[0][0], pts[0][1]);
-    ctx.beginPath();
-    ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    // Draw end dot
-    const [ex, ey] = project(pts[pts.length - 1][0], pts[pts.length - 1][1]);
-    ctx.beginPath();
-    ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fill();
 }
 
 /**
@@ -204,23 +106,42 @@ function createDriveItem(drive, hasClips, useMetric) {
 
     const durationStr = formatDriveDuration(drive.durationMs);
     const distanceStr = formatDriveDistance(drive, useMetric);
-    const timeRange = `${drive.startTimeDisplay} – ${drive.endTimeDisplay}`;
+    const timeRange = `${formatDriveTimeMs(drive.startMs)} – ${formatDriveTimeMs(drive.endMs)}`;
     const clipCount = `${drive.clipCount} clip${drive.clipCount !== 1 ? 's' : ''}`;
+    const showStats = getShowDriveStats?.() ?? true;
 
     // Footage badge
     const footageBadge = hasClips
         ? `<span class="badge drive-footage-badge" title="Footage available">Footage</span>`
         : '';
 
-    // FSD badge
+    // FSD badge with percentage
     const fsdBadge = drive.hasFsd
-        ? `<span class="badge drive-fsd-badge" title="FSD engaged ${Math.round(drive.fsdPercent)}%">FSD</span>`
+        ? `<span class="badge drive-fsd-badge" title="${Math.round(drive.fsdPercent)}% of clips with FSD active">FSD ${Math.round(drive.fsdPercent)}%</span>`
         : '';
 
     // Tag badges (max 3)
     const tagBadges = drive.tags.slice(0, 3).map(tag =>
         `<span class="badge drive-tag-badge">${escapeHtml(tag)}</span>`
     ).join('');
+
+    // Accel pushes + FSD disengagements (shown when stats toggle is on)
+    const accelStat = showStats && drive.accelPushCount > 0
+        ? `<span class="drive-stat drive-stat-muted" title="Accelerator overrides while FSD active">
+               <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none">
+                   <path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.27 10.87 10.42 7.28 13 3h1l-1 7h3.5c.49 0 .56.33.47.51L11 21z"/>
+               </svg>
+               ${drive.accelPushCount}
+           </span>`
+        : '';
+    const disengageStat = showStats && drive.fsdDisengagements > 0
+        ? `<span class="drive-stat drive-stat-muted" title="FSD disengagements">
+               <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none">
+                   <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+               </svg>
+               ${drive.fsdDisengagements}
+           </span>`
+        : '';
 
     item.innerHTML = `
         <div class="drive-item-main">
@@ -233,12 +154,13 @@ function createDriveItem(drive, hasClips, useMetric) {
                     ${escapeHtml(durationStr)}
                 </span>
                 <span class="drive-stat">
-                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none">
+                        <path d="M12 2L4.5 20.3l.5.2L12 17l7 3.5.5-.2z"/>
                     </svg>
                     ${escapeHtml(distanceStr)}
                 </span>
                 <span class="drive-stat drive-stat-muted">${escapeHtml(clipCount)}</span>
+                ${accelStat}${disengageStat}
             </div>
             <div class="drive-item-badges">
                 ${footageBadge}${fsdBadge}${tagBadges}
@@ -251,32 +173,6 @@ function createDriveItem(drive, hasClips, useMetric) {
         highlightSelectedDrive();
         onDriveSelected?.(drive);
     };
-
-    // Hover: show route map tooltip
-    item.addEventListener('mouseenter', () => {
-        if (!routeTooltip || !routeCanvas || !drive.points?.length) return;
-        renderRouteOnCanvas(routeCanvas, drive);
-
-        const rect = item.getBoundingClientRect();
-        // Prefer right side; flip left if it would overflow the viewport
-        const tooltipW = routeCanvas.width + 16;
-        const tooltipH = routeCanvas.height + 16;
-        let left = rect.right + 6;
-        if (left + tooltipW > window.innerWidth) {
-            left = rect.left - tooltipW - 6;
-        }
-        let top = rect.top;
-        if (top + tooltipH > window.innerHeight) {
-            top = window.innerHeight - tooltipH - 4;
-        }
-        routeTooltip.style.left = `${Math.max(4, left)}px`;
-        routeTooltip.style.top = `${Math.max(4, top)}px`;
-        routeTooltip.classList.add('visible');
-    });
-
-    item.addEventListener('mouseleave', () => {
-        routeTooltip?.classList.remove('visible');
-    });
 
     return item;
 }
@@ -316,6 +212,22 @@ export function updateDriveBrowserStatus(statusEl) {
     const dateRange = oldest === newest ? oldest : `${oldest} – ${newest}`;
     const footagePart = footageCount > 0 ? ` · ${footageCount} with footage` : ' · load matching clips folder';
     statusEl.textContent = `${drives.length} drive${drives.length !== 1 ? 's' : ''} · ${dateRange}${footagePart}`;
+}
+
+/**
+ * Format an epoch ms timestamp as HH:MM (or h:MM AM/PM) using the user's time format preference.
+ */
+function formatDriveTimeMs(ms) {
+    if (!ms) return '--:--';
+    const d = new Date(ms);
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    if ((window._timeFormat ?? '12h') === '12h') {
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${m} ${ampm}`;
+    }
+    return `${String(h).padStart(2, '0')}:${m}`;
 }
 
 /**

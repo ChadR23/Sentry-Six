@@ -216,6 +216,10 @@ function resetDashboardAndMap() {
     window._lastMapBounds = null;
     window._lastMapPath = null;
     
+    // Clear FSD event markers
+    for (const m of fsdEventMarkers) m.remove();
+    fsdEventMarkers = [];
+
     // Clear event location marker (Sentry/Saved clip static pin)
     if (eventLocationMarker) {
         eventLocationMarker.remove();
@@ -316,6 +320,7 @@ let map = null;
 let mapPolyline = null;
 let eventLocationMarker = null; // Static marker for Sentry/Saved clip event locations
 let mapPath = [];
+let fsdEventMarkers = []; // Circle markers for FSD disengagements and accel pushes
 
 // Extra Data Elements
 const valLat = $('valLat');
@@ -1284,11 +1289,18 @@ initClipBrowser({
 });
 
 // Initialize drive browser
+const SHOW_DRIVE_STATS_KEY = 'showDriveStats';
+let showDriveStats = localStorage.getItem(SHOW_DRIVE_STATS_KEY) !== '0';
+
+const SHOW_FSD_EVENTS_KEY = 'showFsdEvents';
+let showFsdEvents = localStorage.getItem(SHOW_FSD_EVENTS_KEY) !== '0';
+
 initDriveBrowser({
     getState: () => state,
     getDriveState: () => state.sentryUsb,
     driveList,
     getUseMetric: () => useMetric,
+    getShowDriveStats: () => showDriveStats,
     onDriveSelected: (drive) => {
         if (!state.sentryUsb.hasFootage?.has(drive.id)) {
             notify(`No footage for this drive (${drive.date}) in the loaded clips folder.`, { type: 'info' });
@@ -1297,6 +1309,26 @@ initDriveBrowser({
         selectDriveCollection(drive);
     }
 });
+
+const settingsShowDriveStats = document.getElementById('settingsShowDriveStats');
+if (settingsShowDriveStats) {
+    settingsShowDriveStats.checked = showDriveStats;
+    settingsShowDriveStats.addEventListener('change', () => {
+        showDriveStats = settingsShowDriveStats.checked;
+        localStorage.setItem(SHOW_DRIVE_STATS_KEY, showDriveStats ? '1' : '0');
+        renderDriveList();
+    });
+}
+
+const settingsShowFsdEvents = document.getElementById('settingsShowFsdEvents');
+if (settingsShowFsdEvents) {
+    settingsShowFsdEvents.checked = showFsdEvents;
+    settingsShowFsdEvents.addEventListener('change', () => {
+        showFsdEvents = settingsShowFsdEvents.checked;
+        localStorage.setItem(SHOW_FSD_EVENTS_KEY, showFsdEvents ? '1' : '0');
+        refreshFsdEventMarkers();
+    });
+}
 
 // Drives tab bar switching
 function switchToClipsTab() {
@@ -1332,22 +1364,74 @@ if (clipDriveTabBar) {
 }
 
 /**
+ * Draw or redraw FSD event markers (disengagements + accel pushes) on the map.
+ * Reads from the active collection's driveFsdEvents and the showFsdEvents toggle.
+ * Call after polylines are drawn, or when the toggle changes.
+ */
+function refreshFsdEventMarkers() {
+    // Remove existing event markers
+    for (const m of fsdEventMarkers) m.remove();
+    fsdEventMarkers = [];
+
+    if (!map || !showFsdEvents) return;
+
+    const events = state.collection.active?.driveFsdEvents;
+    if (!events?.length) return;
+
+    for (const ev of events) {
+        if (!isFinite(ev.lat) || !isFinite(ev.lng)) continue;
+
+        const isDisengage = ev.type === 'disengagement';
+        // Match SentryUSB Web UI: red "D" for disengagement, amber "A" for accel push
+        const color = isDisengage ? '#ef4444' : '#f59e0b';
+        const letter = isDisengage ? 'D' : 'A';
+        const title = isDisengage ? 'FSD Disengagement' : 'Accel Push';
+
+        const marker = L.marker([ev.lat, ev.lng], {
+            icon: L.divIcon({
+                className: '',
+                html: `<div title="${title}" style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;color:#fff;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.5)">${letter}</div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+            }),
+        }).bindTooltip(title, { permanent: false, direction: 'top', offset: [0, -10] });
+
+        marker.addTo(map);
+        fsdEventMarkers.push(marker);
+    }
+}
+
+/**
  * Load a virtual collection containing only the clips that belong to a drive.
- * Handles drives spanning multiple days (e.g. past midnight) by collecting
- * all matching clipGroups regardless of their calendar date.
- *
- * In Electron mode, library.clipGroups is scoped to the currently-selected date.
- * If the drive's date isn't loaded yet, this function loads it first.
+ * Handles drives spanning multiple days (e.g. past midnight) by loading all
+ * calendar dates the drive spans and combining their clip groups.
  */
 async function selectDriveCollection(drive) {
-    // In Electron mode, ensure the drive's date is loaded into library.clipGroups.
-    // library.clipGroups only contains clips for the currently-viewed date; drives
-    // from other dates need their date loaded before we can filter their clips.
-    const hasClipsForDate = library.clipGroups.some(
-        g => g.timestampKey?.startsWith(drive.date + '_')
-    );
-    if (!hasClipsForDate && window.electronAPI && folderStructure?.dateHandles?.has(drive.date)) {
-        await loadDateContentElectron(drive.date);
+    // Collect all unique calendar dates this drive spans (from its route timestamp keys)
+    const neededDates = [...new Set(drive.routeTimestampKeys.map(k => k.split('_')[0]).filter(Boolean))];
+
+    if (window.electronAPI && folderStructure?.dateHandles) {
+        // Load the primary date first (this populates library.clipGroups via mergeIntoLibrary)
+        const primaryDate = neededDates[0] ?? drive.date;
+        const hasPrimary = library.clipGroups.some(g => g.timestampKey?.startsWith(primaryDate + '_'));
+        if (!hasPrimary && folderStructure.dateHandles.has(primaryDate)) {
+            await loadDateContentElectron(primaryDate);
+        }
+
+        // For any extra dates (e.g., drive crosses midnight into the next day),
+        // gather their files and append their groups directly to library.clipGroups
+        // without triggering a full mergeIntoLibrary (which would replace the primary date's clips).
+        for (const date of neededDates.slice(1)) {
+            const hasDate = library.clipGroups.some(g => g.timestampKey?.startsWith(date + '_'));
+            if (!hasDate && folderStructure.dateHandles.has(date)) {
+                const extraFiles = await gatherFilesForDateElectron(date);
+                if (extraFiles.length > 0) {
+                    const extraBuilt = await buildTeslaCamIndex(extraFiles, folderStructure?.root?.name);
+                    library.clipGroups = [...library.clipGroups, ...extraBuilt.groups];
+                    for (const g of extraBuilt.groups) library.clipGroupById.set(g.id, g);
+                }
+            }
+        }
     }
 
     const driveKeys = new Set(drive.routeTimestampKeys);
@@ -1369,6 +1453,12 @@ async function selectDriveCollection(drive) {
         return Math.max(0, t - startEpochMs);
     });
 
+    // Convert full drive route to mapPath format for GPS map pre-population.
+    // drive.points are 5-tuples: [lat, lng, 0, speedMps, autopilotActive(0|1)]
+    const driveMapPath = (drive.points ?? []).map(p => ({
+        lat: p[0], lon: p[1], timestampMs: 0, autopilot: p[4] > 0
+    }));
+
     const collKey = `drive-${drive.id}`;
     const coll = {
         id: collKey,
@@ -1383,12 +1473,15 @@ async function selectDriveCollection(drive) {
         anchorMs: 0,
         anchorGroupId: matchingGroups[0]?.id || null,
         sortEpoch: lastStart + 60_000,
+        driveMapPath: driveMapPath.length > 0 ? driveMapPath : null,
+        driveFsdEvents: drive.fsdEvents ?? [],
     };
 
     if (!library.dayCollections) library.dayCollections = new Map();
     library.dayCollections.set(collKey, coll);
 
-    switchToClipsTab();
+    // Load the collection without switching the sidebar tab —
+    // user stays on the Drives tab to browse, video plays in the main area.
     selectDayCollection(collKey);
 }
 
@@ -1577,7 +1670,7 @@ async function loadSentryUsbData(filePath) {
 }
 
 /**
- * Clear loaded SentryUSB drive data and hide the Drives tab.
+ * Clear loaded SentryUSB drive data and refresh the Drives tab placeholder.
  */
 function clearSentryUsbData() {
     const sentryUsb = state.sentryUsb;
@@ -1586,19 +1679,18 @@ function clearSentryUsbData() {
     sentryUsb.loaded = false;
     sentryUsb.dataPath = null;
 
-    // Switch back to clips tab and hide tab bar
     switchToClipsTab();
     updateDrivesTabVisibility();
+    renderDriveList(); // Refresh to show the "no data" placeholder
 }
 
 /**
- * Show/hide the Drives tab based on whether drive data is loaded.
+ * Update the Drives tab count badge. The tab bar is always visible.
  */
 function updateDrivesTabVisibility() {
     if (!clipDriveTabBar) return;
-    const hasData = state.sentryUsb.loaded && state.sentryUsb.drives.length > 0;
-    clipDriveTabBar.style.display = hasData ? '' : 'none';
     if (drivesTabCount) {
+        const hasData = state.sentryUsb.loaded && state.sentryUsb.drives.length > 0;
         drivesTabCount.textContent = hasData ? String(state.sentryUsb.drives.length) : '';
     }
 }
@@ -1606,6 +1698,11 @@ function updateDrivesTabVisibility() {
 // Expose globally so settingsModal.js can call them without circular import
 window._loadSentryUsbData = loadSentryUsbData;
 window._clearSentryUsbData = clearSentryUsbData;
+
+// Re-render drive list when time format changes so times update immediately
+window.addEventListener('timeFormatChanged', () => {
+    if (driveList && driveList.style.display !== 'none') renderDriveList();
+});
 
 // Auto-load drive data on startup
 async function loadSentryUsbDataOnStartup() {
@@ -2044,34 +2141,23 @@ async function scanLooseClipsElectron(dirPath) {
     }
 }
 
-// Load date content using Electron fs
-async function loadDateContentElectron(date) {
-    if (!folderStructure?.dateHandles?.has(date)) {
-        notify(t('ui.notifications.noDataForDate', { date: date }), { type: 'warn' });
-        return;
-    }
-    
-    showLoading('Loading clips...', `Loading ${date}...`);
-    
+/**
+ * Gather all Electron file entries for a single date from folderStructure.
+ * Returns raw file-like objects without building an index.
+ * Used by both loadDateContentElectron and selectDriveCollection (multi-date).
+ */
+async function gatherFilesForDateElectron(date) {
+    if (!folderStructure?.dateHandles?.has(date)) return [];
     const dateData = folderStructure.dateHandles.get(date);
     const files = [];
-    
-    // Load RecentClips
+
+    // RecentClips
     if (dateData.recent) {
-        updateLoading('Loading clips...', 'Loading RecentClips...');
         try {
-            const recentPath = dateData.recent.isFlat ? dateData.recent.path : dateData.recent.path;
-            const entries = await window.electronAPI.readDir(recentPath);
-            
+            const entries = await window.electronAPI.readDir(dateData.recent.path);
             for (const entry of entries) {
                 if (!entry.isFile || !entry.name.endsWith('.mp4')) continue;
-                
-                // Filter by date if flat structure
-                if (dateData.recent.isFlat) {
-                    if (!entry.name.startsWith(date)) continue;
-                }
-                
-                // Create a file-like object with path
+                if (dateData.recent.isFlat && !entry.name.startsWith(date)) continue;
                 files.push({
                     name: entry.name,
                     path: entry.path,
@@ -2083,10 +2169,9 @@ async function loadDateContentElectron(date) {
             console.warn('Error loading RecentClips:', err);
         }
     }
-    
-    // Load SentryClips events
+
+    // SentryClips events
     for (const [eventId, eventEntry] of dateData.sentry.entries()) {
-        updateLoading('Loading clips...', `Loading Sentry event ${eventId}...`);
         try {
             const entries = await window.electronAPI.readDir(eventEntry.path);
             for (const entry of entries) {
@@ -2102,10 +2187,9 @@ async function loadDateContentElectron(date) {
             console.warn(`Error loading Sentry event ${eventId}:`, err);
         }
     }
-    
-    // Load SavedClips events
+
+    // SavedClips events
     for (const [eventId, eventEntry] of dateData.saved.entries()) {
-        updateLoading('Loading clips...', `Loading Saved event ${eventId}...`);
         try {
             const entries = await window.electronAPI.readDir(eventEntry.path);
             for (const entry of entries) {
@@ -2121,22 +2205,16 @@ async function loadDateContentElectron(date) {
             console.warn(`Error loading Saved event ${eventId}:`, err);
         }
     }
-    
-    // Load loose clips (folder with just video files, or custom folder structure)
+
+    // Loose clips
     if (dateData.loose) {
-        updateLoading('Loading clips...', 'Loading video clips...');
-        
-        // Helper to check if a file matches the target date
         const fileMatchesDate = (filename, targetDate) => {
             if (targetDate === 'Unknown') {
-                // For "Unknown" date, only include files without recognizable dates
                 return !filename.match(/^(\d{4}-\d{2}-\d{2})_/) && !filename.match(/(\d{4})(\d{2})(\d{2})/);
             }
             const fileDate = extractDateFromFilename(filename);
             return fileDate === targetDate || fileDate === 'Unknown';
         };
-        
-        // Helper to add a file entry
         const addFileEntry = (entry, relPathPrefix) => {
             files.push({
                 name: entry.name,
@@ -2146,23 +2224,16 @@ async function loadDateContentElectron(date) {
                 isLooseClip: true
             });
         };
-        
         try {
-            // Scan root folder for direct video files
             const entries = await window.electronAPI.readDir(dateData.loose.path);
             for (const entry of entries) {
                 if (!entry.isFile) continue;
                 const nameLower = entry.name.toLowerCase();
                 if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
-                    if (fileMatchesDate(entry.name, date)) {
-                        addFileEntry(entry, '');
-                    }
+                    if (fileMatchesDate(entry.name, date)) addFileEntry(entry, '');
                 }
             }
-            
-            // Also scan subfolders that were discovered during initial scan
-            const subfolders = dateData.loose.subfolders || [];
-            for (const subPath of subfolders) {
+            for (const subPath of (dateData.loose.subfolders || [])) {
                 try {
                     const subFolderName = subPath.replace(/\\/g, '/').split('/').pop();
                     const subEntries = await window.electronAPI.readDir(subPath);
@@ -2182,21 +2253,35 @@ async function loadDateContentElectron(date) {
             console.warn('Error loading loose clips:', err);
         }
     }
-    
+
+    return files;
+}
+
+// Load date content using Electron fs
+async function loadDateContentElectron(date) {
+    if (!folderStructure?.dateHandles?.has(date)) {
+        notify(t('ui.notifications.noDataForDate', { date: date }), { type: 'warn' });
+        return;
+    }
+
+    showLoading('Loading clips...', `Loading ${date}...`);
+
+    const files = await gatherFilesForDateElectron(date);
+
     hideLoading();
-    
+
     if (files.length === 0) {
         notify(t('ui.notifications.noClipsFoundForDate', { date: date }), { type: 'info' });
         return;
     }
-    
+
     // Build index with path information
     const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
     mergeIntoLibrary(built, date);
-    
+
     // Update export button state after collection loads
     setTimeout(updateExportButtonState, 100);
-    
+
     notify(t('ui.notifications.loadedFilesForDate', { count: files.length, date: formatDateDisplay(date) }), { type: 'success' });
 }
 
@@ -2618,6 +2703,15 @@ function mergeIntoLibrary(built, date) {
     }
 
     ingestSentryEventJson(built.eventAssetsByKey);
+
+    // If SentryUSB drive data is loaded, re-match drives against the new clip set.
+    if (state.sentryUsb?.loaded && state.sentryUsb.drives?.length > 0) {
+        state.sentryUsb.hasFootage = matchClipsTodrives(
+            state.sentryUsb.drives, library.clipGroups, folderStructure?.dates
+        );
+        updateDrivesTabVisibility();
+        renderDriveList();
+    }
 }
 
 // Process files for a single date
@@ -4141,12 +4235,17 @@ async function loadNativeSegment(segIdx) {
     if (masterEntry && seiType) {
         extractSeiFromEntry(masterEntry, seiType).then(({ seiData, mapPath }) => {
             nativeVideo.seiData = seiData;
-            nativeVideo.mapPath = mapPath;
-            if (mapPath?.length) {
-                window._lastMapPath = mapPath; // cache for re-center
+            // If the active collection has a full drive route, use it for the map
+            // polyline instead of the per-clip SEI path so the entire route is visible.
+            const driveMapPath = state.collection.active?.driveMapPath;
+            const effectiveMapPath = (driveMapPath?.length > 0) ? driveMapPath : mapPath;
+            nativeVideo.mapPath = effectiveMapPath;
+            if (effectiveMapPath?.length) {
+                window._lastMapPath = effectiveMapPath; // cache for re-center
             }
             // Draw route on map with autopilot-aware coloring
-            if (map && mapPath.length > 0) {
+            if (map && effectiveMapPath.length > 0) {
+                const mapPath = effectiveMapPath; // shadow for the block below
                 // Remove existing polylines
                 if (mapPolyline) {
                     if (Array.isArray(mapPolyline)) {
@@ -4156,51 +4255,74 @@ async function loadNativeSegment(segIdx) {
                     }
                 }
                 
-                // Colors: match dashboard FSD text and darker manual
-                const AUTOPILOT_COLOR = '#1e5af1ff';   // Dashboard FSD accent
-                const MANUAL_COLOR = '#4d4c4cff';      // Darker gray for manual
-                
+                // Colors match SentryUSB Web UI: green=FSD engaged, blue=manual
+                const AUTOPILOT_COLOR = '#22c55e';
+                const MANUAL_COLOR    = '#3b82f6';
+
                 // Build segments with consistent autopilot state
                 const segments = [];
                 let currentSegment = [];
                 let currentAutopilot = mapPath[0].autopilot;
-                
+
                 for (const point of mapPath) {
                     if (point.autopilot !== currentAutopilot && currentSegment.length > 0) {
-                        // State changed - save current segment and start new one
-                        // Include last point in new segment for continuity
                         segments.push({ coords: currentSegment, autopilot: currentAutopilot });
-                        currentSegment = [currentSegment[currentSegment.length - 1]]; // Overlap for continuity
+                        currentSegment = [currentSegment[currentSegment.length - 1]]; // overlap for continuity
                         currentAutopilot = point.autopilot;
                     }
                     currentSegment.push([point.lat, point.lon]);
                 }
-                // Push final segment
                 if (currentSegment.length > 0) {
                     segments.push({ coords: currentSegment, autopilot: currentAutopilot });
                 }
-                
+
                 // Create polylines for each segment
                 const polylines = segments.map(seg => {
                     const color = seg.autopilot ? AUTOPILOT_COLOR : MANUAL_COLOR;
-                    return L.polyline(seg.coords, { color, weight: 6, opacity: 1 }).addTo(map);
+                    return L.polyline(seg.coords, { color, weight: 4, opacity: 1, smoothFactor: 0, noClip: true }).addTo(map);
                 });
-                
+
                 mapPolyline = polylines;
-                
+
+                // Draw FSD event markers if enabled (must come before start/end markers
+                // since refreshFsdEventMarkers clears fsdEventMarkers first)
+                refreshFsdEventMarkers();
+
+                // Start (green) and end (red) dot markers — match SentryUSB Web UI
+                const startCoord = [mapPath[0].lat, mapPath[0].lon];
+                const endCoord   = [mapPath[mapPath.length - 1].lat, mapPath[mapPath.length - 1].lon];
+                const dotIcon = (bg) => L.divIcon({
+                    className: '',
+                    html: `<div style="width:10px;height:10px;border-radius:50%;background:${bg};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.5)"></div>`,
+                    iconSize: [10, 10],
+                    iconAnchor: [5, 5],
+                });
+                const startMarker = L.marker(startCoord, { icon: dotIcon('#22c55e') }).addTo(map);
+                const endMarker   = L.marker(endCoord,   { icon: dotIcon('#ef4444') }).addTo(map);
+                // Push into fsdEventMarkers so they're cleaned up on next drive selection
+                fsdEventMarkers.push(startMarker, endMarker);
+
                 // Fit bounds to all points
                 const allCoords = mapPath.map(p => [p.lat, p.lon]);
                 const bounds = L.latLngBounds(allCoords);
                 window._lastMapBounds = bounds; // cache for recenter
-                window._lastMapPath = mapPath;  // ensure path cached
                 map.invalidateSize();
                 map.fitBounds(bounds, { padding: [20, 20] });
-                
+                // For long drive routes fitBounds can zoom far out; enforce a minimum zoom of 12.
+                if (map.getZoom() < 12) {
+                    const mid = mapPath[Math.floor(mapPath.length / 2)];
+                    map.setView([mid.lat, mid.lon], 12, { animate: false });
+                }
+
                 // Re-center map after 1 second to ensure proper centering if a glitch occurred
                 setTimeout(() => {
                     if (map && mapPolyline) {
                         map.invalidateSize();
                         map.fitBounds(bounds, { padding: [20, 20] });
+                        if (map.getZoom() < 12) {
+                            const mid = mapPath[Math.floor(mapPath.length / 2)];
+                            map.setView([mid.lat, mid.lon], 12, { animate: false });
+                        }
                     }
                 }, 1000);
             }
