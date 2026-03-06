@@ -36,10 +36,12 @@ import {
     getRootFolderNameFromWebkitRelativePath, cameraLabel, buildTeslaCamIndex, buildDayCollections
 } from './scripts/core/teslaCamIndex.js';
 import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
-import { 
-    initClipBrowser, renderClipList, highlightSelectedClip, 
+import {
+    initClipBrowser, renderClipList, highlightSelectedClip,
     buildDisplayItems, parseTimestampKeyToEpochMs
 } from './scripts/core/clipBrowser.js';
+import { groupStoreDataIntoDrives, matchClipsTodrives } from './scripts/core/driveGrouper.js';
+import { initDriveBrowser, renderDriveList, setDriveTagFilter } from './scripts/core/driveBrowser.js';
 import { initI18n, t, onLanguageChange } from './scripts/lib/i18n.js';
 
 // State
@@ -77,6 +79,13 @@ const clipBrowserSubtitle = $('clipBrowserSubtitle');
 const dayFilter = $('dayFilter');
 const chooseFolderBtn = $('chooseFolderBtn');
 const clipsCollapseBtn = $('clipsCollapseBtn');
+// Drives panel elements
+const driveList = $('driveList');
+const clipDriveTabBar = $('clipDriveTabBar');
+const drivesTabCount = $('drivesTabCount');
+const driveTagFilter = $('driveTagFilter');
+const clipBrowserDayfilter = $('clipBrowserDayfilter');
+const driveTagFilterRow = $('driveTagFilterRow');
 const cameraSelect = $('cameraSelect');
 const autoplayToggle = $('autoplayToggle');
 const multiCamToggle = $('multiCamToggle');
@@ -1274,6 +1283,126 @@ initClipBrowser({
     onClipDeleted: handleClipDeleted
 });
 
+// Initialize drive browser
+initDriveBrowser({
+    getState: () => state,
+    getDriveState: () => state.sentryUsb,
+    driveList,
+    getUseMetric: () => useMetric,
+    onDriveSelected: (drive) => {
+        if (!state.sentryUsb.hasFootage?.has(drive.id)) {
+            notify(`No footage for this drive (${drive.date}) in the loaded clips folder.`, { type: 'info' });
+            return;
+        }
+        selectDriveCollection(drive);
+    }
+});
+
+// Drives tab bar switching
+function switchToClipsTab() {
+    if (!clipList || !driveList || !clipDriveTabBar) return;
+    clipList.style.display = '';
+    driveList.style.display = 'none';
+    if (clipBrowserDayfilter) clipBrowserDayfilter.style.display = '';
+    if (driveTagFilterRow) driveTagFilterRow.style.display = 'none';
+    clipDriveTabBar.querySelectorAll('.clip-drive-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.panel === 'clips');
+    });
+}
+
+function switchToDrivesTab() {
+    if (!clipList || !driveList || !clipDriveTabBar) return;
+    clipList.style.display = 'none';
+    driveList.style.display = '';
+    if (clipBrowserDayfilter) clipBrowserDayfilter.style.display = 'none';
+    if (driveTagFilterRow) driveTagFilterRow.style.display = '';
+    clipDriveTabBar.querySelectorAll('.clip-drive-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.panel === 'drives');
+    });
+    renderDriveList();
+}
+
+if (clipDriveTabBar) {
+    clipDriveTabBar.addEventListener('click', (e) => {
+        const tab = e.target.closest('.clip-drive-tab');
+        if (!tab) return;
+        if (tab.dataset.panel === 'clips') switchToClipsTab();
+        else if (tab.dataset.panel === 'drives') switchToDrivesTab();
+    });
+}
+
+/**
+ * Load a virtual collection containing only the clips that belong to a drive.
+ * Handles drives spanning multiple days (e.g. past midnight) by collecting
+ * all matching clipGroups regardless of their calendar date.
+ *
+ * In Electron mode, library.clipGroups is scoped to the currently-selected date.
+ * If the drive's date isn't loaded yet, this function loads it first.
+ */
+async function selectDriveCollection(drive) {
+    // In Electron mode, ensure the drive's date is loaded into library.clipGroups.
+    // library.clipGroups only contains clips for the currently-viewed date; drives
+    // from other dates need their date loaded before we can filter their clips.
+    const hasClipsForDate = library.clipGroups.some(
+        g => g.timestampKey?.startsWith(drive.date + '_')
+    );
+    if (!hasClipsForDate && window.electronAPI && folderStructure?.dateHandles?.has(drive.date)) {
+        await loadDateContentElectron(drive.date);
+    }
+
+    const driveKeys = new Set(drive.routeTimestampKeys);
+    const matchingGroups = library.clipGroups
+        .filter(g => g.timestampKey && driveKeys.has(g.timestampKey))
+        .sort((a, b) => (a.timestampKey || '').localeCompare(b.timestampKey || ''));
+
+    if (matchingGroups.length === 0) {
+        notify('No matching clips found for this drive.', { type: 'info' });
+        return;
+    }
+
+    // Build a virtual collection with the same shape as buildCollectionFromGroups
+    const startEpochMs = parseTimestampKeyToEpochMs(matchingGroups[0].timestampKey) ?? 0;
+    const lastStart = parseTimestampKeyToEpochMs(matchingGroups[matchingGroups.length - 1].timestampKey) ?? startEpochMs;
+    const durationMs = Math.max(1, lastStart + 60_000 - startEpochMs);
+    const segmentStartsMs = matchingGroups.map(g => {
+        const t = parseTimestampKeyToEpochMs(g.timestampKey) ?? startEpochMs;
+        return Math.max(0, t - startEpochMs);
+    });
+
+    const collKey = `drive-${drive.id}`;
+    const coll = {
+        id: collKey,
+        key: collKey,
+        day: drive.date,
+        clipType: 'RecentClips',
+        tag: 'RecentClips',
+        groups: matchingGroups,
+        meta: null,
+        durationMs,
+        segmentStartsMs,
+        anchorMs: 0,
+        anchorGroupId: matchingGroups[0]?.id || null,
+        sortEpoch: lastStart + 60_000,
+    };
+
+    if (!library.dayCollections) library.dayCollections = new Map();
+    library.dayCollections.set(collKey, coll);
+
+    switchToClipsTab();
+    selectDayCollection(collKey);
+}
+
+// Drive tag filter input
+if (driveTagFilter) {
+    let driveFilterDebounce = null;
+    driveTagFilter.addEventListener('input', () => {
+        clearTimeout(driveFilterDebounce);
+        driveFilterDebounce = setTimeout(() => {
+            setDriveTagFilter(driveTagFilter.value.trim());
+        }, 200);
+    });
+}
+
 // Initialize settings modal with dependencies
 initSettingsModalDeps({
     getState: () => state,
@@ -1385,6 +1514,113 @@ async function loadDefaultFolderOnStartup() {
 
 // Call after a short delay to allow UI to initialize
 setTimeout(loadDefaultFolderOnStartup, 500);
+
+/**
+ * Load and parse a SentryUSB drive-data.json file.
+ * Groups routes into drives and cross-references with loaded clips.
+ * @param {string} filePath - Absolute path to drive-data.json
+ * @returns {Promise<{success: boolean, driveCount?: number, routeCount?: number, error?: string}>}
+ */
+async function loadSentryUsbData(filePath) {
+    if (!filePath) return { success: false, error: 'No file path provided' };
+
+    const sentryUsb = state.sentryUsb;
+    sentryUsb.loading = true;
+
+    try {
+        const rawText = await window.electronAPI.readFile(filePath);
+        const storeData = JSON.parse(rawText);
+
+        // Diagnostic: log the top-level structure so mismatches are visible
+        const topKeys = Object.keys(storeData);
+        const routeArr = storeData.Routes ?? storeData.routes ?? storeData.Data?.Routes ?? null;
+        console.log(`[SentryUSB] File keys: ${topKeys.join(', ')} | Routes: ${routeArr?.length ?? 'not found'}`);
+
+        // Normalise: support both capitalised (StoreData) and lowercase key variants
+        const normalised = {
+            Routes: storeData.Routes ?? storeData.routes ?? [],
+            DriveTags: storeData.DriveTags ?? storeData.driveTags ?? storeData.drive_tags ?? {},
+        };
+
+        const { drives, driveCount, routeCount } = groupStoreDataIntoDrives(normalised);
+
+        sentryUsb.dataPath = filePath;
+        sentryUsb.drives = drives;
+        sentryUsb.loaded = true;
+        sentryUsb.loading = false;
+
+        // Cross-reference with currently loaded clips.
+        // Pass folderStructure.dates as a fallback so drives from dates other than
+        // the currently-loaded date still get the Footage badge (Electron mode loads
+        // clips one date at a time, so library.clipGroups is date-scoped).
+        sentryUsb.hasFootage = matchClipsTodrives(drives, library.clipGroups, folderStructure?.dates);
+
+        // Update tab bar to show Drives tab
+        updateDrivesTabVisibility();
+
+        console.log(`[SentryUSB] Loaded ${driveCount} drives from ${routeCount} routes`);
+        console.log(`[SentryUSB] Footage matched: ${sentryUsb.hasFootage.size}/${driveCount} drives`);
+        if (drives.length > 0) {
+            console.log(`[SentryUSB] Sample route keys (drive 1):`, drives[0].routeTimestampKeys?.slice(0, 3));
+        }
+        if (library.clipGroups.length > 0) {
+            console.log(`[SentryUSB] Sample clip keys:`, library.clipGroups.slice(0, 3).map(g => g.timestampKey));
+        } else {
+            console.log(`[SentryUSB] No clips loaded yet — matching will re-run when clips load`);
+        }
+        return { success: true, driveCount, routeCount };
+    } catch (err) {
+        sentryUsb.loading = false;
+        console.error('[SentryUSB] Failed to load drive data:', err);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Clear loaded SentryUSB drive data and hide the Drives tab.
+ */
+function clearSentryUsbData() {
+    const sentryUsb = state.sentryUsb;
+    sentryUsb.drives = [];
+    sentryUsb.hasFootage = new Set();
+    sentryUsb.loaded = false;
+    sentryUsb.dataPath = null;
+
+    // Switch back to clips tab and hide tab bar
+    switchToClipsTab();
+    updateDrivesTabVisibility();
+}
+
+/**
+ * Show/hide the Drives tab based on whether drive data is loaded.
+ */
+function updateDrivesTabVisibility() {
+    if (!clipDriveTabBar) return;
+    const hasData = state.sentryUsb.loaded && state.sentryUsb.drives.length > 0;
+    clipDriveTabBar.style.display = hasData ? '' : 'none';
+    if (drivesTabCount) {
+        drivesTabCount.textContent = hasData ? String(state.sentryUsb.drives.length) : '';
+    }
+}
+
+// Expose globally so settingsModal.js can call them without circular import
+window._loadSentryUsbData = loadSentryUsbData;
+window._clearSentryUsbData = clearSentryUsbData;
+
+// Auto-load drive data on startup
+async function loadSentryUsbDataOnStartup() {
+    let savedPath = null;
+    if (window.electronAPI?.getSetting) {
+        savedPath = await window.electronAPI.getSetting('sentryUsbDataPath');
+    }
+    if (savedPath) {
+        console.log('[SentryUSB] Auto-loading drive data from:', savedPath);
+        await loadSentryUsbData(savedPath);
+    }
+}
+
+// Load after clips folder startup (slight delay to avoid competing with folder load)
+setTimeout(loadSentryUsbDataOnStartup, 800);
 
 // Check for updates on startup (unless API requests are disabled in developer settings)
 async function checkForUpdatesOnStartup() {
@@ -2575,6 +2811,15 @@ async function handleFolderFiles(fileList, directoryName = null) {
     // Update day filter options and render clip list
     updateDayFilterOptions();
     renderClipList();
+
+    // Re-run clip-to-drive matching with newly loaded clips
+    if (state.sentryUsb.loaded && state.sentryUsb.drives.length > 0) {
+        state.sentryUsb.hasFootage = matchClipsTodrives(state.sentryUsb.drives, library.clipGroups, folderStructure?.dates);
+        // Refresh drive list if currently visible
+        if (driveList && driveList.style.display !== 'none') {
+            renderDriveList();
+        }
+    }
 
     // Autoselect most recent collection if available
     const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];

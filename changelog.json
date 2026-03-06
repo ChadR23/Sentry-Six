@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.10.2",
+      "date": "2026-03-05",
+      "title": "Added Sentry USB Drive Tracking Support",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added for Sentry USB drives tracking and viewing the footage. Including things like the route map for the entire drive."
+        }
+      ]
+    },
+    {
       "version": "2026.10.1",
       "date": "2026-03-02",
       "title": "Added IPv6 Support",

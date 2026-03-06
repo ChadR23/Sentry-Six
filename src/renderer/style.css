@@ -487,6 +487,8 @@ canvas,
 
 .clips-mode-collapsed .clip-browser-title,
 .clips-mode-collapsed #clipList,
+.clips-mode-collapsed #driveList,
+.clips-mode-collapsed #clipDriveTabBar,
 .clips-mode-collapsed #chooseFolderBtn,
 .clips-mode-collapsed .clip-browser-dayfilter {
     display: none;
@@ -621,6 +623,8 @@ canvas,
 
 .clips-mode-hidden .clip-browser-title,
 .clips-mode-hidden #clipList,
+.clips-mode-hidden #driveList,
+.clips-mode-hidden #clipDriveTabBar,
 .clips-mode-hidden #chooseFolderBtn,
 .clips-mode-hidden .clip-browser-dayfilter,
 .clips-mode-hidden .sidebar-resize-handle {
@@ -8183,4 +8187,238 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 [data-theme="light"] .dev-output-box {
     background: var(--surface-raised);
     border-color: rgba(255, 152, 0, 0.15);
+}
+
+/* =====================================================================
+   SentryUSB Drives Panel
+   ===================================================================== */
+
+/* Tab bar between Clips and Drives */
+.clip-drive-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--surface);
+    flex-shrink: 0;
+}
+
+.clip-drive-tab {
+    flex: 1;
+    padding: 7px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.clip-drive-tab:hover {
+    color: var(--text-color);
+}
+
+.clip-drive-tab.active {
+    color: var(--accent-color, #3e9cbf);
+    border-bottom-color: var(--accent-color, #3e9cbf);
+}
+
+.tab-count {
+    font-size: 10px;
+    background: var(--surface-raised);
+    border-radius: 8px;
+    padding: 1px 5px;
+    color: var(--text-muted);
+}
+
+.clip-drive-tab.active .tab-count {
+    background: rgba(62, 156, 191, 0.15);
+    color: var(--accent-color, #3e9cbf);
+}
+
+/* Drive list container - mirrors .clip-list */
+.drive-list {
+    overflow: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.drive-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.drive-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.drive-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.drive-list::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.drive-list-placeholder {
+    padding: 16px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* Date group header */
+.drive-date-header {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 10px 8px 4px;
+}
+
+.drive-date-header:first-child {
+    padding-top: 4px;
+}
+
+/* Drive item */
+.drive-item {
+    border-radius: 6px;
+    padding: 9px 10px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-left: 3px solid rgba(62, 156, 191, 0.35);
+    background: var(--surface-raised, rgba(255, 255, 255, 0.03));
+    transition: background 0.1s, border-color 0.1s;
+}
+
+.drive-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(62, 156, 191, 0.6);
+}
+
+.drive-item.selected {
+    background: rgba(62, 156, 191, 0.12);
+    border-color: var(--accent-color, #3e9cbf);
+}
+
+.drive-item-time {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.drive-item-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 5px;
+}
+
+.drive-stat {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.drive-stat svg {
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+.drive-stat-muted {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 10px;
+}
+
+.drive-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Drive-specific badge colors */
+.badge.drive-footage-badge {
+    background: rgba(76, 175, 80, 0.2);
+    color: #81c784;
+}
+
+.badge.drive-fsd-badge {
+    background: rgba(62, 156, 191, 0.2);
+    color: #64b5d6;
+}
+
+.badge.drive-tag-badge {
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+}
+
+/* Drive tag filter input */
+.drive-tag-filter-input {
+    flex: 1;
+    min-width: 0;
+    padding: 2px 6px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color);
+    font-size: 11px;
+    outline: none;
+}
+
+.drive-tag-filter-input:focus {
+    border-color: var(--accent-color, #3e9cbf);
+}
+
+/* Drive route hover map tooltip */
+.drive-route-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: rgba(18, 18, 26, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 8px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.drive-route-tooltip.visible {
+    opacity: 1;
+}
+
+.drive-route-tooltip canvas {
+    display: block;
+    border-radius: 4px;
+}
+
+/* Settings description text */
+.settings-section-description {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.settings-section-description code {
+    font-family: monospace;
+    background: var(--surface-raised);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
 }

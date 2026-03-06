@@ -105,6 +105,11 @@ export function initSettingsModal() {
     const clearDefaultFolderBtn = $('clearDefaultFolderBtn');
     const defaultFolderStatus = $('defaultFolderStatus');
 
+    const driveDataFilePath = $('driveDataFilePath');
+    const browseDriveDataFileBtn = $('browseDriveDataFileBtn');
+    const clearDriveDataFileBtn = $('clearDriveDataFileBtn');
+    const driveDataFileStatus = $('driveDataFileStatus');
+
     // Initialize settings values
     if (settingsDashboardToggle && state) settingsDashboardToggle.checked = state.ui.dashboardEnabled;
     if (settingsMapToggle && state) settingsMapToggle.checked = state.ui.mapEnabled;
@@ -114,6 +119,13 @@ export function initSettingsModal() {
     if (window.electronAPI?.getSetting && defaultFolderPath) {
         window.electronAPI.getSetting('defaultFolder').then(savedFolder => {
             if (savedFolder) defaultFolderPath.value = savedFolder;
+        });
+    }
+
+    // Load saved drive data file path
+    if (window.electronAPI?.getSetting && driveDataFilePath) {
+        window.electronAPI.getSetting('sentryUsbDataPath').then(savedPath => {
+            if (savedPath) driveDataFilePath.value = savedPath;
         });
     }
 
@@ -483,6 +495,75 @@ export function initSettingsModal() {
                 setTimeout(() => { defaultFolderStatus.textContent = ''; }, 2000);
             }
             clearDefaultFolderBtn.blur();
+        };
+    }
+
+    // Browse for drive data JSON file
+    if (browseDriveDataFileBtn) {
+        browseDriveDataFileBtn.onclick = async (e) => {
+            e.preventDefault();
+            if (window.electronAPI?.openFile) {
+                try {
+                    const filePath = await window.electronAPI.openFile([
+                        { name: 'Drive Data', extensions: ['json'] },
+                        { name: 'All Files', extensions: ['*'] }
+                    ]);
+                    if (filePath) {
+                        if (window.electronAPI?.setSetting) {
+                            await window.electronAPI.setSetting('sentryUsbDataPath', filePath);
+                        }
+                        if (driveDataFilePath) driveDataFilePath.value = filePath;
+                        if (driveDataFileStatus) {
+                            driveDataFileStatus.textContent = 'Drive data file saved. Loading…';
+                            driveDataFileStatus.className = 'folder-status success';
+                        }
+                        // Trigger load in the main app
+                        if (window._loadSentryUsbData) {
+                            window._loadSentryUsbData(filePath).then(result => {
+                                if (driveDataFileStatus) {
+                                    if (result.success) {
+                                        driveDataFileStatus.textContent = `Loaded ${result.driveCount} drives from ${result.routeCount} routes`;
+                                        driveDataFileStatus.className = 'folder-status success';
+                                    } else {
+                                        driveDataFileStatus.textContent = `Error: ${result.error}`;
+                                        driveDataFileStatus.className = 'folder-status error';
+                                    }
+                                    setTimeout(() => {
+                                        if (driveDataFileStatus) driveDataFileStatus.textContent = '';
+                                        if (driveDataFileStatus) driveDataFileStatus.className = 'folder-status';
+                                    }, 5000);
+                                }
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to select drive data file:', err);
+                    if (driveDataFileStatus) {
+                        driveDataFileStatus.textContent = 'Failed to select file';
+                        driveDataFileStatus.className = 'folder-status error';
+                    }
+                }
+            }
+            browseDriveDataFileBtn.blur();
+        };
+    }
+
+    // Clear drive data file
+    if (clearDriveDataFileBtn) {
+        clearDriveDataFileBtn.onclick = async (e) => {
+            e.preventDefault();
+            if (window.electronAPI?.setSetting) {
+                await window.electronAPI.setSetting('sentryUsbDataPath', null);
+            }
+            if (driveDataFilePath) driveDataFilePath.value = '';
+            if (driveDataFileStatus) {
+                driveDataFileStatus.textContent = 'Drive data cleared';
+                driveDataFileStatus.className = 'folder-status';
+                setTimeout(() => { driveDataFileStatus.textContent = ''; }, 2000);
+            }
+            // Clear drive state in main app
+            if (window._clearSentryUsbData) window._clearSentryUsbData();
+            clearDriveDataFileBtn.blur();
         };
     }
 

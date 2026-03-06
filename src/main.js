@@ -1237,6 +1237,15 @@ ipcMain.handle('dialog:openFolder', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('dialog:openFile', async (_event, filters) => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: filters || [{ name: 'JSON Files', extensions: ['json'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // Settings module (extracted to src/main/settings.js)
 registerSettingsIpc();
 

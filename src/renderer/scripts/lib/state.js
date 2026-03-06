@@ -89,6 +89,24 @@ function createInitialState() {
       // When active, progress bar represents milliseconds from the collection start.
       // Shape is documented in script.js where it's created.
       active: null
+    },
+
+    // SentryUSB drive data integration
+    sentryUsb: {
+      // Path to the drive-data.json file (persisted in file-based settings)
+      dataPath: null,
+
+      // Computed Drive objects from grouping StoreData routes
+      drives: [],
+
+      // Set<number> of drive IDs that have matching clips in the loaded library
+      hasFootage: new Set(),
+
+      // Whether drive data has been successfully loaded
+      loaded: false,
+
+      // Whether drive data is currently being parsed
+      loading: false,
     }
   };
 }

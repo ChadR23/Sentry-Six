@@ -7,6 +7,7 @@ const listenerWrappers = new Map();
 contextBridge.exposeInMainWorld('electronAPI', {
   // Folder/file operations
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
+  openFile: (filters) => ipcRenderer.invoke('dialog:openFile', filters),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   
   // File system operations
