@@ -3,7 +3,7 @@
  * Handles clip list rendering, selection, and display item building.
  */
 
-import { escapeHtml, cssEscape } from '../lib/utils.js';
+import { escapeHtml, cssEscape, filePathToUrl } from '../lib/utils.js';
 import { formatEventTime } from '../ui/clipListHelpers.js';
 import { t } from '../lib/i18n.js';
 import { notify } from '../ui/notifications.js';
@@ -209,7 +209,12 @@ export function createClipItem(coll, title, typeClass) {
             }
         };
     }
-    
+
+    // Thumbnail hover preview for sentry/saved events
+    if ((typeClass === 'sentry' || typeClass === 'saved') && folderPath) {
+        attachThumbPreview(item, folderPath);
+    }
+
     return item;
 }
 
@@ -487,4 +492,80 @@ function showFinalDeleteConfirmModal(folderPath, collectionId) {
             `;
         }
     };
+}
+
+// Cache of folder paths we've already checked for thumb.png
+const thumbExistsCache = new Map();
+
+/**
+ * Attach a thumbnail hover preview to a clip item.
+ * Shows thumb.png from the event folder on mouseenter.
+ */
+function attachThumbPreview(item, folderPath) {
+    let tooltip = null;
+    let hideTimeout = null;
+
+    const sep = folderPath.includes('\\') ? '\\' : '/';
+    const thumbPath = folderPath + sep + 'thumb.png';
+
+    item.addEventListener('mouseenter', async (e) => {
+        clearTimeout(hideTimeout);
+
+        // Check cache first
+        if (thumbExistsCache.has(thumbPath)) {
+            if (!thumbExistsCache.get(thumbPath)) return; // known missing
+        } else if (window.electronAPI?.exists) {
+            const exists = await window.electronAPI.exists(thumbPath);
+            thumbExistsCache.set(thumbPath, exists);
+            if (!exists) return;
+        } else {
+            return; // no API to check
+        }
+
+        // Create tooltip if not already present
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.className = 'clip-thumb-tooltip';
+            const img = document.createElement('img');
+            img.src = filePathToUrl(thumbPath);
+            img.alt = 'Thumbnail';
+            img.onerror = () => {
+                thumbExistsCache.set(thumbPath, false);
+                if (tooltip) { tooltip.remove(); tooltip = null; }
+            };
+            tooltip.appendChild(img);
+        }
+
+        document.body.appendChild(tooltip);
+        positionTooltip(tooltip, item);
+    });
+
+    item.addEventListener('mouseleave', () => {
+        hideTimeout = setTimeout(() => {
+            if (tooltip && tooltip.parentNode) tooltip.remove();
+        }, 80);
+    });
+}
+
+/**
+ * Position the thumbnail tooltip next to a clip item.
+ */
+function positionTooltip(tooltip, anchor) {
+    const rect = anchor.getBoundingClientRect();
+    // Position to the right of the clip list item
+    tooltip.style.top = `${rect.top}px`;
+    tooltip.style.left = `${rect.right + 8}px`;
+
+    // After rendering, check if it overflows the viewport and adjust
+    requestAnimationFrame(() => {
+        const tr = tooltip.getBoundingClientRect();
+        // If overflows right edge, show on left side instead
+        if (tr.right > window.innerWidth - 8) {
+            tooltip.style.left = `${rect.left - tr.width - 8}px`;
+        }
+        // If overflows bottom, shift up
+        if (tr.bottom > window.innerHeight - 8) {
+            tooltip.style.top = `${window.innerHeight - tr.height - 8}px`;
+        }
+    });
 }

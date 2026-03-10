@@ -922,6 +922,24 @@ canvas,
     background: rgba(239, 68, 68, 0.5);
 }
 
+/* Clip thumbnail hover tooltip */
+.clip-thumb-tooltip {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: var(--tooltip-bg);
+}
+
+.clip-thumb-tooltip img {
+    display: block;
+    max-width: 420px;
+    max-height: 315px;
+    object-fit: contain;
+}
+
 /* Delete confirmation modal */
 .delete-confirm-modal {
     max-width: 420px;

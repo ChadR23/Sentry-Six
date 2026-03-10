@@ -1651,6 +1651,9 @@ async function loadSentryUsbData(filePath) {
         // Update tab bar to show Drives tab
         updateDrivesTabVisibility();
 
+        // Refresh the drive list immediately so data appears without re-clicking the tab
+        renderDriveList();
+
         console.log(`[SentryUSB] Loaded ${driveCount} drives from ${routeCount} routes`);
         console.log(`[SentryUSB] Footage matched: ${sentryUsb.hasFootage.size}/${driveCount} drives`);
         if (drives.length > 0) {

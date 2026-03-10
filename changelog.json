@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.11.1",
+      "date": "2026-03-10",
+      "title": "Added thumbnails on hover",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Added thumbnails when hovering on Sentry & Saved Clips."
+        }
+      ]
+    },
+    {
       "version": "2026.10.3",
       "date": "2026-03-05",
       "title": "Added Sentry USB Drive Tracking Support",
