@@ -935,8 +935,8 @@ canvas,
 
 .clip-thumb-tooltip img {
     display: block;
-    max-width: 420px;
-    max-height: 315px;
+    width: 480px;
+    height: auto;
     object-fit: contain;
 }
 
