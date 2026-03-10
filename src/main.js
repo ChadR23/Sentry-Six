@@ -4,8 +4,8 @@ const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync } = require('child_process');
 const { writeCompactDashboardAss, writeDetailedDashboardAss, writeMinimapAss } = require('./assGenerator');
-let _canvas = null;
-function getCanvas() { if (!_canvas) _canvas = require('canvas'); return _canvas; }
+let _sharp = null;
+function getSharp() { if (!_sharp) _sharp = require('sharp'); return _sharp; }
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
 const { settingsPath, loadSettings, saveSettings, registerSettingsIpc } = require('./main/settings');
 const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
@@ -147,19 +147,16 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
       const maskW = firstZone.maskWidth || 1448;
       const maskH = firstZone.maskHeight || 938;
 
-      const { createCanvas, loadImage } = getCanvas();
-      const compositeCanvas = createCanvas(maskW, maskH);
-      const compositeCtx = compositeCanvas.getContext('2d');
-      compositeCtx.fillStyle = 'black';
-      compositeCtx.fillRect(0, 0, maskW, maskH);
+      const sharp = getSharp();
+      const overlays = zones.map(zone => ({
+        input: Buffer.from(zone.maskImageBase64, 'base64'),
+        top: 0,
+        left: 0,
+      }));
 
-      for (const zone of zones) {
-        const maskBuffer = Buffer.from(zone.maskImageBase64, 'base64');
-        const maskImg = await loadImage(maskBuffer);
-        compositeCtx.drawImage(maskImg, 0, 0, maskW, maskH);
-      }
-
-      const compositeMaskBuffer = compositeCanvas.toBuffer('image/png');
+      const compositeMaskBuffer = await sharp({
+        create: { width: maskW, height: maskH, channels: 3, background: { r: 0, g: 0, b: 0 } }
+      }).composite(overlays).png().toBuffer();
       const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
       fs.writeFileSync(maskPath, compositeMaskBuffer);
       tempFiles.push(maskPath);

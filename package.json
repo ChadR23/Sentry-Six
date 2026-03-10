@@ -27,7 +27,7 @@
     "electron-builder": "^26.6.0"
   },
   "dependencies": {
-    "canvas": "^3.2.0",
+    "sharp": "^0.33.5",
     "electron-updater": "^6.1.7",
     "node-machine-id": "^1.1.12",
     "protobufjs": "^7.5.4"
@@ -84,7 +84,7 @@
       "artifactName": "SentryStudio-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*",
       "asarUnpack": [
-        "node_modules/canvas/**/*",
+        "node_modules/sharp/**/*",
         "node_modules/node-machine-id/**/*"
       ],
       "extraResources": [
