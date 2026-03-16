@@ -1125,7 +1125,26 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           resolve(true);
         } else {
           console.error('FFmpeg error:', stderr.slice(-500));
-          sendComplete(false, { key: 'ui.export.exportFailedCode', params: { code: code } });
+          const errLower = stderr.toLowerCase();
+          if (errLower.includes('no space left on device')) {
+            sendComplete(false, { key: 'ui.export.exportFailedNoSpace' });
+          } else if (errLower.includes('permission denied')) {
+            sendComplete(false, { key: 'ui.export.exportFailedPermission' });
+          } else if (errLower.includes('no such file or directory')) {
+            sendComplete(false, { key: 'ui.export.exportFailedPathNotFound' });
+          } else if (errLower.includes('read-only file system')) {
+            sendComplete(false, { key: 'ui.export.exportFailedReadOnly' });
+          } else if (errLower.includes('invalid argument') && (errLower.includes('open') || errLower.includes('output'))) {
+            sendComplete(false, { key: 'ui.export.exportFailedInvalidPath' });
+          } else if (errLower.includes('openencodesessionex failed') || errLower.includes('out of memory') || errLower.includes('cannot allocate memory')) {
+            sendComplete(false, { key: 'ui.export.exportFailedGpuMemory' });
+          } else if (errLower.includes('no nvenc capable devices found') || errLower.includes('cannot load nvenc')) {
+            sendComplete(false, { key: 'ui.export.exportFailedGpuUnavailable' });
+          } else if (errLower.includes('broken pipe') || errLower.includes('connection reset')) {
+            sendComplete(false, { key: 'ui.export.exportFailedSourceLost' });
+          } else {
+            sendComplete(false, { key: 'ui.export.exportFailedCode', params: { code: code } });
+          }
           reject(new Error(`Export failed with code ${code}`));
         }
       });
