@@ -4305,6 +4305,11 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     display: none !important;
 }
 
+.keybind-new-dot {
+    margin-left: 6px;
+    margin-right: auto;
+}
+
 #shareClipToggleRow.disabled {
     opacity: 0.45;
     pointer-events: none;
@@ -4347,6 +4352,32 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .export-complete-message {
     font-size: 12px;
     color: var(--text-muted);
+}
+
+.export-preview-container {
+    position: relative;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+}
+
+.export-preview-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+}
+
+.export-preview-container.hidden {
+    display: none;
+}
+
+.export-preview-video {
+    width: 100%;
+    max-height: 280px;
+    display: block;
+    border-radius: 8px;
 }
 
 .export-complete-actions {

@@ -1084,6 +1084,12 @@
                     </div>
                 </div>
 
+                <!-- Video preview -->
+                <div id="exportPreviewContainer" class="export-preview-container hidden">
+                    <span class="feature-new-badge export-preview-badge" id="previewNewBadge" data-i18n="ui.export.shareClipNew">NEW</span>
+                    <video id="exportPreviewVideo" class="export-preview-video" controls muted preload="metadata"></video>
+                </div>
+
                 <div class="export-complete-actions">
                     <button id="exportDoneBtn" class="btn btn-secondary">Done</button>
                     <button id="exportOpenFolderBtn" class="btn btn-secondary">
@@ -1349,6 +1355,7 @@
                                 <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h.01M18 16h.01" />
                             </svg>
                             <span data-i18n="ui.settings.keyboardShortcuts">Shortcuts</span>
+                            <span class="feature-new-badge" id="shortcutsNavNewBadge" data-i18n="ui.export.shareClipNew">NEW</span>
                         </button>
                         <button class="settings-nav-item" data-target="storage">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1581,6 +1588,7 @@
                                 </svg>
                                 <span class="settings-accordion-title"
                                     data-i18n="ui.settings.keyboardShortcuts">Keyboard Shortcuts</span>
+                                <span class="feature-new-badge" id="shortcutsNewBadge" data-i18n="ui.export.shareClipNew">NEW</span>
                             </div>
                             <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M7 10l5 5 5-5z" />
@@ -1673,6 +1681,22 @@
                                     <input type="text" class="keybind-input" id="keybindSetMarkerOut"
                                         data-action="setMarkerOut" placeholder="—" readonly>
                                     <button class="keybind-clear" data-action="setMarkerOut" title="Clear">✕</button>
+                                </div>
+                            </div>
+                            <div class="keybind-row-compact">
+                                <span class="keybind-label" data-i18n="ui.settings.nextClip">Next Clip</span><span class="style-new-dot keybind-new-dot" id="nextClipNewDot"></span>
+                                <div class="keybind-input-wrapper">
+                                    <input type="text" class="keybind-input" id="keybindNextClip"
+                                        data-action="nextClip" placeholder="—" readonly>
+                                    <button class="keybind-clear" data-action="nextClip" title="Clear">✕</button>
+                                </div>
+                            </div>
+                            <div class="keybind-row-compact">
+                                <span class="keybind-label" data-i18n="ui.settings.prevClip">Previous Clip</span><span class="style-new-dot keybind-new-dot" id="prevClipNewDot"></span>
+                                <div class="keybind-input-wrapper">
+                                    <input type="text" class="keybind-input" id="keybindPrevClip"
+                                        data-action="prevClip" placeholder="—" readonly>
+                                    <button class="keybind-clear" data-action="prevClip" title="Clear">✕</button>
                                 </div>
                             </div>
                         </div>

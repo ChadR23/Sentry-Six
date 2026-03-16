@@ -5,6 +5,7 @@
 
 import { initKeybindSettings } from '../lib/keybinds.js';
 import { getCurrentLanguage, setLanguage, getAvailableLanguages, onLanguageChange, t } from '../lib/i18n.js';
+import { initFeatureBadges } from '../features/exportVideo.js';
 
 
 /**
@@ -570,6 +571,9 @@ export function initSettingsModal() {
     // Initialize keybind settings
     initKeybindSettings();
 
+    // Initialize feature badges (for settings-modal badges like shortcuts NEW)
+    initFeatureBadges();
+
     // Skip duration setting
     const settingsSkipDuration = $('settingsSkipDuration');
     const skipForwardLabel = $('skipForwardLabel');
@@ -1035,7 +1039,7 @@ export function initDevSettingsModal() {
     const devResetBadges = $('devResetBadges');
     if (devResetBadges) {
         devResetBadges.onclick = async () => {
-            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip'];
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview'];
             for (const key of badgeKeys) {
                 await window.electronAPI?.setSetting?.(key, false);
             }
@@ -1050,7 +1054,7 @@ export function initDevSettingsModal() {
     const devDismissBadges = $('devDismissBadges');
     if (devDismissBadges) {
         devDismissBadges.onclick = async () => {
-            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip'];
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview'];
             for (const key of badgeKeys) {
                 await window.electronAPI?.setSetting?.(key, true);
             }

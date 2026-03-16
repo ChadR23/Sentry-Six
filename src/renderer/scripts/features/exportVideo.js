@@ -28,7 +28,8 @@ export const exportState = {
     blurZones: [], // Array of { coordinates: [{x, y}, ...], camera: string, maskImageBase64, maskWidth, maskHeight }
     blurZoneCamera: null, // Camera being edited
     blurZoneEditIndex: null, // Index of zone being edited (null = new zone)
-    blurType: 'trueBlur'
+    blurType: 'trueBlur',
+    lastExportQuality: null // Track quality used for last export (to enforce share restrictions)
 };
 
 // Cached share config (expiration hours from server)
@@ -245,7 +246,12 @@ function setupExportOverlaySaveHandlers() {
 const FEATURE_BADGE_KEYS = {
     overlaysNewBadge: 'featureSeen_detailedStyle',
     styleNewBadge: 'featureSeen_detailedStyle',
-    shareClipNewBadge: 'featureSeen_shareClip'
+    shareClipNewBadge: 'featureSeen_shareClip',
+    shortcutsNavNewBadge: 'featureSeen_clipNavPreview',
+    shortcutsNewBadge: 'featureSeen_clipNavPreview',
+    nextClipNewDot: 'featureSeen_clipNavPreview',
+    prevClipNewDot: 'featureSeen_clipNavPreview',
+    previewNewBadge: 'featureSeen_clipNavPreview'
 };
 
 let featureBadgesInitialized = false;
@@ -254,7 +260,7 @@ let featureBadgesInitialized = false;
  * Initialize feature badges - check settings and show/hide accordingly
  * Called each time the export modal opens
  */
-async function initFeatureBadges() {
+export async function initFeatureBadges() {
     if (!window.electronAPI?.getSetting) return;
 
     for (const [badgeId, settingKey] of Object.entries(FEATURE_BADGE_KEYS)) {
@@ -300,6 +306,34 @@ async function initFeatureBadges() {
         if (shareToggle) {
             shareToggle.addEventListener('change', () => dismissFeatureBadge('shareClipNewBadge'));
         }
+
+        // Preview video - dismiss on first play
+        const previewVideo = $('exportPreviewVideo');
+        if (previewVideo) {
+            previewVideo.addEventListener('play', () => dismissFeatureBadge('previewNewBadge'), { once: true });
+        }
+
+        // Use event delegation for settings-modal badges (may not be initialized when export modal opens)
+        document.addEventListener('click', (e) => {
+            // Shortcuts nav tab
+            if (e.target.closest('.settings-nav-item[data-target="shortcuts"]')) {
+                dismissFeatureBadge('shortcutsNavNewBadge');
+            }
+            // Shortcuts section header
+            if (e.target.closest('[data-section="shortcuts"] .settings-accordion-header')) {
+                dismissFeatureBadge('shortcutsNewBadge');
+                dismissFeatureBadge('shortcutsNavNewBadge');
+            }
+        });
+        document.addEventListener('focusin', (e) => {
+            // Next/Prev Clip keybind inputs
+            if (e.target.id === 'keybindNextClip' || e.target.id === 'keybindPrevClip') {
+                dismissFeatureBadge('nextClipNewDot');
+                dismissFeatureBadge('prevClipNewDot');
+                dismissFeatureBadge('shortcutsNewBadge');
+                dismissFeatureBadge('shortcutsNavNewBadge');
+            }
+        });
     }
 }
 
@@ -804,10 +838,31 @@ export function closeExportModal() {
     // Clean up share progress listener
     window.electronAPI?.removeAllListeners?.('share:progress');
 
+    // Release preview video resource
+    const previewVideo = $('exportPreviewVideo');
+    if (previewVideo) {
+        previewVideo.pause();
+        previewVideo.removeAttribute('src');
+        previewVideo.load();
+    }
+    const previewContainer = $('exportPreviewContainer');
+    if (previewContainer) previewContainer.classList.add('hidden');
+
     // If exporting, show floating progress instead of canceling
     if (exportState.isExporting && exportState.currentExportId) {
         exportState.modalMinimized = true;
         showFloatingProgress();
+    }
+}
+
+/**
+ * Reset the close button back to × when export finishes or is cancelled
+ */
+function resetCloseButton() {
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.innerHTML = '&times;';
+        closeBtn.title = '';
     }
 }
 
@@ -1522,6 +1577,9 @@ export async function startExport() {
     const qualityInput = document.querySelector('input[name="exportQuality"]:checked');
     const quality = qualityInput?.value || 'high';
 
+    // Track quality for share restriction enforcement
+    exportState.lastExportQuality = quality;
+
     // Persist blur zones and quality for next export session
     try {
         if (window.electronAPI?.setSetting) {
@@ -1601,6 +1659,13 @@ export async function startExport() {
 
     exportState.isExporting = true;
     if (startBtn) startBtn.disabled = true;
+
+    // Switch close button to minimize icon during export
+    const closeBtn = $('closeExportModal');
+    if (closeBtn) {
+        closeBtn.innerHTML = '&minus;';
+        closeBtn.title = t('ui.supportChat.minimize') || 'Minimize';
+    }
 
     // Only extract SEI data if dashboard or minimap is enabled - skip entirely if both disabled to save RAM
     // Extract SEI data one segment at a time to avoid loading all files into memory simultaneously
@@ -1802,6 +1867,7 @@ export async function startExport() {
     if (!hasFiles) {
         notify(t('ui.notifications.noVideoFilesForExport'), { type: 'error' });
         exportState.isExporting = false;
+        resetCloseButton();
         if (startBtn) startBtn.disabled = false;
         if (progressEl) progressEl.classList.add('hidden');
         return;
@@ -1881,6 +1947,7 @@ export async function startExport() {
 
                 // Hide floating notification on complete
                 hideFloatingProgress();
+                resetCloseButton();
 
                 // Hide hint and overlay progress bars
                 const minHint = $('exportMinimizeHint');
@@ -1923,6 +1990,7 @@ export async function startExport() {
         console.log('Export cancelled before starting FFmpeg');
         exportState.isExporting = false;
         exportState.currentExportId = null;
+        resetCloseButton();
         if (startBtn) startBtn.disabled = false;
         return;
     }
@@ -1979,6 +2047,7 @@ export async function startExport() {
         exportState.isExporting = false;
         exportState.currentExportId = null;
         exportState.cancelled = false; // Reset cancellation flag
+        resetCloseButton();
         if (startBtn) startBtn.disabled = false;
     }
 }
@@ -2004,6 +2073,7 @@ export async function cancelExport() {
 
     // Hide floating progress if visible
     hideFloatingProgress();
+    resetCloseButton();
 
     // Hide hint
     const minimizeHint = $('exportMinimizeHint');
@@ -2140,6 +2210,19 @@ function showExportCompletePanel(outputPath, message) {
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
 
+    // Load video preview of exported clip
+    const previewContainer = $('exportPreviewContainer');
+    const previewVideo = $('exportPreviewVideo');
+    if (previewContainer && previewVideo) {
+        try {
+            previewVideo.src = filePathToUrl(outputPath);
+            previewContainer.classList.remove('hidden');
+        } catch (e) {
+            console.warn('[EXPORT] Failed to load preview:', e);
+            previewContainer.classList.add('hidden');
+        }
+    }
+
     // Hide modal body and footer, show completion panel
     if (modalBody) modalBody.classList.add('hidden');
     if (modalFooter) modalFooter.classList.add('hidden');
@@ -2149,15 +2232,26 @@ function showExportCompletePanel(outputPath, message) {
     const shareToggle = $('shareClipToggle');
     const wasShareSelected = shareToggle?.checked && !shareToggle?.disabled;
 
-    // If share was pre-selected, hide the share button (it auto-starts) 
-    // If not pre-selected, show it as an option
+    // Block sharing if exported at maximum quality (prevents bypass of quality restriction
+    // by rendering at max quality with share toggle off, then sharing post-export)
+    const wasMaxQuality = exportState.lastExportQuality === 'max';
+
+    // If share was pre-selected, hide the share button (it auto-starts)
+    // If not pre-selected, show it as an option (unless max quality was used)
     if (shareBtn) {
-        shareBtn.classList.toggle('hidden', wasShareSelected);
+        shareBtn.classList.toggle('hidden', wasShareSelected || wasMaxQuality);
     }
 
     // Wire up button handlers
     if (doneBtn) {
         doneBtn.onclick = () => {
+            // Release preview video resource
+            if (previewVideo) {
+                previewVideo.pause();
+                previewVideo.removeAttribute('src');
+                previewVideo.load();
+            }
+            if (previewContainer) previewContainer.classList.add('hidden');
             completePanel.classList.add('hidden');
             if (modalBody) modalBody.classList.remove('hidden');
             if (modalFooter) modalFooter.classList.remove('hidden');
@@ -2204,6 +2298,13 @@ function showExportCompletePanel(outputPath, message) {
  * Upload the exported clip to Sentry Studio server for sharing
  */
 async function uploadShareClip(filePath) {
+    // Block upload if exported at maximum quality (defense-in-depth)
+    if (exportState.lastExportQuality === 'max') {
+        console.warn('[SHARE] Upload blocked: cannot share clips exported at maximum quality');
+        notify('Sharing is not available for clips exported at maximum quality.', { type: 'error' });
+        return;
+    }
+
     const shareUploadProgress = $('shareUploadProgress');
     const shareUploadProgressBar = $('shareUploadProgressBar');
     const shareUploadProgressText = $('shareUploadProgressText');

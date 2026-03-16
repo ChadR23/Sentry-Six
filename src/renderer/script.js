@@ -1579,6 +1579,24 @@ initKeybindActions({
     setMarkerOut: () => {
         const setEndMarkerBtn = $('setEndMarkerBtn');
         if (setEndMarkerBtn && !setEndMarkerBtn.disabled) setEndMarkerBtn.click();
+    },
+    nextClip: () => {
+        const items = Array.from(document.querySelectorAll('#clipList .clip-item'));
+        if (items.length === 0) return;
+        const idx = items.findIndex(el => el.classList.contains('selected'));
+        const next = items[idx + 1] || items[0]; // wrap to first
+        const key = next.dataset.groupid;
+        if (key) selectDayCollection(key);
+        next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+    prevClip: () => {
+        const items = Array.from(document.querySelectorAll('#clipList .clip-item'));
+        if (items.length === 0) return;
+        const idx = items.findIndex(el => el.classList.contains('selected'));
+        const prev = items[idx - 1] || items[items.length - 1]; // wrap to last
+        const key = prev.dataset.groupid;
+        if (key) selectDayCollection(key);
+        prev.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 });
 
