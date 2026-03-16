@@ -292,32 +292,86 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     sendProgress(5, { key: 'ui.export.buildingExport' });
 
-    // Quality settings based on quality option (per-camera resolution)
-    // Tesla cameras: Front=2896×1876, Others=1448×938 (both ~1.54:1 aspect ratio)
-    // Multi-cam: scale to side camera res (1448×938) to avoid upscaling artifacts
-    // Front-only: use full front camera resolution for max quality
+    // Detect native camera resolution from source files
+    // HW4: Front=2896×1876, Others=1448×938 (front is 2x larger)
+    // HW3: All cameras=1280×960 (all same size)
+    // We probe actual files to avoid hardcoding assumptions that cause aspect ratio issues
     const isFrontOnly = selectedCameras.size === 1 && selectedCameras.has('front');
     let w, h, crf;
     const q = quality || (mobileExport ? 'mobile' : 'high');
 
+    // Probe native resolution from a camera file
+    let nativeW = 1448, nativeH = 938; // HW4 side camera defaults
+    let frontNativeW = 2896, frontNativeH = 1876; // HW4 front camera defaults
+    try {
+      // Prefer a non-front camera to get the "base" resolution
+      const probeInput = inputs.find(i => i.camera !== 'front') || inputs[0];
+      const probePath = probeInput.isConcat
+        ? fs.readFileSync(probeInput.path, 'utf8').split('\n')[0].replace(/^file '|'$/g, '')
+        : probeInput.path;
+      const probeResult = spawnSync(ffmpegPath, [
+        '-i', probePath, '-hide_banner'
+      ], { timeout: 10000, windowsHide: true });
+      const probeOutput = (probeResult.stderr || '').toString();
+      const resMatch = probeOutput.match(/Video:.*?(\d{3,5})x(\d{3,5})/);
+      if (resMatch) {
+        nativeW = parseInt(resMatch[1]);
+        nativeH = parseInt(resMatch[2]);
+        console.log(`[RESOLUTION] Detected base camera resolution: ${nativeW}x${nativeH}`);
+      }
+
+      // Also probe the front camera if available and different from what we probed
+      const frontInput = inputs.find(i => i.camera === 'front');
+      if (frontInput && probeInput.camera !== 'front') {
+        const frontPath = frontInput.isConcat
+          ? fs.readFileSync(frontInput.path, 'utf8').split('\n')[0].replace(/^file '|'$/g, '')
+          : frontInput.path;
+        const frontProbe = spawnSync(ffmpegPath, [
+          '-i', frontPath, '-hide_banner'
+        ], { timeout: 10000, windowsHide: true });
+        const frontOutput = (frontProbe.stderr || '').toString();
+        const frontMatch = frontOutput.match(/Video:.*?(\d{3,5})x(\d{3,5})/);
+        if (frontMatch) {
+          frontNativeW = parseInt(frontMatch[1]);
+          frontNativeH = parseInt(frontMatch[2]);
+          console.log(`[RESOLUTION] Detected front camera resolution: ${frontNativeW}x${frontNativeH}`);
+        }
+      } else if (probeInput.camera === 'front') {
+        // Only front camera was available for probing
+        frontNativeW = nativeW;
+        frontNativeH = nativeH;
+      }
+    } catch (e) {
+      console.log('[RESOLUTION] Failed to probe camera resolution, using defaults:', e.message);
+    }
+
+    // Check if front camera is the same size as other cameras (HW3)
+    const frontMatchesSides = (frontNativeW === nativeW && frontNativeH === nativeH);
+    if (frontMatchesSides) {
+      console.log('[RESOLUTION] All cameras same resolution (HW3 style) - no front camera scaling needed');
+    }
+
+    // Ensure even dimensions helper
+    const makeEven = (n) => Math.round(n) + (Math.round(n) % 2);
+
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile': w = 724; h = 469; crf = 28; break;
-        case 'medium': w = 1448; h = 938; crf = 26; break;
-        case 'high': w = 2172; h = 1407; crf = 23; break;
-        case 'max': w = 2896; h = 1876; crf = 20; break;  // Full front native
-        default: w = 1448; h = 938; crf = 23;
+        case 'mobile': w = makeEven(frontNativeW * 0.25); h = makeEven(frontNativeH * 0.25); crf = 28; break;
+        case 'medium': w = makeEven(frontNativeW * 0.5);  h = makeEven(frontNativeH * 0.5);  crf = 26; break;
+        case 'high':   w = makeEven(frontNativeW * 0.75); h = makeEven(frontNativeH * 0.75); crf = 23; break;
+        case 'max':    w = makeEven(frontNativeW);         h = makeEven(frontNativeH);         crf = 20; break;
+        default:       w = makeEven(frontNativeW * 0.5);  h = makeEven(frontNativeH * 0.5);  crf = 23;
       }
-      console.log('[RESOLUTION] Front camera only - using full front camera resolution');
+      console.log(`[RESOLUTION] Front camera only - using front native ${frontNativeW}x${frontNativeH}, output ${w}x${h}`);
     } else {
-      // Multi-camera - scale to side camera resolution
+      // Multi-camera - scale to base (side) camera resolution
       switch (q) {
-        case 'mobile': w = 484; h = 314; crf = 28; break;  // 0.33x side native
-        case 'medium': w = 724; h = 470; crf = 26; break;  // 0.5x side native (h must be even)
-        case 'high': w = 1086; h = 704; crf = 23; break;  // 0.75x side native
-        case 'max': w = 1448; h = 938; crf = 20; break;  // Side native (front scaled down)
-        default: w = 1086; h = 704; crf = 23;
+        case 'mobile': w = makeEven(nativeW * 0.33); h = makeEven(nativeH * 0.33); crf = 28; break;
+        case 'medium': w = makeEven(nativeW * 0.5);  h = makeEven(nativeH * 0.5);  crf = 26; break;
+        case 'high':   w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 23; break;
+        case 'max':    w = makeEven(nativeW);         h = makeEven(nativeH);         crf = 20; break;
+        default:       w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 23;
       }
     }
 

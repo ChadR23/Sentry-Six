@@ -1382,7 +1382,40 @@ export function updateExportSizeEstimate() {
     const isFrontOnly = cameraCount === 1 && selectedCameras[0]?.dataset?.camera === 'front';
     const hasFrontAndOthers = cameraCount > 1 && Array.from(selectedCameras).some(cb => cb.dataset?.camera === 'front');
 
-    if (warningEl) warningEl.classList.toggle('hidden', !hasFrontAndOthers);
+    // Detect actual camera resolution from loaded video elements
+    // HW4: Front=2896×1876, Others=1448×938 (front is 2x larger)
+    // HW3: All cameras=1280×960 (all same size)
+    let baseW = 1448, baseH = 938; // Default: HW4 side camera
+    let frontW = 2896, frontH = 1876; // Default: HW4 front camera
+    const videoEls = document.querySelectorAll('.tile-video');
+    for (const vid of videoEls) {
+        if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+            // Use the first non-front video as base resolution, or any video
+            const tile = vid.closest('.multi-tile');
+            const slot = tile?.dataset?.slot;
+            // Front camera is typically in slot 'tc' (top center)
+            if (slot === 'tc') {
+                frontW = vid.videoWidth;
+                frontH = vid.videoHeight;
+            } else if (baseW === 1448) {
+                // First non-front camera found
+                baseW = vid.videoWidth;
+                baseH = vid.videoHeight;
+            }
+        }
+    }
+    // If no non-front video found, check main video
+    const mainVid = document.getElementById('videoMain');
+    if (baseW === 1448 && mainVid?.videoWidth > 0) {
+        baseW = mainVid.videoWidth;
+        baseH = mainVid.videoHeight;
+        frontW = baseW;
+        frontH = baseH;
+    }
+
+    const frontMatchesSides = (frontW === baseW && frontH === baseH);
+    // Only show front camera warning when front is actually larger than other cameras
+    if (warningEl) warningEl.classList.toggle('hidden', !hasFrontAndOthers || frontMatchesSides);
 
     let cols, rows;
     if (cameraCount <= 1) { cols = 1; rows = 1; }
@@ -1392,11 +1425,22 @@ export function updateExportSizeEstimate() {
     else { cols = 3; rows = 2; }
 
     const quality = document.querySelector('input[name="exportQuality"]:checked')?.value || 'high';
+    const makeEven = (n) => Math.round(n) + (Math.round(n) % 2);
     let perCam;
     if (isFrontOnly) {
-        perCam = { mobile: [724, 469], medium: [1448, 938], high: [2172, 1407], max: [2896, 1876] }[quality] || [1448, 938];
+        perCam = {
+            mobile: [makeEven(frontW * 0.25), makeEven(frontH * 0.25)],
+            medium: [makeEven(frontW * 0.5), makeEven(frontH * 0.5)],
+            high: [makeEven(frontW * 0.75), makeEven(frontH * 0.75)],
+            max: [makeEven(frontW), makeEven(frontH)]
+        }[quality] || [makeEven(frontW * 0.5), makeEven(frontH * 0.5)];
     } else {
-        perCam = { mobile: [484, 314], medium: [724, 469], high: [1086, 704], max: [1448, 938] }[quality] || [1086, 704];
+        perCam = {
+            mobile: [makeEven(baseW * 0.33), makeEven(baseH * 0.33)],
+            medium: [makeEven(baseW * 0.5), makeEven(baseH * 0.5)],
+            high: [makeEven(baseW * 0.75), makeEven(baseH * 0.75)],
+            max: [makeEven(baseW), makeEven(baseH)]
+        }[quality] || [makeEven(baseW * 0.75), makeEven(baseH * 0.75)];
     }
 
     const gridW = perCam[0] * cols;
