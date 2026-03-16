@@ -799,10 +799,12 @@
                                                     </option>
                                                     <option value="detailed" data-i18n="ui.export.detailed">Detailed
                                                         (Themed)</option>
+                                                    <option value="tesla-mobile" data-i18n="ui.export.teslaMobile">Tesla
+                                                        Mobile</option>
                                                 </select>
                                             </div>
                                         </div>
-                                        <div class="select-row">
+                                        <div class="select-row" id="dashboardPositionRow">
                                             <div class="select-row-info">
                                                 <span class="select-row-label"
                                                     data-i18n="ui.export.position">Position</span>
@@ -823,7 +825,19 @@
                                                 </option>
                                             </select>
                                         </div>
-                                        <div class="select-row">
+                                        <div class="select-row" id="dashboardPositionTeslaMobileRow" style="display:none;">
+                                            <div class="select-row-info">
+                                                <span class="select-row-label"
+                                                    data-i18n="ui.export.position">Position</span>
+                                                <span class="select-row-desc"
+                                                    data-i18n="ui.export.teslaMobilePositionDesc">Top or bottom of clip</span>
+                                            </div>
+                                            <select id="dashboardPositionTeslaMobile" class="settings-select">
+                                                <option value="bottom-center" data-i18n="ui.export.bottom">Bottom</option>
+                                                <option value="top-center" data-i18n="ui.export.top">Top</option>
+                                            </select>
+                                        </div>
+                                        <div class="select-row" id="dashboardSizeRow">
                                             <div class="select-row-info">
                                                 <span class="select-row-label" data-i18n="ui.export.size">Size</span>
                                                 <span class="select-row-desc" data-i18n="ui.export.sizeDesc">Dashboard

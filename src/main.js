@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync } = require('child_process');
-const { writeCompactDashboardAss, writeDetailedDashboardAss, writeMinimapAss } = require('./assGenerator');
+const { writeCompactDashboardAss, writeDetailedDashboardAss, writeTeslaMobileDashboardAss, writeMinimapAss } = require('./assGenerator');
 let _sharp = null;
 function getSharp() { if (!_sharp) _sharp = require('sharp'); return _sharp; }
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
@@ -477,6 +477,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     let useAssDashboard = false;
     let assTempPath = null;
+    let teslaMobileDashHeight = 0; // Height of Tesla Mobile dashboard bar
+    let teslaMobileDateHeight = 0; // Height of Tesla Mobile date header bar
+    let teslaMobileIsTop = false;  // Whether Tesla Mobile dashboard bar is at top
 
     if (includeDashboard && seiData && seiData.length > 0) {
       if (cancelledExports.has(exportId)) {
@@ -488,9 +491,24 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         sendDashboardProgress(5, 'Generating dashboard overlay...');
         const cumStarts = segments.map(seg => seg.startSec || 0);
 
+        // For Tesla Mobile, calculate bar heights and extend canvas dimensions
+        // Two bars: date header (always top) + dashboard (top or bottom of clip)
+        // Bottom: [Date] [Clip] [Dashboard]
+        // Top:    [Date] [Dashboard] [Clip]
+        if (dashboardStyle === 'tesla-mobile') {
+          teslaMobileDashHeight = Math.round(totalW / 38);
+          teslaMobileDashHeight = teslaMobileDashHeight + (teslaMobileDashHeight % 2); // Even for encoder
+          teslaMobileDateHeight = Math.round(totalW / 45); // Tight fit around date text
+          teslaMobileDateHeight = teslaMobileDateHeight + (teslaMobileDateHeight % 2);
+          teslaMobileIsTop = dashboardPosition === 'top' || dashboardPosition === 'top-center' || dashboardPosition === 'top-left' || dashboardPosition === 'top-right';
+        }
+
+        const totalPadding = teslaMobileDashHeight + teslaMobileDateHeight;
+        const paddedH = totalH + totalPadding;
+
         const dashOpts = {
           playResX: totalW,
-          playResY: totalH,
+          playResY: paddedH,
           position: dashboardPosition,
           size: dashboardSize,
           useMetric,
@@ -499,11 +517,18 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           dateFormat: timestampDateFormat,
           timeFormat: timestampTimeFormat,
           language,
-          accelPedMode
+          accelPedMode,
+          videoH: totalH,               // Original video height (before padding)
+          dateBarHeight: teslaMobileDateHeight, // Height of date header bar
+          dashBarHeight: teslaMobileDashHeight  // Height of dashboard bar
         };
 
         if (dashboardStyle === 'detailed') {
           assTempPath = await writeDetailedDashboardAss(exportId, seiData, startTimeMs, endTimeMs, dashOpts);
+        } else if (dashboardStyle === 'tesla-mobile') {
+          // Update totalH to include both bars (affects encoder resolution checks)
+          totalH = paddedH;
+          assTempPath = await writeTeslaMobileDashboardAss(exportId, seiData, startTimeMs, endTimeMs, dashOpts);
         } else {
           assTempPath = await writeCompactDashboardAss(exportId, seiData, startTimeMs, endTimeMs, dashOpts);
         }
@@ -908,6 +933,20 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     }
 
     let currentStreamTag = '[grid]'; // Track the current stream tag for chaining filters
+
+    // Tesla Mobile: pad the canvas for date bar (always top) + dashboard bar (top or bottom)
+    if (teslaMobileDashHeight > 0) {
+      const totalPad = teslaMobileDashHeight + teslaMobileDateHeight;
+      if (teslaMobileIsTop) {
+        // Both bars at top: [Date][Dashboard][Video] — video shifts down by totalPad
+        filters.push(`${currentStreamTag}pad=iw:ih+${totalPad}:0:${totalPad}:color=0x1A1A1A[padded]`);
+      } else {
+        // Date at top, dashboard at bottom: [Date][Video][Dashboard] — video shifts down by dateHeight
+        filters.push(`${currentStreamTag}pad=iw:ih+${totalPad}:0:${teslaMobileDateHeight}:color=0x1A1A1A[padded]`);
+      }
+      currentStreamTag = '[padded]';
+      console.log(`[TESLA-MOBILE] Padded canvas by ${totalPad}px (date:${teslaMobileDateHeight} + dash:${teslaMobileDashHeight}), dashboard at ${teslaMobileIsTop ? 'top' : 'bottom'}`);
+    }
 
     // Add dashboard or timestamp overlay if enabled, otherwise ensure proper pixel format
     const padding = 20; // Padding from edges

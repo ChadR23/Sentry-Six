@@ -89,6 +89,7 @@ const EXPORT_OVERLAY_SETTINGS = {
     includeDashboard: 'exportIncludeDashboard',
     dashboardStyle: 'exportDashboardStyle',
     dashboardPosition: 'exportDashboardPosition',
+    dashboardPositionTeslaMobile: 'exportDashboardPositionTeslaMobile',
     dashboardSize: 'exportDashboardSize',
     includeMinimap: 'exportIncludeMinimap',
     minimapPosition: 'exportMinimapPosition',
@@ -103,6 +104,7 @@ const EXPORT_OVERLAY_DEFAULTS = {
     includeDashboard: false,
     dashboardStyle: 'compact',
     dashboardPosition: 'bottom-center',
+    dashboardPositionTeslaMobile: 'bottom-center',
     dashboardSize: 'medium',
     includeMinimap: false,
     minimapPosition: 'top-right',
@@ -157,6 +159,12 @@ async function loadExportOverlaySettings() {
                 if (timestampOptions) timestampOptions.classList.add('hidden');
             }
         }
+    }
+
+    // Update position/size rows based on loaded dashboard style (e.g. Tesla Mobile = top/bottom only)
+    const loadedStyle = $('dashboardStyle')?.value;
+    if (loadedStyle) {
+        updateDashboardStyleOptions(loadedStyle);
     }
 
     const minimapCheckbox = $('includeMinimap');
@@ -244,8 +252,8 @@ function setupExportOverlaySaveHandlers() {
 // Badges disappear after first interaction, persisted in settings
 // ============================================================
 const FEATURE_BADGE_KEYS = {
-    overlaysNewBadge: 'featureSeen_detailedStyle',
-    styleNewBadge: 'featureSeen_detailedStyle',
+    overlaysNewBadge: 'featureSeen_teslaMobileStyle',
+    styleNewBadge: 'featureSeen_teslaMobileStyle',
     shareClipNewBadge: 'featureSeen_shareClip',
     shortcutsNavNewBadge: 'featureSeen_clipNavPreview',
     shortcutsNewBadge: 'featureSeen_clipNavPreview',
@@ -253,6 +261,26 @@ const FEATURE_BADGE_KEYS = {
     prevClipNewDot: 'featureSeen_clipNavPreview',
     previewNewBadge: 'featureSeen_clipNavPreview'
 };
+
+/**
+ * Update dashboard option rows based on selected style.
+ * Tesla Mobile: full-width bar, only top/bottom position, no size selector.
+ */
+function updateDashboardStyleOptions(style) {
+    const posRow = $('dashboardPositionRow');
+    const posTeslaRow = $('dashboardPositionTeslaMobileRow');
+    const sizeRow = $('dashboardSizeRow');
+
+    if (style === 'tesla-mobile') {
+        if (posRow) posRow.style.display = 'none';
+        if (posTeslaRow) posTeslaRow.style.display = '';
+        if (sizeRow) sizeRow.style.display = 'none';
+    } else {
+        if (posRow) posRow.style.display = '';
+        if (posTeslaRow) posTeslaRow.style.display = 'none';
+        if (sizeRow) sizeRow.style.display = '';
+    }
+}
 
 let featureBadgesInitialized = false;
 
@@ -289,7 +317,10 @@ export async function initFeatureBadges() {
             styleSelect.addEventListener('change', () => {
                 dismissFeatureBadge('styleNewBadge');
                 dismissFeatureBadge('overlaysNewBadge');
+                updateDashboardStyleOptions(styleSelect.value);
             });
+            // Apply initial state
+            updateDashboardStyleOptions(styleSelect.value);
         }
 
         // Overlays section header click - dismiss overlays badge and style dot
@@ -1651,7 +1682,9 @@ export async function startExport() {
     }
 
     const dashboardStyle = $('dashboardStyle')?.value || 'standard';
-    const dashboardPosition = $('dashboardPosition')?.value || 'bottom-center';
+    const dashboardPosition = dashboardStyle === 'tesla-mobile'
+        ? ($('dashboardPositionTeslaMobile')?.value || 'bottom-center')
+        : ($('dashboardPosition')?.value || 'bottom-center');
     const dashboardSize = $('dashboardSize')?.value || 'medium';
 
     // Minimap settings

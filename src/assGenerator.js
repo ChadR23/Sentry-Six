@@ -1893,8 +1893,526 @@ async function writeDetailedDashboardAss(exportId, seiData, startTimeMs, endTime
   return tempPath;
 }
 
+// ============================================
+// TESLA MOBILE DASHBOARD
+// Full-width bar mimicking Tesla app's dashcam viewer UI
+// Only supports top or bottom positioning
+// ============================================
+
+/**
+ * Generate ASS header for Tesla Mobile dashboard
+ * Uses same styles as compact but with Tesla-specific theming
+ */
+function generateTeslaMobileAssHeader(playResX, playResY, fontSize) {
+  const scaledFontSize = Math.round(fontSize);
+  const smallFontSize = Math.round(fontSize * 0.7);
+  const largeFontSize = Math.round(fontSize * 1.4);
+
+  return `[Script Info]
+Title: Tesla Mobile Dashboard
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: CompactDash,Segoe UI,${scaledFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: Speed,Segoe UI,${largeFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: SpeedUnit,Segoe UI,${smallFontSize},${COLORS.whiteTransparent},${COLORS.whiteTransparent},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: Gear,Segoe UI,${scaledFontSize},${COLORS.white},${COLORS.white},${COLORS.dimGray},&H80000000,1,0,0,0,100,100,1,0,1,2,1,2,10,10,10,1
+Style: GearActive,Segoe UI,${scaledFontSize},${COLORS.blue},${COLORS.blue},${COLORS.dimGray},&H80000000,1,0,0,0,100,100,1,0,1,2,1,2,10,10,10,1
+Style: Time,Segoe UI,${smallFontSize},${COLORS.whiteTransparent},${COLORS.whiteTransparent},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: APLabel,Segoe UI,${smallFontSize},${COLORS.whiteTransparent},${COLORS.whiteTransparent},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: APActive,Segoe UI,${smallFontSize},${COLORS.blue},${COLORS.blue},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: BlinkerOff,Segoe UI,${scaledFontSize},${COLORS.dimGray},${COLORS.dimGray},${COLORS.transparent},${COLORS.transparent},1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: BlinkerOn,Segoe UI,${scaledFontSize},${COLORS.green},${COLORS.green},&H00115C2F,&H80000000,1,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: BrakeOff,Segoe UI,${smallFontSize},${COLORS.dimGray},${COLORS.dimGray},${COLORS.transparent},${COLORS.transparent},1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: BrakeOn,Segoe UI,${smallFontSize},${COLORS.red},${COLORS.red},&H00000080,&H80000000,1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: AccelOff,Segoe UI,${smallFontSize},${COLORS.dimGray},${COLORS.dimGray},${COLORS.transparent},${COLORS.transparent},1,0,0,0,100,100,0,0,1,0,0,2,10,10,10,1
+Style: AccelOn,Segoe UI,${smallFontSize},${COLORS.blue},${COLORS.blue},&H00802400,&H80000000,1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: SteeringWheel,Segoe UI,${largeFontSize},${COLORS.dimGray},${COLORS.dimGray},${COLORS.dimGray},&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: SteeringActive,Segoe UI,${largeFontSize},${COLORS.blue},${COLORS.blue},&H00802400,&H80000000,0,0,0,0,100,100,0,0,1,3,2,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+}
+
+/**
+ * Draw a filled circle in ASS vector drawing format (centered at 0,0)
+ * @param {number} r - Radius
+ * @returns {string} ASS path commands
+ */
+function drawCircle(r) {
+  const k = Math.round(r * 0.5523); // Bezier approximation factor for circles
+  return `m 0 ${-r} b ${k} ${-r} ${r} ${-k} ${r} 0 b ${r} ${k} ${k} ${r} 0 ${r} b ${-k} ${r} ${-r} ${k} ${-r} 0 b ${-r} ${-k} ${-k} ${-r} 0 ${-r}`;
+}
+
+/**
+ * Generate Tesla Mobile dashboard events
+ * Full-width bar that EXTENDS the canvas (below or above clips, not overlaid).
+ * Layout matches Tesla app dashcam viewer:
+ *   [Brake circle] [Gear circle] ... [← Blinker] [Speed MPH  Self-Driving] [→ Blinker] ... [Steering circle] [Accel circle]
+ *   Center group (blinkers+speed+AP) tightly spaced, edge icons spread out.
+ *
+ * @param {Array} seiData - Array of {timestampMs, sei} objects
+ * @param {number} startTimeMs - Export start time in ms
+ * @param {number} endTimeMs - Export end time in ms
+ * @param {Object} options - Export options (playResY includes padded height, videoH = original)
+ * @returns {string} ASS events section
+ */
+function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, options) {
+  const {
+    playResX = 1920,
+    playResY = 1080,
+    videoH = 1080,
+    position = 'bottom',
+    useMetric = false,
+    segments = [],
+    cumStarts = [],
+    language = 'en',
+    accelPedMode = 'iconbar',
+    dateBarHeight = 0,
+    dashBarHeight = 0,
+    dateFormat = 'mdy',
+    timeFormat = '12h'
+  } = options;
+
+  // Tesla Mobile: use explicit bar heights if provided, else fallback to old calculation
+  const dashHeight = dashBarHeight > 0 ? dashBarHeight : (playResY - videoH);
+  const dateHeight = dateBarHeight > 0 ? dateBarHeight : 0;
+  const dashWidth = playResX;
+
+  // All circles use the SAME radius - derived from bar height with small padding
+  const circleR = Math.round(dashHeight * 0.38); // Circle diameter ~ 76% of bar height
+  const fontSize = Math.round(circleR * 0.7);     // Text proportional to circle
+
+  // Layout zones in padded canvas:
+  // Top dashboard:    [DateBar 0..dateH] [DashBar dateH..dateH+dashH] [Video dateH+dashH..]
+  // Bottom dashboard: [DateBar 0..dateH] [Video dateH..dateH+videoH] [DashBar dateH+videoH..]
+  const isTop = position === 'top' || position === 'top-center' || position === 'top-left' || position === 'top-right';
+  const dateCenterY = dateHeight / 2;
+  const posY = isTop
+    ? dateHeight + dashHeight / 2          // Dashboard just below date bar
+    : dateHeight + videoH + dashHeight / 2; // Dashboard below video
+
+  const events = [];
+
+  // === LAYOUT ===
+  // Tesla Mobile groups elements: edges have circled icons, center has tight blinker+speed+AP group
+  // [Brake circle] [Gear circle] ---- [← blinker] [speed MPH] [AP text] [→ blinker] ---- [Steering circle] [Accel circle]
+  const circleDiameter = circleR * 2;
+  const circleGap = Math.round(circleR * 0.5); // Gap between adjacent circles
+  const edgePadding = Math.round(dashWidth * 0.03);
+  const centerX = dashWidth / 2;
+
+  // Left edge: [brake] [gap] [gear] starting from left padding
+  const positions = {
+    brake: edgePadding + circleR,
+    gear: edgePadding + circleDiameter + circleGap + circleR,
+  };
+
+  // Right edge: [steering] [gap] [accel] ending at right padding
+  positions.accel = dashWidth - edgePadding - circleR;
+  positions.steering = dashWidth - edgePadding - circleDiameter - circleGap - circleR;
+
+  // Center group: [← blinker] [speed MPH] [AP text] [→ blinker]
+  // Tight spacing - fits within ~35% of width
+  const centerGroupWidth = dashWidth * 0.32;
+  const centerSpacing = centerGroupWidth / 3;
+  positions.leftBlinker = centerX - centerSpacing * 1.5;
+  positions.speed = centerX - centerSpacing * 0.5;
+  positions.apStatus = centerX + centerSpacing * 0.5;
+  positions.rightBlinker = centerX + centerSpacing * 1.5;
+
+  const durationMs = endTimeMs - startTimeMs;
+  const totalFrames = Math.ceil((durationMs / 1000) * FPS);
+  const frameTimeMs = 1000 / FPS;
+
+  // Blinker animation
+  const framesPerBlinkerCycle = 25;
+  const blinkerOnFrames = 14;
+  let prevLeftBlinkerOn = false;
+  let prevRightBlinkerOn = false;
+  let leftBlinkerStartFrame = 0;
+  let rightBlinkerStartFrame = 0;
+
+  // Steering smoothing
+  let smoothedSteeringAngle = 0;
+  const steerFactor = 1 - Math.exp(-45 * (frameTimeMs / 1000));
+
+  let prevState = null;
+  let eventStartFrame = 0;
+
+  for (let frame = 0; frame <= totalFrames; frame++) {
+    const currentTimeMs = startTimeMs + (frame * frameTimeMs);
+    const sei = findSeiAtTime(seiData, currentTimeMs);
+
+    // Extract telemetry
+    const mps = Math.abs(getSeiValue(sei, 'vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+    const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
+    const speedUnit = getSpeedUnit(useMetric, language);
+
+    const gear = getSeiValue(sei, 'gearState', 'gear_state');
+    const gearLetter = gear === 1 ? 'D' : gear === 2 ? 'R' : gear === 0 ? 'P' : gear === 3 ? 'N' : '--';
+
+    const leftBlinkerOn = !!getSeiValue(sei, 'blinkerOnLeft', 'blinker_on_left');
+    const rightBlinkerOn = !!getSeiValue(sei, 'blinkerOnRight', 'blinker_on_right');
+
+    const apState = getSeiValue(sei, 'autopilotState', 'autopilot_state');
+    const apActive = apState === 1 || apState === 2;
+    const apText = getApText(apState, language);
+
+    const brakeActive = !!getSeiValue(sei, 'brakeApplied', 'brake_applied');
+
+    const accelPos = getSeiValue(sei, 'acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
+    const accelPct = accelPos > 1 ? Math.min(100, accelPos) : Math.min(100, accelPos * 100);
+
+    const rawSteeringAngle = getSeiValue(sei, 'steeringWheelAngle', 'steering_wheel_angle') || 0;
+    smoothedSteeringAngle += (rawSteeringAngle - smoothedSteeringAngle) * steerFactor;
+    const steeringAngle = smoothedSteeringAngle;
+
+    // Blinker animation
+    if (leftBlinkerOn && !prevLeftBlinkerOn) leftBlinkerStartFrame = frame;
+    if (rightBlinkerOn && !prevRightBlinkerOn) rightBlinkerStartFrame = frame;
+    const leftFrameInCycle = (frame - leftBlinkerStartFrame) % framesPerBlinkerCycle;
+    const rightFrameInCycle = (frame - rightBlinkerStartFrame) % framesPerBlinkerCycle;
+    const leftBlinkVisible = leftBlinkerOn && leftFrameInCycle < blinkerOnFrames;
+    const rightBlinkVisible = rightBlinkerOn && rightFrameInCycle < blinkerOnFrames;
+    prevLeftBlinkerOn = leftBlinkerOn;
+    prevRightBlinkerOn = rightBlinkerOn;
+
+    // Include seconds-level timestamp in state to ensure date/time bar updates each second
+    const actualTs = dateHeight > 0 ? convertVideoTimeToTimestamp(currentTimeMs, segments, cumStarts) : 0;
+    const timeSec = dateHeight > 0 ? Math.floor(actualTs / 1000) : 0;
+
+    const currentState = JSON.stringify({
+      speed, gearLetter, leftBlinkVisible, rightBlinkVisible,
+      apActive, apText, brakeActive, accelPct: Math.round(accelPct),
+      steeringAngle: Math.round(steeringAngle),
+      timeSec
+    });
+
+    if (currentState !== prevState || frame === totalFrames) {
+      if (prevState !== null && eventStartFrame < frame) {
+        const startAssTime = formatAssTime((eventStartFrame * frameTimeMs));
+        const endAssTime = formatAssTime((frame * frameTimeMs));
+        const prev = JSON.parse(prevState);
+
+        // No background needed - pad filter already fills with #1A1A1A
+
+        // Date/Time bar (always at top, zone: 0..dateHeight)
+        if (dateHeight > 0) {
+          const eventStartTimeMs = startTimeMs + (eventStartFrame * frameTimeMs);
+          const actualTimestampMs = convertVideoTimeToTimestamp(eventStartTimeMs, segments, cumStarts);
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'];
+          const dateObj = actualTimestampMs ? new Date(actualTimestampMs) : new Date();
+          const dayName = dayNames[dateObj.getDay()];
+          const monthName = monthNames[dateObj.getMonth()];
+          const dayNum = dateObj.getDate();
+          const year = dateObj.getFullYear();
+          const timeStr = formatDisplayTime(actualTimestampMs, timeFormat);
+          const dateTimeStr = `${dayName}, ${monthName} ${dayNum}, ${year}   ${timeStr}`;
+
+          const dateFontSize = Math.round(dateHeight * 0.55);
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an5\\pos(${playResX / 2},${dateCenterY})\\fs${dateFontSize}\\bord0\\shad0\\1c&HFFFFFF&\\1a&H00&}${dateTimeStr}`
+          ));
+
+          // Separator below date bar
+          const dateSepY = dateHeight - 1;
+          events.push(dialogueLine(0, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H333333&\\1a&H00&\\p1}` +
+            `m 0 ${dateSepY} l ${playResX} ${dateSepY} l ${playResX} ${dateSepY + 1} l 0 ${dateSepY + 1}{\\p0}`
+          ));
+        }
+
+        // Thin separator line between dashboard bar and video
+        const dashBarTop = isTop ? dateHeight : dateHeight + videoH;
+        const dashBarBottom = dashBarTop + dashHeight;
+        // Separator on the video-facing edge of the dashboard bar
+        const sepY = isTop ? (dashBarBottom - 1) : dashBarTop;
+        events.push(dialogueLine(0, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H333333&\\1a&H00&\\p1}` +
+          `m 0 ${sepY} l ${playResX} ${sepY} l ${playResX} ${sepY + 1} l 0 ${sepY + 1}{\\p0}`
+        ));
+
+        // --- Uniform sizing: everything matches circle diameter height ---
+        // Circle diameter is the visual reference height for ALL elements
+        const circleDiam = circleR * 2;
+        const pedalScale = circleR / 450 * 0.50;    // Pedal icons fit inside circle
+        const steerScale = circleR / 446.5 * 0.70;  // Steering wheel fits inside circle
+        // All center elements same visual height as circle diameter (matching Tesla mobile)
+        const arrowScale = circleDiam / 100 * 0.45;          // Blinker arrows
+        const speedNumSize = Math.round(circleDiam * 0.95);  // Speed number - same height as arrows
+        const speedUnitSize = Math.round(circleDiam * 0.65); // MPH/KMH - same height as arrows
+
+        // === LEFT EDGE: Brake circle + Gear circle ===
+
+        // Brake icon inside circle
+        const brakeX = Math.round(positions.brake);
+        const brakeBgColor = prev.brakeActive ? '&H000050&' : '&H303030&';
+        const brakeIconColor = prev.brakeActive ? '&H0000FF&' : '&H909090&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${brakeX},${posY})\\bord0\\shad0\\1c${brakeBgColor}\\1a&H00&\\p1}` +
+          drawCircle(circleR) + `{\\p0}`
+        ));
+        events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${brakeX},${posY})\\bord0\\shad0\\1c${brakeIconColor}\\p1}` +
+          drawBrakePedal(pedalScale) + `{\\p0}`
+        ));
+        events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${brakeX},${posY})\\bord0\\shad0\\1c${brakeIconColor}\\p1}` +
+          drawBrakePedalTab(pedalScale) + `{\\p0}`
+        ));
+
+        // Gear circle (Tesla style: letter in colored circle)
+        const gearCX = Math.round(positions.gear);
+        const gearCircleColor = prev.apActive ? '&HFF4800&' : '&H404040&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${gearCX},${posY})\\bord0\\shad0\\1c${gearCircleColor}\\1a&H00&\\p1}` +
+          drawCircle(circleR) + `{\\p0}`
+        ));
+        const gearLetterSize = Math.round(circleDiam * 0.55);
+        events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+          `{\\an5\\pos(${gearCX},${posY})\\bord0\\shad0\\fs${gearLetterSize}\\1c&HFFFFFF&\\b1}${prev.gearLetter}`
+        ));
+
+        // === CENTER GROUP: [← blinker] [speed MPH] [AP text] [→ blinker] ===
+
+        // Left blinker
+        const leftColor = prev.leftBlinkVisible ? '&H22C55E&' : '&H505050&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${Math.round(positions.leftBlinker)},${posY})\\bord0\\shad0\\1c${leftColor}\\p1}` +
+          drawLeftArrow(arrowScale) + `{\\p0}`
+        ));
+
+        // Speed: number + unit
+        const speedGap = circleDiam * 0.08;
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an6\\pos(${Math.round(positions.speed - speedGap)},${posY})\\bord0\\shad0\\fs${speedNumSize}\\1c&HFFFFFF&}${prev.speed}`
+        ));
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an4\\pos(${Math.round(positions.speed + speedGap)},${posY})\\bord0\\shad0\\fs${speedUnitSize}\\1c&H808080&}${speedUnit}`
+        ));
+
+        // AP status text - same height as speed number
+        const apColor = prev.apActive ? '&HFF4800&' : '&H808080&';
+        const apFontSize = Math.round(circleDiam * 0.65);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an5\\pos(${Math.round(positions.apStatus)},${posY})\\bord0\\shad0\\fs${apFontSize}\\1c${apColor}}${prev.apText}`
+        ));
+
+        // Right blinker
+        const rightColor = prev.rightBlinkVisible ? '&H22C55E&' : '&H505050&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${Math.round(positions.rightBlinker)},${posY})\\bord0\\shad0\\1c${rightColor}\\p1}` +
+          drawRightArrow(arrowScale) + `{\\p0}`
+        ));
+
+        // === RIGHT EDGE: Steering circle + Accel circle ===
+
+        // Steering wheel inside circle
+        const steerX = Math.round(positions.steering);
+        const steerBgColor = prev.apActive ? '&H802400&' : '&H303030&';
+        const steerColor = prev.apActive ? '&HFF4800&' : '&H707070&';
+        const angle = -(prev.steeringAngle || 0);
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${steerX},${posY})\\bord0\\shad0\\1c${steerBgColor}\\1a&H00&\\p1}` +
+          drawCircle(circleR) + `{\\p0}`
+        ));
+        events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${steerX},${posY})\\org(${steerX},${posY})\\bord0\\shad0\\1c${steerColor}\\frz${angle}\\p1}` +
+          drawSteeringWheelOuter(steerScale) + `{\\p0}`
+        ));
+        events.push(dialogueLine(3, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${steerX},${posY})\\org(${steerX},${posY})\\bord0\\shad0\\1c&HFFFFFF&\\frz${angle}\\p1}` +
+          drawSteeringWheelInner(steerScale) + `{\\p0}`
+        ));
+
+        // Accel pedal - respects user's accelPedMode setting
+        // Icon is always centered in circle at same size as brake pedal
+        // For iconbar/sidebar modes, the fill bar is OUTSIDE the circle to the right
+        const accelX = Math.round(positions.accel);
+        const accelPctVal = prev.accelPct || 0;
+        const accelIsActive = accelPctVal > 5;
+
+        // Circle background (always present)
+        const accelBgColor = accelIsActive ? '&H802400&' : '&H303030&';
+        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+          `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${accelBgColor}\\1a&H00&\\p1}` +
+          drawCircle(circleR) + `{\\p0}`
+        ));
+
+        if (accelPedMode === 'solid') {
+          // Solid mode: icon color changes on/off, same size as brake
+          const solidColor = accelIsActive ? '&HFF4800&' : '&H909090&';
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${solidColor}\\p1}` +
+            drawAcceleratorPedal(pedalScale) + `{\\p0}`
+          ));
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${solidColor}\\p1}` +
+            drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+          ));
+        } else if (accelPedMode === 'sidebar') {
+          // Sidebar mode: centered icon in circle + bar OUTSIDE circle to the right
+          const sidebarIconColor = accelIsActive ? '&HFF4800&' : '&H909090&';
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${sidebarIconColor}\\p1}` +
+            drawAcceleratorPedal(pedalScale) + `{\\p0}`
+          ));
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${sidebarIconColor}\\p1}` +
+            drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+          ));
+          // Vertical bar outside circle, to the right, same height as circle diameter
+          const barWidth = Math.max(3, Math.round(circleR * 0.12));
+          const barHeight = circleR * 2; // Same height as circle
+          const barX = accelX + circleR + Math.round(circleR * 0.2); // Gap after circle
+          const barTop = posY - Math.round(barHeight / 2);
+          const barBottom = posY + Math.round(barHeight / 2);
+          // Gray background bar
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H404040&\\p1}` +
+            `m ${barX} ${barTop} l ${barX + barWidth} ${barTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
+          ));
+          // Colored fill from bottom
+          if (accelPctVal > 0) {
+            const fillTop = Math.round(barBottom - (barHeight * accelPctVal / 100));
+            events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF4800&\\p1}` +
+              `m ${barX} ${fillTop} l ${barX + barWidth} ${fillTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
+            ));
+          }
+        } else {
+          // Iconbar mode (default): icon centered in circle, circle itself fills from bottom
+          // Gray base icon (always visible)
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&H909090&\\p1}` +
+            drawAcceleratorPedal(pedalScale) + `{\\p0}`
+          ));
+          events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
+            `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&H909090&\\p1}` +
+            drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+          ));
+          // Colored circle fill from bottom based on percentage (the circle IS the bar)
+          if (accelPctVal > 0) {
+            const circleTop = posY - circleR;
+            const circleBottom = posY + circleR;
+            const clipY = Math.round(circleBottom - (circleR * 2 * accelPctVal / 100));
+            const clipLeft = accelX - circleR;
+            const clipRight = accelX + circleR;
+            // Colored circle clipped from bottom
+            events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&HFF4800&\\1a&H40&\\clip(${clipLeft},${clipY},${clipRight},${circleBottom})\\p1}` +
+              drawCircle(circleR) + `{\\p0}`
+            ));
+            // Re-draw icon on top in white so it's visible over the fill
+            events.push(dialogueLine(3, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&HFFFFFF&\\clip(${clipLeft},${clipY},${clipRight},${circleBottom})\\p1}` +
+              drawAcceleratorPedal(pedalScale) + `{\\p0}`
+            ));
+            events.push(dialogueLine(3, startAssTime, endAssTime, 'CompactDash',
+              `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&HFFFFFF&\\clip(${clipLeft},${clipY},${clipRight},${circleBottom})\\p1}` +
+              drawAcceleratorPedalTab(pedalScale) + `{\\p0}`
+            ));
+          }
+        }
+      }
+
+      prevState = currentState;
+      eventStartFrame = frame;
+    }
+  }
+
+  return events.join('\n');
+}
+
+/**
+ * Helper: find SEI data at a given time (extracted for reuse)
+ */
+function findSeiAtTime(seiData, videoTimeMs) {
+  if (!seiData || seiData.length === 0) return null;
+
+  let closest = seiData[0];
+  let minDiff = Math.abs(seiData[0].timestampMs - videoTimeMs);
+
+  for (let i = 1; i < seiData.length; i++) {
+    const diff = Math.abs(seiData[i].timestampMs - videoTimeMs);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = seiData[i];
+    }
+    if (seiData[i].timestampMs > videoTimeMs && diff > minDiff) break;
+  }
+
+  return closest?.sei || null;
+}
+
+/**
+ * Helper: convert video time to actual timestamp (extracted for reuse)
+ */
+function convertVideoTimeToTimestamp(videoTimeMs, segments, cumStarts) {
+  if (!segments || segments.length === 0) return videoTimeMs;
+
+  for (let i = 0; i < segments.length; i++) {
+    const segStart = (cumStarts[i] || 0) * 1000;
+    const segDuration = (segments[i]?.durationSec || 60) * 1000;
+    const segEnd = segStart + segDuration;
+
+    if (videoTimeMs >= segStart && videoTimeMs < segEnd) {
+      const segmentTimestamp = segments[i]?.timestamp;
+      if (segmentTimestamp) {
+        const offsetInSegment = videoTimeMs - segStart;
+        return segmentTimestamp + offsetInSegment;
+      }
+    }
+  }
+
+  return videoTimeMs;
+}
+
+/**
+ * Generate complete ASS subtitle file for Tesla Mobile dashboard
+ * playResY includes the padded bar area, videoH is the original video height
+ */
+function generateTeslaMobileDashboardAss(seiData, startTimeMs, endTimeMs, options) {
+  const { playResX = 1920, playResY = 1080, dashBarHeight = 0, videoH } = options;
+
+  // Use explicit dashBarHeight if provided, else fallback
+  const dashHeight = dashBarHeight > 0 ? dashBarHeight : (playResY - (videoH || playResY));
+  // fontSize for ASS header styles - match the circleR-based sizing in events generator
+  const circleR = Math.round(dashHeight * 0.38);
+  const fontSize = Math.round(circleR * 0.7);
+
+  const header = generateTeslaMobileAssHeader(playResX, playResY, fontSize);
+  const events = generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, options);
+
+  return header + events;
+}
+
+/**
+ * Write Tesla Mobile dashboard ASS subtitle file to temp directory
+ */
+async function writeTeslaMobileDashboardAss(exportId, seiData, startTimeMs, endTimeMs, options) {
+  const assContent = generateTeslaMobileDashboardAss(seiData, startTimeMs, endTimeMs, options);
+  const tempPath = path.join(os.tmpdir(), `dashboard_tesla_mobile_${exportId}_${Date.now()}.ass`);
+
+  await fs.promises.writeFile(tempPath, assContent, 'utf8');
+  console.log(`[ASS] Generated Tesla Mobile dashboard subtitle: ${tempPath}`);
+
+  return tempPath;
+}
+
 module.exports = {
   writeCompactDashboardAss,
   writeDetailedDashboardAss,
+  writeTeslaMobileDashboardAss,
   writeMinimapAss
 };
