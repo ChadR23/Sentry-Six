@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.12.7",
+      "date": "2026-03-16",
+      "title": "Major Updates  & Feature Release",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "NEW \"Tesla Mobile\" dashboard style that mimics Tesla's mobile app dashcam viewer UI."
+        },
+        {
+          "type": "improvement",
+          "description": "friendly FFmpeg error messages & Fix HW3 front camera ratio distortion"
+        },
+        {
+          "type": "improvement",
+          "description": "export preview, share quality fix, UI polish"
+        },
+        {
+          "type": "feature",
+          "description": "Add clip nav keybinds"
+        }
+      ]
+    },
+    {
       "version": "2026.11.1",
       "date": "2026-03-10",
       "title": "Added thumbnails on hover",

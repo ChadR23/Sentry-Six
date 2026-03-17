@@ -1,6 +1,6 @@
 {
   "name": "sentry-six-revamped",
-  "version": "2026.11.1",
+  "version": "2026.12.7",
   "description": "Sentry Studio - Tesla Dashcam Viewer",
   "main": "src/main.js",
   "scripts": {
@@ -40,9 +40,7 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
       "verifyUpdateCodeSignature": false,
@@ -66,9 +64,7 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "universal"
-          ]
+          "arch": ["universal"]
         }
       ],
       "category": "public.app-category.utilities",
@@ -77,9 +73,7 @@
       "identity": "Scott Vandereems (6733Y82885)",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
-      "signIgnore": [
-        "\\.pak$"
-      ],
+      "signIgnore": ["\\.pak$"],
       "notarize": true,
       "artifactName": "SentryStudio-${version}-macOS.${ext}",
       "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*,Contents/Resources/app.asar.unpacked/node_modules/@img/**",
