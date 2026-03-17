@@ -76,7 +76,7 @@
       "signIgnore": ["\\.pak$"],
       "notarize": true,
       "artifactName": "SentryStudio-${version}-macOS.${ext}",
-      "x64ArchFiles": "Contents/Resources/ffmpeg_bin/*,Contents/Resources/app.asar.unpacked/node_modules/@img/**",
+      "x64ArchFiles": "{Contents/Resources/ffmpeg_bin/*,Contents/Resources/app.asar.unpacked/node_modules/@img/**/*}",
       "asarUnpack": [
         "node_modules/sharp/**/*",
         "node_modules/@img/**/*",
