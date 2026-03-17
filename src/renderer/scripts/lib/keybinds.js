@@ -94,6 +94,47 @@ function getKeyIdentifier(e) {
     return mods.join('+').toLowerCase();
 }
 
+// Mouse button names for display
+const MOUSE_BUTTON_NAMES = {
+    3: 'Mouse Back',
+    4: 'Mouse Forward',
+    1: 'Mouse Middle'
+};
+
+// Bindable mouse buttons (exclude left=0 and right=2)
+const BINDABLE_MOUSE_BUTTONS = new Set([1, 3, 4]);
+
+/**
+ * Format a mouse event into a readable string
+ * @param {MouseEvent} e - Mouse event
+ * @returns {string|null} Formatted string, or null if not bindable
+ */
+function formatMouseEvent(e) {
+    if (!BINDABLE_MOUSE_BUTTONS.has(e.button)) return null;
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
+    parts.push(MOUSE_BUTTON_NAMES[e.button] || `Mouse ${e.button}`);
+    return parts.join(' + ');
+}
+
+/**
+ * Create a unique identifier for a mouse event
+ * @param {MouseEvent} e - Mouse event
+ * @returns {string} Mouse identifier
+ */
+function getMouseIdentifier(e) {
+    const mods = [];
+    if (e.ctrlKey) mods.push('ctrl');
+    if (e.altKey) mods.push('alt');
+    if (e.shiftKey) mods.push('shift');
+    if (e.metaKey) mods.push('meta');
+    mods.push(`mouse${e.button}`);
+    return mods.join('+').toLowerCase();
+}
+
 // Guard against duplicate initialization (listeners would stack)
 let keybindSettingsInitialized = false;
 
@@ -119,14 +160,44 @@ export async function initKeybindSettings() {
     
     // Handle keybind input focus (start recording)
     keybindInputs.forEach(input => {
-        // Prevent modifier+click from causing native multi-select behavior
+        // Capture mouse button bindings while recording + prevent modifier+click issues
         input.addEventListener('mousedown', (e) => {
+            // Only capture bindable mouse buttons while recording
+            if (recordingKeybindInput === input && BINDABLE_MOUSE_BUTTONS.has(e.button)) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const display = formatMouseEvent(e);
+                const identifier = getMouseIdentifier(e);
+                if (!display) return;
+
+                const action = input.dataset.action;
+                loadKeybinds().then(keybinds => {
+                    // Remove conflicts
+                    for (const [existingAction, binding] of Object.entries(keybinds)) {
+                        if (existingAction !== action && binding.identifier === identifier) {
+                            delete keybinds[existingAction];
+                            const conflictInput = document.querySelector(`.keybind-input[data-action="${existingAction}"]`);
+                            if (conflictInput) conflictInput.value = '';
+                        }
+                    }
+                    keybinds[action] = { display, identifier };
+                    saveKeybinds(keybinds);
+                    input.value = display;
+                    input.classList.remove('recording');
+                    input.blur();
+                    recordingKeybindInput = null;
+                });
+                return;
+            }
+
+            // Prevent modifier+click from causing native multi-select behavior
             if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) {
                 e.preventDefault();
                 input.focus();
             }
         });
-        
+
         input.addEventListener('focus', () => {
             // Clear recording state from ALL other keybind inputs
             keybindInputs.forEach(other => {
@@ -148,7 +219,7 @@ export async function initKeybindSettings() {
             }
             recordingKeybindInput = input;
             input.classList.add('recording');
-            input.value = 'Press a key...';
+            input.value = 'Press a key or mouse button...';
         });
         
         input.addEventListener('blur', async () => {
@@ -258,8 +329,39 @@ async function handleGlobalKeydown(e) {
 }
 
 /**
+ * Global mousedown handler for executing bound mouse button actions
+ * @param {MouseEvent} e - Mouse event
+ */
+async function handleGlobalMousedown(e) {
+    // Only handle bindable mouse buttons
+    if (!BINDABLE_MOUSE_BUTTONS.has(e.button)) return;
+
+    // Skip if recording a keybind
+    if (recordingKeybindInput) return;
+
+    // Skip if settings modal is open
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal && !settingsModal.classList.contains('hidden')) return;
+
+    const identifier = getMouseIdentifier(e);
+    const keybinds = await loadKeybinds();
+
+    for (const [action, binding] of Object.entries(keybinds)) {
+        if (binding.identifier === identifier) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (keybindActions[action]) {
+                keybindActions[action]();
+            }
+            return;
+        }
+    }
+}
+
+/**
  * Initialize the global keybind listener
  */
 export function initGlobalKeybindListener() {
     document.addEventListener('keydown', handleGlobalKeydown);
+    document.addEventListener('mousedown', handleGlobalMousedown);
 }

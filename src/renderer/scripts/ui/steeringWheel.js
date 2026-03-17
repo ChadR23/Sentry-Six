@@ -66,7 +66,7 @@ function animateSteeringWheel() {
     if (steeringIconCompact) {
         steeringIconCompact.style.transform = `rotate(${steeringPosition}deg)`;
     }
-    
+
     // Check if we're settled (very close to target)
     if (Math.abs(steeringTarget - steeringPosition) < 0.05) {
         steeringPosition = steeringTarget;

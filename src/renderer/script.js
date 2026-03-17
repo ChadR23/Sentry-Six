@@ -29,7 +29,7 @@ import {
 import { initDraggablePanels, resetPanelPosition } from './scripts/ui/draggablePanels.js';
 import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight } from './scripts/ui/eventMarkers.js';
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
-import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker } from './scripts/ui/mapVisualization.js';
+import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker, getMapOrientation, setMapOrientation, getMapBearing } from './scripts/ui/mapVisualization.js';
 import { initDashboardVisibility, updateDashboardVisibility } from './scripts/ui/dashboardVisibility.js';
 import { hasValidGps, extractSeiFromEntry, findSeiAtTime } from './scripts/core/seiExtractor.js';
 import { 
@@ -472,8 +472,20 @@ let useMetric = false; // Will be loaded from settings
                 if (isMapDragging && mapDragStart && mapDragStartCenter) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const dx = e.clientX - mapDragStart.x;
-                    const dy = e.clientY - mapDragStart.y;
+                    let dx = e.clientX - mapDragStart.x;
+                    let dy = e.clientY - mapDragStart.y;
+                    // Counter-rotate drag vector by map bearing so drag direction
+                    // matches screen direction even when the map container is rotated
+                    const bearing = getMapBearing();
+                    if (bearing) {
+                        const rad = (bearing * Math.PI) / 180;
+                        const cos = Math.cos(rad);
+                        const sin = Math.sin(rad);
+                        const rdx = dx * cos + dy * sin;
+                        const rdy = -dx * sin + dy * cos;
+                        dx = rdx;
+                        dy = rdy;
+                    }
                     // Convert pixel offset to lat/lng offset
                     const startPoint = map.latLngToContainerPoint(mapDragStartCenter);
                     const newPoint = L.point(startPoint.x - dx, startPoint.y - dy);
@@ -496,16 +508,22 @@ let useMetric = false; // Will be loaded from settings
             // Helper to re-center map based on current polyline or cached path
             function recenterMap() {
                 if (!map) return;
-                
+                map.invalidateSize();
+
                 // Highest priority: event marker (sentry/saved)
                 if (eventLocationMarker) {
-                    const ll = eventLocationMarker.getLatLng();
-                    map.invalidateSize();
-                    map.setView(ll, 16);
+                    map.setView(eventLocationMarker.getLatLng(), 16, { animate: true });
                     return;
                 }
-                
-                // Prefer existing polylines' bounds
+
+                // During drive playback, center on the current arrow position
+                // at a close zoom instead of fitting the whole route
+                if (window._mapCurrentMarkerLatLng) {
+                    map.setView(window._mapCurrentMarkerLatLng, 16, { animate: true });
+                    return;
+                }
+
+                // Prefer existing polylines' bounds (not during playback)
                 if (mapPolyline) {
                     let bounds = null;
                     if (Array.isArray(mapPolyline) && mapPolyline.length > 0) {
@@ -517,26 +535,23 @@ let useMetric = false; // Will be loaded from settings
                         bounds = mapPolyline.getBounds();
                     }
                     if (bounds) {
-                        map.invalidateSize();
-                        map.fitBounds(bounds, { padding: [20, 20], animate: true });
+                        map.fitBounds(bounds, { padding: [20, 20], animate: true, maxZoom: 16 });
                         return;
                     }
                 }
-                
+
                 // Fallback to path data
                 const path = (nativeVideo.mapPath?.length ? nativeVideo.mapPath : window._lastMapPath) || [];
                 if (path.length > 0) {
                     const allCoords = path.map(p => [p.lat, p.lon]);
                     const bounds = L.latLngBounds(allCoords);
-                    map.invalidateSize();
-                    map.fitBounds(bounds, { padding: [20, 20], animate: true });
+                    map.fitBounds(bounds, { padding: [20, 20], animate: true, maxZoom: 16 });
                     return;
                 }
-                
+
                 // Fallback to cached bounds (saved/sentry pin)
                 if (window._lastMapBounds) {
-                    map.invalidateSize();
-                    map.fitBounds(window._lastMapBounds, { padding: [20, 20], animate: true });
+                    map.fitBounds(window._lastMapBounds, { padding: [20, 20], animate: true, maxZoom: 16 });
                     return;
                 }
             }
@@ -577,6 +592,33 @@ let useMetric = false; // Will be loaded from settings
                     e.stopImmediatePropagation();
                     e.preventDefault();
                 }, true);
+            }
+
+            // Orientation toggle button (heading-up / north-up)
+            const mapOrientationBtn = document.getElementById('mapOrientationBtn');
+            if (mapOrientationBtn) {
+                const compassSvg = mapOrientationBtn.querySelector('svg');
+                mapOrientationBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const current = getMapOrientation();
+                    const next = current === 'heading-up' ? 'north-up' : 'heading-up';
+                    setMapOrientation(next);
+                    // Reset compass rotation for north-up, or keep it live for heading-up
+                    if (compassSvg) {
+                        compassSvg.style.transform = next === 'north-up' ? 'rotate(0deg)' : '';
+                    }
+                    mapOrientationBtn.title = next === 'heading-up'
+                        ? 'Heading up — tap for north up'
+                        : 'North up — tap for heading up';
+                });
+
+                // Rotate compass icon to match current bearing during heading-up
+                window._updateMapCompass = (bearing) => {
+                    if (compassSvg && getMapOrientation() === 'heading-up') {
+                        compassSvg.style.transform = `rotate(${-bearing}deg)`;
+                    }
+                };
             }
         }
     } catch(e) { console.error('Leaflet init failed', e); }
@@ -775,29 +817,25 @@ let useMetric = false; // Will be loaded from settings
         window.dashboardLayout = dashboardLayout; // Store globally for dashboardVisibility
         const defaultDash = dashboardVis;
         const compactDash = dashboardVisCompact;
-        
-        if (defaultDash && compactDash) {
-            if (dashboardLayout === 'compact') {
-                defaultDash.classList.add('hidden');
-                compactDash.classList.remove('hidden');
-                // Ensure compact dashboard is visible if enabled
-                if (state?.ui?.dashboardEnabled) {
-                    compactDash.classList.add('visible');
-                    compactDash.classList.remove('user-hidden');
-                }
-                // Update positioning based on setting
-                const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
-                if (window.updateCompactDashboardPositioning) {
-                    window.updateCompactDashboardPositioning(isFixed);
-                }
-            } else {
-                defaultDash.classList.remove('hidden');
-                compactDash.classList.add('hidden');
-                compactDash.classList.remove('visible');
+
+        // Hide all dashboards first
+        if (defaultDash) defaultDash.classList.add('hidden');
+        if (compactDash) { compactDash.classList.add('hidden'); compactDash.classList.remove('visible'); }
+
+        if (dashboardLayout === 'compact') {
+            if (compactDash) compactDash.classList.remove('hidden');
+            if (state?.ui?.dashboardEnabled && compactDash) {
+                compactDash.classList.add('visible');
+                compactDash.classList.remove('user-hidden');
             }
-            // Update visibility based on enabled state
-            updateDashboardVisibility();
+            const isFixed = await window.electronAPI?.getSetting?.('compactDashboardFixed') ?? true;
+            if (window.updateCompactDashboardPositioning) {
+                window.updateCompactDashboardPositioning(isFixed);
+            }
+        } else {
+            if (defaultDash) defaultDash.classList.remove('hidden');
         }
+        updateDashboardVisibility();
     };
     
     // Global function to apply app theme (dark/light)
@@ -4331,22 +4369,15 @@ async function loadNativeSegment(segIdx) {
                 window._lastMapBounds = bounds; // cache for recenter
                 map.invalidateSize();
                 map.fitBounds(bounds, { padding: [20, 20] });
-                // For long drive routes fitBounds can zoom far out; enforce a minimum zoom of 12.
-                if (map.getZoom() < 12) {
+                // For long drive routes fitBounds can zoom far out; enforce a minimum zoom of 14.
+                if (map.getZoom() < 14) {
                     const mid = mapPath[Math.floor(mapPath.length / 2)];
-                    map.setView([mid.lat, mid.lon], 12, { animate: false });
+                    map.setView([mid.lat, mid.lon], 15, { animate: false });
                 }
 
-                // Re-center map after 1 second to ensure proper centering if a glitch occurred
+                // Re-invalidate after layout settles so tiles render correctly
                 setTimeout(() => {
-                    if (map && mapPolyline) {
-                        map.invalidateSize();
-                        map.fitBounds(bounds, { padding: [20, 20] });
-                        if (map.getZoom() < 12) {
-                            const mid = mapPath[Math.floor(mapPath.length / 2)];
-                            map.setView([mid.lat, mid.lon], 12, { animate: false });
-                        }
-                    }
+                    if (map) map.invalidateSize();
                 }, 1000);
             }
         }).catch(err => console.warn('SEI extraction failed:', err));

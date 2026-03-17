@@ -22,28 +22,25 @@ export function initDashboardVisibility(deps) {
 export function updateDashboardVisibility() {
     const dashboardVis = getDashboardVis?.();
     const state = getState?.();
-    
+
     if (!dashboardVis) return;
-    
+
     // Get current dashboard layout setting
     const compactDash = document.getElementById('dashboardVisCompact');
     const dashboardLayout = window.dashboardLayout || 'default';
-    
-    // Show/hide based on layout and enabled state
+    const enabled = !!state?.ui?.dashboardEnabled;
+
+    // Hide all first
+    dashboardVis.classList.add('user-hidden');
+    if (compactDash) { compactDash.classList.add('user-hidden', 'hidden'); compactDash.classList.remove('visible'); }
+
+    // Show the active layout if enabled
     if (dashboardLayout === 'compact' && compactDash) {
-        dashboardVis.classList.add('user-hidden');
-        if (state?.ui?.dashboardEnabled) {
+        if (enabled) {
             compactDash.classList.remove('user-hidden', 'hidden');
             compactDash.classList.add('visible');
-        } else {
-            compactDash.classList.add('user-hidden');
-            compactDash.classList.remove('visible');
         }
     } else {
-        dashboardVis.classList.toggle('user-hidden', !state?.ui?.dashboardEnabled);
-        if (compactDash) {
-            compactDash.classList.add('user-hidden', 'hidden');
-            compactDash.classList.remove('visible');
-        }
+        dashboardVis.classList.toggle('user-hidden', !enabled);
     }
 }

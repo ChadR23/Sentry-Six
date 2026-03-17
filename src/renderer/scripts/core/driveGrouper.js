@@ -226,12 +226,65 @@ function splitClipAtParkGaps(clip, runs) {
         if (startIdx < 0) startIdx = 0;
         if (endIdx <= startIdx) continue;
 
-        // Create a sub-route with sliced parallel arrays
+        // Create a sub-route with sliced parallel arrays.
+        // CRITICAL: Must slice ALL parallel arrays (AP, accel, gear, speed) to keep
+        // them aligned with Points. Without this, the length check in buildDrive
+        // discards all autopilot data for split routes.
         const subRoute = { ...clip };
         subRoute.Points = pts.slice(startIdx, endIdx);
         if (!subRoute.Points) subRoute.points = pts.slice(startIdx, endIdx);
 
-        // Slice parallel arrays if they exist (keeping same format — base64 already decoded elsewhere)
+        // Slice AutopilotStates (decode base64 first, store as plain array for sub-route)
+        const apRaw = clip.AutopilotStates ?? clip.autopilotStates;
+        const apDecoded = decodeUint8Field(apRaw);
+        if (apDecoded && apDecoded.length >= endIdx) {
+            subRoute.AutopilotStates = Array.from(apDecoded.slice(startIdx, endIdx));
+            subRoute.autopilotStates = subRoute.AutopilotStates;
+        } else if (apDecoded) {
+            // Length mismatch — slice what we can
+            const safeEnd = Math.min(endIdx, apDecoded.length);
+            const safeStart = Math.min(startIdx, safeEnd);
+            subRoute.AutopilotStates = Array.from(apDecoded.slice(safeStart, safeEnd));
+            subRoute.autopilotStates = subRoute.AutopilotStates;
+        }
+
+        // Slice AccelPositions
+        const accelRaw = clip.AccelPositions ?? clip.accelPositions;
+        if (Array.isArray(accelRaw) && accelRaw.length >= endIdx) {
+            subRoute.AccelPositions = accelRaw.slice(startIdx, endIdx);
+            subRoute.accelPositions = subRoute.AccelPositions;
+        } else if (Array.isArray(accelRaw)) {
+            const safeEnd = Math.min(endIdx, accelRaw.length);
+            const safeStart = Math.min(startIdx, safeEnd);
+            subRoute.AccelPositions = accelRaw.slice(safeStart, safeEnd);
+            subRoute.accelPositions = subRoute.AccelPositions;
+        }
+
+        // Slice GearStates
+        const gsRaw = clip.GearStates ?? clip.gearStates;
+        const gsDecoded = decodeUint8Field(gsRaw);
+        if (gsDecoded && gsDecoded.length >= endIdx) {
+            subRoute.GearStates = Array.from(gsDecoded.slice(startIdx, endIdx));
+            subRoute.gearStates = subRoute.GearStates;
+        } else if (gsDecoded) {
+            const safeEnd = Math.min(endIdx, gsDecoded.length);
+            const safeStart = Math.min(startIdx, safeEnd);
+            subRoute.GearStates = Array.from(gsDecoded.slice(safeStart, safeEnd));
+            subRoute.gearStates = subRoute.GearStates;
+        }
+
+        // Slice Speeds
+        const spRaw = clip.Speeds ?? clip.speeds;
+        if (Array.isArray(spRaw) && spRaw.length >= endIdx) {
+            subRoute.Speeds = spRaw.slice(startIdx, endIdx);
+            subRoute.speeds = subRoute.Speeds;
+        } else if (Array.isArray(spRaw)) {
+            const safeEnd = Math.min(endIdx, spRaw.length);
+            const safeStart = Math.min(startIdx, safeEnd);
+            subRoute.Speeds = spRaw.slice(safeStart, safeEnd);
+            subRoute.speeds = subRoute.Speeds;
+        }
+
         const offsetDurationMs = Math.round(startFrac * CLIP_DURATION_MS);
         subRoute._startMs = clip._startMs + offsetDurationMs;
 
@@ -308,19 +361,29 @@ function buildDrive(id, routes, driveTags) {
     // Single pass over all route points:
     // - Build flatPoints for map display
     // - Compute per-point FSD stats (matching Go backend: any apState != 0 is engaged)
-    // - Detect disengagement events (engaged→off transitions)
-    // - Detect accel push events (pedal > 1% while FSD active, complete on return to 0%)
+    // - Detect disengagement events with 2-second park grace period (matches Sentry-USB)
+    // - Detect accel push events with 3-second engagement grace period (matches Sentry-USB)
+    // - Compute distance-based FSD percentage (matches Sentry-USB)
     const flatPoints = [];
 
-    let fsdEngagedPoints = 0;
-    let totalApPoints = 0;
+    let fsdDistanceKm = 0;
+    let totalDistanceKm = 0;
     let fsdDisengagements = 0;
     let accelPushCount = 0;
     const fsdEvents = []; // { lat, lng, type: "disengagement"|"accel_push" }
 
     let prevEngaged = false;
+    let prevLat = NaN, prevLng = NaN;
     let inAccelPress = false;
     let accelPressLat = 0, accelPressLng = 0;
+
+    // Pending disengagement state for 2-second Park grace period
+    let pendingDisengage = false;
+    let pendingDisengageTimeMs = 0;
+    let pendingDisengageLat = 0, pendingDisengageLng = 0;
+
+    // FSD engagement tracking for 3-second accel grace period
+    let fsdEngageTimeMs = 0;
 
     for (const route of routes) {
         const pts = route.Points ?? route.points;
@@ -332,13 +395,44 @@ function buildDrive(id, routes, driveTags) {
         // decodeUint8Field handles both base64 strings and plain arrays.
         const apRaw = route.AutopilotStates ?? route.autopilotStates;
         const apDecoded = decodeUint8Field(apRaw);
-        const apArr = (apDecoded && apDecoded.length === pts.length) ? apDecoded : null;
+        // Robust length check: accept if lengths are within 20% of each other
+        // instead of strict equality (handles base64 encoding edge cases and
+        // sub-route slicing edge cases gracefully)
+        let apArr = null;
+        if (apDecoded) {
+            const lenRatio = apDecoded.length / pts.length;
+            if (lenRatio >= 0.8 && lenRatio <= 1.2) {
+                apArr = apDecoded;
+            } else if (apDecoded.length > 0 && pts.length > 0) {
+                console.warn(`[DriveGrouper] AP array length mismatch: ${apDecoded.length} vs ${pts.length} points (ratio ${lenRatio.toFixed(2)}) — discarding AP data for route`);
+            }
+        }
 
         const accelRaw = route.AccelPositions ?? route.accelPositions;
-        // AccelPositions is []float32 in Go → JSON array of numbers (not base64).
-        const accelArr = (Array.isArray(accelRaw) && accelRaw.length === pts.length) ? accelRaw : null;
+        let accelArr = null;
+        if (Array.isArray(accelRaw)) {
+            const lenRatio = accelRaw.length / pts.length;
+            if (lenRatio >= 0.8 && lenRatio <= 1.2) {
+                accelArr = accelRaw;
+            }
+        }
 
-        for (let i = 0; i < pts.length; i++) {
+        // Decode gear states for Park detection (2-second disengagement grace period)
+        const gsRaw = route.GearStates ?? route.gearStates;
+        const gsDecoded = decodeUint8Field(gsRaw);
+        let gearArr = null;
+        if (gsDecoded) {
+            const lenRatio = gsDecoded.length / pts.length;
+            if (lenRatio >= 0.8 && lenRatio <= 1.2) {
+                gearArr = gsDecoded;
+            }
+        }
+
+        // Estimate per-point timestamps for grace period calculations
+        const routeStartMs = route._startMs || 0;
+        const nPts = pts.length;
+
+        for (let i = 0; i < nPts; i++) {
             const p = pts[i];
             let lat, lng;
             if (Array.isArray(p)) {
@@ -349,32 +443,71 @@ function buildDrive(id, routes, driveTags) {
             if (!isFinite(lat) || !isFinite(lng)) continue;
 
             const spd = Array.isArray(p) ? (speeds?.[i] ?? 0) : (p.Speed ?? p.speed ?? 0);
-            const apVal = apArr ? apArr[i] : 0;
+            // Use Math.min to avoid out-of-bounds when arrays are slightly shorter
+            const apIdx = Math.min(i, apArr ? apArr.length - 1 : 0);
+            const apVal = apArr ? apArr[apIdx] : 0;
             const engaged = !!apVal;
+
+            // Estimated timestamp for this point
+            const pointTimeMs = routeStartMs + (nPts > 1 ? (i / (nPts - 1)) * CLIP_DURATION_MS : 0);
+
+            // Gear state for this point
+            const gearIdx = Math.min(i, gearArr ? gearArr.length - 1 : 0);
+            const gear = gearArr ? gearArr[gearIdx] : -1;
 
             flatPoints.push([lat, lng, 0, spd, engaged ? 1 : 0]);
 
-            // Count ALL GPS points for the denominator (matches Go: durationMs = full drive time).
-            // Only routes WITH valid AP data contribute engaged points to the numerator.
-            totalApPoints++;
-            if (apArr && engaged) fsdEngagedPoints++;
+            // Accumulate distance-based FSD stats (matches Sentry-USB: distance-based percentage)
+            if (isFinite(prevLat) && isFinite(prevLng)) {
+                const segDist = haversineKm(prevLat, prevLng, lat, lng);
+                totalDistanceKm += segDist;
+                if (apArr && engaged) fsdDistanceKm += segDist;
+            }
+            prevLat = lat;
+            prevLng = lng;
 
-            // Detect disengagement: engaged → not-engaged transition
+            // Resolve any pending disengagement (2-second Park grace period)
+            if (pendingDisengage) {
+                const timeSince = pointTimeMs - pendingDisengageTimeMs;
+                if (gear === GEAR_PARK && timeSince <= 2000) {
+                    // FSD parked the car — not a driver disengagement
+                    pendingDisengage = false;
+                } else if (timeSince > 2000 || engaged) {
+                    // 2-second window passed with no Park, or FSD re-engaged — real disengagement
+                    fsdDisengagements++;
+                    fsdEvents.push({ lat: pendingDisengageLat, lng: pendingDisengageLng, type: 'disengagement' });
+                    pendingDisengage = false;
+                }
+            }
+
+            // Track FSD engagement start time for accel grace period
+            if (engaged && !prevEngaged) {
+                fsdEngageTimeMs = pointTimeMs;
+            }
+
+            // Detect disengagement: engaged → not-engaged transition (deferred with grace period)
             if (prevEngaged && !engaged) {
-                fsdDisengagements++;
-                fsdEvents.push({ lat, lng, type: 'disengagement' });
+                pendingDisengage = true;
+                pendingDisengageTimeMs = pointTimeMs;
+                pendingDisengageLat = lat;
+                pendingDisengageLng = lng;
+                inAccelPress = false;
             }
             prevEngaged = engaged;
 
             // Detect accel push while FSD active.
             // Tesla accel pedal position: 0–1 or 0–100 depending on firmware.
             // Normalize to 0–100% for the >1% threshold used by the Go backend.
+            // 3-second engagement grace period: skip presses within 3s of FSD activation
             if (accelArr) {
                 if (engaged) {
-                    let accelPct = accelArr[i];
+                    const accelIdx = Math.min(i, accelArr.length - 1);
+                    let accelPct = accelArr[accelIdx];
                     if (accelPct <= 1.0) accelPct *= 100;
 
-                    if (!inAccelPress && accelPct > 1.0) {
+                    const timeSinceEngage = pointTimeMs - fsdEngageTimeMs;
+
+                    if (!inAccelPress && accelPct > 1.0 && timeSinceEngage >= 3000) {
                         inAccelPress = true;
                         accelPressLat = lat;
                         accelPressLng = lng;
@@ -391,27 +524,34 @@ function buildDrive(id, routes, driveTags) {
         }
     }
 
-    const hasFsd = fsdEngagedPoints > 0;
+    // Flush any pending disengagement at end of drive
+    if (pendingDisengage) {
+        // If the last point was in Park, it was a completed parking maneuver — don't count
+        // Otherwise it's a real disengagement
+        const lastRoute = routes[routes.length - 1];
+        const lastGsRaw = lastRoute?.GearStates ?? lastRoute?.gearStates;
+        const lastGs = decodeUint8Field(lastGsRaw);
+        const lastGear = lastGs && lastGs.length > 0 ? lastGs[lastGs.length - 1] : -1;
+        if (lastGear !== GEAR_PARK) {
+            fsdDisengagements++;
+            fsdEvents.push({ lat: pendingDisengageLat, lng: pendingDisengageLng, type: 'disengagement' });
+        }
+    }
+
+    const hasFsd = fsdDistanceKm > 0;
 
     // Drive time bounds from clip filenames (local time - matches clip timestamps)
     const startMs = routes[0]._startMs;
     const endMs = routes[routes.length - 1]._startMs + CLIP_DURATION_MS;
     const durationMs = Math.max(0, endMs - startMs);
 
-    // FSD % = engaged points / ALL points (matches Go: fsdEngagedMs / durationMs).
-    // totalApPoints now counts every GPS point, so clips without AP data naturally
-    // dilute the percentage (they contribute 0 to numerator, 1+ to denominator).
-    const fsdPercent = totalApPoints > 0 ? (fsdEngagedPoints / totalApPoints) * 100 : 0;
-    const fsdEngagedMs = (durationMs > 0 && totalApPoints > 0) ? Math.round((fsdEngagedPoints / totalApPoints) * durationMs) : 0;
+    // FSD % = engaged distance / total distance (matches Sentry-USB: distance-based).
+    // Rounded to one decimal place like Go backend.
+    const fsdPercent = totalDistanceKm > 0 ? Math.round((fsdDistanceKm / totalDistanceKm) * 1000) / 10 : 0;
+    const fsdEngagedMs = (durationMs > 0 && totalDistanceKm > 0) ? Math.round((fsdDistanceKm / totalDistanceKm) * durationMs) : 0;
 
-    // Compute distance using haversine (route order is already chronological)
-    let distanceKm = 0;
-    for (let i = 1; i < flatPoints.length; i++) {
-        distanceKm += haversineKm(
-            flatPoints[i - 1][0], flatPoints[i - 1][1],
-            flatPoints[i][0], flatPoints[i][1]
-        );
-    }
+    // Total distance already computed in the loop
+    const distanceKm = totalDistanceKm;
 
     // Date string YYYY-MM-DD from first route filename
     const firstBasename = (routes[0].File ?? routes[0].file ?? '').split('/').pop().split('\\').pop();
@@ -453,6 +593,8 @@ function buildDrive(id, routes, driveTags) {
         fsdEngagedMs,
         fsdDisengagements,
         fsdPercent,
+        fsdDistanceKm,
+        fsdDistanceMi: fsdDistanceKm * 0.621371,
         accelPushCount,
         tags: Array.isArray(tags) ? tags : [],
         routeTimestampKeys,

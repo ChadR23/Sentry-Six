@@ -45,7 +45,10 @@ export function renderClipList() {
     window._renderClipList = renderClipList;
     
     clipList.innerHTML = '';
-    
+
+    // Remove any orphaned thumbnail tooltips from previous render
+    document.querySelectorAll('.clip-thumb-tooltip').forEach(el => el.remove());
+
     const selectedDay = dayFilter?.value || '';
     if (!selectedDay || !library?.dayData) {
         const placeholder = document.createElement('div');
