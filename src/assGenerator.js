@@ -2178,7 +2178,7 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
           `{\\an7\\pos(${gearCX},${posY})\\bord0\\shad0\\1c${gearCircleColor}\\1a&H00&\\p1}` +
           drawCircle(circleR) + `{\\p0}`
         ));
-        const gearLetterSize = Math.round(circleDiam * 0.55);
+        const gearLetterSize = Math.round(circleDiam * 0.70);
         events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
           `{\\an5\\pos(${gearCX},${posY})\\bord0\\shad0\\fs${gearLetterSize}\\1c&HFFFFFF&\\b1}${prev.gearLetter}`
         ));
@@ -2217,15 +2217,10 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
 
         // === RIGHT EDGE: Steering circle + Accel circle ===
 
-        // Steering wheel inside circle
+        // Steering wheel (no background circle — the wheel outer ring IS the circle)
         const steerX = Math.round(positions.steering);
-        const steerBgColor = prev.apActive ? '&H802400&' : '&H303030&';
         const steerColor = prev.apActive ? '&HFF4800&' : '&H707070&';
         const angle = -(prev.steeringAngle || 0);
-        events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an7\\pos(${steerX},${posY})\\bord0\\shad0\\1c${steerBgColor}\\1a&H00&\\p1}` +
-          drawCircle(circleR) + `{\\p0}`
-        ));
         events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
           `{\\an7\\pos(${steerX},${posY})\\org(${steerX},${posY})\\bord0\\shad0\\1c${steerColor}\\frz${angle}\\p1}` +
           drawSteeringWheelOuter(steerScale) + `{\\p0}`
@@ -2243,7 +2238,7 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
         const accelIsActive = accelPctVal > 5;
 
         // Circle background (always present)
-        const accelBgColor = accelIsActive ? '&H802400&' : '&H303030&';
+        const accelBgColor = accelIsActive ? '&H505050&' : '&H303030&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${accelBgColor}\\1a&H00&\\p1}` +
           drawCircle(circleR) + `{\\p0}`
@@ -2251,7 +2246,7 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
 
         if (accelPedMode === 'solid') {
           // Solid mode: icon color changes on/off, same size as brake
-          const solidColor = accelIsActive ? '&HFF4800&' : '&H909090&';
+          const solidColor = accelIsActive ? '&HC8C8C8&' : '&H909090&';
           events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
             `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${solidColor}\\p1}` +
             drawAcceleratorPedal(pedalScale) + `{\\p0}`
@@ -2262,7 +2257,7 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
           ));
         } else if (accelPedMode === 'sidebar') {
           // Sidebar mode: centered icon in circle + bar OUTSIDE circle to the right
-          const sidebarIconColor = accelIsActive ? '&HFF4800&' : '&H909090&';
+          const sidebarIconColor = accelIsActive ? '&HC8C8C8&' : '&H909090&';
           events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
             `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c${sidebarIconColor}\\p1}` +
             drawAcceleratorPedal(pedalScale) + `{\\p0}`
@@ -2282,11 +2277,11 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
             `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H404040&\\p1}` +
             `m ${barX} ${barTop} l ${barX + barWidth} ${barTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
           ));
-          // Colored fill from bottom
+          // Gray/white fill from bottom
           if (accelPctVal > 0) {
             const fillTop = Math.round(barBottom - (barHeight * accelPctVal / 100));
             events.push(dialogueLine(2, startAssTime, endAssTime, 'CompactDash',
-              `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF4800&\\p1}` +
+              `{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HC8C8C8&\\p1}` +
               `m ${barX} ${fillTop} l ${barX + barWidth} ${fillTop} l ${barX + barWidth} ${barBottom} l ${barX} ${barBottom}{\\p0}`
             ));
           }
@@ -2308,9 +2303,9 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
             const clipY = Math.round(circleBottom - (circleR * 2 * accelPctVal / 100));
             const clipLeft = accelX - circleR;
             const clipRight = accelX + circleR;
-            // Colored circle clipped from bottom
+            // Gray/white circle clipped from bottom
             events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-              `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&HFF4800&\\1a&H40&\\clip(${clipLeft},${clipY},${clipRight},${circleBottom})\\p1}` +
+              `{\\an7\\pos(${accelX},${posY})\\bord0\\shad0\\1c&HC8C8C8&\\1a&H40&\\clip(${clipLeft},${clipY},${clipRight},${circleBottom})\\p1}` +
               drawCircle(circleR) + `{\\p0}`
             ));
             // Re-draw icon on top in white so it's visible over the fill

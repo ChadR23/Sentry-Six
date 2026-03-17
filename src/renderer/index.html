@@ -103,6 +103,7 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
                 <div class="multi-tile" data-slot="tr">
                     <div class="multi-label" data-i18n="ui.cameras.rightPillar">Right Pillar</div>
@@ -182,6 +183,12 @@
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path
                             d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" />
+                    </svg>
+                </button>
+                <button id="mapOrientationBtn" class="map-orientation-btn" title="Toggle heading-up / north-up">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12,2 16,10 12,8 8,10" fill="var(--accent-color, #ef4444)" stroke="none" id="mapCompassNorth" />
+                        <polygon points="12,22 8,14 12,16 16,14" fill="currentColor" stroke="none" />
                     </svg>
                 </button>
                 <div class="map-hint" data-i18n="ui.map.hint">Right-click drag to move</div>
@@ -1024,11 +1031,25 @@
                                             </div>
                                         </div>
                                     </label>
+                                    <div id="shareClipDurationRow" class="toggle-row" style="margin-top: 8px; display: none;">
+                                        <div class="toggle-row-info">
+                                            <span class="toggle-row-label">Link Duration</span>
+                                        </div>
+                                        <select id="shareClipDuration" class="settings-select" style="width: auto; min-width: 120px;">
+                                            <option value="0.5">30 minutes</option>
+                                            <option value="1">1 hour</option>
+                                            <option value="6">6 hours</option>
+                                            <option value="12">12 hours</option>
+                                            <option value="24">24 hours</option>
+                                            <option value="48">48 hours</option>
+                                            <option value="72" selected>72 hours</option>
+                                            <option value="168">7 days</option>
+                                        </select>
+                                    </div>
                                     <div id="shareClipInfo" class="info-box info-blue" style="margin-top: 8px;">
                                         <span class="info-box-icon">🔗</span>
                                         <span id="shareClipInfoText" data-i18n="ui.export.shareClipInfo"
-                                            data-i18n-html>Your clip will be available for <strong>{hours}
-                                                hours</strong> at clip.sentry-six.com</span>
+                                            data-i18n-html>Your clip will be available for <strong>{hours}</strong> at clip.sentry-six.com</span>
                                     </div>
                                     <div id="shareClipWarning" class="info-box info-yellow hidden"
                                         style="margin-top: 8px;">

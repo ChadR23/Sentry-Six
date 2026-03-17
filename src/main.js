@@ -1537,17 +1537,73 @@ ipcMain.handle('share:getConfig', async () => {
       req.end();
     });
     if (result && result.expirationHours) {
-      _shareConfigCache = { expirationHours: result.expirationHours };
+      _shareConfigCache = {
+        expirationHours: result.expirationHours,
+        minExpirationHours: result.minExpirationHours || 0.5,
+        maxExpirationHours: result.maxExpirationHours || 168
+      };
       return _shareConfigCache;
     }
   } catch (err) {
     console.warn('[SHARE] Failed to fetch config:', err.message);
   }
-  return { expirationHours: 48 };
+  return { expirationHours: 72, minExpirationHours: 0.5, maxExpirationHours: 168 };
 });
 
-ipcMain.handle('share:upload', async (event, filePath) => {
-  console.log('[SHARE] Starting clip upload:', filePath);
+const CLIP_RESERVE_URL = 'https://api.sentry-six.com/share/reserve';
+
+ipcMain.handle('share:reserve', async (event, expirationHours) => {
+  console.log('[SHARE] Reserving share code...');
+  try {
+    const urlObj = new URL(CLIP_RESERVE_URL);
+    const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+    const payload = JSON.stringify({ expirationHours: expirationHours || 72 });
+
+    const result = await new Promise((resolve, reject) => {
+      const req = httpModule.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        family: 0
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            if (res.statusCode === 200 && data.success) {
+              resolve(data);
+            } else {
+              reject(new Error(data.error || `Reserve failed (HTTP ${res.statusCode})`));
+            }
+          } catch {
+            reject(new Error('Invalid server response'));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(10000, () => { req.destroy(); reject(new Error('Reserve request timed out')); });
+      req.write(payload);
+      req.end();
+    });
+
+    console.log(`[SHARE] Reserved code: ${result.code} → ${result.url}`);
+    return result;
+  } catch (err) {
+    console.error('[SHARE] Reserve error:', err.message);
+    throw err;
+  }
+});
+
+ipcMain.handle('share:upload', async (event, filePath, options) => {
+  const reserveCode = options?.reserveCode;
+  const expirationHours = options?.expirationHours;
+  console.log('[SHARE] Starting clip upload:', filePath, reserveCode ? `(reserved: ${reserveCode})` : '');
 
   try {
     if (!fs.existsSync(filePath)) {
@@ -1564,19 +1620,31 @@ ipcMain.handle('share:upload', async (event, filePath) => {
     const boundary = `----SentrySixUpload${Date.now()}${Math.random().toString(36).slice(2)}`;
     const fileName = path.basename(filePath);
 
-    // Form data: deleteToken field + video file
-    const deleteTokenPart = Buffer.from(
-      `--${boundary}\r\n` +
+    // Form data fields: deleteToken + optional reserveCode + optional expirationHours + video file
+    let formFieldsPart = `--${boundary}\r\n` +
       `Content-Disposition: form-data; name="deleteToken"\r\n\r\n` +
-      `${deleteToken}\r\n`
-    );
+      `${deleteToken}\r\n`;
+
+    if (reserveCode) {
+      formFieldsPart += `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="reserveCode"\r\n\r\n` +
+        `${reserveCode}\r\n`;
+    }
+
+    if (expirationHours) {
+      formFieldsPart += `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="expirationHours"\r\n\r\n` +
+        `${expirationHours}\r\n`;
+    }
+
+    const formFieldsBuffer = Buffer.from(formFieldsPart);
     const filePart = Buffer.from(
       `--${boundary}\r\n` +
       `Content-Disposition: form-data; name="video"; filename="${fileName}"\r\n` +
       `Content-Type: video/mp4\r\n\r\n`
     );
     const footerPart = Buffer.from(`\r\n--${boundary}--\r\n`);
-    const contentLength = deleteTokenPart.length + filePart.length + totalBytes + footerPart.length;
+    const contentLength = formFieldsBuffer.length + filePart.length + totalBytes + footerPart.length;
 
     return new Promise((resolve, reject) => {
       const urlObj = new URL(CLIP_UPLOAD_URL);
@@ -1644,8 +1712,8 @@ ipcMain.handle('share:upload', async (event, filePath) => {
         reject(err);
       });
 
-      // Write deleteToken field first, then file header
-      req.write(deleteTokenPart);
+      // Write form fields first, then file header
+      req.write(formFieldsBuffer);
       req.write(filePart);
 
       // Stream file with progress tracking

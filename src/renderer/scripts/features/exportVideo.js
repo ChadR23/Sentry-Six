@@ -33,7 +33,7 @@ export const exportState = {
 };
 
 // Cached share config (expiration hours from server)
-let _shareExpirationHours = 48; // default fallback
+let _shareExpirationHours = 72; // default fallback
 
 async function fetchShareConfig() {
     try {
@@ -45,14 +45,39 @@ async function fetchShareConfig() {
     updateShareExpirationDisplay();
 }
 
+function getSelectedExpirationHours() {
+    const select = $('shareClipDuration');
+    return select ? parseFloat(select.value) : _shareExpirationHours;
+}
+
+function formatTimeLeft(ms) {
+    if (ms <= 0) return 'Expired';
+    const totalMin = Math.max(1, Math.ceil(ms / (1000 * 60)));
+    if (totalMin < 60) return `${totalMin}m left`;
+    const hours = Math.ceil(ms / (1000 * 60 * 60));
+    if (hours < 24) return `${hours}h left`;
+    const days = Math.round(hours / 24);
+    return `${days}d left`;
+}
+
+function formatDuration(hours) {
+    if (hours < 1) return `${Math.round(hours * 60)} minutes`;
+    if (hours === 1) return '1 hour';
+    if (hours < 24) return `${hours} hours`;
+    if (hours === 24) return '1 day';
+    if (hours === 168) return '7 days';
+    return `${hours} hours`;
+}
+
 function updateShareExpirationDisplay() {
+    const hours = getSelectedExpirationHours();
     const infoText = $('shareClipInfoText');
     if (infoText) {
-        infoText.innerHTML = t('ui.export.shareClipInfo', { hours: _shareExpirationHours });
+        infoText.innerHTML = t('ui.export.shareClipInfo', { hours: formatDuration(hours) });
     }
     const expiryText = $('shareLinkExpiryText');
     if (expiryText) {
-        expiryText.textContent = t('ui.export.shareLinkExpiry', { hours: _shareExpirationHours });
+        expiryText.textContent = t('ui.export.shareLinkExpiry', { hours: formatDuration(hours) });
     }
 }
 
@@ -2189,6 +2214,8 @@ function initShareClipToggle() {
     const shareToggleRow = $('shareClipToggleRow');
     const shareWarning = $('shareClipWarning');
     const shareInfo = $('shareClipInfo');
+    const durationRow = $('shareClipDurationRow');
+    const durationSelect = $('shareClipDuration');
 
     if (!shareToggle) return;
 
@@ -2197,7 +2224,7 @@ function initShareClipToggle() {
     const startPct = exportState.startMarkerPct ?? 0;
     const endPct = exportState.endMarkerPct ?? 100;
     const rawDurationSec = Math.abs((endPct - startPct) / 100 * totalSec);
-    const maxDurationSec = 5 * 60; // 5 minutes
+    const maxDurationSec = 10 * 60; // 10 minutes
 
     // If timelapse is enabled, use effective output duration (raw / speed)
     const timelapseEnabled = $('enableTimelapse')?.checked ?? false;
@@ -2211,21 +2238,32 @@ function initShareClipToggle() {
         if (shareToggleRow) shareToggleRow.classList.add('disabled');
         if (shareWarning) shareWarning.classList.remove('hidden');
         if (shareInfo) shareInfo.classList.add('hidden');
+        if (durationRow) durationRow.style.display = 'none';
     } else {
         shareToggle.disabled = false;
         if (shareToggleRow) shareToggleRow.classList.remove('disabled');
         if (shareWarning) shareWarning.classList.add('hidden');
-        if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
+        const isChecked = shareToggle.checked;
+        if (shareInfo) shareInfo.classList.toggle('hidden', !isChecked);
+        if (durationRow) durationRow.style.display = isChecked ? '' : 'none';
     }
 
     // Apply max quality restriction based on current toggle state
     updateMaxQualityForSharing(shareToggle.checked);
 
-    // Update toggle state when duration changes
+    // Update toggle state when share is toggled
     shareToggle.onchange = () => {
-        if (shareInfo) shareInfo.classList.toggle('hidden', !shareToggle.checked);
-        updateMaxQualityForSharing(shareToggle.checked);
+        const checked = shareToggle.checked;
+        if (shareInfo) shareInfo.classList.toggle('hidden', !checked);
+        if (durationRow) durationRow.style.display = checked ? '' : 'none';
+        updateMaxQualityForSharing(checked);
+        updateShareExpirationDisplay();
     };
+
+    // Update info text when duration changes
+    if (durationSelect) {
+        durationSelect.onchange = () => updateShareExpirationDisplay();
+    }
 }
 
 /**
@@ -2313,10 +2351,20 @@ function showExportCompletePanel(outputPath, message) {
     // by rendering at max quality with share toggle off, then sharing post-export)
     const wasMaxQuality = exportState.lastExportQuality === 'max';
 
-    // If share was pre-selected, hide the share button (it auto-starts)
-    // If not pre-selected, show it as an option (unless max quality was used)
+    // Show share button unless max quality was used
+    // If share was pre-selected, label it "Confirm & Upload" so user can preview first
     if (shareBtn) {
-        shareBtn.classList.toggle('hidden', wasShareSelected || wasMaxQuality);
+        shareBtn.disabled = false; // Reset from any previous export/upload
+        shareBtn.style.opacity = '';
+        shareBtn.style.cursor = '';
+        shareBtn.classList.remove('hidden');
+        shareBtn.classList.toggle('hidden', wasMaxQuality);
+        // Update button label — find the text node after the SVG
+        const textNodes = [...shareBtn.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim());
+        const label = wasShareSelected && !wasMaxQuality ? 'Confirm & Upload' : 'Share Clip';
+        if (textNodes.length > 0) {
+            textNodes[textNodes.length - 1].textContent = `\n                        ${label}\n                    `;
+        }
     }
 
     // Wire up button handlers
@@ -2365,10 +2413,8 @@ function showExportCompletePanel(outputPath, message) {
         };
     }
 
-    // Auto-start upload if share was pre-selected
-    if (wasShareSelected) {
-        uploadShareClip(outputPath);
-    }
+    // Share was pre-selected — user can preview the clip, then click "Confirm & Upload"
+    // (no auto-upload; the shareBtn click handler above handles it)
 }
 
 /**
@@ -2390,6 +2436,7 @@ async function uploadShareClip(filePath) {
     const shareError = $('shareError');
     const shareErrorText = $('shareErrorText');
     const shareBtn = $('exportShareBtn');
+    const expirationHours = getSelectedExpirationHours();
 
     // Disable Done button during upload
     const doneBtn = $('exportDoneBtn');
@@ -2404,7 +2451,23 @@ async function uploadShareClip(filePath) {
     if (shareLinkResult) shareLinkResult.classList.add('hidden');
     if (shareError) shareError.classList.add('hidden');
     if (shareUploadProgressBar) shareUploadProgressBar.style.width = '0%';
-    if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Studio...';
+    if (shareUploadProgressText) shareUploadProgressText.textContent = 'Reserving share link...';
+
+    // Reserve a share code first so we can show the link immediately
+    let reserveCode = null;
+    try {
+        const reservation = await window.electronAPI?.reserveShareCode?.(expirationHours);
+        if (reservation?.code && reservation?.url) {
+            reserveCode = reservation.code;
+            // Show the link immediately while upload continues
+            if (shareLinkResult) shareLinkResult.classList.remove('hidden');
+            if (shareLinkInput) shareLinkInput.value = reservation.url;
+            if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Studio...';
+        }
+    } catch (err) {
+        console.warn('[SHARE] Reserve failed, falling back to direct upload:', err.message);
+        if (shareUploadProgressText) shareUploadProgressText.textContent = 'Uploading to Sentry Studio...';
+    }
 
     // Listen for progress updates
     const progressHandler = (progress) => {
@@ -2416,7 +2479,7 @@ async function uploadShareClip(filePath) {
                 shareUploadProgressText.textContent = `Uploading... ${uploadedMB} / ${totalMB} MB (${progress.percentage}%)`;
             }
         } else if (progress.type === 'complete') {
-            // Upload succeeded - show link
+            // Upload succeeded - show link (update if not already shown from reservation)
             if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
             if (shareLinkResult) shareLinkResult.classList.remove('hidden');
             if (shareLinkInput) shareLinkInput.value = progress.url;
@@ -2437,6 +2500,8 @@ async function uploadShareClip(filePath) {
             if (shareUploadProgress) shareUploadProgress.classList.add('hidden');
             if (shareError) shareError.classList.remove('hidden');
             if (shareErrorText) shareErrorText.textContent = `Upload failed: ${progress.error}`;
+            // Hide the pre-shown link on error
+            if (shareLinkResult) shareLinkResult.classList.add('hidden');
 
             // Re-enable Done button
             if (doneBtn) {
@@ -2461,7 +2526,10 @@ async function uploadShareClip(filePath) {
     }
 
     try {
-        await window.electronAPI.uploadShareClip(filePath);
+        await window.electronAPI.uploadShareClip(filePath, {
+            reserveCode,
+            expirationHours
+        });
     } catch (err) {
         console.error('[SHARE] Upload failed:', err);
         // Error is handled by the progress handler
@@ -2527,10 +2595,9 @@ export async function renderSharedClipsList() {
         const expiresAt = new Date(clip.expiresAt).getTime();
         const isExpired = expiresAt <= now;
         const remainingMs = expiresAt - now;
-        const remainingHours = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60)));
         const sizeMB = clip.fileSize ? (clip.fileSize / 1048576).toFixed(1) : '?';
         const statusClass = isExpired ? 'expired' : 'active';
-        const statusText = isExpired ? 'Expired' : `${remainingHours}h left`;
+        const statusText = isExpired ? 'Expired' : formatTimeLeft(remainingMs);
         const displayName = clip.fileName || clip.code;
 
         return `
@@ -2572,7 +2639,7 @@ export async function renderSharedClipsList() {
             // Populate detail panel
             const expiresAt = new Date(clip.expiresAt).getTime();
             const isExpired = expiresAt <= now;
-            const remainingHours = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60)));
+            const remainingMs = expiresAt - now;
             const sizeMB = clip.fileSize ? (clip.fileSize / 1048576).toFixed(1) : '?';
 
             const nameEl = document.getElementById('sharedClipDetailName');
@@ -2586,7 +2653,7 @@ export async function renderSharedClipsList() {
             if (nameEl) nameEl.textContent = clip.fileName || clip.code;
             if (sizeEl) sizeEl.textContent = `${sizeMB} MB`;
             if (statusEl) {
-                statusEl.textContent = isExpired ? 'Expired' : `${remainingHours}h left`;
+                statusEl.textContent = isExpired ? 'Expired' : formatTimeLeft(remainingMs);
                 statusEl.className = `shared-clip-status ${isExpired ? 'expired' : 'active'}`;
             }
 

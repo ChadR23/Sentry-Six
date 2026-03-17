@@ -1,6 +1,57 @@
 {
   "versions": [
     {
+      "version": "2026.12.10",
+      "date": "2026-03-17",
+      "title": "Drives Accuracy, Sharing & UI Improvements",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed FSD percentage, disengagement, and accelerator push calculations to match Sentry USB accuracy."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed event camera appearing as a secondary view when focusing a different camera tile."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed preview thumbnails getting stuck on screen after hovering events."
+        },
+        {
+          "type": "improvement",
+          "description": "Tesla Mobile dashboard polish: removed double steering wheel ring, bigger gear indicator, gray accel pedal fill."
+        },
+        {
+          "type": "improvement",
+          "description": "Minimap now uses heading-up mode during drive playback with a compass toggle to switch between heading-up and north-up."
+        },
+        {
+          "type": "feature",
+          "description": "Share link now appears immediately while your clip is still uploading."
+        },
+        {
+          "type": "feature",
+          "description": "Choose how long your shared clip stays available — from 30 minutes to 7 days."
+        },
+        {
+          "type": "feature",
+          "description": "Mouse back/forward/middle buttons can now be bound as keyboard shortcuts."
+        },
+        {
+          "type": "improvement",
+          "description": "Clip sharing time limit increased from 5 minutes to 10 minutes."
+        },
+        {
+          "type": "improvement",
+          "description": "Pre-selected share now shows a clip preview before uploading — confirm with 'Confirm & Upload' instead of auto-uploading."
+        },
+        {
+          "type": "fix",
+          "description": "Fixed My Shared Clips modal cutting off content when selecting a clip."
+        }
+      ]
+    },
+    {
       "version": "2026.12.7",
       "date": "2026-03-16",
       "title": "Major Updates  & Feature Release",

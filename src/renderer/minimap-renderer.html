@@ -34,6 +34,8 @@
             width: 100%;
             height: 100%;
             border-radius: 12px;
+            transform-origin: center center;
+            will-change: transform;
         }
         .leaflet-container {
             background: #e0e0e0 !important;
@@ -79,6 +81,9 @@
         let smoothedHeading = null;
         const POSITION_SMOOTHING = 0.3;
         const HEADING_SMOOTHING = 0.25;
+
+        // Heading-up mode: map rotates, arrow always points up
+        let currentMapBearing = 0;
         
         // Interpolation data
         let gpsData = [];
@@ -291,37 +296,51 @@
         
         function updateMarker(lat, lon, heading) {
             if (!map) initMap();
-            
+
             smoothedLat = applySmoothing(lat, smoothedLat, POSITION_SMOOTHING);
             smoothedLon = applySmoothing(lon, smoothedLon, POSITION_SMOOTHING);
             smoothedHeading = applySmoothingAngle(heading || 0, smoothedHeading, HEADING_SMOOTHING);
-            
+
             const latlng = L.latLng(smoothedLat, smoothedLon);
             const halfArrow = Math.round(arrowSize / 2);
-            
+
+            // Heading-up mode: smooth the bearing transition
+            const targetHeading = ((smoothedHeading % 360) + 360) % 360;
+            let bearingDelta = targetHeading - (currentMapBearing % 360);
+            if (bearingDelta > 180) bearingDelta -= 360;
+            if (bearingDelta < -180) bearingDelta += 360;
+            currentMapBearing += bearingDelta;
+
+            // Rotate the map so heading is always "up"
+            const minimapEl = document.getElementById('minimap');
+            if (minimapEl) {
+                minimapEl.style.transition = 'transform 0.15s ease-out';
+                minimapEl.style.transform = 'rotate(' + (-currentMapBearing) + 'deg) scale(1.42)';
+                minimapEl.style.transformOrigin = 'center center';
+            }
+
             if (!mapMarker) {
+                // Counter-rotate arrow by +bearing to cancel the map's -bearing rotation
                 const arrowIcon = L.divIcon({
                     className: 'arrow-marker-icon',
-                    html: '<img src="../../assets/arrow.png" style="width: ' + arrowSize + 'px; height: ' + arrowSize + 'px; transform: rotate(' + smoothedHeading + 'deg); transform-origin: center center; display: block;" />',
+                    html: '<img src="../../assets/arrow.png" style="width: ' + arrowSize + 'px; height: ' + arrowSize + 'px; transform: rotate(' + currentMapBearing + 'deg); transform-origin: center center; display: block;" />',
                     iconSize: [arrowSize, arrowSize],
                     iconAnchor: [halfArrow, halfArrow]
                 });
-                
+
                 mapMarker = L.marker(latlng, { icon: arrowIcon }).addTo(map);
             } else {
                 mapMarker.setLatLng(latlng);
-                
-                const iconElement = mapMarker._icon;
-                if (iconElement) {
-                    const imgElement = iconElement.querySelector('img');
-                    if (imgElement) {
-                        imgElement.style.width = arrowSize + 'px';
-                        imgElement.style.height = arrowSize + 'px';
-                        imgElement.style.transform = 'rotate(' + smoothedHeading + 'deg)';
+                // Update arrow counter-rotation
+                var iconEl = mapMarker._icon;
+                if (iconEl) {
+                    var img = iconEl.querySelector('img');
+                    if (img) {
+                        img.style.transform = 'rotate(' + currentMapBearing + 'deg)';
                     }
                 }
             }
-            
+
             map.setView(latlng, mapZoom, { animate: false });
         }
         

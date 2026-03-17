@@ -1470,7 +1470,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Gear State Compact */
 .gear-state-compact {
-    font-size: clamp(11px, 1.2em, 18px);
+    font-size: clamp(14px, 1.6em, 22px);
     font-weight: 600;
     color: #fff;
     letter-spacing: 0.5px;
@@ -1643,7 +1643,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    filter: brightness(0) invert(100%) brightness(85%);
     clip-path: inset(100% 0 0 0);
     transition: clip-path 0.1s ease-out;
 }
@@ -1665,7 +1665,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .accel-pedal-container-compact.mode-solid.active .accel-icon-compact {
-    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    filter: brightness(0) invert(100%) brightness(85%);
     opacity: 1;
 }
 
@@ -1690,7 +1690,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .accel-pedal-container-compact.mode-sidebar.active .accel-icon-compact {
-    filter: brightness(0) saturate(100%) invert(40%) sepia(100%) saturate(1500%) hue-rotate(190deg) brightness(100%);
+    filter: brightness(0) invert(100%) brightness(85%);
     opacity: 1;
 }
 
@@ -1700,8 +1700,8 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: clamp(18px, 2.5em, 28px);
     background-image: none;
     background: linear-gradient(to top,
-            rgba(62, 156, 191, 1) 0%,
-            rgba(62, 156, 191, 0.8) 100%);
+            rgba(200, 200, 200, 1) 0%,
+            rgba(200, 200, 200, 0.8) 100%);
     filter: none;
     clip-path: inset(100% 0 0 0);
     border-radius: 2px;
@@ -1717,6 +1717,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 260px;
     display: none;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .map-vis.visible {
@@ -1768,6 +1769,46 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .map-recenter-btn:active {
+    transform: scale(0.95);
+}
+
+/* Map orientation toggle (compass) */
+.map-orientation-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 48px;
+    width: 32px;
+    height: 32px;
+    background: rgba(30, 30, 35, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+    z-index: 1000;
+    pointer-events: auto;
+    padding: 0;
+}
+
+.map-orientation-btn svg {
+    transition: transform 0.3s ease-out;
+}
+
+.map-vis:hover .map-orientation-btn {
+    opacity: 1;
+}
+
+.map-orientation-btn:hover {
+    background: rgba(50, 50, 60, 0.95);
+    color: rgba(255, 255, 255, 1);
+    border-color: var(--text-faint);
+}
+
+.map-orientation-btn:active {
     transform: scale(0.95);
 }
 
@@ -2178,8 +2219,8 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     height: 18px;
     background-image: none;
     background: linear-gradient(to top,
-            rgba(62, 156, 191, 1) 0%,
-            rgba(62, 156, 191, 0.8) 100%);
+            rgba(200, 200, 200, 1) 0%,
+            rgba(200, 200, 200, 0.8) 100%);
     filter: none;
     clip-path: inset(100% 0 0 0);
     border-radius: 2px;
@@ -2980,6 +3021,16 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
             0 0 75px rgba(244, 67, 54, 0.4);
         border-color: rgba(255, 100, 100, 1);
     }
+}
+
+/* Suppress event camera highlight when a tile is focused (prevents trigger camera
+   from appearing as a secondary overlay on top of the focused/expanded tile) */
+.multi-cam-grid.focused .multi-tile.event-camera-highlight-sentry,
+.multi-cam-grid.focused .multi-tile.event-camera-highlight-saved {
+    z-index: auto;
+    animation: none;
+    border: none;
+    box-shadow: none;
 }
 
 /* Playback Controls Group */
@@ -4501,8 +4552,8 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .shared-clips-modal .modal-body {
-    max-height: 55vh;
-    overflow: hidden;
+    max-height: 75vh;
+    overflow-y: auto;
     padding: 0;
 }
 
@@ -7908,6 +7959,17 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 [data-theme="light"] .map-recenter-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: var(--accent-color);
+}
+
+[data-theme="light"] .map-orientation-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="light"] .map-orientation-btn:hover {
     background: rgba(255, 255, 255, 1);
     color: var(--accent-color);
 }
