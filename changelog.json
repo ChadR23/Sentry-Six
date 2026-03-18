@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.12.11",
+      "date": "2026-03-18",
+      "title": "Static Map & Export Polish",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed GPS track alignment for Static Maps. Track and arrow are now properly aligned with road."
+        },
+        {
+          "type": "improvement",
+          "description": "Adjusted appearance and smoothness of route and arrow for Static Maps."
+        },
+        {
+          "type": "improvement",
+          "description": "Enlarged autosteer icon for the Tesla Mobile export UI to match accelerator and brake icons."
+        },
+        {
+          "type": "improvement",
+          "description": "Made minimap export settings persistent."
+        }
+      ]
+    },
+    {
       "version": "2026.12.10",
       "date": "2026-03-17",
       "title": "Drives Accuracy, Sharing & UI Improvements",

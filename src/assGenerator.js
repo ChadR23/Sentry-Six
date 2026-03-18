@@ -1221,8 +1221,8 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
   // Line thickness scales with both minimap size and zoom level
   // Higher zoom = more detail visible = thinner line so roads aren't obscured
   const strokeWidth = mapZoom
-    ? Math.max(2, Math.round(mapSize / (40 + (mapZoom - 12) * 8)))
-    : Math.max(3, Math.round(mapSize / 60));
+    ? Math.max(2, Math.round(mapSize / (60 + (mapZoom - 12) * 12)))
+    : Math.max(2, Math.round(mapSize / 80));
 
   // Build path as a series of thin filled rectangles (stroke segments)
   // For each segment, create a quadrilateral perpendicular to the line direction
@@ -1350,55 +1350,57 @@ function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, s
 
     const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction);
     const relativeTimeMs = timestampMs - startTimeMs;
-    // Finer heading rounding (2° instead of 5°) for smoother rotation
-    const roundedHeading = Math.round(heading / 2) * 2;
-
-    waypoints.push({ x: pos.x, y: pos.y, heading: roundedHeading, timeMs: relativeTimeMs });
+    waypoints.push({ x: pos.x, y: pos.y, heading: heading, timeMs: relativeTimeMs });
   }
 
   if (waypoints.length === 0) return '';
 
-  // Deduplicate consecutive waypoints with identical position and heading
-  const deduped = [waypoints[0]];
-  for (let i = 1; i < waypoints.length; i++) {
-    const prev = deduped[deduped.length - 1];
-    const curr = waypoints[i];
-    if (curr.x !== prev.x || curr.y !== prev.y || curr.heading !== prev.heading) {
-      deduped.push(curr);
+  // Smooth raw waypoints with large window to eliminate GPS noise
+  const smoothWindow = 50;
+  const halfWin = Math.floor(smoothWindow / 2);
+  const smoothedAll = waypoints.map((wp, i) => {
+    let sumX = 0, sumY = 0, sinH = 0, cosH = 0, count = 0;
+    for (let j = Math.max(0, i - halfWin); j <= Math.min(waypoints.length - 1, i + halfWin); j++) {
+      sumX += waypoints[j].x;
+      sumY += waypoints[j].y;
+      const hRad = waypoints[j].heading * Math.PI / 180;
+      sinH += Math.sin(hRad);
+      cosH += Math.cos(hRad);
+      count++;
+    }
+    // Circular mean for heading to handle 0°/360° wraparound correctly
+    const avgHeading = Math.atan2(sinH / count, cosH / count) * 180 / Math.PI;
+    const normalizedHeading = ((avgHeading % 360) + 360) % 360;
+    return { x: Math.round(sumX / count), y: Math.round(sumY / count), heading: Math.round(normalizedHeading / 2) * 2, timeMs: wp.timeMs };
+  });
+
+  // Downsample to ~1 keyframe per frame at 36fps (28ms) for smooth arrow movement
+  const keyframeIntervalMs = 28;
+  const smoothed = [smoothedAll[0]];
+  for (let i = 1; i < smoothedAll.length; i++) {
+    if (smoothedAll[i].timeMs - smoothed[smoothed.length - 1].timeMs >= keyframeIntervalMs) {
+      smoothed.push(smoothedAll[i]);
     }
   }
+  // Always include the last point
+  if (smoothed[smoothed.length - 1] !== smoothedAll[smoothedAll.length - 1]) {
+    smoothed.push(smoothedAll[smoothedAll.length - 1]);
+  }
 
-  // Emit events with \move() for smooth position interpolation between waypoints
-  // Uses \an7\pos(0,0) + bbox anchors + absolute arrow coordinates (proven alignment approach)
-  // \move(0,0, dx,dy) shifts the entire coordinate system smoothly from current to next position
-  for (let i = 0; i < deduped.length; i++) {
-    const wp = deduped[i];
-    const nextWp = i < deduped.length - 1 ? deduped[i + 1] : null;
+  // Emit static keyframe events — no \move() since it's incompatible with \frz rotation
+  // 28ms intervals (~1 frame at 36fps) keep the arrow position current every frame
+  for (let i = 0; i < smoothed.length; i++) {
+    const wp = smoothed[i];
+    const nextWp = i < smoothed.length - 1 ? smoothed[i + 1] : null;
 
     const startTime = formatAssTime(Math.max(0, wp.timeMs));
     const endTime = nextWp
       ? formatAssTime(Math.max(0, nextWp.timeMs))
       : formatAssTime(Math.max(0, endTimeMs - startTimeMs));
 
-    // Arrow drawn at absolute position (wp.x, wp.y)
     const arrowPath = generateArrowPath(markerScale, wp.x, wp.y);
 
-    // For smooth movement: \move(0,0, dx,dy) shifts the coordinate system
-    // so the arrow glides from (wp.x,wp.y) to (nextWp.x,nextWp.y)
-    // \org at destination for correct rotation center with destination heading
-    const heading = nextWp ? nextWp.heading : wp.heading;
-    let posTag, orgTag;
-    if (nextWp) {
-      const dx = nextWp.x - wp.x;
-      const dy = nextWp.y - wp.y;
-      posTag = `\\move(0,0,${dx},${dy})`;
-      orgTag = `\\org(${nextWp.x},${nextWp.y})`;
-    } else {
-      posTag = `\\pos(0,0)`;
-      orgTag = `\\org(${wp.x},${wp.y})`;
-    }
-
-    events.push(`Dialogue: 2,${startTime},${endTime},MinimapMarker,,0,0,0,,{\\an7${posTag}${orgTag}\\frz${-heading}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${arrowPath}{\\p0}`);
+    events.push(`Dialogue: 2,${startTime},${endTime},MinimapMarker,,0,0,0,,{\\an7\\pos(0,0)\\org(${wp.x},${wp.y})\\frz${-wp.heading}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${arrowPath}{\\p0}`);
   }
 
   return events.join('\n');
@@ -2237,7 +2239,7 @@ function generateTeslaMobileDashboardEvents(seiData, startTimeMs, endTimeMs, opt
         // Circle diameter is the visual reference height for ALL elements
         const circleDiam = circleR * 2;
         const pedalScale = circleR / 450 * 0.50;    // Pedal icons fit inside circle
-        const steerScale = circleR / 446.5 * 0.70;  // Steering wheel fits inside circle
+        const steerScale = circleR / 446.5;  // Steering wheel matches other circle sizes
         // All center elements same visual height as circle diameter (matching Tesla mobile)
         const arrowScale = circleDiam / 100 * 0.45;          // Blinker arrows
         const speedNumSize = Math.round(circleDiam * 0.95);  // Speed number - same height as arrows
