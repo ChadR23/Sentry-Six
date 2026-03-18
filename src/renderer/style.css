@@ -3399,6 +3399,23 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
+    background: rgba(244, 67, 54, 0.25);
+    color: #f44336;
+    border: 1px solid rgba(244, 67, 54, 0.4);
+    border-radius: 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+    width: fit-content;
+    line-height: 1.2;
+}
+
+.beta-tag {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
     background: rgba(255, 152, 0, 0.25);
     color: #ff9800;
     border: 1px solid rgba(255, 152, 0, 0.4);
