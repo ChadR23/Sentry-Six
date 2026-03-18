@@ -1152,6 +1152,51 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
  * @param {number} durationMs - Total duration in ms
  * @returns {string} ASS dialogue lines for route path segments
  */
+
+// Catmull-Rom spline interpolation for smooth curves between points
+// Ported from minimap-renderer.html Leaflet smoothing
+function catmullRom(p0, p1, p2, p3, t) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
+}
+
+/**
+ * Smooth a path of {x, y} points using Catmull-Rom spline interpolation
+ * @param {Array<{x: number, y: number}>} points - Pixel-space points
+ * @param {number} subdivisions - Intermediate points per segment (default 4)
+ * @returns {Array<{x: number, y: number}>} Smoothed points
+ */
+function smoothPixelPath(points, subdivisions = 4) {
+  if (points.length < 3) return points;
+
+  const result = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(i + 2, points.length - 1)];
+
+    for (let s = 0; s < subdivisions; s++) {
+      const t = s / subdivisions;
+      result.push({
+        x: catmullRom(p0.x, p1.x, p2.x, p3.x, t),
+        y: catmullRom(p0.y, p1.y, p2.y, p3.y, t)
+      });
+    }
+  }
+
+  // Add the final point
+  result.push(points[points.length - 1]);
+  return result;
+}
+
 function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs, marginFraction = 0.1) {
   if (!gpsPath || gpsPath.length < 2) return '';
 
@@ -1161,12 +1206,16 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
   // Convert all GPS points to pixel coordinates
   const points = gpsPath.map(([lat, lon]) => gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction));
 
-  // Downsample points to reduce complexity (keep every Nth point)
-  const maxPoints = 200;
-  let sampledPoints = points;
-  if (points.length > maxPoints) {
-    const step = Math.ceil(points.length / maxPoints);
-    sampledPoints = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  // Apply Catmull-Rom spline smoothing in pixel space for smooth curves at turns
+  // (same algorithm as the Leaflet renderer in minimap-renderer.html)
+  const smoothedPoints = smoothPixelPath(points, 4);
+
+  // Downsample smoothed points to reduce ASS path complexity
+  const maxPoints = 500;
+  let sampledPoints = smoothedPoints;
+  if (smoothedPoints.length > maxPoints) {
+    const step = Math.ceil(smoothedPoints.length / maxPoints);
+    sampledPoints = smoothedPoints.filter((_, i) => i % step === 0 || i === smoothedPoints.length - 1);
   }
 
   // Line thickness based on map size - thicker for better visibility like live map
@@ -1208,12 +1257,7 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     pathStr += `m ${x1} ${y1} l ${x2} ${y2} l ${x3} ${y3} l ${x4} ${y4} `;
   }
 
-  // Add circles at start and end points for rounded caps
-  const capRadius = strokeWidth * 1.2;
-  const startPt = sampledPoints[0];
-  const endPt = sampledPoints[sampledPoints.length - 1];
-
-  // Simple circle approximation using bezier curves
+  // Circle approximation using bezier curves for round joints and caps
   const circleAt = (cx, cy, r) => {
     const k = 0.552284749831; // Bezier circle constant
     return `m ${cx} ${cy - r} ` +
@@ -1222,6 +1266,17 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
       `b ${cx - r * k} ${cy + r} ${cx - r} ${cy + r * k} ${cx - r} ${cy} ` +
       `b ${cx - r} ${cy - r * k} ${cx - r * k} ${cy - r} ${cx} ${cy - r} `;
   };
+
+  // Add round joints at every point to fill gaps between angled segments
+  const jointRadius = strokeWidth / 2;
+  for (let i = 0; i < sampledPoints.length; i++) {
+    pathStr += circleAt(Math.round(sampledPoints[i].x), Math.round(sampledPoints[i].y), jointRadius);
+  }
+
+  // Add slightly larger circles at start and end points for rounded caps
+  const capRadius = strokeWidth * 1.2;
+  const startPt = sampledPoints[0];
+  const endPt = sampledPoints[sampledPoints.length - 1];
 
   pathStr += circleAt(startPt.x, startPt.y, capRadius);
   pathStr += circleAt(endPt.x, endPt.y, capRadius);
