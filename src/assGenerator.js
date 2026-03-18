@@ -953,6 +953,17 @@ function calculateGpsBounds(gpsPath, padding = 0.15) {
 }
 
 /**
+ * Convert latitude to Mercator Y coordinate
+ * Required to match the Web Mercator projection used by OSM map tiles
+ * @param {number} lat - Latitude in degrees
+ * @returns {number} Mercator Y value
+ */
+function latToMercatorY(lat) {
+  const latRad = lat * Math.PI / 180;
+  return Math.log(Math.tan(latRad) + 1 / Math.cos(latRad));
+}
+
+/**
  * Convert GPS coordinate to pixel position within minimap
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
@@ -960,17 +971,25 @@ function calculateGpsBounds(gpsPath, padding = 0.15) {
  * @param {number} mapSize - Minimap size in pixels (square)
  * @param {number} mapX - Minimap X offset in video
  * @param {number} mapY - Minimap Y offset in video
+ * @param {number} marginFraction - Margin fraction (0 for map tile mode, 0.1 for dark bg mode)
  * @returns {{x: number, y: number}}
  */
-function gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY) {
+function gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction = 0.1) {
   const { minLat, maxLat, minLon, maxLon } = bounds;
 
   // Normalize to 0-1 range
+  // Longitude is linear in Mercator projection
   const normalX = (lon - minLon) / (maxLon - minLon || 1);
-  const normalY = 1 - (lat - minLat) / (maxLat - minLat || 1); // Flip Y (lat increases north)
+  // Latitude must use Mercator projection to match OSM map tiles
+  const mercY = latToMercatorY(lat);
+  const mercMinY = latToMercatorY(minLat);
+  const mercMaxY = latToMercatorY(maxLat);
+  const normalY = 1 - (mercY - mercMinY) / (mercMaxY - mercMinY || 1); // Flip Y (lat increases north)
 
-  // Apply margin inside the minimap (10% on each side)
-  const margin = mapSize * 0.1;
+  // Apply margin inside the minimap
+  // When using map tile background (marginFraction=0), no margin needed since
+  // tile bounds already provide natural padding around the GPS track
+  const margin = mapSize * marginFraction;
   const usableSize = mapSize - margin * 2;
 
   return {
@@ -1133,14 +1152,14 @@ function generateMinimapBackground(mapX, mapY, mapSize, durationMs) {
  * @param {number} durationMs - Total duration in ms
  * @returns {string} ASS dialogue lines for route path segments
  */
-function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs) {
+function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs, marginFraction = 0.1) {
   if (!gpsPath || gpsPath.length < 2) return '';
 
   const startTime = formatAssTime(0);
   const endTime = formatAssTime(durationMs);
 
   // Convert all GPS points to pixel coordinates
-  const points = gpsPath.map(([lat, lon]) => gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY));
+  const points = gpsPath.map(([lat, lon]) => gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction));
 
   // Downsample points to reduce complexity (keep every Nth point)
   const maxPoints = 200;
@@ -1155,7 +1174,10 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
 
   // Build path as a series of thin filled rectangles (stroke segments)
   // For each segment, create a quadrilateral perpendicular to the line direction
-  let pathStr = '';
+  // Start with anchor points at (0,0) and (mapX+mapSize, mapY+mapSize) to fix bounding box.
+  // ASS \an7\pos(0,0) positions the bounding box top-left at (0,0), so without anchors
+  // the drawing shifts by (-min_x, -min_y) of the path coordinates, misaligning with the map.
+  let pathStr = `m ${mapX} ${mapY} m ${mapX + mapSize} ${mapY + mapSize} `;
 
   for (let i = 0; i < sampledPoints.length - 1; i++) {
     const p1 = sampledPoints[i];
@@ -1213,31 +1235,31 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
  * Creates a navigation arrow pointing up, centered at (0,0)
  * Based on new arrow icon design - modern navigation style
  * @param {number} scale - Scale factor
+ * @param {number} cx - Center X position in absolute pixel coordinates (default 0)
+ * @param {number} cy - Center Y position in absolute pixel coordinates (default 0)
  * @returns {string} ASS drawing path for arrow
  */
-function generateArrowPath(scale = 1) {
-  // New navigation arrow icon - centered at (0,0)
-  // Original was centered at ~(257, 231), height ~302 units
-  // Normalized to center (0,0) and scaled down for minimap use
-  // Base size is ~302 units tall, we scale to fit
-  const baseScale = scale / 15; // Scale factor to make it appropriate size for minimap
+function generateArrowPath(scale = 1, cx = 0, cy = 0) {
+  // Navigation arrow icon - drawn at absolute position (cx, cy)
+  // When cx/cy are provided, the arrow is positioned at those absolute pixel
+  // coordinates, matching the route path's absolute coordinate strategy.
+  const baseScale = scale / 15;
   const s = baseScale;
 
-  // Arrow path centered at (0,0) - pointing up
   // Right half of arrow
-  const path = `m ${(0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
-    `b ${(15.24 * s).toFixed(2)} ${(159 * s).toFixed(2)} ${(29.98 * s).toFixed(2)} ${(167 * s).toFixed(2)} ${(44.72 * s).toFixed(2)} ${(175.08 * s).toFixed(2)} ` +
-    `${(108.97 * s).toFixed(2)} ${(210.28 * s).toFixed(2)} ${(156.82 * s).toFixed(2)} ${(193.32 * s).toFixed(2)} ${(132.86 * s).toFixed(2)} ${(129.62 * s).toFixed(2)} ` +
-    `${(106.86 * s).toFixed(2)} ${(69.24 * s).toFixed(2)} ${(24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ${(24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ` +
-    `${(16.03 * s).toFixed(2)} ${(-142.33 * s).toFixed(2)} ${(8.22 * s).toFixed(2)} ${(-150.11 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ` +
-    `${(0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(50.57 * s).toFixed(2)} ${(0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
+  const path = `m ${(0.5 * s + cx).toFixed(2)} ${(151 * s + cy).toFixed(2)} ` +
+    `b ${(15.24 * s + cx).toFixed(2)} ${(159 * s + cy).toFixed(2)} ${(29.98 * s + cx).toFixed(2)} ${(167 * s + cy).toFixed(2)} ${(44.72 * s + cx).toFixed(2)} ${(175.08 * s + cy).toFixed(2)} ` +
+    `${(108.97 * s + cx).toFixed(2)} ${(210.28 * s + cy).toFixed(2)} ${(156.82 * s + cx).toFixed(2)} ${(193.32 * s + cy).toFixed(2)} ${(132.86 * s + cx).toFixed(2)} ${(129.62 * s + cy).toFixed(2)} ` +
+    `${(106.86 * s + cx).toFixed(2)} ${(69.24 * s + cy).toFixed(2)} ${(24.97 * s + cx).toFixed(2)} ${(-121.96 * s + cy).toFixed(2)} ${(24.97 * s + cx).toFixed(2)} ${(-121.96 * s + cy).toFixed(2)} ` +
+    `${(16.03 * s + cx).toFixed(2)} ${(-142.33 * s + cy).toFixed(2)} ${(8.22 * s + cx).toFixed(2)} ${(-150.11 * s + cy).toFixed(2)} ${(0.5 * s + cx).toFixed(2)} ${(-150.44 * s + cy).toFixed(2)} ` +
+    `${(0.5 * s + cx).toFixed(2)} ${(-150.44 * s + cy).toFixed(2)} ${(0.5 * s + cx).toFixed(2)} ${(50.57 * s + cy).toFixed(2)} ${(0.5 * s + cx).toFixed(2)} ${(151 * s + cy).toFixed(2)} ` +
     // Left half of arrow (mirrored)
-    `m ${(-0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)} ` +
-    `b ${(-15.24 * s).toFixed(2)} ${(159 * s).toFixed(2)} ${(-29.98 * s).toFixed(2)} ${(167 * s).toFixed(2)} ${(-44.72 * s).toFixed(2)} ${(175.08 * s).toFixed(2)} ` +
-    `${(-108.97 * s).toFixed(2)} ${(210.28 * s).toFixed(2)} ${(-156.82 * s).toFixed(2)} ${(193.32 * s).toFixed(2)} ${(-132.86 * s).toFixed(2)} ${(129.62 * s).toFixed(2)} ` +
-    `${(-106.86 * s).toFixed(2)} ${(69.24 * s).toFixed(2)} ${(-24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ${(-24.97 * s).toFixed(2)} ${(-121.96 * s).toFixed(2)} ` +
-    `${(-16.03 * s).toFixed(2)} ${(-142.33 * s).toFixed(2)} ${(-8.22 * s).toFixed(2)} ${(-150.11 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ` +
-    `${(-0.5 * s).toFixed(2)} ${(-150.44 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(50.57 * s).toFixed(2)} ${(-0.5 * s).toFixed(2)} ${(151 * s).toFixed(2)}`;
+    `m ${(-0.5 * s + cx).toFixed(2)} ${(151 * s + cy).toFixed(2)} ` +
+    `b ${(-15.24 * s + cx).toFixed(2)} ${(159 * s + cy).toFixed(2)} ${(-29.98 * s + cx).toFixed(2)} ${(167 * s + cy).toFixed(2)} ${(-44.72 * s + cx).toFixed(2)} ${(175.08 * s + cy).toFixed(2)} ` +
+    `${(-108.97 * s + cx).toFixed(2)} ${(210.28 * s + cy).toFixed(2)} ${(-156.82 * s + cx).toFixed(2)} ${(193.32 * s + cy).toFixed(2)} ${(-132.86 * s + cx).toFixed(2)} ${(129.62 * s + cy).toFixed(2)} ` +
+    `${(-106.86 * s + cx).toFixed(2)} ${(69.24 * s + cy).toFixed(2)} ${(-24.97 * s + cx).toFixed(2)} ${(-121.96 * s + cy).toFixed(2)} ${(-24.97 * s + cx).toFixed(2)} ${(-121.96 * s + cy).toFixed(2)} ` +
+    `${(-16.03 * s + cx).toFixed(2)} ${(-142.33 * s + cy).toFixed(2)} ${(-8.22 * s + cx).toFixed(2)} ${(-150.11 * s + cy).toFixed(2)} ${(-0.5 * s + cx).toFixed(2)} ${(-150.44 * s + cy).toFixed(2)} ` +
+    `${(-0.5 * s + cx).toFixed(2)} ${(-150.44 * s + cy).toFixed(2)} ${(-0.5 * s + cx).toFixed(2)} ${(50.57 * s + cy).toFixed(2)} ${(-0.5 * s + cx).toFixed(2)} ${(151 * s + cy).toFixed(2)}`;
 
   return path;
 }
@@ -1254,12 +1276,17 @@ function generateArrowPath(scale = 1) {
  * @param {number} endTimeMs - End time in ms
  * @returns {string} ASS dialogue lines for position markers
  */
-function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs) {
+function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction = 0.1) {
   if (!seiData || seiData.length === 0) return '';
 
   const events = [];
   // Smaller scale for the arrow marker
   const markerScale = Math.max(0.8, mapSize / 250);
+
+  // Bounding box anchors for \an7\pos(0,0) positioning — same strategy as the route path.
+  // These invisible moveto points force the bounding box to span the full minimap area,
+  // so \an7\pos(0,0) places drawing coordinates at their absolute pixel positions.
+  const bboxAnchors = `m ${mapX} ${mapY} m ${mapX + mapSize} ${mapY + mapSize} `;
 
   // Group consecutive frames with same position to reduce ASS events
   let prevState = null;
@@ -1277,7 +1304,7 @@ function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, s
     if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) continue;
 
     // Convert to pixel position
-    const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY);
+    const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction);
 
     // Round heading to reduce event count (5 degree increments)
     const roundedHeading = Math.round(heading / 5) * 5;
@@ -1295,9 +1322,11 @@ function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, s
         const startAssTime = formatAssTime(Math.max(0, eventStartMs));
         const endAssTime = formatAssTime(Math.max(0, relativeTimeMs));
 
-        // Red arrow with white border, rotated to heading direction
+        // Red arrow at absolute position (px,py) with heading rotation
+        // Uses same \an7\pos(0,0) + bbox anchors strategy as the route path
+        // Arrow coordinates are absolute via generateArrowPath(scale, cx, cy)
         // Color: &H0000FF& = pure red in BGR format
-        events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
+        events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an7\\pos(0,0)\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${generateArrowPath(markerScale, px, py)}{\\p0}`);
       }
 
       prevState = currentState;
@@ -1312,7 +1341,7 @@ function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, s
     const endAssTime = formatAssTime(Math.max(0, endTimeMs - startTimeMs));
 
     // Red arrow with white border
-    events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an5\\pos(${px},${py})\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${generateArrowPath(markerScale)}{\\p0}`);
+    events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an7\\pos(0,0)\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${generateArrowPath(markerScale, px, py)}{\\p0}`);
   }
 
   return events.join('\n');
@@ -1383,16 +1412,20 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
     .filter(coord => coord !== null);
 
   // Use seiGpsPath if available, otherwise fall back to mapPath
-  // IMPORTANT: Recalculate bounds from seiGpsPath to ensure route and markers align
+  // When customBounds are provided (from map tile edges), always use them to ensure
+  // the route aligns with the map background. Only recalculate when no custom bounds.
   const routeGpsPath = seiGpsPath.length > 0 ? seiGpsPath : mapPath;
-  const routeBounds = seiGpsPath.length > 0 ? calculateGpsBounds(seiGpsPath) : bounds;
-  const routePath = generateMinimapRoutePath(routeGpsPath, routeBounds, mapSize, mapX, mapY, durationMs);
+  const routeBounds = customBounds || (seiGpsPath.length > 0 ? calculateGpsBounds(seiGpsPath) : bounds);
+  // When using map tile background (customBounds), use no margin since tile bounds
+  // already provide natural padding and margin would misalign track with roads
+  const marginFraction = customBounds ? 0 : 0.1;
+  const routePath = generateMinimapRoutePath(routeGpsPath, routeBounds, mapSize, mapX, mapY, durationMs, marginFraction);
   if (routePath) {
     assContent += routePath + '\n';
   }
 
-  // Generate position markers - use same bounds as route path for alignment
-  const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs);
+  // Generate position markers - use same bounds and margin as route path for alignment
+  const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction);
   if (markers) {
     assContent += markers + '\n';
   }
