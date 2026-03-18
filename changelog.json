@@ -1,33 +1,6 @@
 {
   "versions": [
     {
-      "version": "2026.12.11",
-      "date": "2026-03-17",
-      "title": "Static Map Accuracy & Polish",
-      "changes": [
-        {
-          "type": "fix",
-          "description": "Fixed GPS track not following roads on the export minimap — corrected Mercator projection and coordinate alignment with map tiles."
-        },
-        {
-          "type": "fix",
-          "description": "Fixed arrow marker positioning to stay aligned with the GPS track on the export minimap."
-        },
-        {
-          "type": "improvement",
-          "description": "Smoothed GPS track line on the export minimap using Catmull-Rom spline interpolation with round joints."
-        },
-        {
-          "type": "improvement",
-          "description": "Minimap export settings now persist between sessions."
-        },
-        {
-          "type": "improvement",
-          "description": "Minimap export has been moved into BETA."
-        }
-      ]
-    },
-    {
       "version": "2026.12.10",
       "date": "2026-03-17",
       "title": "Drives Accuracy, Sharing & UI Improvements",
