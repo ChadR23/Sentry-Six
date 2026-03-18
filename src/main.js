@@ -577,7 +577,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
               exportId,
               mapPath,
               minimapTargetSize,
-              ffmpegPath
+              ffmpegPath,
+              minimapDarkMode
             );
             mapBgPath = mapResult.imagePath;
             mapBounds = mapResult.bounds;

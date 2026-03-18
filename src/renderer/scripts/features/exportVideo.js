@@ -119,6 +119,7 @@ const EXPORT_OVERLAY_SETTINGS = {
     includeMinimap: 'exportIncludeMinimap',
     minimapPosition: 'exportMinimapPosition',
     minimapSize: 'exportMinimapSize',
+    minimapRenderMode: 'exportMinimapRenderMode',
     enableTimelapse: 'exportEnableTimelapse',
     timelapseSpeed: 'exportTimelapseSpeed',
 };
@@ -134,6 +135,7 @@ const EXPORT_OVERLAY_DEFAULTS = {
     includeMinimap: false,
     minimapPosition: 'top-right',
     minimapSize: 'small',
+    minimapRenderMode: 'ass',
     enableTimelapse: false,
     timelapseSpeed: '8'
 };
