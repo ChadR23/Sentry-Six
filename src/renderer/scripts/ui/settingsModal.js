@@ -1039,7 +1039,7 @@ export function initDevSettingsModal() {
     const devResetBadges = $('devResetBadges');
     if (devResetBadges) {
         devResetBadges.onclick = async () => {
-            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview'];
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview', 'featureSeen_minimapStaticMap'];
             for (const key of badgeKeys) {
                 await window.electronAPI?.setSetting?.(key, false);
             }
@@ -1054,7 +1054,7 @@ export function initDevSettingsModal() {
     const devDismissBadges = $('devDismissBadges');
     if (devDismissBadges) {
         devDismissBadges.onclick = async () => {
-            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview'];
+            const badgeKeys = ['featureSeen_detailedStyle', 'featureSeen_shareClip', 'featureSeen_clipNavPreview', 'featureSeen_minimapStaticMap'];
             for (const key of badgeKeys) {
                 await window.electronAPI?.setSetting?.(key, true);
             }

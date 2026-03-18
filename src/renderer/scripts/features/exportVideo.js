@@ -286,7 +286,9 @@ const FEATURE_BADGE_KEYS = {
     shortcutsNewBadge: 'featureSeen_clipNavPreview',
     nextClipNewDot: 'featureSeen_clipNavPreview',
     prevClipNewDot: 'featureSeen_clipNavPreview',
-    previewNewBadge: 'featureSeen_clipNavPreview'
+    previewNewBadge: 'featureSeen_clipNavPreview',
+    minimapRenderModeNewDot: 'featureSeen_minimapStaticMap',
+    minimapNewBadge: 'featureSeen_minimapStaticMap'
 };
 
 /**
@@ -369,6 +371,15 @@ export async function initFeatureBadges() {
         const previewVideo = $('exportPreviewVideo');
         if (previewVideo) {
             previewVideo.addEventListener('play', () => dismissFeatureBadge('previewNewBadge'), { once: true });
+        }
+
+        // Minimap render mode dropdown - dismiss minimap badges
+        const minimapRenderMode = $('minimapRenderMode');
+        if (minimapRenderMode) {
+            minimapRenderMode.addEventListener('change', () => {
+                dismissFeatureBadge('minimapRenderModeNewDot');
+                dismissFeatureBadge('minimapNewBadge');
+            });
         }
 
         // Use event delegation for settings-modal badges (may not be initialized when export modal opens)

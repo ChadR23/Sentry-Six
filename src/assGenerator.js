@@ -1197,7 +1197,7 @@ function smoothPixelPath(points, subdivisions = 4) {
   return result;
 }
 
-function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs, marginFraction = 0.1) {
+function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, durationMs, marginFraction = 0.1, mapZoom = null) {
   if (!gpsPath || gpsPath.length < 2) return '';
 
   const startTime = formatAssTime(0);
@@ -1218,8 +1218,11 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     sampledPoints = smoothedPoints.filter((_, i) => i % step === 0 || i === smoothedPoints.length - 1);
   }
 
-  // Line thickness based on map size - thicker for better visibility like live map
-  const strokeWidth = Math.max(4, Math.round(mapSize / 50));
+  // Line thickness scales with both minimap size and zoom level
+  // Higher zoom = more detail visible = thinner line so roads aren't obscured
+  const strokeWidth = mapZoom
+    ? Math.max(2, Math.round(mapSize / (40 + (mapZoom - 12) * 8)))
+    : Math.max(3, Math.round(mapSize / 60));
 
   // Build path as a series of thin filled rectangles (stroke segments)
   // For each segment, create a quadrilateral perpendicular to the line direction
@@ -1273,14 +1276,6 @@ function generateMinimapRoutePath(gpsPath, bounds, mapSize, mapX, mapY, duration
     pathStr += circleAt(Math.round(sampledPoints[i].x), Math.round(sampledPoints[i].y), jointRadius);
   }
 
-  // Add slightly larger circles at start and end points for rounded caps
-  const capRadius = strokeWidth * 1.2;
-  const startPt = sampledPoints[0];
-  const endPt = sampledPoints[sampledPoints.length - 1];
-
-  pathStr += circleAt(startPt.x, startPt.y, capRadius);
-  pathStr += circleAt(endPt.x, endPt.y, capRadius);
-
   // Route line with blue color
   return `Dialogue: 1,${startTime},${endTime},MinimapPath,,0,0,0,,{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFF7200&\\p1}${pathStr}{\\p0}`;
 }
@@ -1331,72 +1326,79 @@ function generateArrowPath(scale = 1, cx = 0, cy = 0) {
  * @param {number} endTimeMs - End time in ms
  * @returns {string} ASS dialogue lines for position markers
  */
-function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction = 0.1) {
+function generateMinimapMarkers(seiData, gpsPath, bounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction = 0.1, mapZoom = null) {
   if (!seiData || seiData.length === 0) return '';
 
   const events = [];
-  // Smaller scale for the arrow marker
-  const markerScale = Math.max(0.8, mapSize / 250);
+  // Arrow marker size — smaller for cleaner appearance on detailed maps
+  const markerScale = Math.max(0.5, mapSize / 400);
 
   // Bounding box anchors for \an7\pos(0,0) positioning — same strategy as the route path.
-  // These invisible moveto points force the bounding box to span the full minimap area,
-  // so \an7\pos(0,0) places drawing coordinates at their absolute pixel positions.
+  // These moveto points force the bounding box to span the full minimap area,
+  // so \an7 places drawing coordinates at their absolute pixel positions.
   const bboxAnchors = `m ${mapX} ${mapY} m ${mapX + mapSize} ${mapY + mapSize} `;
 
-  // Group consecutive frames with same position to reduce ASS events
-  let prevState = null;
-  let eventStartMs = 0; // Start from 0 (relative to export start)
-
+  // Collect all valid GPS waypoints with pixel positions and timestamps
+  const waypoints = [];
   for (let i = 0; i < seiData.length; i++) {
     const { timestampMs, sei } = seiData[i];
-
-    // Get GPS coordinates
     const lat = sei?.latitude_deg ?? sei?.latitudeDeg ?? 0;
     const lon = sei?.longitude_deg ?? sei?.longitudeDeg ?? 0;
     const heading = sei?.heading_deg ?? sei?.headingDeg ?? 0;
 
-    // Skip invalid coordinates
     if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) continue;
 
-    // Convert to pixel position
     const pos = gpsToPixel(lat, lon, bounds, mapSize, mapX, mapY, marginFraction);
-
-    // Round heading to reduce event count (5 degree increments)
-    const roundedHeading = Math.round(heading / 5) * 5;
-
-    // Create state signature
-    const currentState = `${pos.x},${pos.y},${roundedHeading}`;
-
-    // Calculate relative time from export start
     const relativeTimeMs = timestampMs - startTimeMs;
+    // Finer heading rounding (2° instead of 5°) for smoother rotation
+    const roundedHeading = Math.round(heading / 2) * 2;
 
-    if (currentState !== prevState) {
-      // Emit previous event if exists
-      if (prevState !== null && eventStartMs < relativeTimeMs) {
-        const [px, py, ph] = prevState.split(',').map(Number);
-        const startAssTime = formatAssTime(Math.max(0, eventStartMs));
-        const endAssTime = formatAssTime(Math.max(0, relativeTimeMs));
+    waypoints.push({ x: pos.x, y: pos.y, heading: roundedHeading, timeMs: relativeTimeMs });
+  }
 
-        // Red arrow at absolute position (px,py) with heading rotation
-        // Uses same \an7\pos(0,0) + bbox anchors strategy as the route path
-        // Arrow coordinates are absolute via generateArrowPath(scale, cx, cy)
-        // Color: &H0000FF& = pure red in BGR format
-        events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an7\\pos(0,0)\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${generateArrowPath(markerScale, px, py)}{\\p0}`);
-      }
+  if (waypoints.length === 0) return '';
 
-      prevState = currentState;
-      eventStartMs = relativeTimeMs;
+  // Deduplicate consecutive waypoints with identical position and heading
+  const deduped = [waypoints[0]];
+  for (let i = 1; i < waypoints.length; i++) {
+    const prev = deduped[deduped.length - 1];
+    const curr = waypoints[i];
+    if (curr.x !== prev.x || curr.y !== prev.y || curr.heading !== prev.heading) {
+      deduped.push(curr);
     }
   }
 
-  // Emit final event
-  if (prevState !== null) {
-    const [px, py, ph] = prevState.split(',').map(Number);
-    const startAssTime = formatAssTime(Math.max(0, eventStartMs));
-    const endAssTime = formatAssTime(Math.max(0, endTimeMs - startTimeMs));
+  // Emit events with \move() for smooth position interpolation between waypoints
+  // Uses \an7\pos(0,0) + bbox anchors + absolute arrow coordinates (proven alignment approach)
+  // \move(0,0, dx,dy) shifts the entire coordinate system smoothly from current to next position
+  for (let i = 0; i < deduped.length; i++) {
+    const wp = deduped[i];
+    const nextWp = i < deduped.length - 1 ? deduped[i + 1] : null;
 
-    // Red arrow with white border
-    events.push(`Dialogue: 2,${startAssTime},${endAssTime},MinimapMarker,,0,0,0,,{\\an7\\pos(0,0)\\org(${px},${py})\\frz${-ph}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${generateArrowPath(markerScale, px, py)}{\\p0}`);
+    const startTime = formatAssTime(Math.max(0, wp.timeMs));
+    const endTime = nextWp
+      ? formatAssTime(Math.max(0, nextWp.timeMs))
+      : formatAssTime(Math.max(0, endTimeMs - startTimeMs));
+
+    // Arrow drawn at absolute position (wp.x, wp.y)
+    const arrowPath = generateArrowPath(markerScale, wp.x, wp.y);
+
+    // For smooth movement: \move(0,0, dx,dy) shifts the coordinate system
+    // so the arrow glides from (wp.x,wp.y) to (nextWp.x,nextWp.y)
+    // \org at destination for correct rotation center with destination heading
+    const heading = nextWp ? nextWp.heading : wp.heading;
+    let posTag, orgTag;
+    if (nextWp) {
+      const dx = nextWp.x - wp.x;
+      const dy = nextWp.y - wp.y;
+      posTag = `\\move(0,0,${dx},${dy})`;
+      orgTag = `\\org(${nextWp.x},${nextWp.y})`;
+    } else {
+      posTag = `\\pos(0,0)`;
+      orgTag = `\\org(${wp.x},${wp.y})`;
+    }
+
+    events.push(`Dialogue: 2,${startTime},${endTime},MinimapMarker,,0,0,0,,{\\an7${posTag}${orgTag}\\frz${-heading}\\bord2\\shad1\\1c&H0000FF&\\3c&HFFFFFF&\\4c&H000000&\\p1}${bboxAnchors}${arrowPath}{\\p0}`);
   }
 
   return events.join('\n');
@@ -1421,7 +1423,8 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
     standaloneMode = false,  // If true, generates ASS for a standalone minimap image
     standaloneSize = 256,    // Size of the standalone minimap
     customBounds = null,     // Custom GPS bounds (e.g., from map tiles)
-    includeBackground = true // Whether to include the dark background
+    includeBackground = true, // Whether to include the dark background
+    mapZoom = null           // Tile zoom level (for scaling line thickness)
   } = options;
 
   const durationMs = endTimeMs - startTimeMs;
@@ -1474,13 +1477,13 @@ function generateMinimapAss(seiData, mapPath, startTimeMs, endTimeMs, options) {
   // When using map tile background (customBounds), use no margin since tile bounds
   // already provide natural padding and margin would misalign track with roads
   const marginFraction = customBounds ? 0 : 0.1;
-  const routePath = generateMinimapRoutePath(routeGpsPath, routeBounds, mapSize, mapX, mapY, durationMs, marginFraction);
+  const routePath = generateMinimapRoutePath(routeGpsPath, routeBounds, mapSize, mapX, mapY, durationMs, marginFraction, mapZoom);
   if (routePath) {
     assContent += routePath + '\n';
   }
 
   // Generate position markers - use same bounds and margin as route path for alignment
-  const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction);
+  const markers = generateMinimapMarkers(seiData, mapPath, routeBounds, mapSize, mapX, mapY, startTimeMs, endTimeMs, marginFraction, mapZoom);
   if (markers) {
     assContent += markers + '\n';
   }
