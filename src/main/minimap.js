@@ -141,9 +141,10 @@ async function downloadMapTile(x, y, zoom, outputPath) {
  * @param {Array} mapPath - Array of [lat, lon] GPS coordinates
  * @param {number} targetSize - Target output size in pixels (square)
  * @param {string} ffmpegPath - Path to FFmpeg executable
+ * @param {boolean} darkMode - Whether to apply dark theme filter to map tiles
  * @returns {Promise<{imagePath: string, bounds: Object, zoom: number}>}
  */
-async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpegPath) {
+async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpegPath, darkMode = true) {
   if (!mapPath || mapPath.length === 0) {
     throw new Error('No GPS data for map background');
   }
@@ -225,15 +226,18 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
       inputs.push('-i', tile.path);
     }
     
+    // Dark theme filter (only applied when dark mode is enabled)
+    const darkFilter = darkMode ? ',hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1' : '';
+
     // Create filter to position each tile
     if (tilePaths.length === 1) {
-      // Single tile - just apply dark filter and scale
-      filterParts.push(`[0:v]hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1,scale=${targetSize}:${targetSize}[out]`);
+      // Single tile - scale and optionally apply dark filter
+      filterParts.push(`[0:v]scale=${targetSize}:${targetSize}${darkFilter}[out]`);
     } else {
       // Multiple tiles - create canvas and overlay each
       // First, create a black canvas
       filterParts.push(`color=c=black:s=${stitchedWidth}x${stitchedHeight}:d=1[canvas]`);
-      
+
       let currentLayer = '[canvas]';
       for (let i = 0; i < tilePaths.length; i++) {
         const tile = tilePaths[i];
@@ -243,9 +247,9 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
         filterParts.push(`${currentLayer}[${i}:v]overlay=${x}:${y}${nextLayer}`);
         currentLayer = nextLayer;
       }
-      
-      // Apply dark theme filter and scale to target size
-      filterParts.push(`[stitched]hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1,scale=${targetSize}:${targetSize}[out]`);
+
+      // Scale to target size and optionally apply dark theme filter
+      filterParts.push(`[stitched]scale=${targetSize}:${targetSize}${darkFilter}[out]`);
     }
     
     const ffmpegArgs = [

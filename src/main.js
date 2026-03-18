@@ -571,16 +571,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           // Step 1: Download static map background image
           let mapBgPath = null;
           let mapBounds = null;
+          let mapZoom = null;
 
           try {
             const mapResult = await downloadStaticMapBackground(
               exportId,
               mapPath,
               minimapTargetSize,
-              ffmpegPath
+              ffmpegPath,
+              minimapDarkMode
             );
             mapBgPath = mapResult.imagePath;
             mapBounds = mapResult.bounds;
+            mapZoom = mapResult.zoom;
             tempFiles.push(mapBgPath);
             console.log(`[MINIMAP] Downloaded map background: ${mapBgPath}`);
           } catch (mapErr) {
@@ -605,7 +608,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
                 standaloneMode: true,
                 standaloneSize: minimapTargetSize,
                 customBounds: mapBounds,
-                includeBackground: false // Map image is the background
+                includeBackground: false, // Map image is the background
+                mapZoom
               }
             );
           } else {
