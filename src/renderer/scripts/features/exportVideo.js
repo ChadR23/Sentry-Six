@@ -1135,16 +1135,16 @@ async function openBlurZoneEditorForCamera(snapshotCamera, editorModal, editInde
         // Capture snapshot
         const snapshotDataUrl = await captureVideoSnapshot(localTimeSec, tempVideo);
 
+        // Get video dimensions before cleanup (setting src='' resets videoWidth/Height to 0)
+        const videoWidth = tempVideo.videoWidth || 1448;
+        const videoHeight = tempVideo.videoHeight || 938;
+
         // Clean up
         tempVideo.src = '';
         document.body.removeChild(tempVideo);
         if (videoUrl.startsWith('blob:')) {
             URL.revokeObjectURL(videoUrl);
         }
-
-        // Get video dimensions
-        const videoWidth = tempVideo.videoWidth || 1448;
-        const videoHeight = tempVideo.videoHeight || 938;
 
         // Store which camera this zone is for
         exportState.blurZoneCamera = snapshotCamera;
