@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.12.12",
+      "date": "2026-03-18",
+      "title": "Bug Fix Release",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Fixed Bug With Privacy Zones Not showing up on HW3 Exports for users."
+        }
+      ]
+    },
+    {
       "version": "2026.12.11",
       "date": "2026-03-18",
       "title": "Static Map & Export Polish",
