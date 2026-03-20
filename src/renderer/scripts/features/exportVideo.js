@@ -2077,6 +2077,12 @@ export async function startExport() {
                     if (progressText) progressText.textContent = translatedMessage;
                     notify(translatedMessage, { type: 'success' });
 
+                    // Show blur zone failure warning if applicable
+                    if (progress.warning) {
+                        const warningMessage = translateMessage(progress.warning);
+                        notify(warningMessage, { type: 'error' });
+                    }
+
                     // Show modal if it was minimized so user sees completion
                     const modal = $('exportModal');
                     if (modal?.classList.contains('hidden')) {

@@ -81,6 +81,19 @@ function createWindow() {
     },
   });
   mainWindow.setMenuBarVisibility(false);
+
+  // Inject User-Agent and Referer headers for OSM tile requests
+  // OSM now enforces their tile usage policy and blocks requests from file:// origins
+  // that lack proper identification headers
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['https://*.tile.openstreetmap.org/*'] },
+    (details, callback) => {
+      details.requestHeaders['User-Agent'] = 'Sentry-Studio/1.0 (Tesla Dashcam Viewer; https://sentry-six.com/sentry-studio)';
+      details.requestHeaders['Referer'] = 'https://sentry-six.com/';
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
@@ -125,7 +138,7 @@ function parseTimestampKeyToEpochMs(timestampKey) {
  * @param {number} opts.FPS             - Frame rate
  */
 async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTags, cameraW, cameraH, filters, cmd, tempFiles, inputCount, extraOffset, exportId, FPS }) {
-  if (!blurZones.length) return;
+  if (!blurZones.length) return false;
 
   const zonesByCamera = {};
   for (const zone of blurZones) {
@@ -181,8 +194,10 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
       }
     } catch (err) {
       console.error('[BLUR] Failed to apply blur zone:', err);
+      return true;
     }
   }
+  return false;
 }
 
 // Video Export Implementation
@@ -207,14 +222,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     event.sender.send('export:progress', exportId, { type: 'minimap-progress', percentage, message });
   };
 
-  const sendComplete = (success, message) => {
-    event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath });
+  let completeSent = false;
+  const sendComplete = (success, message, warning = null) => {
+    completeSent = true;
+    event.sender.send('export:progress', exportId, { type: 'complete', success, message, outputPath, warning });
   };
 
   const cleanup = () => tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch { } });
 
   // Minimap temp file path (set during pre-render)
   let minimapTempPath = null;
+
+  // Track blur zone failures
+  let blurFailed = false;
 
   // Check if export was cancelled before starting
   if (cancelledExports.has(exportId)) {
@@ -357,7 +377,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     if (isFrontOnly) {
       // Front camera only - use full front camera resolution
       switch (q) {
-        case 'mobile': w = makeEven(frontNativeW * 0.25); h = makeEven(frontNativeH * 0.25); crf = 28; break;
+        case 'mobile': w = makeEven(frontNativeW * 0.35); h = makeEven(frontNativeH * 0.35); crf = 28; break;
         case 'medium': w = makeEven(frontNativeW * 0.5);  h = makeEven(frontNativeH * 0.5);  crf = 26; break;
         case 'high':   w = makeEven(frontNativeW * 0.75); h = makeEven(frontNativeH * 0.75); crf = 23; break;
         case 'max':    w = makeEven(frontNativeW);         h = makeEven(frontNativeH);         crf = 20; break;
@@ -366,12 +386,16 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       console.log(`[RESOLUTION] Front camera only - using front native ${frontNativeW}x${frontNativeH}, output ${w}x${h}`);
     } else {
       // Multi-camera - scale to base (side) camera resolution
+      // CRF is lowered vs single-camera because the grid has multiple independent
+      // motion regions that are harder to compress; without this the encoder
+      // spreads its bit budget thin and the front camera (downscaled from 2x native
+      // on HW4) shows visible compression artifacts at every quality level
       switch (q) {
-        case 'mobile': w = makeEven(nativeW * 0.33); h = makeEven(nativeH * 0.33); crf = 28; break;
-        case 'medium': w = makeEven(nativeW * 0.5);  h = makeEven(nativeH * 0.5);  crf = 26; break;
-        case 'high':   w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 23; break;
-        case 'max':    w = makeEven(nativeW);         h = makeEven(nativeH);         crf = 20; break;
-        default:       w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 23;
+        case 'mobile': w = makeEven(nativeW * 0.4); h = makeEven(nativeH * 0.4); crf = 27; break;
+        case 'medium': w = makeEven(nativeW * 0.5);  h = makeEven(nativeH * 0.5);  crf = 23; break;
+        case 'high':   w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 20; break;
+        case 'max':    w = makeEven(nativeW);         h = makeEven(nativeH);         crf = 18; break;
+        default:       w = makeEven(nativeW * 0.75); h = makeEven(nativeH * 0.75); crf = 20;
       }
     }
 
@@ -845,12 +869,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
 
       // Apply blur zones to individual camera streams BEFORE grid composition
-      await applyBlurZonesToStreams({
+      const blurResult = await applyBlurZonesToStreams({
         blurZones, blurType, streams: cameraStreams, streamTags: null,
         cameraW: w + (w % 2), cameraH: h + (h % 2),
         filters, cmd, tempFiles, inputCount: inputs.length,
         extraOffset: baseInputIdx !== null ? 1 : 0, exportId, FPS
       });
+      if (blurResult) blurFailed = true;
 
       // Chain overlays: start with base, overlay each camera in order
       let currentTag = `[${baseInputIdx}:v]`;
@@ -890,12 +915,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       }
 
       // Apply blur zones to individual camera streams BEFORE grid composition (grid layout)
-      await applyBlurZonesToStreams({
+      const blurResult = await applyBlurZonesToStreams({
         blurZones, blurType, streams: gridStreams, streamTags,
         cameraW: w + (w % 2), cameraH: h + (h % 2),
         filters, cmd, tempFiles, inputCount: inputs.length,
         extraOffset: 0, exportId, FPS
       });
+      if (blurResult) blurFailed = true;
 
       const numStreams = activeCamerasForGrid.length;
       if (numStreams > 1) {
@@ -1065,12 +1091,23 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       filters.push(`${currentStreamTag}format=yuv420p[out]`);
     }
 
-    // Time-lapse: speed up the entire composited video (after all overlays)
+    // Time-lapse: drop frames then reset timestamps (instead of just speeding up PTS)
+    // Using setpts alone keeps all frames but shifts timestamps, causing the encoder to see
+    // massive inter-frame differences that destroy compression quality.
+    // Selecting every Nth frame first means the encoder only processes frames it needs,
+    // so motion estimation works properly and compression stays clean at any quality level.
     if (enableTimelapse && timelapseSpeed !== 1) {
       const lastIdx = filters.length - 1;
       filters[lastIdx] = filters[lastIdx].replace('[out]', '[pre_tl]');
-      filters.push(`[pre_tl]setpts=PTS/${timelapseSpeed}[out]`);
-      console.log(`[TIMELAPSE] Applied ${timelapseSpeed}x speed-up filter`);
+      if (timelapseSpeed < 1) {
+        // Slow-motion: just adjust timestamps (no frames to drop)
+        filters.push(`[pre_tl]setpts=PTS/${timelapseSpeed}[out]`);
+      } else {
+        // Speed-up: select every Nth frame, then reset timestamps to output fps
+        const nth = Math.round(timelapseSpeed);
+        filters.push(`[pre_tl]select='not(mod(n\\,${nth}))',setpts=N/${FPS}/TB[out]`);
+      }
+      console.log(`[TIMELAPSE] Applied ${timelapseSpeed}x speed-up filter (frame selection)`);
     }
 
     cmd.push('-filter_complex', filters.join(';'));
@@ -1218,7 +1255,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           console.log(`[EXPORT] ✅ Export completed in ${formattedDuration}`);
 
           const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
-          sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } });
+          const warning = blurFailed ? { key: 'ui.export.blurZoneFailed' } : null;
+          sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } }, warning);
           resolve(true);
         } else {
           console.error('FFmpeg error:', stderr.slice(-500));
@@ -1242,7 +1280,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           } else {
             sendComplete(false, { key: 'ui.export.exportFailedCode', params: { code: code } });
           }
-          reject(new Error(`Export failed with code ${code}`));
+          const err = new Error(`Export failed with code ${code}`);
+          err._completeSent = true;
+          reject(err);
         }
       });
 
@@ -1250,6 +1290,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         cleanup();
         cancelledExports.delete(exportId); // Clean up cancellation flag
         sendComplete(false, `FFmpeg error: ${err.message}`);
+        err._completeSent = true;
         reject(err);
       });
 
@@ -1484,11 +1525,15 @@ ipcMain.handle('export:start', async (event, exportId, exportData) => {
   } catch (error) {
     console.error('Export failed:', error);
     cancelledExports.delete(exportId); // Clean up cancellation flag
-    event.sender.send('export:progress', exportId, {
-      type: 'complete',
-      success: false,
-      message: `Export failed: ${error.message}`
-    });
+    // Only send complete if performVideoExport didn't already send one via sendComplete
+    // (FFmpeg close handler sends translated errors before rejecting)
+    if (!error._completeSent) {
+      event.sender.send('export:progress', exportId, {
+        type: 'complete',
+        success: false,
+        message: `Export failed: ${error.message}`
+      });
+    }
     return false;
   }
 });

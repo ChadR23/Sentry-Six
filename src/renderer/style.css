@@ -1521,7 +1521,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     align-items: center;
     justify-content: center;
     gap: clamp(3px, 0.4em, 6px);
-    min-width: clamp(60px, 7.5em, 90px);
+    min-width: clamp(75px, 9em, 110px);
     flex-shrink: 0;
     flex-grow: 0;
     height: 100%;
@@ -1535,6 +1535,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-variant-numeric: tabular-nums;
     display: flex;
     align-items: center;
+    white-space: nowrap;
 }
 
 .speed-unit-compact {

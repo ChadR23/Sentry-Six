@@ -44,6 +44,11 @@
         }
       ],
       "verifyUpdateCodeSignature": false,
+      "asarUnpack": [
+        "node_modules/sharp/**/*",
+        "node_modules/@img/**/*",
+        "node_modules/node-machine-id/**/*"
+      ],
       "extraResources": [
         {
           "from": "ffmpeg_bin/ffmpeg.exe",

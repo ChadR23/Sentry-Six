@@ -104,7 +104,8 @@ async function downloadMapTile(x, y, zoom, outputPath) {
     
     const request = https.get(url, {
       headers: {
-        'User-Agent': 'Sentry-Six-App/1.0 (Tesla Dashcam Viewer)'
+        'User-Agent': 'Sentry-Studio/1.0 (Tesla Dashcam Viewer; https://sentry-six.com/sentry-studio)',
+        'Referer': 'https://sentry-six.com/'
       }
     }, (response) => {
       if (response.statusCode === 200) {
@@ -334,6 +335,16 @@ async function createMinimapRenderer(minimapWidth, minimapHeight) {
       }
     });
     
+    // Inject headers for OSM tile requests (same as main window)
+    minimapWindow.webContents.session.webRequest.onBeforeSendHeaders(
+      { urls: ['https://*.tile.openstreetmap.org/*'] },
+      (details, callback) => {
+        details.requestHeaders['User-Agent'] = 'Sentry-Studio/1.0 (Tesla Dashcam Viewer; https://sentry-six.com/sentry-studio)';
+        details.requestHeaders['Referer'] = 'https://sentry-six.com/';
+        callback({ requestHeaders: details.requestHeaders });
+      }
+    );
+
     const timeout = setTimeout(() => {
       console.error('[MINIMAP] Renderer load timeout');
       reject(new Error('Minimap renderer load timeout'));
