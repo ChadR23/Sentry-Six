@@ -507,11 +507,13 @@ const thumbExistsCache = new Map();
 function attachThumbPreview(item, folderPath) {
     let tooltip = null;
     let hideTimeout = null;
+    let hovering = false;
 
     const sep = folderPath.includes('\\') ? '\\' : '/';
     const thumbPath = folderPath + sep + 'thumb.png';
 
     item.addEventListener('mouseenter', async (e) => {
+        hovering = true;
         clearTimeout(hideTimeout);
 
         // Check cache first
@@ -524,6 +526,9 @@ function attachThumbPreview(item, folderPath) {
         } else {
             return; // no API to check
         }
+
+        // If mouse left during the async check, don't show
+        if (!hovering) return;
 
         // Create tooltip if not already present
         if (!tooltip) {
@@ -544,6 +549,7 @@ function attachThumbPreview(item, folderPath) {
     });
 
     item.addEventListener('mouseleave', () => {
+        hovering = false;
         hideTimeout = setTimeout(() => {
             if (tooltip && tooltip.parentNode) tooltip.remove();
         }, 80);

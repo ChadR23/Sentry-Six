@@ -3,15 +3,39 @@
     {
       "version": "2026.12.13",
       "date": "2026-03-19",
-      "title": "Export Folder Memory & Filename Improvements",
+      "title": "Bug Fix Release",
       "changes": [
         {
           "type": "improvement",
-          "description": "Footage and export folders are now remembered separately — changing your input folder no longer affects where the export dialog opens, and vice versa."
+          "description": "Footage and export folders are now remembered separately changing your input folder no longer affects where the export dialog opens, and vice versa."
         },
         {
           "type": "improvement",
           "description": "Export filenames now use the clip's recording date and time instead of today's date. The filename reflects when the footage was actually recorded, including the hour and minute."
+        },
+        {
+          "type": "improvement",
+          "description": "Export: Improve mobile quality without inflating file size"
+        },
+        {
+          "type": "fix",
+          "description": "Export: Fix timelapse compression artifacts"
+        },
+        {
+          "type": "fix",
+          "description": "Export: *MAJOR* Fix blur zones failing silently on Windows installs"
+        },
+        {
+          "type": "fix",
+          "description": "Export: Fix front camera compression in multi-camera grids"
+        },
+        {
+          "type": "fix",
+          "description": "Map: Fix OSM tile blocking"
+        },
+        {
+          "type": "fix",
+          "description": "UI : Fix compact dashboard speed/turn signal overlap"
         }
       ]
     },
