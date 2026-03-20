@@ -772,11 +772,10 @@ export function openExportModal() {
     if (progressBar) progressBar.style.width = '0%';
     if (progressText) progressText.textContent = t('ui.export.preparing');
 
-    // Generate default filename (used when saving via dialog)
-    const date = new Date().toISOString().slice(0, 10);
+    // Default filename will be recalculated at export time with the actual clip start time
+    // Store collection name for later use
     const collName = state.collection.active?.label || 'export';
-    const safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-    exportState.defaultFilename = `tesla_${safeName}_${date}.mp4`;
+    exportState.safeName = collName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
 
     // Restore last-used quality from settings (silently, async)
     const highQuality = document.querySelector('input[name="exportQuality"][value="high"]');
@@ -1753,6 +1752,22 @@ export async function startExport() {
 
     const startTimeMs = (Math.min(startPct, endPct) / 100) * totalSec * 1000;
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
+
+    // Calculate filename from the clip's actual start time (accounting for trim markers)
+    const exportGroups = state.collection.active?.groups || [];
+    const firstTsKey = exportGroups[0]?.timestampKey || '';
+    const firstEpochMs = parseTimestampKeyToEpochMs(firstTsKey);
+    if (firstEpochMs) {
+        const clipStartDate = new Date(firstEpochMs + startTimeMs);
+        const y = clipStartDate.getFullYear();
+        const mo = String(clipStartDate.getMonth() + 1).padStart(2, '0');
+        const d = String(clipStartDate.getDate()).padStart(2, '0');
+        const h = String(clipStartDate.getHours()).padStart(2, '0');
+        const mi = String(clipStartDate.getMinutes()).padStart(2, '0');
+        const dateTime = `${y}-${mo}-${d}_${h}-${mi}`;
+        const safeName = exportState.safeName || 'export';
+        filename = `tesla_${safeName}_${dateTime}.mp4`;
+    }
 
     // Open file dialog FIRST for instant response, before any heavy processing
     const lastExportFolder = await window.electronAPI.getSetting('lastExportFolder');

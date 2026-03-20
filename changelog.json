@@ -3,11 +3,15 @@
     {
       "version": "2026.12.13",
       "date": "2026-03-19",
-      "title": "Export Folder Memory",
+      "title": "Export Folder Memory & Filename Improvements",
       "changes": [
         {
           "type": "improvement",
           "description": "Footage and export folders are now remembered separately — changing your input folder no longer affects where the export dialog opens, and vice versa."
+        },
+        {
+          "type": "improvement",
+          "description": "Export filenames now use the clip's recording date and time instead of today's date. The filename reflects when the footage was actually recorded, including the hour and minute."
         }
       ]
     },
