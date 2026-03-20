@@ -450,7 +450,7 @@ export function initSettingsModal() {
             e.preventDefault();
             if (window.electronAPI?.openFolder) {
                 try {
-                    const folderPath = await window.electronAPI.openFolder();
+                    const folderPath = await window.electronAPI.openFolder(defaultFolderPath?.value || '');
                     if (folderPath) {
                         if (window.electronAPI?.setSetting) {
                             await window.electronAPI.setSetting('defaultFolder', folderPath);

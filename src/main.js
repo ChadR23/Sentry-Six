@@ -1383,10 +1383,10 @@ app.on('before-quit', () => {
   cancelledExports.clear();
 });
 
-ipcMain.handle('dialog:openFolder', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-  });
+ipcMain.handle('dialog:openFolder', async (_event, startPath) => {
+  const opts = { properties: ['openDirectory'] };
+  if (startPath) opts.defaultPath = startPath;
+  const result = await dialog.showOpenDialog(opts);
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });
