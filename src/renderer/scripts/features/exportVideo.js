@@ -1755,15 +1755,21 @@ export async function startExport() {
     const endTimeMs = (Math.max(startPct, endPct) / 100) * totalSec * 1000;
 
     // Open file dialog FIRST for instant response, before any heavy processing
+    const lastExportFolder = await window.electronAPI.getSetting('lastExportFolder');
+    const defaultPath = lastExportFolder ? `${lastExportFolder}/${filename}` : filename;
     const outputPath = await window.electronAPI.saveFile({
         title: 'Save Tesla Export',
-        defaultPath: filename
+        defaultPath: defaultPath
     });
 
     if (!outputPath) {
         notify(t('ui.notifications.exportCancelled'), { type: 'info' });
         return;
     }
+
+    // Remember the export folder for next time
+    const exportDir = outputPath.replace(/[/\\][^/\\]*$/, '');
+    if (exportDir) window.electronAPI.setSetting('lastExportFolder', exportDir);
 
     // Lock export state and disable button BEFORE SEI extraction to prevent duplicate exports
     // This is critical for NAS/network files where SEI extraction can take minutes

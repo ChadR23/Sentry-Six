@@ -1908,7 +1908,8 @@ async function openFolderPicker() {
     
     if (window.electronAPI?.openFolder && window.electronAPI?.readDir) {
         try {
-            const folderPath = await window.electronAPI.openFolder();
+            const savedFolder = window.electronAPI?.getSetting ? await window.electronAPI.getSetting('defaultFolder') : '';
+            const folderPath = await window.electronAPI.openFolder(savedFolder || '');
             if (!folderPath) {
                 return; // User cancelled
             }

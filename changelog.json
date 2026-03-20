@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "2026.12.13",
+      "date": "2026-03-19",
+      "title": "Export Folder Memory",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Footage and export folders are now remembered separately — changing your input folder no longer affects where the export dialog opens, and vice versa."
+        }
+      ]
+    },
+    {
       "version": "2026.12.12",
       "date": "2026-03-18",
       "title": "Bug Fix Release",
