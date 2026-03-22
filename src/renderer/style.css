@@ -1517,19 +1517,19 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Speed Display Compact */
 .speed-display-compact {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(3px, 0.4em, 6px);
-    min-width: clamp(75px, 9em, 110px);
+    gap: clamp(1px, 0.15em, 3px);
+    min-width: clamp(40px, 5em, 65px);
     flex-shrink: 0;
     flex-grow: 0;
     height: 100%;
 }
 
 .speed-value-compact {
-    font-size: clamp(16px, 2.2em, 28px);
-    font-weight: 300;
+    font-size: clamp(12px, 1.5em, 21px);
+    font-weight: 700;
     line-height: 1;
     color: #fff;
     font-variant-numeric: tabular-nums;
@@ -1539,7 +1539,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .speed-unit-compact {
-    font-size: clamp(10px, 1.1em, 16px);
+    font-size: clamp(8px, 0.9em, 14px);
     font-weight: 500;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -1555,15 +1555,15 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: clamp(1px, 0.15em, 3px);
     flex-shrink: 0;
     flex-grow: 0;
-    min-width: clamp(60px, 7.5em, 90px);
+    min-width: clamp(40px, 5em, 65px);
 }
 
 /* Recording Time Compact */
 .recording-time-compact {
-    font-size: clamp(9px, 1em, 14px);
+    font-size: clamp(8px, 0.9em, 14px);
     font-weight: 500;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -1574,8 +1574,8 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Autopilot Label Compact */
 .autopilot-label-compact {
-    font-size: clamp(9px, 1em, 14px);
-    font-weight: 500;
+    font-size: clamp(12px, 1.5em, 21px);
+    font-weight: 400;
     color: var(--text-muted);
     transition: all 0.3s ease;
     white-space: nowrap;
