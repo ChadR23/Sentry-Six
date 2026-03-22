@@ -36,6 +36,10 @@
         {
           "type": "fix",
           "description": "UI : Fix compact dashboard speed/turn signal overlap"
+        },
+        {
+          "type": "improvement",
+          "description": "Speed unit now appears below the speed number on the Compact dashboard."
         }
       ]
     },
