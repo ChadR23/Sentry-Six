@@ -496,7 +496,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   // Compact style aspect ratio: 480x56 (8.57:1)
   // Always use 1920px reference so dashboard size is consistent across camera counts
   // Cap at video width minus margins to prevent overflow on very small exports
-  const refDashWidth = Math.round(1920 * sizeMultiplier);
+  const refDashWidth = Math.round(1920 * sizeMultiplier * 1.15);
   const dashWidth = Math.min(refDashWidth, playResX - 80);
   const dashHeight = Math.round(dashWidth / 8.57);
   const fontSize = Math.round(dashHeight * 0.45);
@@ -515,12 +515,12 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const startX = pos.x - dashWidth / 2 + padding;
 
   // Spread blinkers outward to give speed/gearAp more room in center
-  const arrowSpread = spacing * 0.25; // Push arrows away from center
+  const arrowSpread = spacing * 0.35; // Push arrows away from center
   const centerBetweenArrows = startX + spacing * 3.5;
   const positions = {
     brake: startX + spacing * 0,
     dateTime: startX + spacing * 1,              // Date/Time (was Gear)
-    leftBlinker: startX + spacing * 2 - arrowSpread * 0.3,
+    leftBlinker: startX + spacing * 2 - arrowSpread * 0.25,
     speed: centerBetweenArrows - spacing * 0.65,
     gearAp: centerBetweenArrows + spacing * 0.65,
     rightBlinker: startX + spacing * 5 + arrowSpread,
@@ -731,9 +731,9 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
           `{\\an5\\pos(${positions.gearAp},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${speedNumSize}\\1c${apColor}}${prev.apText}`
         ));
-        const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
+        const gearColor = '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${speedUnitSize}\\1c${gearColor}}${prev.gearText}`
+          `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\b1\\fs${speedUnitSize}\\1c${gearColor}}${prev.gearText}`
         ));
 
         // Right blinker arrow - from Illustrator export, centered at (0,0)
@@ -822,7 +822,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           }
         } else {
           // Mode: iconbar (default) - Icon fills from bottom based on percentage
-          const pedalHalfHeight = Math.round(386 * pedalScale);
+          const pedalHalfHeight = Math.round(445 * pedalScale);
           const pedalTop = accelY - pedalHalfHeight;
           const pedalBottom = accelY + pedalHalfHeight;
           const clipY = Math.round(pedalBottom - (pedalBottom - pedalTop) * (accelPctVal / 100));

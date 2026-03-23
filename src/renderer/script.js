@@ -14,7 +14,7 @@ import {
     exportState, initExportModule, setExportMarker, updateExportMarkers, 
     updateExportButtonState, openExportModal, closeExportModal, reopenExportModal,
     updateExportRangeDisplay, updateExportSizeEstimate, checkFFmpegAvailability,
-    startExport, cancelExport, clearExportMarkers, renderSharedClipsList 
+    startExport, cancelExport, confirmCancelExport, clearExportMarkers, renderSharedClipsList
 } from './scripts/features/exportVideo.js';
 import { initAutoUpdate } from './scripts/features/autoUpdate.js';
 import { initWelcomeScreen, resetWelcomeScreen, showWelcomeScreen } from './scripts/features/welcomeScreen.js';
@@ -1034,7 +1034,24 @@ let useMetric = false; // Will be loaded from settings
         };
     }
     if (cancelExportBtn) {
-        cancelExportBtn.onclick = (e) => { e.preventDefault(); cancelExport(); };
+        cancelExportBtn.onclick = (e) => { e.preventDefault(); confirmCancelExport(); };
+    }
+    const confirmCancelBtn = $('confirmCancelExportBtn');
+    const dismissCancelBtn = $('dismissCancelExportBtn');
+    if (confirmCancelBtn) {
+        confirmCancelBtn.onclick = (e) => {
+            e.preventDefault();
+            const modal = $('cancelExportConfirmModal');
+            if (modal) modal.classList.add('hidden');
+            cancelExport();
+        };
+    }
+    if (dismissCancelBtn) {
+        dismissCancelBtn.onclick = (e) => {
+            e.preventDefault();
+            const modal = $('cancelExportConfirmModal');
+            if (modal) modal.classList.add('hidden');
+        };
     }
     if (startExportBtn) {
         startExportBtn.onclick = (e) => { e.preventDefault(); startExport(); };

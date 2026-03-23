@@ -1188,6 +1188,18 @@
         </div>
     </div>
 
+    <!-- Cancel Export Confirmation Modal -->
+    <div id="cancelExportConfirmModal" class="modal hidden" style="z-index: 10001;">
+        <div class="modal-content" style="max-width: 500px; padding: 30px; background: var(--modal-bg); border-radius: 20px;">
+            <h2 style="margin: 0 0 16px 0; font-size: 1.4em;">Export In Progress</h2>
+            <p style="margin: 0 0 24px 0;">Are you sure you want to cancel?</p>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="confirmCancelExportBtn" class="btn btn-danger">Yes</button>
+                <button id="dismissCancelExportBtn" class="btn btn-secondary">No</button>
+            </div>
+        </div>
+    </div>
+
     <!-- My Shared Clips Modal -->
     <div id="sharedClipsModal" class="modal hidden">
         <div class="modal-content shared-clips-modal">

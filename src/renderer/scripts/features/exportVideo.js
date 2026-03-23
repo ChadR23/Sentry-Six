@@ -2195,6 +2195,19 @@ export async function startExport() {
 }
 
 /**
+ * Show confirmation modal before canceling an active export.
+ * If not currently exporting, cancels immediately without confirmation.
+ */
+export function confirmCancelExport() {
+    if (!exportState.isExporting) {
+        cancelExport();
+        return;
+    }
+    const modal = $('cancelExportConfirmModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+/**
  * Cancel an ongoing export
  */
 export async function cancelExport() {
