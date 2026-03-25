@@ -345,7 +345,7 @@ function showForceManualModal(info) {
     if (changelogContent) {
         changelogContent.innerHTML = `
             <div class="force-manual-alert">
-                <div class="force-manual-icon">⚠️</div>
+                <div class="force-manual-icon"><span class="material-symbols-outlined">warning</span></div>
                 <div class="force-manual-title">Critical Update Required</div>
                 <div class="force-manual-message">${info.message || 'A critical update is required. Please download the latest version manually.'}</div>
             </div>
@@ -356,11 +356,7 @@ function showForceManualModal(info) {
     if (updateModalFooter) {
         updateModalFooter.innerHTML = `
             <button id="forceManualDownloadBtn" class="btn btn-primary btn-critical">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                    <polyline points="15 3 21 3 21 9"/>
-                    <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
+                <span class="material-symbols-outlined mi-sm">download</span>
                 Download from GitHub
             </button>
         `;

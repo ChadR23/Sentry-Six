@@ -10,6 +10,10 @@
           "description": "Font: Switched to Noto Sans and Noto Sans Mono via Google Fonts"
         },
         {
+          "type": "fix",
+          "description": "Export: Privacy blur restore banner is now fully translated in all supported languages."
+        },
+        {
           "type": "improvement",
           "description": "Compact dashboard: Reorganized layout regarding speed, gear, and autopilot state."
         },

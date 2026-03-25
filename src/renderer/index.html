@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="style.css">
 </head>
@@ -18,9 +19,7 @@
         <div class="video-container" id="videoContainer">
             <div class="drop-overlay" id="dropOverlay">
                 <div class="drop-message">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                    </svg>
+                    <span class="material-symbols-outlined mi-xxl">folder</span>
                     <p data-i18n="ui.dropOverlay.message">Select your dashcam folder to browse clips</p>
                     <div class="drop-actions">
                         <button id="overlayChooseFolderBtn" class="mini-btn"
@@ -148,17 +147,11 @@
                     <div class="clip-browser-actions">
                         <button id="clipsCollapseBtn" class="icon-btn" type="button" aria-label="Collapse panel"
                             data-i18n-title="ui.clipBrowser.collapsePanel" title="Collapse panel">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M15.5 5.5 9 12l6.5 6.5-1.4 1.4L6.2 12l7.9-7.9 1.4 1.4z"></path>
-                            </svg>
+                            <span class="material-symbols-outlined mi-md">chevron_left</span>
                         </button>
                         <button id="chooseFolderBtn" class="icon-btn" type="button" aria-label="Choose dashcam folder"
                             data-i18n-title="ui.clipBrowser.chooseFolder" title="Choose Folder">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path
-                                    d="M10 4 12 6h8a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5zm-5 4h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z">
-                                </path>
-                            </svg>
+                            <span class="material-symbols-outlined mi-md">folder_open</span>
                         </button>
                     </div>
                 </div>
@@ -330,9 +323,7 @@
                 <div class="extra-data-container">
                     <button id="toggleExtra" class="toggle-btn" data-i18n-title="ui.playback.toggleDetails"
                         title="Toggle Details">
-                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
+                        <span class="material-symbols-outlined mi-sm">expand_more</span>
                     </button>
                     <div id="extraData" class="extra-data">
                         <div class="data-grid">
@@ -386,21 +377,15 @@
             <div class="playback-group">
                 <button id="skipBackBtn" class="control-btn" data-i18n-title="ui.playback.skipBack"
                     title="Skip back 15 seconds">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">skip_previous</span>
                     <span class="skip-label">15</span>
                 </button>
                 <button id="playBtn" class="control-btn play-btn" disabled>
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                        <path d="M8 5v14l11-7z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-lg">play_arrow</span>
                 </button>
                 <button id="skipForwardBtn" class="control-btn" data-i18n-title="ui.playback.skipForward"
                     title="Skip forward 15 seconds">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">skip_next</span>
                     <span class="skip-label">15</span>
                 </button>
             </div>
@@ -423,19 +408,10 @@
                 </button>
                 <button id="exportBtn" class="control-btn export-btn" data-i18n-title="ui.playback.exportVideo"
                     title="Export video" disabled>
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">file_download</span>
                 </button>
                 <button id="mySharedClipsBtn" class="control-btn shared-clips-btn" title="My Shared Clips">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="18" cy="5" r="3" />
-                        <circle cx="6" cy="12" r="3" />
-                        <circle cx="18" cy="19" r="3" />
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">share</span>
                 </button>
                 <button id="supportChatBtn" class="control-btn support-chat-control-btn"
                     data-i18n-title="ui.playback.supportChat" title="Support Chat">
@@ -490,9 +466,7 @@
         <div class="modal-content export-modal">
             <div class="modal-header">
                 <h2>
-                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">file_download</span>
                     <span data-i18n="ui.export.title">Export Video</span>
                 </h2>
                 <button id="closeExportModal" class="modal-close">&times;</button>
@@ -523,18 +497,10 @@
                         <div class="collapsible-section open" data-section="layout">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                                        <path d="M3 9h18" />
-                                        <path d="M9 21V9" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">dashboard</span>
                                     <span data-i18n="ui.export.layout">Layout</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -581,17 +547,10 @@
                         <div class="collapsible-section" data-section="quality">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <path
-                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">star</span>
                                     <span data-i18n="ui.export.quality">Quality</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -632,7 +591,7 @@
                                     </div>
                                     <div id="maxQualityWarning" class="info-box info-yellow hidden"
                                         style="margin-top: 8px;">
-                                        <span class="info-box-icon">⚠️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                                         <span data-i18n="ui.export.maxQualityWarning">Maximum quality may use HEVC
                                             (H.265) encoding, which may not play on older devices, some media players,
                                             or social media platforms. For maximum compatibility, use High
@@ -640,7 +599,7 @@
                                     </div>
                                     <div id="frontCamWarning" class="info-box info-yellow hidden"
                                         style="margin-top: 8px;">
-                                        <span class="info-box-icon">⚠️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                                         <span data-i18n="ui.export.frontCamWarning">Front camera will be scaled down to
                                             match other cameras.</span>
                                     </div>
@@ -652,17 +611,10 @@
                         <div class="collapsible-section" data-section="timelapse">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <polyline points="12 6 12 12 16 14" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">schedule</span>
                                     <span data-i18n="ui.export.timelapse">Time-Lapse</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -701,12 +653,12 @@
                                             </select>
                                         </div>
                                         <div id="timelapseDuration" class="info-box info-blue" style="margin-top: 8px;">
-                                            <span class="info-box-icon">⏱️</span>
+                                            <span class="info-box-icon"><span class="material-symbols-outlined">timer</span></span>
                                             <span id="timelapseDurationText">Output will be ~8x shorter than selected
                                                 range</span>
                                         </div>
                                         <div class="info-box info-yellow" style="margin-top: 8px;">
-                                            <span class="info-box-icon">ℹ️</span>
+                                            <span class="info-box-icon"><span class="material-symbols-outlined">info</span></span>
                                             <span data-i18n="ui.export.timelapseOverlayNote">Dashboard, minimap, and
                                                 timestamp overlays will be synced to the time-lapse speed. Audio is
                                                 removed.</span>
@@ -722,19 +674,11 @@
                         <div class="collapsible-section" data-section="overlays">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                                        <path d="M8 12h8" />
-                                        <path d="M12 8v8" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">add</span>
                                     <span data-i18n="ui.export.overlays">Overlays</span>
                                     <span class="feature-new-badge" id="overlaysNewBadge" data-i18n="ui.export.shareClipNew">NEW</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -790,7 +734,7 @@
                                         </div>
                                     </label>
                                     <div id="dashboardGpuWarning" class="info-box info-red hidden">
-                                        <span class="info-box-icon">⚠️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                                         <span data-i18n="ui.export.dashboardGpuWarning">Dashboard overlay requires GPU
                                             encoding. No compatible GPU detected.</span>
                                     </div>
@@ -865,7 +809,7 @@
                                             </select>
                                         </div>
                                         <div class="info-box info-blue">
-                                            <span class="info-box-icon">ℹ️</span>
+                                            <span class="info-box-icon"><span class="material-symbols-outlined">info</span></span>
                                             <span data-i18n="ui.export.dashboardPrerendered">Dashboard is pre-rendered
                                                 for optimal performance.</span>
                                         </div>
@@ -885,7 +829,7 @@
                                         </div>
                                     </label>
                                     <div id="minimapNoGpsWarning" class="info-box info-yellow hidden">
-                                        <span class="info-box-icon">⚠️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                                         <span data-i18n="ui.export.minimapNoGps">No GPS data found in selected
                                             clips.</span>
                                     </div>
@@ -954,16 +898,10 @@
                         <div class="collapsible-section" data-section="privacy">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">shield</span>
                                     <span data-i18n="ui.export.privacy">Privacy</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -989,7 +927,7 @@
                                     </div>
                                     <div id="blurZoneList" class="blur-zone-list"></div>
                                     <div id="blurZoneStatus" class="info-box info-blue hidden">
-                                        <span class="info-box-icon">ℹ️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">info</span></span>
                                         <span id="blurZoneStatusText">Blur zone configured</span>
                                     </div>
                                 </div>
@@ -1000,22 +938,12 @@
                         <div class="collapsible-section open share-clip-section" data-section="sharing">
                             <div class="collapsible-header">
                                 <span class="collapsible-header-title">
-                                    <svg class="collapsible-section-icon" width="18" height="18" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <circle cx="18" cy="5" r="3" />
-                                        <circle cx="6" cy="12" r="3" />
-                                        <circle cx="18" cy="19" r="3" />
-                                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                                    </svg>
+                                    <span class="material-symbols-outlined mi-md">share</span>
                                     <span data-i18n="ui.export.shareClip">Share Clip</span>
                                     <span class="share-new-badge" id="shareClipNewBadge"
                                         data-i18n="ui.export.shareClipNew">NEW</span>
                                 </span>
-                                <svg class="collapsible-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
+                                <span class="material-symbols-outlined mi-sm">expand_more</span>
                             </div>
                             <div class="collapsible-body">
                                 <div class="collapsible-content">
@@ -1057,7 +985,7 @@
                                     </div>
                                     <div id="shareClipWarning" class="info-box info-yellow hidden"
                                         style="margin-top: 8px;">
-                                        <span class="info-box-icon">⚠️</span>
+                                        <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                                         <span data-i18n="ui.export.shareClipWarning">Sharing is only available for
                                             exports under 5 minutes</span>
                                     </div>
@@ -1178,7 +1106,7 @@
 
                 <!-- Share error (shown on upload failure) -->
                 <div id="shareError" class="info-box info-red hidden" style="margin-top: 12px;">
-                    <span class="info-box-icon">⚠️</span>
+                    <span class="info-box-icon"><span class="material-symbols-outlined">warning</span></span>
                     <span id="shareErrorText">Upload failed</span>
                 </div>
             </div>
@@ -1340,7 +1268,7 @@
             </div>
             <div class="modal-body modal-body-padded">
                 <div class="info-box info-blue" style="margin-bottom: 15px;">
-                    <span class="info-box-icon">ℹ️</span>
+                    <span class="info-box-icon"><span class="material-symbols-outlined">info</span></span>
                     <span data-i18n="ui.export.blurZoneInstructions">Click and drag the corner handles to resize. Hover
                         over edges to add new points. Click on points to create complex shapes.</span>
                 </div>
@@ -1362,10 +1290,7 @@
         <div class="modal-content settings-modal">
             <div class="modal-header">
                 <h2>
-                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">settings</span>
                     <span data-i18n="ui.settings.title">Settings</span>
                 </h2>
                 <button id="closeSettingsModal" class="modal-close">&times;</button>
@@ -1448,9 +1373,7 @@
                                 <span class="settings-accordion-title"
                                     data-i18n="ui.settings.displaySection">Display</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <div class="select-row">
@@ -1524,9 +1447,7 @@
                                 <span class="settings-accordion-title" data-i18n="ui.settings.playbackOverlays">Playback
                                     & Overlays</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <label class="toggle-row">
@@ -1641,9 +1562,7 @@
                                     data-i18n="ui.settings.keyboardShortcuts">Keyboard Shortcuts</span>
                                 <span class="feature-new-badge" id="shortcutsNewBadge" data-i18n="ui.export.shareClipNew">NEW</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <div class="keybind-row-compact">
@@ -1765,9 +1684,7 @@
                                 <span class="settings-accordion-title"
                                     data-i18n="ui.settings.storageSection">Storage</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <div class="input-row">
@@ -1801,9 +1718,7 @@
                                 </svg>
                                 <span class="settings-accordion-title">SentryUSB</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <label class="toggle-row">
@@ -1845,9 +1760,7 @@
                                 <span class="settings-accordion-title" data-i18n="ui.settings.systemSecurity">System &
                                     Security</span>
                             </div>
-                            <svg class="settings-accordion-chevron" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-sm">expand_more</span>
                         </div>
                         <div class="settings-accordion-body">
                             <!-- System & Security section -->
@@ -1948,10 +1861,7 @@
         <div class="modal-content dev-modal">
             <div class="modal-header">
                 <h2>
-                    <svg class="modal-header-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #ff9800;">
-                        <path
-                            d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">warning</span>
                     Developer
                 </h2>
                 <button id="closeDevSettingsModal" class="modal-close">&times;</button>
@@ -1961,14 +1871,14 @@
                     <div class="modal-section-title">Debug Tools</div>
                     <div class="dev-grid">
                         <button id="devOpenConsole" class="dev-card">
-                            <span class="dev-card-icon">🔧</span>
+                            <span class="dev-card-icon"><span class="material-symbols-outlined">build</span></span>
                             <div class="dev-card-info">
                                 <span class="dev-card-label">Open DevTools</span>
                                 <span class="dev-card-desc">Chrome Developer Tools</span>
                             </div>
                         </button>
                         <button id="devResetSettings" class="dev-card">
-                            <span class="dev-card-icon">🗑️</span>
+                            <span class="dev-card-icon"><span class="material-symbols-outlined">delete</span></span>
                             <div class="dev-card-info">
                                 <span class="dev-card-label">Reset Settings</span>
                                 <span class="dev-card-desc">Restore defaults</span>
@@ -2259,10 +2169,7 @@
                     <!-- Step 1: Introduction -->
                     <div class="welcome-step active" data-step="1">
                         <div class="welcome-step-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                                <polyline points="9 22 9 12 15 12 15 22" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-xxl">rocket_launch</span>
                         </div>
                         <h3 class="welcome-step-title" data-i18n="welcome.step1.title">Welcome!</h3>
                         <p class="welcome-step-desc" data-i18n="welcome.step1.desc">Sentry Studio is a powerful viewer
@@ -2518,11 +2425,7 @@
                     <!-- Step 6: Map View -->
                     <div class="welcome-step" data-step="6">
                         <div class="welcome-step-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-                                <line x1="8" y1="2" x2="8" y2="18" />
-                                <line x1="16" y1="6" x2="16" y2="22" />
-                            </svg>
+                            <span class="material-symbols-outlined mi-md">map</span>
                         </div>
                         <h3 class="welcome-step-title" data-i18n="welcome.step6.title">GPS Map Tracking</h3>
                         <p class="welcome-step-desc" data-i18n="welcome.step6.desc">The floating map displays your
@@ -2635,7 +2538,7 @@
                         <p class="welcome-step-desc" data-i18n="welcome.step9.desc">That's everything you need to get
                             started. Load a TeslaCam folder and start exploring your footage. You can always access help
                             from the Settings menu.</p>
-                        <p class="welcome-step-tip" data-i18n="welcome.step9.tip" data-i18n-html>💡
+                        <p class="welcome-step-tip" data-i18n="welcome.step9.tip" data-i18n-html><span class="material-symbols-outlined">lightbulb</span>
                             <strong>Tip:</strong> Press <strong>Space</strong> to play/pause and use arrow keys to seek.
                         </p>
                     </div>
