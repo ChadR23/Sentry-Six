@@ -3,8 +3,12 @@
     {
       "version": "2026.12.14",
       "date": "2026-03-23",
-      "title": "Compact Dashboard Polish & Export Improvements",
+      "title": "UI and Export Improvements",
       "changes": [
+        {
+          "type": "improvement",
+          "description": "Font: Switched to Noto Sans and Noto Sans Mono via Google Fonts"
+        },
         {
           "type": "improvement",
           "description": "Compact dashboard: Reorganized layout regarding speed, gear, and autopilot state."
