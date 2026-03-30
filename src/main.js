@@ -2120,7 +2120,10 @@ ipcMain.handle('ffmpeg:check', async () => {
 // Read directory contents (for folder traversal)
 ipcMain.handle('fs:readDir', async (_event, dirPath) => {
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const entries = await Promise.race([
+      fs.promises.readdir(dirPath, { withFileTypes: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('readDir timeout')), 8000))
+    ]);
     return entries.map(entry => ({
       name: entry.name,
       isDirectory: entry.isDirectory(),
@@ -2135,13 +2138,24 @@ ipcMain.handle('fs:readDir', async (_event, dirPath) => {
 
 // Check if path exists
 ipcMain.handle('fs:exists', async (_event, filePath) => {
-  return fs.existsSync(filePath);
+  try {
+    await Promise.race([
+      fs.promises.access(filePath),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('exists timeout')), 5000))
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 // Get file stats
 ipcMain.handle('fs:stat', async (_event, filePath) => {
   try {
-    const stats = fs.statSync(filePath);
+    const stats = await Promise.race([
+      fs.promises.stat(filePath),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('stat timeout')), 5000))
+    ]);
     return {
       size: stats.size,
       isDirectory: stats.isDirectory(),

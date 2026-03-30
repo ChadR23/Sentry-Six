@@ -1649,6 +1649,14 @@ async function loadDefaultFolderOnStartup() {
     }
     if (savedFolder && window.electronAPI?.readDir) {
         try {
+            // Verify path is still accessible before traversing (avoids hang on missing USB/network paths)
+            if (window.electronAPI?.exists) {
+                const pathExists = await window.electronAPI.exists(savedFolder);
+                if (!pathExists) {
+                    console.log('Default folder no longer accessible, skipping auto-load:', savedFolder);
+                    return;
+                }
+            }
             console.log('Auto-loading default dashcam folder:', savedFolder);
             baseFolderPath = savedFolder;
             showLoading('Loading default folder...', 'Looking for dashcam clips');

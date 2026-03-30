@@ -530,6 +530,9 @@ function attachThumbPreview(item, folderPath) {
         // If mouse left during the async check, don't show
         if (!hovering) return;
 
+        // If the item was removed from the DOM during the async check, don't show
+        if (!document.body.contains(item)) return;
+
         // Create tooltip if not already present
         if (!tooltip) {
             tooltip = document.createElement('div');
