@@ -1,3 +1,31 @@
+/* === Bundled Fonts (Latin subset) === */
+@font-face {
+    font-family: 'Noto Sans';
+    src: url('./fonts/NotoSans-Latin.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Noto Sans Mono';
+    src: url('./fonts/NotoSansMono-Latin.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* === Material Symbols Outlined (bundled) === */
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    src: url('./fonts/MaterialSymbolsOutlined.woff2') format('woff2');
+    font-weight: 100 700;
+    font-style: normal;
+    font-display: block;
+}
+
 /* Reset & Base - Liquid Glass Inspired */
 :root {
     --bg-color: #0a0a0f;
@@ -47,7 +75,33 @@
     --clips-dock-width: 360px;
     --clips-collapsed-width: 46px;
     --left-panel-offset: 360px;
+    --font-sans: 'Noto Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'Noto Sans Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-icons: 'Material Symbols Outlined';
 }
+
+/* === Material Symbols Outlined base class === */
+.material-symbols-outlined {
+    font-family: var(--font-icons);
+    font-weight: normal;
+    font-style: normal;
+    font-size: 1em;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+.mi-sm { font-size: 16px; }
+.mi-md { font-size: 20px; }
+.mi-lg { font-size: 24px; }
+.mi-xl { font-size: 32px; }
+.mi-xxl { font-size: 48px; }
 
 /* =====================================================
    LIGHT MODE THEME
@@ -97,7 +151,7 @@
 }
 
 body {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-sans);
     background: var(--bg-gradient);
     color: var(--text-color);
     height: 100vh;
@@ -155,7 +209,7 @@ canvas,
     display: flex;
     align-items: center;
     gap: 4px;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
     color: var(--text-color);
     background: var(--overlay-light);
@@ -976,7 +1030,7 @@ canvas,
     background: rgba(0, 0, 0, 0.2);
     padding: 8px;
     border-radius: 4px;
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-family: var(--font-mono);
 }
 
 .delete-confirm-warning {
@@ -1517,19 +1571,19 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 /* Speed Display Compact */
 .speed-display-compact {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(3px, 0.4em, 6px);
-    min-width: clamp(75px, 9em, 110px);
+    gap: clamp(1px, 0.15em, 3px);
+    min-width: clamp(40px, 5em, 65px);
     flex-shrink: 0;
     flex-grow: 0;
     height: 100%;
 }
 
 .speed-value-compact {
-    font-size: clamp(16px, 2.2em, 28px);
-    font-weight: 300;
+    font-size: clamp(12px, 1.5em, 21px);
+    font-weight: 700;
     line-height: 1;
     color: #fff;
     font-variant-numeric: tabular-nums;
@@ -1539,7 +1593,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .speed-unit-compact {
-    font-size: clamp(10px, 1.1em, 16px);
+    font-size: clamp(8px, 0.9em, 14px);
     font-weight: 500;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -1555,15 +1609,15 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: clamp(1px, 0.15em, 3px);
     flex-shrink: 0;
     flex-grow: 0;
-    min-width: clamp(60px, 7.5em, 90px);
+    min-width: clamp(40px, 5em, 65px);
 }
 
 /* Recording Time Compact */
 .recording-time-compact {
-    font-size: clamp(9px, 1em, 14px);
+    font-size: clamp(8px, 0.9em, 14px);
     font-weight: 500;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -1574,8 +1628,8 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 
 /* Autopilot Label Compact */
 .autopilot-label-compact {
-    font-size: clamp(9px, 1em, 14px);
-    font-weight: 500;
+    font-size: clamp(12px, 1.5em, 21px);
+    font-weight: 400;
     color: var(--text-muted);
     transition: all 0.3s ease;
     white-space: nowrap;
@@ -1929,7 +1983,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .data-item .val {
     font-size: 10px;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: var(--accent-color);
 }
 
@@ -1947,7 +2001,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .seq-display .val {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: #888;
 }
 
@@ -1999,7 +2053,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .gforce-val {
     font-size: 11px;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: #666;
     min-width: 36px;
     text-align: right;
@@ -2055,7 +2109,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .compass-value {
     font-size: 11px;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: #888;
     text-align: left;
     min-width: 36px;
@@ -2450,7 +2504,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .time-display {
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
     color: var(--text-secondary);
     min-width: 100px;
@@ -3522,7 +3576,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     color: var(--text-secondary);
     min-width: 32px;
     text-align: right;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
 }
 
 /* Select Row */
@@ -3621,7 +3675,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border-radius: 6px;
     color: var(--text-color);
     font-size: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
 }
 
 .input-row .text-input:focus {
@@ -3667,7 +3721,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border-radius: 4px;
     color: var(--text-color);
     font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     text-align: center;
     cursor: pointer;
     -webkit-user-select: none;
@@ -3894,7 +3948,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .dev-output-box pre {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     font-size: 10px;
     color: var(--text-secondary);
     white-space: pre-wrap;
@@ -4061,7 +4115,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 15px;
     font-weight: 600;
     color: var(--export-accent);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
 }
 
 .export-modal .stat-item.timelapse-active {
@@ -4506,7 +4560,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: rgba(0, 0, 0, 0.3);
     color: #00d4ff;
     font-size: 13px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: var(--font-mono);
     cursor: text;
     user-select: all;
 }
@@ -4894,7 +4948,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .version-number {
     font-size: 18px;
     font-weight: 700;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: var(--text-color);
 }
 
@@ -4971,7 +5025,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     border-radius: 6px;
     font-size: 12px;
     font-weight: 700;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: #4caf50;
 }
 
@@ -5348,7 +5402,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .badge-hash {
     background: rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     font-size: 10.5px;
 }
 
@@ -5395,7 +5449,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     font-size: 12px;
     color: var(--settings-accent, #00d4ff);
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
 }
 
 /* Restart Message */
@@ -5410,7 +5464,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     background: rgba(0, 0, 0, 0.3);
     padding: 2px 8px;
     border-radius: 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: #4caf50;
 }
 
@@ -5442,7 +5496,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 .about-version-value {
     font-size: 14px;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-family: var(--font-mono);
     color: var(--accent-color, #3e9cbf);
 }
 
@@ -6389,7 +6443,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .char-count {
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-mono);
 }
 
 .privacy-note {
@@ -8562,7 +8616,7 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
 }
 
 .settings-section-description code {
-    font-family: monospace;
+    font-family: var(--font-mono);
     background: var(--surface-raised);
     padding: 1px 4px;
     border-radius: 3px;

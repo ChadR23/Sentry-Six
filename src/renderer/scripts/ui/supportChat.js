@@ -100,29 +100,19 @@ function createSupportChatPanel() {
     panel.innerHTML = `
         <div class="support-chat-header">
             <div class="support-chat-title">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
+                <span class="material-symbols-outlined mi-md">chat</span>
                 <span data-i18n="ui.supportChat.title">${t('ui.supportChat.title')}</span>
                 <span id="supportTicketId" class="support-ticket-id hidden"></span>
             </div>
             <div class="support-chat-actions">
                 <button id="supportCloseTicketBtn" class="support-chat-btn support-close-ticket-btn hidden" title="${t('ui.supportChat.closeTicket')}">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">check_circle</span>
                 </button>
                 <button id="supportChatMinimize" class="support-chat-btn" title="${t('ui.supportChat.minimize')}">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">remove</span>
                 </button>
                 <button id="supportChatClose" class="support-chat-btn" title="${t('ui.supportChat.closePanel')}">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">close</span>
                 </button>
             </div>
         </div>
@@ -131,9 +121,7 @@ function createSupportChatPanel() {
             <!-- Messages will be inserted here -->
             <div id="supportChatWelcome" class="support-chat-welcome">
                 <div class="welcome-icon">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-xxl">help</span>
                 </div>
                 <h3 data-i18n="ui.supportChat.needHelp">${t('ui.supportChat.needHelp')}</h3>
                 <p data-i18n="ui.supportChat.welcomeDesc">${t('ui.supportChat.welcomeDesc')}</p>
@@ -149,20 +137,12 @@ function createSupportChatPanel() {
             <div class="composer-options">
                 <label class="composer-option" title="${t('ui.supportChat.includeDiagnostics')}">
                     <input type="checkbox" id="supportIncludeDiagnostics">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10 9 9 9 8 9"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">description</span>
                     <span data-i18n="ui.supportChat.diagnostics">${t('ui.supportChat.diagnostics')}</span>
                 </label>
                 <label class="composer-option attach-btn" title="${t('ui.supportChat.attachFiles')}">
                     <input type="file" id="supportFileInput" accept="image/*,video/*,.zip" multiple style="display: none;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">attach_file</span>
                     <span data-i18n="ui.supportChat.attach">${t('ui.supportChat.attach')}</span>
                 </label>
             </div>
@@ -170,19 +150,14 @@ function createSupportChatPanel() {
             <div class="composer-input-row">
                 <textarea id="supportMessageInput" class="composer-textarea" placeholder="${t('ui.supportChat.placeholder')}" rows="3" maxlength="5000"></textarea>
                 <button id="supportSendBtn" class="composer-send-btn" title="${t('ui.supportChat.sendMessage')}">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-md">send</span>
                 </button>
             </div>
             
             <div class="composer-footer">
                 <span class="char-count"><span id="supportCharCount">0</span>/5000</span>
                 <span class="privacy-note">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-                    </svg>
+                    <span class="material-symbols-outlined">security</span>
                     <span data-i18n="ui.supportChat.privacyNote">${t('ui.supportChat.privacyNote')}</span>
                 </span>
             </div>
@@ -190,16 +165,10 @@ function createSupportChatPanel() {
         
         <div id="supportTicketClosed" class="support-ticket-closed hidden">
             <div class="ticket-closed-content">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                    <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
+                <span class="material-symbols-outlined mi-xl">check_circle</span>
                 <p data-i18n="ui.supportChat.ticketClosed">${t('ui.supportChat.ticketClosed')}</p>
                 <button id="supportNewTicketBtn" class="new-ticket-btn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
+                    <span class="material-symbols-outlined mi-sm">add</span>
                     <span data-i18n="ui.supportChat.createNewTicket">${t('ui.supportChat.createNewTicket')}</span>
                 </button>
             </div>
@@ -650,7 +619,7 @@ function addMessageToUI(msg) {
     
     let badgesHtml = '';
     if (msg.hasDiagnostics) {
-        badgesHtml += '<span class="message-badge diagnostics">📊 Diagnostics attached</span>';
+        badgesHtml += '<span class="message-badge diagnostics"><span class="material-symbols-outlined">assessment</span> Diagnostics attached</span>';
     }
     
     const avatarLabel = isUser ? 'You' : 'S6';
@@ -782,8 +751,9 @@ function showNewMessageNotification(count) {
     dismissSupportNotification();
     
     // Create persistent notification with X button
-    supportNotificationId = notify(`📩 ${t('ui.notifications.newSupportMessages', { count })}`, { 
-        type: 'info', 
+    supportNotificationId = notify(`<span class="material-symbols-outlined">mail</span> ${t('ui.notifications.newSupportMessages', { count })}`, {
+        type: 'info',
+        html: true,
         timeoutMs: 0, // Persistent - no auto-dismiss
         dismissible: true, // Shows X button
         action: {
@@ -876,10 +846,10 @@ function formatFileSize(bytes) {
 }
 
 function getFileIcon(mimeType) {
-    if (mimeType?.startsWith('image/')) return '🖼️';
-    if (mimeType?.startsWith('video/')) return '🎬';
-    if (mimeType?.includes('zip')) return '📦';
-    return '📎';
+    if (mimeType?.startsWith('image/')) return '<span class="material-symbols-outlined">image</span>';
+    if (mimeType?.startsWith('video/')) return '<span class="material-symbols-outlined">movie</span>';
+    if (mimeType?.includes('zip')) return '<span class="material-symbols-outlined">inventory_2</span>';
+    return '<span class="material-symbols-outlined">attach_file</span>';
 }
 
 function isImageOrVideo(mimeType) {

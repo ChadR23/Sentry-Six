@@ -621,7 +621,7 @@ function createMarkerElement(type) {
     const removeBtn = document.createElement('div');
     removeBtn.className = 'marker-remove';
     removeBtn.title = `Remove ${markerType} marker`;
-    removeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+    removeBtn.innerHTML = `<span class="material-symbols-outlined mi-sm">close</span>`;
     removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -1330,12 +1330,12 @@ function showBlurZoneRestoreBanner(savedZones) {
     banner.className = 'blur-zone-restore-banner';
     banner.innerHTML = `
         <div class="restore-banner-content">
-            <span class="restore-banner-icon">🔒</span>
-            <span class="restore-banner-text">${savedZones.length} previous privacy zone${savedZones.length > 1 ? 's' : ''} found</span>
+            <span class="restore-banner-icon"><span class="material-symbols-outlined">lock</span></span>
+            <span class="restore-banner-text">${t('ui.export.restoreBannerText', { count: savedZones.length })}</span>
         </div>
         <div class="restore-banner-actions">
-            <button class="btn btn-primary btn-small restore-banner-restore">Restore</button>
-            <button class="btn btn-secondary btn-small restore-banner-dismiss">Dismiss</button>
+            <button class="btn btn-primary btn-small restore-banner-restore">${t('ui.export.restoreBannerRestore')}</button>
+            <button class="btn btn-secondary btn-small restore-banner-dismiss">${t('ui.export.restoreBannerDismiss')}</button>
         </div>
     `;
 
@@ -1347,7 +1347,7 @@ function showBlurZoneRestoreBanner(savedZones) {
         exportState.blurZones = [...savedZones];
         updateBlurZoneStatusDisplay();
         banner.remove();
-        notify('Privacy zones restored', { type: 'success' });
+        notify(t('ui.export.restoreBannerRestored'), { type: 'success' });
     };
 
     // Dismiss button
@@ -2195,6 +2195,19 @@ export async function startExport() {
 }
 
 /**
+ * Show confirmation modal before canceling an active export.
+ * If not currently exporting, cancels immediately without confirmation.
+ */
+export function confirmCancelExport() {
+    if (!exportState.isExporting) {
+        cancelExport();
+        return;
+    }
+    const modal = $('cancelExportConfirmModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+/**
  * Cancel an ongoing export
  */
 export async function cancelExport() {
@@ -2710,7 +2723,7 @@ export async function renderSharedClipsList() {
             if (copyBtn) copyBtn.style.display = isExpired ? 'none' : '';
             if (openBtn) openBtn.style.display = isExpired ? 'none' : '';
             if (deleteBtn) {
-                deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="ui.sharedClips.delete">${t('ui.sharedClips.delete')}</span>`;
+                deleteBtn.innerHTML = `<span class="material-symbols-outlined mi-sm">delete</span> <span data-i18n="ui.sharedClips.delete">${t('ui.sharedClips.delete')}</span>`;
             }
 
             if (detailEl) detailEl.classList.remove('hidden');
@@ -2735,7 +2748,7 @@ function _wireDetailButtons(listEl, emptyEl, layoutEl) {
             if (!_selectedClipData?.url) return;
             navigator.clipboard.writeText(_selectedClipData.url).then(() => {
                 const origHTML = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+                copyBtn.innerHTML = '<span class="material-symbols-outlined mi-sm">check</span> Copied!';
                 setTimeout(() => { copyBtn.innerHTML = origHTML; }, 1500);
             });
         };

@@ -1,6 +1,41 @@
 {
   "versions": [
     {
+      "version": "2026.12.14",
+      "date": "2026-03-23",
+      "title": "UI and Export Improvements",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Font: Switched to Noto Sans and Noto Sans Mono via Google Fonts"
+        },
+        {
+          "type": "fix",
+          "description": "Export: Privacy blur restore banner is now fully translated in all supported languages."
+        },
+        {
+          "type": "improvement",
+          "description": "Compact dashboard: Reorganized layout regarding speed, gear, and autopilot state."
+        },
+        {
+          "type": "improvement",
+          "description": "Compact dashboard: Gear state text is now always white and bold for better readability."
+        },
+        {
+          "type": "fix",
+          "description": "Compact dashboard: Fixed accelerator pedal fill not covering the full pedal shape."
+        },
+        {
+          "type": "feature",
+          "description": "Export: Added a confirmation dialog when canceling an in-progress export to prevent accidental cancellation."
+        },
+        {
+          "type": "improvement",
+          "description": "Export: Partial export files are now automatically deleted when an export is canceled."
+        }
+      ]
+    },
+    {
       "version": "2026.12.13",
       "date": "2026-03-19",
       "title": "Bug Fix Release",
@@ -36,6 +71,10 @@
         {
           "type": "fix",
           "description": "UI : Fix compact dashboard speed/turn signal overlap"
+        },
+        {
+          "type": "improvement",
+          "description": "Speed unit now appears below the speed number on the Compact dashboard."
         }
       ]
     },

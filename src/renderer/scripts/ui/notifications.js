@@ -46,7 +46,11 @@ export function notify(message, opts = {}) {
     }
     
     el.innerHTML = html;
-    el.querySelector('.msg').textContent = String(message || '');
+    if (opts.html) {
+        el.querySelector('.msg').innerHTML = String(message || '');
+    } else {
+        el.querySelector('.msg').textContent = String(message || '');
+    }
     container.appendChild(el);
 
     // Remove function

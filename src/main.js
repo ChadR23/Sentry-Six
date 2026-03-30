@@ -63,6 +63,7 @@ function getUpdateBranch() {
 
 // Active exports tracking
 const activeExports = {};
+const activeExportPaths = {}; // Track output paths for cleanup on cancel
 const cancelledExports = new Set(); // Track cancelled exports by ID
 let mainWindow = null;
 
@@ -1259,6 +1260,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const warning = blurFailed ? { key: 'ui.export.blurZoneFailed' } : null;
           sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } }, warning);
           resolve(true);
+          delete activeExportPaths[exportId];
         } else {
           console.error('FFmpeg error:', stderr.slice(-500));
           const errLower = stderr.toLowerCase();
@@ -1284,6 +1286,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const err = new Error(`Export failed with code ${code}`);
           err._completeSent = true;
           reject(err);
+          // Delete partial output file on failure/cancellation
+          try { fs.unlinkSync(outputPath); } catch { }
+          delete activeExportPaths[exportId];
         }
       });
 
@@ -1297,6 +1302,7 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
       // Register export early so cancellation can find it
       activeExports[exportId] = proc;
+      activeExportPaths[exportId] = outputPath;
 
       // Check for cancellation immediately after spawning (race condition protection)
       if (cancelledExports.has(exportId)) {
@@ -1305,6 +1311,8 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
         delete activeExports[exportId];
         cancelledExports.delete(exportId);
         reject(new Error('Export cancelled'));
+        try { fs.unlinkSync(outputPath); } catch { }
+        delete activeExportPaths[exportId];
         return;
       }
     });
@@ -1551,6 +1559,14 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
     proc.kill('SIGTERM');
     delete activeExports[exportId];
     cancelledExports.delete(exportId); // Clean up immediately after killing
+    // Delete partial output file after ffmpeg releases the handle
+    const outputPath = activeExportPaths[exportId];
+    if (outputPath) {
+      setTimeout(() => {
+        try { fs.unlinkSync(outputPath); } catch { }
+      }, 500);
+      delete activeExportPaths[exportId];
+    }
     return true;
   }
   // Even if process not found, mark as cancelled so it won't start

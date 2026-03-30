@@ -496,7 +496,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   // Compact style aspect ratio: 480x56 (8.57:1)
   // Always use 1920px reference so dashboard size is consistent across camera counts
   // Cap at video width minus margins to prevent overflow on very small exports
-  const refDashWidth = Math.round(1920 * sizeMultiplier);
+  const refDashWidth = Math.round(1920 * sizeMultiplier * 1.15);
   const dashWidth = Math.min(refDashWidth, playResX - 80);
   const dashHeight = Math.round(dashWidth / 8.57);
   const fontSize = Math.round(dashHeight * 0.45);
@@ -514,15 +514,16 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
   const spacing = usableWidth / (numElements - 1);
   const startX = pos.x - dashWidth / 2 + padding;
 
-  // Even spacing for all elements, with speed/gearAp shifted for extra gap
-  const extraGap = spacing * 0.22; // Extra gap between speed and gear/AP (and away from blinkers)
+  // Spread blinkers outward to give speed/gearAp more room in center
+  const arrowSpread = spacing * 0.35; // Push arrows away from center
+  const centerBetweenArrows = startX + spacing * 3.5;
   const positions = {
     brake: startX + spacing * 0,
     dateTime: startX + spacing * 1,              // Date/Time (was Gear)
-    leftBlinker: startX + spacing * 2,
-    speed: startX + spacing * 3 - extraGap,      // Shift left slightly
-    gearAp: startX + spacing * 4 + extraGap,     // Gear/AP (was Time/AP) - Shift right slightly
-    rightBlinker: startX + spacing * 5,
+    leftBlinker: startX + spacing * 2 - arrowSpread * 0.25,
+    speed: centerBetweenArrows - spacing * 0.65,
+    gearAp: centerBetweenArrows + spacing * 0.65,
+    rightBlinker: startX + spacing * 5 + arrowSpread,
     steering: startX + spacing * 6,
     accel: startX + spacing * 7
   };
@@ -693,17 +694,17 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
         ));
 
         // Speed and gear font sizes (declared early as used by gear display)
-        const speedNumSize = Math.round(fontSize * 1.4);
-        const speedUnitSize = Math.round(fontSize * 0.55);
+        const speedNumSize = Math.round(fontSize * 0.8);
+        const speedUnitSize = Math.round(fontSize * 0.5);
         const smallTextSize = Math.round(fontSize * 0.7);
 
         // Date and Time display (stacked vertically) - at position 1 (where Gear was)
         // Date on top, Time below - both same size as the old time display
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.dateTime},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c&HA0A0A0&}${prev.displayDate}`
+          `{\\an5\\pos(${positions.dateTime},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${speedNumSize}\\1c&HA0A0A0&}${prev.displayDate}`
         ));
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.dateTime},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c&HA0A0A0&}${prev.displayTime}`
+          `{\\an5\\pos(${positions.dateTime},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${speedUnitSize}\\1c&HA0A0A0&}${prev.displayTime}`
         ));
 
         // Left blinker arrow - from Illustrator export, centered at (0,0)
@@ -717,24 +718,22 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           drawLeftArrow(arrowScale) + `{\\p0}`
         ));
 
-        // Speed display - number with unit beside it (e.g. "32 MPH")
-        const speedGap = fontSize * 0.15; // Small gap between number and unit
+        // Speed display - number with unit below it (e.g. "32" over "MPH")
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an6\\pos(${positions.speed - speedGap},${pos.y})\\bord0\\shad0\\fs${speedNumSize}\\1c&HFFFFFF&}${prev.speed}`
+          `{\\an5\\pos(${positions.speed},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${speedNumSize}\\b1\\1c&HFFFFFF&}${prev.speed}`
         ));
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an4\\pos(${positions.speed + speedGap},${pos.y})\\bord0\\shad0\\fs${speedUnitSize}\\1c&H909090&}${speedUnit}`
+          `{\\an5\\pos(${positions.speed},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${speedUnitSize}\\1c&H909090&}${speedUnit}`
         ));
 
-        // Gear and Autopilot label (stacked vertically) - at position 4 (where Time was)
-        // Gear on top (same size as time text), AP label below
-        const gearColor = prev.apActive ? '&HFF4800&' : '&HFFFFFF&';
+        // Autopilot label and Gear (stacked vertically) - AP on top, Gear below
+        const apColor = prev.apActive ? '&HFF4800&' : '&H808080&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.gearAp},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c${gearColor}}${prev.gearText}`
+          `{\\an5\\pos(${positions.gearAp},${pos.y - fontSize * 0.35})\\bord0\\shad0\\fs${speedNumSize}\\1c${apColor}}${prev.apText}`
         ));
-        const apColor = prev.apActive ? '&HFF4800&' : '&H808080&'; // Blue when active
+        const gearColor = '&HFFFFFF&';
         events.push(dialogueLine(1, startAssTime, endAssTime, 'CompactDash',
-          `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\fs${smallTextSize}\\1c${apColor}}${prev.apText}`
+          `{\\an5\\pos(${positions.gearAp},${pos.y + fontSize * 0.35})\\bord0\\shad0\\b1\\fs${speedUnitSize}\\1c${gearColor}}${prev.gearText}`
         ));
 
         // Right blinker arrow - from Illustrator export, centered at (0,0)
@@ -823,7 +822,7 @@ function generateCompactDashboardEvents(seiData, startTimeMs, endTimeMs, options
           }
         } else {
           // Mode: iconbar (default) - Icon fills from bottom based on percentage
-          const pedalHalfHeight = Math.round(386 * pedalScale);
+          const pedalHalfHeight = Math.round(445 * pedalScale);
           const pedalTop = accelY - pedalHalfHeight;
           const pedalBottom = accelY + pedalHalfHeight;
           const clipY = Math.round(pedalBottom - (pedalBottom - pedalTop) * (accelPctVal / 100));
