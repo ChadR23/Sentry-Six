@@ -11,7 +11,10 @@
     "build:mac": "electron-builder --mac",
     "build:mac-intel": "electron-builder --mac --x64",
     "build:mac-apple-silicon": "electron-builder --mac --arm64",
-    "build:all": "electron-builder --win --mac"
+    "build:all": "electron-builder --win --mac",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "keywords": [
     "tesla",
@@ -23,14 +26,18 @@
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
+    "babel-jest": "^30.3.0",
     "electron": "^39.2.7",
-    "electron-builder": "^26.6.0"
+    "electron-builder": "^26.6.0",
+    "jest": "^30.3.0"
   },
   "dependencies": {
-    "sharp": "^0.33.5",
     "electron-updater": "^6.1.7",
     "node-machine-id": "^1.1.12",
-    "protobufjs": "^7.5.4"
+    "protobufjs": "^7.5.4",
+    "sharp": "^0.33.5"
   },
   "build": {
     "appId": "com.sentry-six.revamped",
@@ -40,7 +47,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "verifyUpdateCodeSignature": false,
@@ -69,7 +78,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "category": "public.app-category.utilities",
@@ -78,7 +89,9 @@
       "identity": "Scott Vandereems (6733Y82885)",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
-      "signIgnore": ["\\.pak$"],
+      "signIgnore": [
+        "\\.pak$"
+      ],
       "notarize": true,
       "artifactName": "SentryStudio-${version}-macOS.${ext}",
       "x64ArchFiles": "{Contents/Resources/ffmpeg_bin/*,Contents/Resources/app.asar.unpacked/node_modules/@img/**/*}",
