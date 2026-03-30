@@ -8,7 +8,8 @@ let _sharp = null;
 function getSharp() { if (!_sharp) _sharp = require('sharp'); return _sharp; }
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
 const { settingsPath, loadSettings, saveSettings, registerSettingsIpc } = require('./main/settings');
-const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
+const { registerSupportChatIpc } = require('./main/supportChat');
+const { API_BASE_URL, API_ENDPOINTS } = require('./main/apiConfig');
 const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
 const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
 const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
@@ -1400,6 +1401,9 @@ ipcMain.handle('dialog:openFile', async (_event, filters) => {
   return result.filePaths[0];
 });
 
+// API configuration (expose base URL to renderer)
+ipcMain.handle('config:getApiBaseUrl', () => API_BASE_URL);
+
 // Settings module (extracted to src/main/settings.js)
 registerSettingsIpc();
 
@@ -1556,9 +1560,9 @@ ipcMain.handle('export:cancel', async (_event, exportId) => {
 // ============================================
 // CLIP SHARING - Upload export to Sentry Studio server
 // ============================================
-const CLIP_UPLOAD_URL = 'https://api.sentry-six.com/share/upload';
-const CLIP_DELETE_URL = 'https://api.sentry-six.com/share/delete';
-const CLIP_CONFIG_URL = 'https://api.sentry-six.com/share/config';
+const CLIP_UPLOAD_URL = API_ENDPOINTS.clipUpload;
+const CLIP_DELETE_URL = API_ENDPOINTS.clipDelete;
+const CLIP_CONFIG_URL = API_ENDPOINTS.clipConfig;
 
 let _shareConfigCache = null;
 
@@ -1599,7 +1603,7 @@ ipcMain.handle('share:getConfig', async () => {
   return { expirationHours: 72, minExpirationHours: 0.5, maxExpirationHours: 168 };
 });
 
-const CLIP_RESERVE_URL = 'https://api.sentry-six.com/share/reserve';
+const CLIP_RESERVE_URL = API_ENDPOINTS.clipReserve;
 
 ipcMain.handle('share:reserve', async (event, expirationHours) => {
   console.log('[SHARE] Reserving share code...');
@@ -1830,7 +1834,7 @@ ipcMain.handle('share:syncClips', async () => {
 
     const codes = clips.map(c => c.code);
     const payload = JSON.stringify({ codes });
-    const urlObj = new URL('https://api.sentry-six.com/share/check-codes');
+    const urlObj = new URL(API_ENDPOINTS.clipCheckCodes);
     const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
 
     const result = await new Promise((resolve, reject) => {
@@ -1960,8 +1964,34 @@ ipcMain.handle('fs:showItemInFolder', async (_event, filePath) => {
 // Store pending deletion for after reload
 let pendingDeleteFolder = null;
 
+/**
+ * Validate that a folder path is safe for deletion.
+ * Rejects path traversal, non-absolute paths, and system-critical directories.
+ */
+function isDeletePathSafe(folderPath) {
+  if (typeof folderPath !== 'string' || folderPath.trim() === '') return false;
+  const resolved = path.resolve(folderPath);
+  // Must match what was passed (no .. traversal tricks)
+  if (resolved !== path.normalize(folderPath)) return false;
+  // Block system-critical roots
+  const blocked = ['/', '/usr', '/etc', '/bin', '/sbin', '/var', '/tmp', '/System', '/Library',
+    os.homedir(), app.getPath('userData'), app.getAppPath()];
+  if (process.platform === 'win32') {
+    blocked.push('C:\\', 'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)');
+  }
+  for (const b of blocked) {
+    if (resolved === path.resolve(b)) return false;
+  }
+  return true;
+}
+
 ipcMain.handle('fs:deleteFolder', async (_event, folderPath) => {
   try {
+    if (!isDeletePathSafe(folderPath)) {
+      console.error('[DELETE] Blocked unsafe path:', folderPath);
+      return { success: false, error: 'Path is not allowed' };
+    }
+
     // Validate the path exists and is a directory
     if (!fs.existsSync(folderPath)) {
       return { success: false, error: 'Folder does not exist' };
@@ -1993,6 +2023,11 @@ ipcMain.handle('fs:deleteFolder', async (_event, folderPath) => {
 // Schedule folder deletion and reload window to release file handles
 ipcMain.handle('fs:deleteFolderWithReload', async (_event, folderPath, baseFolderPath) => {
   try {
+    if (!isDeletePathSafe(folderPath)) {
+      console.error('[DELETE] Blocked unsafe path:', folderPath);
+      return { success: false, error: 'Path is not allowed' };
+    }
+
     // Validate the path exists
     if (!fs.existsSync(folderPath)) {
       return { success: false, error: 'Folder does not exist' };
@@ -2137,8 +2172,11 @@ registerAutoUpdateIpc({
   processApiResponse
 });
 
-// Developer Settings IPC Handlers
+// Developer Settings IPC Handlers — only available in dev mode
+const devNotAvailable = { success: false, error: 'Dev tools are not available in production' };
+
 ipcMain.handle('dev:openDevTools', async () => {
+  if (app.isPackaged) return devNotAvailable;
   if (mainWindow) {
     mainWindow.webContents.openDevTools();
     return { success: true };
@@ -2147,6 +2185,7 @@ ipcMain.handle('dev:openDevTools', async () => {
 });
 
 ipcMain.handle('dev:resetSettings', async () => {
+  if (app.isPackaged) return devNotAvailable;
   try {
     if (fs.existsSync(settingsPath)) {
       fs.unlinkSync(settingsPath);
@@ -2160,14 +2199,12 @@ ipcMain.handle('dev:resetSettings', async () => {
 });
 
 ipcMain.handle('dev:forceLatestVersion', async () => {
-  // Note: With electron-updater, version is managed by package.json
-  // This just returns the current version for display purposes
+  if (app.isPackaged) return devNotAvailable;
   return { success: true, version: app.getVersion(), note: 'Version is managed by electron-updater' };
 });
 
 ipcMain.handle('dev:setOldVersion', async () => {
-  // Note: With electron-updater, version is managed by package.json
-  // This can't actually change the version - just triggers a manual update check
+  if (app.isPackaged) return devNotAvailable;
   console.log('[DEV] Triggering manual update check...');
   if (!autoUpdater) {
     return { success: false, error: 'electron-updater not available in dev mode' };
@@ -2185,6 +2222,7 @@ ipcMain.handle('dev:getCurrentVersion', async () => {
 });
 
 ipcMain.handle('dev:getAppPaths', async () => {
+  if (app.isPackaged) return devNotAvailable;
   return {
     userData: app.getPath('userData'),
     settings: settingsPath,
@@ -2195,6 +2233,7 @@ ipcMain.handle('dev:getAppPaths', async () => {
 });
 
 ipcMain.handle('dev:reloadApp', async () => {
+  if (app.isPackaged) return devNotAvailable;
   if (mainWindow) {
     mainWindow.reload();
     return { success: true };
@@ -2283,7 +2322,7 @@ ipcMain.handle('diagnostics:get', async () => {
 
 
 // Diagnostics storage module (extracted to src/main/diagnostics.js)
-registerDiagnosticsStorageIpc(SUPPORT_SERVER_URL);
+registerDiagnosticsStorageIpc(API_BASE_URL);
 
 // Support chat module (extracted to src/main/supportChat.js)
 registerSupportChatIpc();
