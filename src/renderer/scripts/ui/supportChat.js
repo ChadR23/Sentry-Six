@@ -21,7 +21,10 @@ let unreadCount = 0; // Track cumulative unread messages
 const MAX_ATTACHMENT_SIZE = 100 * 1024 * 1024; // 100MB (Cloudflare limit)
 const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB total
 const POLL_INTERVAL = 3500; // 3.5 seconds
-const SUPPORT_SERVER_URL = 'https://api.sentry-six.com'; // Must match main.js
+let SUPPORT_SERVER_URL = 'https://api.sentry-six.com'; // default, overridden at init
+if (window.electronAPI?.getApiBaseUrl) {
+    window.electronAPI.getApiBaseUrl().then(url => { SUPPORT_SERVER_URL = url; });
+}
 
 /**
  * Initialize the support chat system

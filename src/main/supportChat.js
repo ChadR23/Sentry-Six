@@ -1,9 +1,10 @@
 const { ipcMain } = require('electron');
 const https = require('https');
 const http = require('http');
+const { API_ENDPOINTS } = require('./apiConfig');
 
 // Support server configuration
-const SUPPORT_SERVER_URL = 'https://api.sentry-six.com';
+const SUPPORT_SERVER_URL = API_ENDPOINTS.support;
 
 // Helper function to make support server requests
 function makeSupportRequest(method, reqPath, payload = null, authToken = null, timeout = 30000) {

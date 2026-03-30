@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { app } = require('electron');
 const os = require('os');
+const { API_BASE_URL } = require('./main/apiConfig');
 
 // Try to load node-machine-id at module level for proper bundling
 let machineIdModule = null;
@@ -19,7 +20,7 @@ try {
 
 // Configuration
 const TELEMETRY_CONFIG = {
-  apiHost: 'api.sentry-six.com',
+  apiHost: new URL(API_BASE_URL).hostname,
   apiPath: '/update-check',
   salt: 'SENTRY_SIX_2026_PROD_SECRET',
   timeoutMs: 10000

@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Diagnostics
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
   
+  // API configuration
+  getApiBaseUrl: () => ipcRenderer.invoke('config:getApiBaseUrl'),
+
   // Support Chat
   createSupportTicket: (data) => ipcRenderer.invoke('support:createTicket', data),
   sendSupportMessage: (data) => ipcRenderer.invoke('support:sendMessage', data),
