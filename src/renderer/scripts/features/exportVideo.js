@@ -8,7 +8,7 @@ import { formatTimeHMS } from '../ui/timeDisplay.js';
 import { initBlurZoneEditor, getNormalizedCoordinates, resetBlurZoneEditor, generateMaskImage, getCanvasDimensions } from '../ui/blurZoneEditor.js';
 import { filePathToUrl } from '../lib/utils.js';
 import { parseTimestampKeyToEpochMs } from '../core/clipBrowser.js';
-import { t, getCurrentLanguage } from '../lib/i18n.js';
+import { t, getCurrentLanguage, onLanguageChange } from '../lib/i18n.js';
 
 // Export state
 export const exportState = {
@@ -1354,6 +1354,18 @@ function showBlurZoneRestoreBanner(savedZones) {
     banner.querySelector('.restore-banner-dismiss').onclick = () => {
         banner.remove();
     };
+
+    // Update banner text when language changes
+    onLanguageChange(() => {
+        const b = $('blurZoneRestoreBanner');
+        if (!b) return;
+        const textEl = b.querySelector('.restore-banner-text');
+        if (textEl) textEl.textContent = t('ui.export.restoreBannerText', { count: savedZones.length });
+        const restoreBtn = b.querySelector('.restore-banner-restore');
+        if (restoreBtn) restoreBtn.textContent = t('ui.export.restoreBannerRestore');
+        const dismissBtn = b.querySelector('.restore-banner-dismiss');
+        if (dismissBtn) dismissBtn.textContent = t('ui.export.restoreBannerDismiss');
+    });
 }
 
 /**
