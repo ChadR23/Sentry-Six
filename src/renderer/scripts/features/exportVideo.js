@@ -1331,11 +1331,11 @@ function showBlurZoneRestoreBanner(savedZones) {
     banner.innerHTML = `
         <div class="restore-banner-content">
             <span class="restore-banner-icon"><span class="material-symbols-outlined">lock</span></span>
-            <span class="restore-banner-text">${t('ui.export.restoreBannerText', { count: savedZones.length })}</span>
+            <span class="restore-banner-text" data-i18n="ui.export.restoreBannerText" data-i18n-params='{"count":${savedZones.length}}'>${t('ui.export.restoreBannerText', { count: savedZones.length })}</span>
         </div>
         <div class="restore-banner-actions">
-            <button class="btn btn-primary btn-small restore-banner-restore">${t('ui.export.restoreBannerRestore')}</button>
-            <button class="btn btn-secondary btn-small restore-banner-dismiss">${t('ui.export.restoreBannerDismiss')}</button>
+            <button class="btn btn-primary btn-small restore-banner-restore" data-i18n="ui.export.restoreBannerRestore">${t('ui.export.restoreBannerRestore')}</button>
+            <button class="btn btn-secondary btn-small restore-banner-dismiss" data-i18n="ui.export.restoreBannerDismiss">${t('ui.export.restoreBannerDismiss')}</button>
         </div>
     `;
 
