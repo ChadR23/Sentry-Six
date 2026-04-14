@@ -195,8 +195,14 @@ export function translatePage() {
     // Translate elements with data-i18n attribute
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        const translation = t(key);
-        
+        // Support parameterized translations via data-i18n-params attribute (JSON)
+        let params = {};
+        const paramsAttr = el.getAttribute('data-i18n-params');
+        if (paramsAttr) {
+            try { params = JSON.parse(paramsAttr); } catch (e) { /* ignore parse errors */ }
+        }
+        const translation = t(key, params);
+
         // Check if element has data-i18n-attr to translate attributes
         const attrToTranslate = el.getAttribute('data-i18n-attr');
         if (attrToTranslate) {
