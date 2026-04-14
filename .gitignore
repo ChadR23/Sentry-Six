@@ -26,3 +26,6 @@ sign-mac.sh
 
 # Test coverage output (contains local absolute paths)
 coverage/
+
+# Release docs / skills / plans (should not be committed)
+docs/
