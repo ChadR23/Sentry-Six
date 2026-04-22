@@ -99,11 +99,12 @@ jobs:
       - name: Setup notarization credentials
         if: env.HAS_APPLE_API_KEY == 'true'
         env:
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
         run: |
-          mkdir -p ~/private_keys
-          echo "$APPLE_API_KEY" | base64 --decode > ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
+          mkdir -p "$HOME/private_keys"
+          echo "$APPLE_API_KEY_B64" | base64 --decode > "$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
 
       - name: Build macOS DMG
         run: npm run build:mac
