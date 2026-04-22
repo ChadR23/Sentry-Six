@@ -1,4 +1,4 @@
-const { app, ipcMain, shell } = require('electron');
+const { app, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -191,77 +191,6 @@ function registerAutoUpdateIpc(deps) {
   }
 
   /**
-   * Perform update for macOS packaged builds
-   */
-  async function performMacOSUpdate() {
-    const sendProgress = (percentage, message) => {
-      const mainWindow = getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update:progress', { percentage, message });
-      }
-    };
-    
-    try {
-      sendProgress(5, 'Fetching latest release info...');
-      
-      const releaseUrl = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases/latest`;
-      const releaseResponse = await httpsGet(releaseUrl);
-      
-      if (releaseResponse.statusCode !== 200) {
-        throw new Error('Failed to fetch release info from GitHub');
-      }
-      
-      const releaseData = JSON.parse(releaseResponse.data);
-      const version = releaseData.tag_name?.replace(/^v/i, '') || releaseData.name;
-      
-      const dmgAsset = releaseData.assets?.find(asset => 
-        asset.name.endsWith('.dmg') && asset.name.includes('macOS')
-      );
-      
-      if (!dmgAsset) {
-        throw new Error('No macOS DMG found in the latest release');
-      }
-      
-      sendProgress(10, 'Downloading update...');
-      
-      const tempDir = path.join(os.tmpdir(), 'sentry-six-update');
-      const dmgPath = path.join(tempDir, dmgAsset.name);
-      
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-      fs.mkdirSync(tempDir, { recursive: true });
-      
-      await downloadFile(dmgAsset.browser_download_url, dmgPath, (pct) => {
-        sendProgress(10 + Math.round(pct * 0.8), `Downloading... ${pct}%`);
-      });
-      
-      sendProgress(95, 'Opening installer...');
-      
-      await shell.openPath(dmgPath);
-      
-      console.log(`[UPDATE] Downloaded macOS update v${version}, opened DMG for installation`);
-      
-      sendProgress(100, 'Update downloaded!');
-      
-      const mainWindow = getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update:downloaded', { 
-          version, 
-          isMacOS: true,
-          dmgPath 
-        });
-      }
-      
-      return { success: true, isMacOS: true, dmgPath };
-    } catch (err) {
-      console.error('[UPDATE] macOS update failed:', err.message);
-      sendProgress(0, `Update failed: ${err.message}`);
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
    * Perform update for manual/development installs
    */
   async function performManualUpdate(event) {
@@ -431,10 +360,11 @@ function registerAutoUpdateIpc(deps) {
   ipcMain.handle('update:install', async (event) => {
     try {
       if (app.isPackaged) {
-        if (process.platform === 'darwin') {
-          const result = await performMacOSUpdate();
-          return result;
-        } else if (autoUpdater) {
+        if (autoUpdater) {
+          // Both Windows (NSIS) and macOS (Squirrel.Mac) flow through electron-updater.
+          // electron-updater downloads the delta using the .blockmap file published
+          // alongside the installer/zip, so users re-download only changed chunks
+          // instead of the full ~275 MB DMG / 150 MB EXE.
           await autoUpdater.checkForUpdates();
           await autoUpdater.downloadUpdate();
           return { success: true, downloading: true };
@@ -461,11 +391,8 @@ function registerAutoUpdateIpc(deps) {
 
   ipcMain.handle('update:exit', async () => {
     if (app.isPackaged && autoUpdater) {
-      if (process.platform === 'darwin') {
-        app.quit();
-      } else {
-        autoUpdater.quitAndInstall(false, true);
-      }
+      // Both platforms apply the downloaded update via Squirrel on quit.
+      autoUpdater.quitAndInstall(false, true);
     } else {
       app.quit();
     }

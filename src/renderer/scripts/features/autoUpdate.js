@@ -292,40 +292,6 @@ function showUpdateDownloadedState() {
 }
 
 /**
- * Show state for macOS manual DMG installation
- * @param {Object} info - Update info with version and dmgPath
- */
-function showMacOSUpdateComplete(info) {
-    getElements();
-    updateComplete = true;
-    isDownloading = false;
-    
-    if (updateProgressBar) updateProgressBar.style.width = '100%';
-    if (updateProgressText) {
-        updateProgressText.textContent = 'Update downloaded! DMG opened.';
-    }
-    
-    if (updateModalFooter) {
-        updateModalFooter.innerHTML = `
-            <p class="restart-message">The update DMG has been opened. To install:<br><strong>1.</strong> Click "Quit App" below to close this app<br><strong>2.</strong> Drag the new app from the DMG to your Applications folder (replace the old version)<br><strong>3.</strong> Reopen the app from Applications</p>
-            <button id="quitForUpdateBtn" class="btn btn-primary">Quit App</button>
-        `;
-        updateModalFooter.style.display = '';
-        
-        const quitBtn = document.getElementById('quitForUpdateBtn');
-        if (quitBtn) {
-            quitBtn.addEventListener('click', () => {
-                if (window.electronAPI?.exitApp) {
-                    window.electronAPI.exitApp();
-                }
-            });
-        }
-    }
-    
-    updateModal?.querySelector('.update-modal')?.classList.remove('updating');
-}
-
-/**
  * Show the force manual update modal (killswitch activated)
  * This is a critical alert that requires manual download
  * @param {Object} info - Force manual update info from server
@@ -413,11 +379,10 @@ export function initAutoUpdate() {
             if (info?.isDevMode) {
                 // Dev mode - show npm start restart message
                 showDevModeUpdateComplete();
-            } else if (info?.isMacOS) {
-                // macOS - DMG opened for manual installation
-                showMacOSUpdateComplete(info);
             } else {
-                // NSIS install - show Install & Restart button
+                // Packaged install (NSIS on Windows, Squirrel.Mac on macOS) -
+                // show Install & Restart button; electron-updater applies the
+                // downloaded update via quitAndInstall().
                 showUpdateDownloadedState();
             }
         });
