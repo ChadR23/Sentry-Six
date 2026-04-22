@@ -122,6 +122,8 @@ jobs:
           path: |
             release/SentryStudio-*-macOS.dmg
             release/SentryStudio-*-macOS.dmg.blockmap
+            release/SentryStudio-*-macOS.zip
+            release/SentryStudio-*-macOS.zip.blockmap
             release/latest-mac.yml
 
       - name: Attach to GitHub Release
@@ -129,4 +131,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" release/SentryStudio-*-macOS.dmg release/SentryStudio-*-macOS.dmg.blockmap release/latest-mac.yml --clobber
+          gh release upload "${{ github.event.release.tag_name }}" \
+            release/SentryStudio-*-macOS.dmg \
+            release/SentryStudio-*-macOS.dmg.blockmap \
+            release/SentryStudio-*-macOS.zip \
+            release/SentryStudio-*-macOS.zip.blockmap \
+            release/latest-mac.yml --clobber
