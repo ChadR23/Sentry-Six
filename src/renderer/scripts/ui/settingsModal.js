@@ -1065,6 +1065,71 @@ export function initDevSettingsModal() {
         };
     }
 
+    // Pre-release testing: explicitly bypass the update API and pull the
+    // latest GitHub pre-release. Two-step flow (check -> install) so the
+    // user sees the version + notes before committing to the download.
+    // The "install" button stays disabled until a check has succeeded.
+    const devCheckPrerelease = $('devCheckPrerelease');
+    const devInstallPrerelease = $('devInstallPrerelease');
+    const devPrereleaseTag = $('devPrereleaseTag');
+    let pendingPrereleaseTag = null;
+
+    if (devCheckPrerelease) {
+        devCheckPrerelease.onclick = async () => {
+            showDevOutput('Checking GitHub for latest pre-release...');
+            devCheckPrerelease.disabled = true;
+            try {
+                const res = await window.electronAPI?.devCheckPrerelease?.();
+                if (!res || !res.found) {
+                    showDevOutput(`No pre-release found.\n${res?.error || ''}`);
+                    if (devInstallPrerelease) {
+                        devInstallPrerelease.disabled = true;
+                        devInstallPrerelease.style.opacity = '0.4';
+                    }
+                    if (devPrereleaseTag) devPrereleaseTag.textContent = 'No pre-release checked';
+                    pendingPrereleaseTag = null;
+                    return;
+                }
+                pendingPrereleaseTag = res.tag;
+                if (devPrereleaseTag) devPrereleaseTag.textContent = `Ready: ${res.tag}`;
+                if (devInstallPrerelease) {
+                    devInstallPrerelease.disabled = false;
+                    devInstallPrerelease.style.opacity = '1';
+                }
+                const published = res.publishedAt ? new Date(res.publishedAt).toLocaleString() : 'unknown';
+                showDevOutput(
+                    `Latest pre-release\n` +
+                    `────────────────\n` +
+                    `Tag:       ${res.tag}\n` +
+                    `Title:     ${res.name || '(none)'}\n` +
+                    `Published: ${published}\n\n` +
+                    `${res.body || '(no release notes)'}`
+                );
+            } finally {
+                devCheckPrerelease.disabled = false;
+                devCheckPrerelease.blur();
+            }
+        };
+    }
+
+    if (devInstallPrerelease) {
+        devInstallPrerelease.onclick = async () => {
+            if (!pendingPrereleaseTag) return;
+            const ok = confirm(
+                `Install pre-release ${pendingPrereleaseTag}?\n\n` +
+                `This bypasses the update API and may break your installation. ` +
+                `The app will restart when the download completes. Continue?`
+            );
+            if (!ok) return;
+            showDevOutput(`Downloading ${pendingPrereleaseTag}... the app will restart when complete.`);
+            const res = await window.electronAPI?.devInstallPrerelease?.(pendingPrereleaseTag);
+            if (!res?.success) {
+                showDevOutput(`Install failed: ${res?.error || 'unknown error'}`);
+            }
+            devInstallPrerelease.blur();
+        };
+    }
+
 }
 
 /**

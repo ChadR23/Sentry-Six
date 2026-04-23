@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   devGetCurrentVersion: () => ipcRenderer.invoke('dev:getCurrentVersion'),
   devGetAppPaths: () => ipcRenderer.invoke('dev:getAppPaths'),
   devReloadApp: () => ipcRenderer.invoke('dev:reloadApp'),
+  // Pre-release testing: fetches the latest GitHub pre-release metadata
+  // and installs it via electron-updater, bypassing the normal update-API
+  // gate. Dev-tools only — see the warning in the Developer modal.
+  devCheckPrerelease: () => ipcRenderer.invoke('dev:checkPrerelease'),
+  devInstallPrerelease: (tag) => ipcRenderer.invoke('dev:installPrerelease', tag),
   
   // Settings storage (file-based for reliability)
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
