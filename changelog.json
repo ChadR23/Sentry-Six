@@ -1,6 +1,69 @@
 {
   "versions": [
     {
+      "version": "2026.17.25",
+      "date": "2026-04-23",
+      "title": "UI Refresh and Export Reliability",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "Export: Maximum quality now works on Intel integrated GPUs. HEVC QuickSync previously failed to open the encoder at resolutions like 4344x2088; the canvas is now padded to a 16-pixel multiple for GPU encoders and the app automatically falls back to the CPU encoder if the GPU encoder still can't start."
+        },
+        {
+          "type": "fix",
+          "description": "Export: Encoder-initialization failures no longer show the misleading \"Invalid file path, try a shorter path\" error."
+        },
+        {
+          "type": "feature",
+          "description": "macOS: Auto-updates now use smaller delta downloads via electron-updater, with automatic install on restart."
+        },
+        {
+          "type": "improvement",
+          "description": "UI: Migrated most icons to Google Material Symbols for a cleaner, more consistent look."
+        },
+        {
+          "type": "improvement",
+          "description": "Security: Hardened path validation, added CSP headers, and gated dev-only IPC handlers in production builds."
+        },
+        {
+          "type": "improvement",
+          "description": "Quality: Added Jest test framework with 87 tests and GitHub Actions CI for continuous verification."
+        },
+        {
+          "type": "fix",
+          "description": "Export: Steering wheel in the detailed dashboard now correctly reflects Autopilot state."
+        },
+        {
+          "type": "fix",
+          "description": "Map: Event pins now snap to the GPS polyline instead of drifting off-route."
+        },
+        {
+          "type": "fix",
+          "description": "Zoom: Fixed video-container overflow breaking when a clip is zoomed."
+        },
+        {
+          "type": "fix",
+          "description": "UI: Fixed a syntax error in translations that was breaking all UI buttons."
+        },
+        {
+          "type": "fix",
+          "description": "UI: Privacy zone restore banner now updates when the language is changed."
+        },
+        {
+          "type": "fix",
+          "description": "UI: Fixed thumbnail preview getting stuck and a startup freeze when a previously-used folder path was no longer available."
+        },
+        {
+          "type": "fix",
+          "description": "UI: Restored the DOM guard on the thumbnail tooltip to prevent intermittent crashes."
+        },
+        {
+          "type": "feature",
+          "description": "Developer: Added a manual pre-release install option in the Developer modal for testing upcoming builds."
+        }
+      ]
+    },
+    {
       "version": "2026.12.14",
       "date": "2026-03-23",
       "title": "UI and Export Improvements",
