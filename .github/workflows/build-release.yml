@@ -9,6 +9,86 @@ permissions:
   contents: write
 
 jobs:
+  populate-release-notes:
+    # Auto-fill the GitHub Release body from changelog.json so published releases
+    # match the formatting used by the DevTool (✦ feature, ↑ improvement, ✓ fix).
+    # Only runs on a real release event, and only overwrites when the body is empty
+    # so manually-authored notes are never clobbered.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fill release notes from changelog.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # Strip leading v and any -rc* / -beta* suffix so pre-release tags still
+          # match their base changelog entry (v2026.17.26-rc1 → 2026.17.26).
+          VERSION="${TAG#v}"
+          BASE_VERSION="${VERSION%%-*}"
+
+          CURRENT_BODY=$(gh release view "$TAG" --json body --jq .body)
+          if [ -n "$CURRENT_BODY" ]; then
+            echo "Release already has notes — skipping auto-fill."
+            exit 0
+          fi
+
+          # Find the last stable release (not a prerelease, not the current tag).
+          # Any changelog.json entries between it and the current version are
+          # "unreleased" drafts we roll forward into this release's notes.
+          LAST_RELEASED=$(gh release list --limit 50 --json tagName,isPrerelease \
+            --jq "[.[] | select(.tagName != \"$TAG\" and .isPrerelease == false) | .tagName] | first // \"\"")
+          LAST_VERSION="${LAST_RELEASED#v}"
+          LAST_VERSION="${LAST_VERSION%%-*}"
+          echo "Last stable release: ${LAST_RELEASED:-(none)}  →  version for comparison: ${LAST_VERSION:-(none)}"
+
+          BODY=$(jq -r \
+            --arg cur_v "$BASE_VERSION" \
+            --arg last_v "$LAST_VERSION" \
+            '
+            def icon:
+              if . == "feature" then "✦"
+              elif . == "improvement" then "↑"
+              elif . == "fix" then "✓"
+              else "•" end;
+            def as_ver: split(".") | map(tonumber);
+
+            ($cur_v | as_ver) as $curV
+            | (if $last_v == "" then [0,0,0] else ($last_v | as_ver) end) as $lastV
+            | . as $root
+            | (
+                # Current version: its own changes, no header
+                [
+                  $root.versions[]
+                  | select(.version == $cur_v)
+                  | .changes[]
+                  | "\(.type | icon) \(.description)"
+                ] | join("\n")
+              ) as $cur_block
+            | [
+                # Intermediate never-released versions, each with a header
+                $root.versions[]
+                | select(
+                    (.version | as_ver) < $curV
+                    and (.version | as_ver) > $lastV
+                  )
+                | "\n### From v\(.version)\(if ((.title // "") != "") then " — " + .title else "" end)\n" +
+                  ([.changes[] | "\(.type | icon) \(.description)"] | join("\n"))
+              ] as $inter_blocks
+            | ([$cur_block] + $inter_blocks) | join("\n")
+            ' changelog.json)
+
+          if [ -z "$BODY" ]; then
+            echo "No changelog entries to publish for $BASE_VERSION — leaving release notes empty."
+            exit 0
+          fi
+
+          printf '%s\n' "$BODY" | gh release edit "$TAG" --notes-file -
+          echo "Release notes populated for $TAG (current: $BASE_VERSION, since last stable: ${LAST_VERSION:-none})."
+
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 30
