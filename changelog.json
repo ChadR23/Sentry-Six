@@ -1,10 +1,14 @@
 {
   "versions": [
     {
-      "version": "2026.17.25",
+      "version": "2026.17.26",
       "date": "2026-04-23",
       "title": "UI Refresh and Export Reliability",
       "changes": [
+        {
+          "type": "fix",
+          "description": "Map: Fixed the in-app map failing to load in pre-release builds. The Content Security Policy added during recent security hardening was blocking Leaflet and the Google Fonts stylesheets; it now whitelists those specific origins without weakening any other protections."
+        },
         {
           "type": "fix",
           "description": "Export: Maximum quality now works on Intel integrated GPUs. HEVC QuickSync previously failed to open the encoder at resolutions like 4344x2088; the canvas is now padded to a 16-pixel multiple for GPU encoders and the app automatically falls back to the CPU encoder if the GPU encoder still can't start."
