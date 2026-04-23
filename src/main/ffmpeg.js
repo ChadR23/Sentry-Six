@@ -238,6 +238,21 @@ function detectGpuHardware() {
 }
 
 /**
+ * Finds the first available VAAPI render node on Linux (e.g. /dev/dri/renderD128).
+ * Returns null if not on Linux or no render node exists.
+ */
+function findVaapiDevice() {
+  if (process.platform !== 'linux') return null;
+  try {
+    const entries = fs.readdirSync('/dev/dri');
+    const render = entries.find((n) => n.startsWith('renderD'));
+    return render ? `/dev/dri/${render}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Tests if a GPU encoder can actually access hardware.
  * FFmpeg may list encoders that aren't usable (e.g., NVENC listed but no NVIDIA GPU).
  * Uses a strict test: only returns true if the encoder actually works (status === 0).
@@ -265,6 +280,14 @@ function testEncoderCapability(ffmpegPath, codec) {
     const testSize = isHEVC ? '640x480' : '320x240';
     let testArgs = ['-hide_banner', '-f', 'lavfi', '-i', `testsrc2=duration=1:size=${testSize}:rate=1`];
     
+    // VAAPI needs the hardware device declared before inputs and a hwupload filter
+    if (codec.includes('vaapi')) {
+      const dev = findVaapiDevice();
+      if (!dev) return false;
+      testArgs.unshift('-vaapi_device', dev);
+      testArgs.push('-vf', 'format=nv12,hwupload');
+    }
+
     // Add encoder-specific settings
     if (codec.includes('videotoolbox')) {
       testArgs.push('-b:v', isHEVC ? '5M' : '2M');
@@ -341,7 +364,9 @@ function detectGpuEncoder(ffmpegPath) {
     } else {
       encodersToCheck.push(
         { codec: 'h264_nvenc', name: 'NVIDIA NVENC', priority: 1 },
-        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 2 }
+        { codec: 'h264_vaapi', name: 'VAAPI (AMD/Intel)', priority: 2 },
+        { codec: 'h264_amf', name: 'AMD AMF', priority: 3 },
+        { codec: 'h264_qsv', name: 'Intel QuickSync', priority: 4 }
       );
     }
     
@@ -397,7 +422,9 @@ function detectHEVCEncoder(ffmpegPath) {
     } else {
       hevcEncoders.push(
         { codec: 'hevc_nvenc', name: 'NVIDIA NVENC HEVC', maxRes: 8192, priority: 1 },
-        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 2 }
+        { codec: 'hevc_vaapi', name: 'VAAPI HEVC (AMD/Intel)', maxRes: 8192, priority: 2 },
+        { codec: 'hevc_amf', name: 'AMD AMF HEVC', maxRes: 8192, priority: 3 },
+        { codec: 'hevc_qsv', name: 'Intel QuickSync HEVC', maxRes: 8192, priority: 4 }
       );
     }
     
@@ -439,6 +466,7 @@ module.exports = {
   detectGpuHardware,
   detectGpuEncoder,
   detectHEVCEncoder,
+  findVaapiDevice,
   getGpuEncoder,
   setGpuEncoder,
   getGpuEncoderHEVC,
