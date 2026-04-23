@@ -117,12 +117,6 @@ export function resetZoomPan() {
         const indicator = tile.querySelector('.zoom-indicator');
         if (indicator) indicator.remove();
     });
-    
-    // Reset video container overflow
-    const videoContainer = document.getElementById('videoContainer');
-    if (videoContainer) {
-        videoContainer.style.overflow = 'hidden';
-    }
 }
 
 /**
@@ -180,17 +174,7 @@ export function applyZoomPan() {
     } else {
         focusedTile.classList.remove('zoomed');
     }
-    
-    // Toggle overflow on video container to allow panned content to be visible
-    const videoContainer = document.getElementById('videoContainer');
-    if (videoContainer) {
-        if (zoomPanState.zoom > 1) {
-            videoContainer.style.overflow = 'visible';
-        } else {
-            videoContainer.style.overflow = 'hidden';
-        }
-    }
-    
+
     updateZoomIndicator(focusedTile);
 }
 
