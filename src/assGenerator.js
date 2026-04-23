@@ -1805,9 +1805,10 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
         const steerWheelY = Math.round(row2Y + rowHeight * 0.50);
         const steerScale = iconSize / 446.5 * 0.55;
         const steerAngleAss = -(prev.steeringAngle || 0);
+        const steerColor = prev.apActive ? '&HFF4800&' : '&H707070&';
         // Outer circle
         events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-          `{\\an7\\pos(${steerWheelX},${steerWheelY})\\org(${steerWheelX},${steerWheelY})\\bord0\\shad0\\1c&HFF4800&\\frz${steerAngleAss}\\p1}` +
+          `{\\an7\\pos(${steerWheelX},${steerWheelY})\\org(${steerWheelX},${steerWheelY})\\bord0\\shad0\\1c${steerColor}\\frz${steerAngleAss}\\p1}` +
           drawSteeringWheelOuter(steerScale) + `{\\p0}`
         ));
         // Inner ring
