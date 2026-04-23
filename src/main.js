@@ -1112,6 +1112,20 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       console.log(`[TIMELAPSE] Applied ${timelapseSpeed}x speed-up filter (frame selection)`);
     }
 
+    // Encoder input normalization:
+    //  - ASS-overlay branches don't end in a format= step, so force yuv420p for consistency
+    //    with the non-ASS path (line ~1093). Helps QSV/HEVC encoders that are strict about
+    //    input format.
+    //  - HEVC QSV on Intel Gen 9.5 (UHD 620, etc.) fails to open the encoder with "Invalid
+    //    argument" when width/height aren't 16-aligned. Pad the canvas to the next multiple
+    //    of 16 for all GPU encoders — the extra pixels (at most 15 per axis) are imperceptible.
+    {
+      const lastIdx = filters.length - 1;
+      filters[lastIdx] = filters[lastIdx].replace('[out]', '[pre_norm]');
+      const padExpr = useGpu ? ',pad=ceil(iw/16)*16:ceil(ih/16)*16:0:0:color=0x1A1A1A' : '';
+      filters.push(`[pre_norm]format=yuv420p${padExpr}[out]`);
+    }
+
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
@@ -1120,89 +1134,94 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       cmd.push('-an');
     }
 
-    // Configure video encoder based on GPU availability
-    if (useGpu && activeEncoder) {
-      cmd.push('-c:v', activeEncoder.codec);
-
-      if (activeEncoder.codec === 'h264_nvenc' || activeEncoder.codec === 'hevc_nvenc') {
-        // NVIDIA NVENC: CQP mode prevents quality pulsing/glitches
-        const cq = Math.max(0, Math.min(51, crf));
-        cmd.push('-preset', 'p4', '-rc', 'constqp', '-qp', cq.toString());
-        cmd.push('-g', (FPS * 2).toString()); // Keyframe every 2 seconds
-        cmd.push('-forced-idr', '1');
-      } else if (activeEncoder.codec === 'h264_amf' || activeEncoder.codec === 'hevc_amf') {
-        // AMD AMF: CQP mode with quality preset based on CRF
-        let quality = 'quality';
-        if (crf >= 28) quality = 'speed';
-        else if (crf >= 24) quality = 'balanced';
-
-        cmd.push('-quality', quality);
-        cmd.push('-rc', 'cqp');
-        cmd.push('-qp_i', Math.max(18, Math.min(46, crf)).toString());
-        cmd.push('-qp_p', Math.max(18, Math.min(46, crf + 2)).toString());
-        cmd.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString());
-        cmd.push('-g', (FPS * 2).toString());
-      } else if (activeEncoder.codec === 'h264_videotoolbox' || activeEncoder.codec === 'hevc_videotoolbox') {
-        // Apple VideoToolbox: Use bitrate mode for better compatibility
-        // Quality-based encoding can fail on some hardware configurations
-        // Target ~8Mbps for high quality, scaled by CRF
-        const baseBitrate = 8000; // 8Mbps base
-        const bitrateMultiplier = Math.max(0.3, 1 - (crf - 18) * 0.03); // Scale down with higher CRF
-        const targetBitrate = Math.round(baseBitrate * bitrateMultiplier);
-        cmd.push('-b:v', `${targetBitrate}k`);
-        cmd.push('-maxrate', `${Math.round(targetBitrate * 1.5)}k`);
-        cmd.push('-bufsize', `${targetBitrate * 2}k`);
-        cmd.push('-allow_sw', '1'); // Allow software fallback for compatibility
-        cmd.push('-realtime', '0'); // Disable realtime for better quality
-        cmd.push('-g', (FPS * 2).toString());
-      } else if (activeEncoder.codec === 'h264_qsv' || activeEncoder.codec === 'hevc_qsv') {
-        // Intel QuickSync: CQP mode
-        // QSV uses x264-style presets: veryfast, faster, fast, medium, slow, slower, veryslow
-        // (NOT "balanced" which is AMD AMF only)
-        const qsvQp = Math.max(18, Math.min(46, crf));
-        cmd.push('-preset', 'medium');
-        cmd.push('-global_quality', qsvQp.toString());
-        cmd.push('-g', (FPS * 2).toString());
-      } else {
-        // Fallback for unknown GPU encoders
-        console.log(`[WARN] Using generic settings for unknown GPU encoder: ${activeEncoder.codec}`);
-        cmd.push('-preset', 'fast', '-crf', crf.toString());
-        cmd.push('-g', (FPS * 2).toString());
-      }
-      console.log(`[GPU] Using GPU encoder: ${activeEncoder.name}`);
-    } else {
-      // CPU encoding: libx264/libx265 with memory-optimized threading
-      if (gpu && (totalW > h264MaxRes || totalH > h264MaxRes)) {
-        console.log(`[WARN] Resolution ${totalW}×${totalH} exceeds GPU limits, using CPU encoder`);
-      }
-      const maxThreads = Math.min(4, Math.floor(os.cpus().length / 2));
-      cmd.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
-      cmd.push('-threads', maxThreads.toString());
-      cmd.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`);
-    }
-
-    // Time-lapse: adjust output duration
+    // Encoder + output args are built via this helper so we can rebuild them with a
+    // forced CPU path if the GPU encoder fails to initialize (e.g. hevc_qsv rejecting
+    // certain resolutions on Intel Gen 9.5). See the retry branch in the spawn block below.
     const outputDurationSec = (enableTimelapse && timelapseSpeed !== 1) ? durationSec / timelapseSpeed : durationSec;
-    cmd.push('-t', outputDurationSec.toString());
-    cmd.push('-movflags', '+faststart');
+    const buildEncoderAndOutputArgs = (forceCpu) => {
+      const args = [];
+      const useGpuNow = !forceCpu && useGpu && activeEncoder;
+      const enc = useGpuNow ? activeEncoder : null;
 
-    // Set pixel format - VideoToolbox handles this internally, others need explicit setting
-    // The filter chain already converts to yuv420p, but CPU encoders need the output hint
-    const isVideoToolbox = activeEncoder?.codec?.includes('videotoolbox');
-    if (!isVideoToolbox) {
-      cmd.push('-pix_fmt', 'yuv420p');
-    }
+      if (useGpuNow) {
+        args.push('-c:v', enc.codec);
 
-    // GPU encoders: use constant frame rate to prevent frame drops
-    if (useGpu) {
-      cmd.push('-vsync', 'cfr');
-      cmd.push('-r', FPS.toString());
-    } else {
-      cmd.push('-r', FPS.toString());
-    }
-    // Memory optimization: limit output buffer
-    cmd.push('-max_muxing_queue_size', '1024'); // Limit muxer queue size
-    cmd.push(outputPath);
+        if (enc.codec === 'h264_nvenc' || enc.codec === 'hevc_nvenc') {
+          // NVIDIA NVENC: CQP mode prevents quality pulsing/glitches
+          const cq = Math.max(0, Math.min(51, crf));
+          args.push('-preset', 'p4', '-rc', 'constqp', '-qp', cq.toString());
+          args.push('-g', (FPS * 2).toString()); // Keyframe every 2 seconds
+          args.push('-forced-idr', '1');
+        } else if (enc.codec === 'h264_amf' || enc.codec === 'hevc_amf') {
+          // AMD AMF: CQP mode with quality preset based on CRF
+          let quality = 'quality';
+          if (crf >= 28) quality = 'speed';
+          else if (crf >= 24) quality = 'balanced';
+
+          args.push('-quality', quality);
+          args.push('-rc', 'cqp');
+          args.push('-qp_i', Math.max(18, Math.min(46, crf)).toString());
+          args.push('-qp_p', Math.max(18, Math.min(46, crf + 2)).toString());
+          args.push('-qp_b', Math.max(18, Math.min(46, crf + 4)).toString());
+          args.push('-g', (FPS * 2).toString());
+        } else if (enc.codec === 'h264_videotoolbox' || enc.codec === 'hevc_videotoolbox') {
+          // Apple VideoToolbox: Use bitrate mode for better compatibility
+          const baseBitrate = 8000;
+          const bitrateMultiplier = Math.max(0.3, 1 - (crf - 18) * 0.03);
+          const targetBitrate = Math.round(baseBitrate * bitrateMultiplier);
+          args.push('-b:v', `${targetBitrate}k`);
+          args.push('-maxrate', `${Math.round(targetBitrate * 1.5)}k`);
+          args.push('-bufsize', `${targetBitrate * 2}k`);
+          args.push('-allow_sw', '1');
+          args.push('-realtime', '0');
+          args.push('-g', (FPS * 2).toString());
+        } else if (enc.codec === 'h264_qsv' || enc.codec === 'hevc_qsv') {
+          // Intel QuickSync: CQP mode
+          const qsvQp = Math.max(18, Math.min(46, crf));
+          args.push('-preset', 'medium');
+          args.push('-global_quality', qsvQp.toString());
+          args.push('-g', (FPS * 2).toString());
+        } else {
+          console.log(`[WARN] Using generic settings for unknown GPU encoder: ${enc.codec}`);
+          args.push('-preset', 'fast', '-crf', crf.toString());
+          args.push('-g', (FPS * 2).toString());
+        }
+        console.log(`[GPU] Using GPU encoder: ${enc.name}`);
+      } else {
+        if (forceCpu && useGpu) {
+          console.log('[ENCODER] Falling back to CPU encoder after GPU encoder init failure');
+        } else if (gpu && (totalW > h264MaxRes || totalH > h264MaxRes)) {
+          console.log(`[WARN] Resolution ${totalW}×${totalH} exceeds GPU limits, using CPU encoder`);
+        }
+        const maxThreads = Math.min(4, Math.floor(os.cpus().length / 2));
+        args.push('-c:v', 'libx264', '-preset', mobileExport ? 'faster' : 'fast', '-crf', crf.toString());
+        args.push('-threads', maxThreads.toString());
+        args.push('-x264-params', `threads=${maxThreads}:thread-input=1:thread-lookahead=2`);
+      }
+
+      args.push('-t', outputDurationSec.toString());
+      args.push('-movflags', '+faststart');
+
+      // VideoToolbox handles pixel format internally; others need explicit setting.
+      const isVideoToolbox = enc?.codec?.includes('videotoolbox');
+      if (!isVideoToolbox) {
+        args.push('-pix_fmt', 'yuv420p');
+      }
+
+      // GPU encoders: use constant frame rate to prevent frame drops.
+      if (useGpuNow) {
+        args.push('-vsync', 'cfr');
+      }
+      args.push('-r', FPS.toString());
+      args.push('-max_muxing_queue_size', '1024');
+      args.push(outputPath);
+
+      return args;
+    };
+
+    // Record the index where encoder+output args begin so we can splice them out on retry.
+    const encoderTailStart = cmd.length;
+    cmd.push(...buildEncoderAndOutputArgs(false));
 
     console.log('[FFMPEG] FFmpeg:', cmd.slice(0, 20).join(' ') + '...');
 
@@ -1216,54 +1235,83 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
 
     // Execute FFmpeg - no pipe needed since dashboard is pre-rendered to file
     return new Promise((resolve, reject) => {
-      const proc = spawn(cmd[0], cmd.slice(1), {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+      let retriedWithCpu = false;
 
-      // Limit stderr buffer to prevent excessive RAM usage (keep only last 100KB)
-      let stderr = '', lastPct = 0;
-      const MAX_STDERR_SIZE = 100 * 1024; // 100KB max
+      const startProc = () => {
+        const proc = spawn(cmd[0], cmd.slice(1), {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
 
-      proc.stderr.on('data', (data) => {
-        const dataStr = data.toString();
-        stderr += dataStr;
-        // Limit stderr buffer size to prevent excessive RAM usage
-        if (stderr.length > MAX_STDERR_SIZE) {
-          stderr = stderr.slice(-MAX_STDERR_SIZE);
-        }
-        const match = dataStr.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
-        if (match && outputDurationSec > 0) {
-          const sec = +match[1] * 3600 + +match[2] * 60 + +match[3] + +match[4] / 100;
-          // Use one decimal place for smoother bar movement (e.g. 23.4%)
-          const pctRaw = Math.min(95, (sec / outputDurationSec) * 100);
-          const pct = Math.round(pctRaw * 10) / 10; // round to 0.1
-          const displayPct = Math.floor(pctRaw); // integer for display text
-          if (pct > lastPct) {
-            lastPct = pct;
-            sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: displayPct } });
+        // Limit stderr buffer to prevent excessive RAM usage (keep only last 100KB)
+        let stderr = '', lastPct = 0;
+        const MAX_STDERR_SIZE = 100 * 1024; // 100KB max
+
+        proc.stderr.on('data', (data) => {
+          const dataStr = data.toString();
+          stderr += dataStr;
+          if (stderr.length > MAX_STDERR_SIZE) {
+            stderr = stderr.slice(-MAX_STDERR_SIZE);
           }
-        }
-      });
+          const match = dataStr.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
+          if (match && outputDurationSec > 0) {
+            const sec = +match[1] * 3600 + +match[2] * 60 + +match[3] + +match[4] / 100;
+            const pctRaw = Math.min(95, (sec / outputDurationSec) * 100);
+            const pct = Math.round(pctRaw * 10) / 10;
+            const displayPct = Math.floor(pctRaw);
+            if (pct > lastPct) {
+              lastPct = pct;
+              sendProgress(pct, { key: 'ui.export.exportingPercent', params: { percent: displayPct } });
+            }
+          }
+        });
 
-      proc.on('close', (code) => {
-        delete activeExports[exportId];
-        cancelledExports.delete(exportId); // Clean up cancellation flag
-        cleanup();
+        proc.on('close', (code) => {
+          if (code === 0) {
+            delete activeExports[exportId];
+            cancelledExports.delete(exportId);
+            cleanup();
 
-        if (code === 0) {
-          const exportDurationMs = Date.now() - exportStartTime;
-          const formattedDuration = formatExportDuration(exportDurationMs);
+            const exportDurationMs = Date.now() - exportStartTime;
+            const formattedDuration = formatExportDuration(exportDurationMs);
 
-          console.log(`[EXPORT] ✅ Export completed in ${formattedDuration}`);
+            console.log(`[EXPORT] ✅ Export completed in ${formattedDuration}`);
 
-          const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
-          const warning = blurFailed ? { key: 'ui.export.blurZoneFailed' } : null;
-          sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } }, warning);
-          resolve(true);
-          delete activeExportPaths[exportId];
-        } else {
+            const sizeMB = (fs.statSync(outputPath).size / 1048576).toFixed(1);
+            const warning = blurFailed ? { key: 'ui.export.blurZoneFailed' } : null;
+            sendComplete(true, { key: 'ui.export.exportCompleteMB', params: { size: sizeMB } }, warning);
+            resolve(true);
+            delete activeExportPaths[exportId];
+            return;
+          }
+
           console.error('FFmpeg error:', stderr.slice(-500));
           const errLower = stderr.toLowerCase();
+          const isEncoderInitFailure =
+            errLower.includes('could not open encoder') ||
+            (errLower.includes('invalid argument') && /\b(qsv|nvenc|amf|videotoolbox|vost#)\b/.test(errLower));
+
+          // Silent retry with CPU encoder when a GPU encoder refuses to initialize —
+          // lets Max-quality exports succeed on hardware that can't handle the resolution
+          // (e.g. HEVC QSV on Intel Gen 9.5 with non-16-aligned dimensions).
+          // Not cancelled: cancellation flag was cleared at spawn-time for this attempt.
+          if (isEncoderInitFailure && !retriedWithCpu && useGpu && !cancelledExports.has(exportId)) {
+            retriedWithCpu = true;
+            console.log('[EXPORT] GPU encoder failed to initialize; retrying with CPU encoder');
+            // Keep temp files (ASS subtitle etc.) — don't cleanup. Just rebuild cmd tail.
+            cmd.length = encoderTailStart;
+            cmd.push(...buildEncoderAndOutputArgs(true));
+            // Scrub the partial output so the retry starts clean.
+            try { fs.unlinkSync(outputPath); } catch { }
+            delete activeExports[exportId];
+            sendProgress(8, { key: 'ui.export.exportingWithCpu' });
+            startProc();
+            return;
+          }
+
+          delete activeExports[exportId];
+          cancelledExports.delete(exportId);
+          cleanup();
+
           if (errLower.includes('no space left on device')) {
             sendComplete(false, { key: 'ui.export.exportFailedNoSpace' });
           } else if (errLower.includes('permission denied')) {
@@ -1272,7 +1320,9 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
             sendComplete(false, { key: 'ui.export.exportFailedPathNotFound' });
           } else if (errLower.includes('read-only file system')) {
             sendComplete(false, { key: 'ui.export.exportFailedReadOnly' });
-          } else if (errLower.includes('invalid argument') && (errLower.includes('open') || errLower.includes('output'))) {
+          } else if (isEncoderInitFailure) {
+            sendComplete(false, { key: 'ui.export.exportFailedGpuEncoderInit' });
+          } else if (errLower.includes('invalid argument') && (errLower.includes("error opening output file") || errLower.includes('no such file') || errLower.includes('filename'))) {
             sendComplete(false, { key: 'ui.export.exportFailedInvalidPath' });
           } else if (errLower.includes('openencodesessionex failed') || errLower.includes('out of memory') || errLower.includes('cannot allocate memory')) {
             sendComplete(false, { key: 'ui.export.exportFailedGpuMemory' });
@@ -1286,35 +1336,34 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           const err = new Error(`Export failed with code ${code}`);
           err._completeSent = true;
           reject(err);
-          // Delete partial output file on failure/cancellation
           try { fs.unlinkSync(outputPath); } catch { }
           delete activeExportPaths[exportId];
+        });
+
+        proc.on('error', (err) => {
+          cleanup();
+          cancelledExports.delete(exportId);
+          sendComplete(false, `FFmpeg error: ${err.message}`);
+          err._completeSent = true;
+          reject(err);
+        });
+
+        activeExports[exportId] = proc;
+        activeExportPaths[exportId] = outputPath;
+
+        if (cancelledExports.has(exportId)) {
+          console.log('Export cancelled immediately after spawning FFmpeg, killing process');
+          proc.kill('SIGTERM');
+          delete activeExports[exportId];
+          cancelledExports.delete(exportId);
+          reject(new Error('Export cancelled'));
+          try { fs.unlinkSync(outputPath); } catch { }
+          delete activeExportPaths[exportId];
+          return;
         }
-      });
+      };
 
-      proc.on('error', (err) => {
-        cleanup();
-        cancelledExports.delete(exportId); // Clean up cancellation flag
-        sendComplete(false, `FFmpeg error: ${err.message}`);
-        err._completeSent = true;
-        reject(err);
-      });
-
-      // Register export early so cancellation can find it
-      activeExports[exportId] = proc;
-      activeExportPaths[exportId] = outputPath;
-
-      // Check for cancellation immediately after spawning (race condition protection)
-      if (cancelledExports.has(exportId)) {
-        console.log('Export cancelled immediately after spawning FFmpeg, killing process');
-        proc.kill('SIGTERM');
-        delete activeExports[exportId];
-        cancelledExports.delete(exportId);
-        reject(new Error('Export cancelled'));
-        try { fs.unlinkSync(outputPath); } catch { }
-        delete activeExportPaths[exportId];
-        return;
-      }
+      startProc();
     });
 
   } catch (error) {
