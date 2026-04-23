@@ -1145,12 +1145,13 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
     // declare the hardware device globally so ffmpeg can upload to the GPU.
     const isVaapi = useGpu && activeEncoder?.codec?.includes('vaapi');
     if (isVaapi) {
-      const lastIdx = filters.length - 1;
-      filters[lastIdx] = filters[lastIdx].replace(/\[out\]$/, ',format=nv12,hwupload[out]');
       const vaapiDev = findVaapiDevice();
       if (vaapiDev) {
+        const lastIdx = filters.length - 1;
+        filters[lastIdx] = filters[lastIdx].replace(/\[out\]$/, ',format=nv12,hwupload[out]');
         cmd.splice(2, 0, '-vaapi_device', vaapiDev);
       }
+    }
     }
 
     cmd.push('-filter_complex', filters.join(';'));
