@@ -402,6 +402,85 @@ function registerAutoUpdateIpc(deps) {
     return { skipped: true };
   });
 
+  // Pre-release testing handlers. Fetches the latest GitHub release with
+  // `prerelease: true` and, on install, flips the autoUpdater into a
+  // prerelease+downgrade-allowed mode so the pre-release installs even
+  // when its semver sorts below the currently-installed stable version
+  // (e.g. 2026.12.15-rc1 < 2026.12.15). The feed type and two flags are
+  // restored after the download completes so ordinary update cycles are
+  // not permanently flipped.
+  ipcMain.handle('dev:checkPrerelease', async () => {
+    try {
+      const url = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases?per_page=10`;
+      const response = await httpsGet(url);
+      if (response.statusCode !== 200) {
+        return { found: false, error: `GitHub API returned ${response.statusCode}` };
+      }
+      const releases = JSON.parse(response.data);
+      const pre = releases.find(r => r.prerelease && !r.draft);
+      if (!pre) {
+        return { found: false, error: 'No pre-release found on GitHub' };
+      }
+      console.log(`[UPDATE] Dev check found pre-release: ${pre.tag_name}`);
+      return {
+        found: true,
+        tag: pre.tag_name,
+        name: pre.name,
+        body: pre.body,
+        publishedAt: pre.published_at
+      };
+    } catch (err) {
+      console.error('[UPDATE] Dev pre-release check failed:', err.message);
+      return { found: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('dev:installPrerelease', async (event, tag) => {
+    if (!app.isPackaged || !autoUpdater) {
+      return {
+        success: false,
+        error: 'Pre-release install only works on packaged builds (NSIS / DMG). In dev mode (npm start), check out the tag in git instead.'
+      };
+    }
+    try {
+      console.log(`[UPDATE] Dev-triggered pre-release install: ${tag}`);
+
+      // Remember originals so we can restore after the download. Using
+      // `once` wrappers means we don't accumulate listeners across
+      // repeated dev installs in the same session.
+      const originalAllowPrerelease = autoUpdater.allowPrerelease;
+      const originalAllowDowngrade = autoUpdater.allowDowngrade;
+
+      autoUpdater.allowPrerelease = true;
+      autoUpdater.allowDowngrade = true;
+      autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: UPDATE_CONFIG.owner,
+        repo: UPDATE_CONFIG.repo,
+        releaseType: 'prerelease'
+      });
+
+      const restore = () => {
+        autoUpdater.allowPrerelease = originalAllowPrerelease;
+        autoUpdater.allowDowngrade = originalAllowDowngrade;
+      };
+      autoUpdater.once('error', restore);
+      autoUpdater.once('update-downloaded', () => {
+        restore();
+        // Both platforms apply the downloaded update via Squirrel on quit.
+        // Same quitAndInstall signature used by the normal update flow.
+        autoUpdater.quitAndInstall(false, true);
+      });
+
+      await autoUpdater.checkForUpdates();
+      await autoUpdater.downloadUpdate();
+      return { success: true, downloading: true };
+    } catch (err) {
+      console.error('[UPDATE] Pre-release install failed:', err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('update:getChangelog', async () => {
     try {
       const cacheBuster = Date.now();

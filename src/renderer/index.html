@@ -1986,6 +1986,36 @@
                     </div>
                 </div>
 
+                <div class="modal-section">
+                    <div class="modal-section-title">Pre-release Testing</div>
+                    <div class="dev-warning-box" style="background: rgba(220, 53, 69, 0.12); border: 1px solid rgba(220, 53, 69, 0.5); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+                        <div style="font-weight: 600; color: #dc3545; margin-bottom: 6px;">
+                            ⚠️ Developer use only
+                        </div>
+                        <div style="font-size: 13px; line-height: 1.4; color: #e0e0e0;">
+                            This bypasses the update API and installs the latest GitHub pre-release directly.
+                            Pre-releases may be unstable, contain bugs, or break your installation.
+                            Only use this if you know what you're doing and have a backup.
+                        </div>
+                    </div>
+                    <div class="dev-grid">
+                        <button id="devCheckPrerelease" class="dev-card">
+                            <span class="dev-card-icon">🧪</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Check for Pre-release</span>
+                                <span class="dev-card-desc">Fetch latest RC from GitHub</span>
+                            </div>
+                        </button>
+                        <button id="devInstallPrerelease" class="dev-card" disabled style="opacity: 0.4;">
+                            <span class="dev-card-icon">⬇️</span>
+                            <div class="dev-card-info">
+                                <span class="dev-card-label">Download &amp; Install</span>
+                                <span class="dev-card-desc" id="devPrereleaseTag">No pre-release checked</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
                 <div id="devOutput" class="dev-output-box hidden">
                     <pre id="devOutputText"></pre>
                 </div>
