@@ -237,7 +237,7 @@ function resetDashboardAndMap() {
 }
 
 // Show a static map marker from event.json location data (for Sentry/Saved clips)
-function showEventJsonLocation(coll) {
+function showEventJsonLocation(coll, { recenter = true } = {}) {
     if (!map || !coll?.groups?.length) return;
     
     // Get eventMeta from any group in the collection
@@ -252,15 +252,38 @@ function showEventJsonLocation(coll) {
     if (!eventMeta) return;
     
     // Parse coordinates
-    const lat = parseFloat(eventMeta.est_lat);
-    const lon = parseFloat(eventMeta.est_lon);
-    
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001)) {
+    const rawLat = parseFloat(eventMeta.est_lat);
+    const rawLon = parseFloat(eventMeta.est_lon);
+
+    if (!Number.isFinite(rawLat) || !Number.isFinite(rawLon) || (Math.abs(rawLat) < 0.001 && Math.abs(rawLon) < 0.001)) {
         return; // Invalid coordinates
     }
-    
+
+    // Tesla's est_lat/est_lon is an approximation and can land slightly off the
+    // GPS trace we draw from in-video SEI samples. If we have a polyline loaded,
+    // snap the pin to the closest sample on that path (within ~500m) so it
+    // visually sits on the route at the correct point in time.
+    let lat = rawLat;
+    let lon = rawLon;
+    const path = nativeVideo?.mapPath;
+    if (Array.isArray(path) && path.length > 0) {
+        const cosLat = Math.cos(rawLat * Math.PI / 180);
+        let bestIdx = -1;
+        let bestMetersSq = Infinity;
+        for (let i = 0; i < path.length; i++) {
+            const dLatM = (path[i].lat - rawLat) * 111000;
+            const dLonM = (path[i].lon - rawLon) * 111000 * cosLat;
+            const sq = dLatM * dLatM + dLonM * dLonM;
+            if (sq < bestMetersSq) { bestMetersSq = sq; bestIdx = i; }
+        }
+        if (bestIdx >= 0 && bestMetersSq < 500 * 500) {
+            lat = path[bestIdx].lat;
+            lon = path[bestIdx].lon;
+        }
+    }
+
     console.log('Showing event.json location:', lat, lon, eventMeta.street || '', eventMeta.city || '');
-    
+
     // Store event metadata for display
     state.collection.eventMeta = eventMeta;
     
@@ -288,8 +311,10 @@ function showEventJsonLocation(coll) {
     // Note: This is a static event location marker, separate from the moving GPS marker
     eventLocationMarker = L.marker(latlng, { icon: eventIcon }).addTo(map);
     
-    // Center map on location
-    map.setView(latlng, 16);
+    // Center map on location (skipped on re-call after polyline fitBounds)
+    if (recenter) {
+        map.setView(latlng, 16);
+    }
     map.invalidateSize();
 }
 
@@ -4388,6 +4413,13 @@ async function loadNativeSegment(segIdx) {
                 const endMarker   = L.marker(endCoord,   { icon: dotIcon('#ef4444') }).addTo(map);
                 // Push into fsdEventMarkers so they're cleaned up on next drive selection
                 fsdEventMarkers.push(startMarker, endMarker);
+
+                // Re-run event-location snap now that mapPath is populated — the
+                // first call (from ingestSentryEventJson) may have happened before
+                // SEI extraction finished, leaving the pin at Tesla's raw est_lat/lon.
+                if (state.collection.active?.groups?.some(g => g.eventMeta)) {
+                    showEventJsonLocation(state.collection.active, { recenter: false });
+                }
 
                 // Fit bounds to all points
                 const allCoords = mapPath.map(p => [p.lat, p.lon]);
