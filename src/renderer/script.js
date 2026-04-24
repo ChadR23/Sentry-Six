@@ -1820,10 +1820,35 @@ async function loadSentryUsbDataOnStartup() {
 // Load after clips folder startup (slight delay to avoid competing with folder load)
 setTimeout(loadSentryUsbDataOnStartup, 800);
 
+// Startup loader: covers the window while FFmpeg pre-cache + update telemetry API
+// run in the main process (both can take several seconds on cold start). Hidden
+// as soon as the update check resolves, is skipped, or the safety timer fires.
+let _startupLoaderHidden = false;
+function hideStartupLoader() {
+    if (_startupLoaderHidden) return;
+    _startupLoaderHidden = true;
+    const el = document.getElementById('startupLoader');
+    if (!el) return;
+    el.classList.add('hidden');
+    // Remove from DOM after the opacity transition so it can't eat clicks.
+    setTimeout(() => { try { el.remove(); } catch {} }, 400);
+}
+// Safety timer: never leave the overlay up longer than 15s regardless of what
+// the update path does. 15s comfortably covers slow FFmpeg detection + a slow
+// telemetry API call even on an unreliable network.
+setTimeout(hideStartupLoader, 15000);
+// Also hide when any update event fires — those UIs (update-available modal,
+// force-manual modal) want to be visible over the main app, not the loader.
+if (window.electronAPI?.on) {
+    ['update:available', 'update:forceManual', 'update:downloaded'].forEach((evt) => {
+        window.electronAPI.on(evt, hideStartupLoader);
+    });
+}
+
 // Check for updates on startup (unless API requests are disabled in developer settings)
 async function checkForUpdatesOnStartup() {
     let apiRequestsDisabled = false;
-    
+
     // Load from file-based settings - check developer setting for disabling API requests
     try {
         const savedValue = await window.electronAPI.getSetting('devDisableApiRequests');
@@ -1831,7 +1856,7 @@ async function checkForUpdatesOnStartup() {
     } catch (err) {
         console.log('[SETTINGS] Could not load devDisableApiRequests setting:', err);
     }
-    
+
     // Check if privacy terms have been accepted - don't auto-update if welcome screen is needed
     let acceptedPrivacyVersion = 0;
     try {
@@ -1839,23 +1864,36 @@ async function checkForUpdatesOnStartup() {
     } catch (err) {
         console.log('[SETTINGS] Could not load settings:', err);
     }
-    
+
     // Only check for updates if API requests are enabled AND privacy terms are accepted
     const shouldSkipUpdate = acceptedPrivacyVersion < 2;
-    
+
     if (apiRequestsDisabled) {
         console.log('[UPDATE] Skipping auto-update check - API requests disabled in developer settings');
+        hideStartupLoader();
     } else if (!shouldSkipUpdate && window.electronAPI?.checkForUpdates) {
         console.log('[UPDATE] Auto-checking for updates on startup');
-        window.electronAPI.checkForUpdates();
+        try {
+            await window.electronAPI.checkForUpdates();
+        } catch (err) {
+            console.log('[UPDATE] Check failed:', err?.message || err);
+        } finally {
+            hideStartupLoader();
+        }
     } else if (shouldSkipUpdate) {
         console.log('[UPDATE] Skipping auto-update check - waiting for welcome screen acceptance');
+        hideStartupLoader();
+    } else {
+        hideStartupLoader();
     }
 }
 
 // Delay update check to allow app to fully initialize (not applicable in MAS builds)
 if (!window.electronAPI?.isMas) {
     setTimeout(checkForUpdatesOnStartup, 2000);
+} else {
+    // MAS build: no update check at all, so the loader has nothing to wait for.
+    hideStartupLoader();
 }
 
 // Show welcome guide for first-time users (only if privacy already accepted)

@@ -7,6 +7,7 @@ export const translations = {
     en: {
         ui: {
             dropOverlay: { message: "Select your dashcam folder to browse clips", chooseFolder: "Choose Folder" },
+            startup: { checkingForUpdates: "Checking for updates..." },
             loading: { scanning: "Scanning folder...", filesFound: "{count} files found" },
             clipBrowser: { title: "Clips", subtitle: "Select a dashcam folder to browse", dateLabel: "Date", selectDate: "Select Date", recent: "Recent", sentry: "Sentry", saved: "Saved", segments: "segments", segment: "segment", collapsePanel: "Collapse panel", expandPanel: "Expand panel", showSidebar: "Show sidebar", hideSidebar: "Hide sidebar", chooseFolder: "Choose Folder", clipsOn: "clips on", datesAvailable: "dates available", deleteClip: "Delete Clip", deleteConfirmTitle: "Delete Clip?", deleteConfirmMessage: "Are you sure you want to permanently delete this clip folder?", deleteConfirmPath: "Folder path:", deleteConfirmWarning: "This action cannot be undone.", deleteBtn: "Delete", cancelBtn: "Cancel", deleteSuccess: "Clip deleted successfully", deleteFailed: "Failed to delete clip", deleteFinalConfirmTitle: "Are You Sure?", deleteFinalConfirmMessage: "This will permanently delete all files in this folder. This cannot be undone!", deleteConfirmBtn: "Yes, Delete Permanently" },
             changelog: { title: "Changelog", close: "Close" },

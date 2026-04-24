@@ -14,6 +14,14 @@
 </head>
 
 <body>
+    <!-- Startup loader: shown while main-process pre-cache (FFmpeg) + the initial
+         update-check telemetry API call are running. Hidden as soon as the update
+         check resolves (or is skipped, or the 15s safety timeout fires). -->
+    <div id="startupLoader" class="startup-loader">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" data-i18n="ui.startup.checkingForUpdates">Checking for updates...</div>
+    </div>
+
     <div class="app-container">
         <!-- File Drop / Video Area -->
         <div class="video-container" id="videoContainer">
