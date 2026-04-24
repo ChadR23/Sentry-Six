@@ -1595,14 +1595,20 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
   // Detailed layout: vertical panel that fits within the video frame
   const dashWidth = Math.min(Math.round(1920 * sizeMultiplier * 0.50), playResX - 80);
   const numRows = 9; // Speed, Gear, Steering, Accel, Brake, Blinkers, Autopilot, GPS, Acceleration
-  // Calculate row height to fit within 80% of video height
+  // Calculate row height to fit within 80% of video height.
+  // (numRows + 1) covers top/bottom padding; the extra +0.65 carves out space for the
+  // date/time header that sits above row 0.
   const maxHeight = Math.round(playResY * 0.80);
-  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / (numRows + 1)));
-  const dashHeight = Math.min(Math.round(rowHeight * (numRows + 1)), maxHeight); // +1 for top/bottom padding
+  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / (numRows + 1.65)));
+  // Dedicated date/time header zone above row 0. ~65% of a row height — enough for
+  // a readable timestamp without stealing much vertical real estate from rows.
+  const dateHeaderHeight = Math.round(rowHeight * 0.65);
+  const dashHeight = Math.min(Math.round(rowHeight * (numRows + 1)) + dateHeaderHeight, maxHeight);
   const fontSize = Math.max(12, Math.round(rowHeight * 0.42));
   const labelFontSize = Math.max(10, Math.round(fontSize * 0.75));
   const largeFontSize = Math.round(fontSize * 2.0);
   const smallFontSize = Math.round(fontSize * 0.82);
+  const headerFontSize = Math.max(10, Math.round(dateHeaderHeight * 0.45));
   const iconSize = Math.round(rowHeight * 0.70);
   const padding = Math.round(dashWidth * 0.06);
 
@@ -1619,9 +1625,11 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
   const contentWidth = contentRight - contentLeft;
   const centerX = pos.x;
 
-  // Row Y positions (top of each row's content area)
+  // Row Y positions (top of each row's content area). Row 0 now sits below the
+  // date/time header, so shift all rows down by dateHeaderHeight.
   const rowPadding = Math.round(rowHeight * 0.18);
-  const getRowY = (rowIndex) => panelTop + padding + (rowIndex * rowHeight);
+  const getRowY = (rowIndex) => panelTop + padding + dateHeaderHeight + (rowIndex * rowHeight);
+  const dateHeaderCenterY = panelTop + padding + Math.round(dateHeaderHeight / 2);
 
   const durationMs = endTimeMs - startTimeMs;
   const totalFrames = Math.ceil((durationMs / 1000) * FPS);
@@ -1734,6 +1742,11 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
     const gForceXStr = gForceX !== null ? ((gForceX >= 0 ? '+' : '') + gForceX.toFixed(2)) : '0.00';
     const gForceYStr = gForceY !== null ? ((gForceY >= 0 ? '+' : '') + gForceY.toFixed(2)) : '0.00';
 
+    // Date/Time header: bucket to whole seconds so the signature changes once per
+    // second (otherwise it would never tick even though the clock should move).
+    const headerActualTs = convertVideoTimeToTimestamp(currentTimeMs, segments, cumStarts);
+    const headerTimeSec = Math.floor((headerActualTs || 0) / 1000);
+
     // Create state signature
     const currentState = JSON.stringify({
       primarySpeed, gearText,
@@ -1741,7 +1754,8 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
       apActive, apDisplayText, brakeApplied, accelPct,
       steeringAngle: Math.round(steeringAngle * 10) / 10,
       latStr, lonStr, headingStr,
-      gForceXStr, gForceYStr
+      gForceXStr, gForceYStr,
+      headerTimeSec
     });
 
     // Emit events when state changes or at end
@@ -1765,6 +1779,27 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
           `l ${panelLeft} ${panelTop + r} ` +
           `b ${panelLeft} ${panelTop} ${panelLeft + r} ${panelTop} ${panelLeft + r} ${panelTop}{\\p0}`
         ));
+
+        // === Date/Time Header (top of panel, above row 0) ===
+        // Uses the user's dateFormat (mdy/dmy/ymd) and timeFormat (12h/24h) prefs,
+        // same as everywhere else in the app.
+        {
+          const headerEventTimeMs = startTimeMs + (eventStartFrame * frameTimeMs);
+          const rawTs = convertVideoTimeToTimestamp(headerEventTimeMs, segments, cumStarts);
+          // convertVideoTimeToTimestamp falls back to returning the raw videoTimeMs if
+          // no segment matches — that would render as 1970-01-01. Treat anything before
+          // year 2000 as 'no real timestamp available' so formatDisplayDate/Time show
+          // the neutral --/-- placeholders instead of bogus 1970 dates.
+          const headerTs = (rawTs && rawTs > 946684800000) ? rawTs : null;
+          const headerDate = formatDisplayDate(headerTs, dateFormat);
+          const headerTime = formatDisplayTime(headerTs, timeFormat);
+          const headerText = `${headerDate}   ${headerTime}`;
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+            `{\\an5\\pos(${centerX},${dateHeaderCenterY})\\bord0\\shad0\\fs${headerFontSize}\\1c&HFFFFFF&\\b1}${headerText}`
+          ));
+          // Separator below the date/time header (matches the row separators).
+          drawSectionSep(startAssTime, endAssTime, panelTop + padding + dateHeaderHeight);
+        }
 
         // === Row 0: Speed ===
         const row0Y = getRowY(0);
