@@ -35,7 +35,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manual', 1: 'Self Driving', 2: 'Autosteer', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'No Data',
-    labels: { speed: 'Speed', gear: 'Gear', steering: 'Steering', accelerator: 'Accelerator', brake: 'Brake', blinkers: 'Blinkers', autopilot: 'Autopilot', gps: 'GPS', heading: 'Heading', gForce: 'G-Force', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    labels: { speed: 'Speed', gear: 'Gear', steering: 'Steering', accelerator: 'Accelerator', brake: 'Brake', blinkers: 'Blinkers', autopilot: 'Autopilot', gps: 'GPS', heading: 'Heading', gForce: 'G-Force', lateral: 'Lateral', longitudinal: 'Longitudinal' , dateTime: 'Date/Time'},
     brakeStates: { on: 'ON', off: 'OFF' },
     apStates: { off: 'OFF', fsd: 'FSD Supervised', autopilot: 'Autopilot', tacc: 'TACC' }
   },
@@ -44,7 +44,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manual', 1: 'Autónomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Sin Datos',
-    labels: { speed: 'Velocidad', gear: 'Marcha', steering: 'Dirección', accelerator: 'Acelerador', brake: 'Freno', blinkers: 'Intermitentes', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Rumbo', gForce: 'Fuerza G', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    labels: { speed: 'Velocidad', gear: 'Marcha', steering: 'Dirección', accelerator: 'Acelerador', brake: 'Freno', blinkers: 'Intermitentes', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Rumbo', gForce: 'Fuerza G', lateral: 'Lateral', longitudinal: 'Longitudinal' , dateTime: 'Fecha/Hora'},
     brakeStates: { on: 'SÍ', off: 'NO' },
     apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopiloto', tacc: 'TACC' }
   },
@@ -53,7 +53,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manuel', 1: 'Autonome', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Pas de Données',
-    labels: { speed: 'Vitesse', gear: 'Rapport', steering: 'Direction', accelerator: 'Accélérateur', brake: 'Frein', blinkers: 'Clignotants', autopilot: 'Pilote Auto', gps: 'GPS', heading: 'Cap', gForce: 'Force G', lateral: 'Latéral', longitudinal: 'Longitudinal' },
+    labels: { speed: 'Vitesse', gear: 'Rapport', steering: 'Direction', accelerator: 'Accélérateur', brake: 'Frein', blinkers: 'Clignotants', autopilot: 'Pilote Auto', gps: 'GPS', heading: 'Cap', gForce: 'Force G', lateral: 'Latéral', longitudinal: 'Longitudinal' , dateTime: 'Date/Heure'},
     brakeStates: { on: 'ACT', off: 'DÉSACT' },
     apStates: { off: 'OFF', fsd: 'FSD Supervisé', autopilot: 'Autopilote', tacc: 'TACC' }
   },
@@ -62,7 +62,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manuell', 1: 'Autonom', 2: 'Autosteer', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Keine Daten',
-    labels: { speed: 'Geschw.', gear: 'Gang', steering: 'Lenkung', accelerator: 'Gaspedal', brake: 'Bremse', blinkers: 'Blinker', autopilot: 'Autopilot', gps: 'GPS', heading: 'Richtung', gForce: 'G-Kraft', lateral: 'Lateral', longitudinal: 'Längs' },
+    labels: { speed: 'Geschw.', gear: 'Gang', steering: 'Lenkung', accelerator: 'Gaspedal', brake: 'Bremse', blinkers: 'Blinker', autopilot: 'Autopilot', gps: 'GPS', heading: 'Richtung', gForce: 'G-Kraft', lateral: 'Lateral', longitudinal: 'Längs' , dateTime: 'Datum/Zeit'},
     brakeStates: { on: 'EIN', off: 'AUS' },
     apStates: { off: 'AUS', fsd: 'FSD Auto.', autopilot: 'Autopilot', tacc: 'TACC' }
   },
@@ -71,7 +71,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: '手动', 1: '自动驾驶', 2: '自动转向', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: '无数据',
-    labels: { speed: '速度', gear: '挡位', steering: '转向', accelerator: '油门', brake: '刹车', blinkers: '转向灯', autopilot: '自动驾驶', gps: 'GPS', heading: '航向', gForce: 'G力', lateral: '侧向', longitudinal: '纵向' },
+    labels: { speed: '速度', gear: '挡位', steering: '转向', accelerator: '油门', brake: '刹车', blinkers: '转向灯', autopilot: '自动驾驶', gps: 'GPS', heading: '航向', gForce: 'G力', lateral: '侧向', longitudinal: '纵向' , dateTime: '日期/时间'},
     brakeStates: { on: '开', off: '关' },
     apStates: { off: '关', fsd: 'FSD监督', autopilot: '自动驾驶', tacc: 'TACC' }
   },
@@ -80,7 +80,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: '手動', 1: '自動運転', 2: 'オートステア', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'データなし',
-    labels: { speed: '速度', gear: 'ギア', steering: '操舵', accelerator: '加速', brake: 'ブレーキ', blinkers: 'ウインカ', autopilot: 'AP', gps: 'GPS', heading: '方位', gForce: 'G値', lateral: '横G', longitudinal: '縦G' },
+    labels: { speed: '速度', gear: 'ギア', steering: '操舵', accelerator: '加速', brake: 'ブレーキ', blinkers: 'ウインカ', autopilot: 'AP', gps: 'GPS', heading: '方位', gForce: 'G値', lateral: '横G', longitudinal: '縦G' , dateTime: '日時'},
     brakeStates: { on: 'ON', off: 'OFF' },
     apStates: { off: 'OFF', fsd: 'FSD監視', autopilot: 'AP', tacc: 'TACC' }
   },
@@ -89,7 +89,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: '수동', 1: '자율주행', 2: '자동조향', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: '데이터 없음',
-    labels: { speed: '속도', gear: '기어', steering: '조향', accelerator: '가속', brake: '브레이크', blinkers: '방향등', autopilot: 'AP', gps: 'GPS', heading: '방향', gForce: 'G력', lateral: '횡G', longitudinal: '종G' },
+    labels: { speed: '속도', gear: '기어', steering: '조향', accelerator: '가속', brake: '브레이크', blinkers: '방향등', autopilot: 'AP', gps: 'GPS', heading: '방향', gForce: 'G력', lateral: '횡G', longitudinal: '종G' , dateTime: '날짜/시간'},
     brakeStates: { on: '켜짐', off: '꺼짐' },
     apStates: { off: 'OFF', fsd: 'FSD', autopilot: 'AP', tacc: 'TACC' }
   },
@@ -98,7 +98,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manual', 1: 'Autônomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Sem Dados',
-    labels: { speed: 'Velocidade', gear: 'Marcha', steering: 'Direção', accelerator: 'Acelerador', brake: 'Freio', blinkers: 'Pisca', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Direção', gForce: 'Força G', lateral: 'Lateral', longitudinal: 'Longitudinal' },
+    labels: { speed: 'Velocidade', gear: 'Marcha', steering: 'Direção', accelerator: 'Acelerador', brake: 'Freio', blinkers: 'Pisca', autopilot: 'Piloto Auto', gps: 'GPS', heading: 'Direção', gForce: 'Força G', lateral: 'Lateral', longitudinal: 'Longitudinal' , dateTime: 'Data/Hora'},
     brakeStates: { on: 'LIGADO', off: 'DESL.' },
     apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopiloto', tacc: 'TACC' }
   },
@@ -107,7 +107,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Ручной', 1: 'Автопилот', 2: 'Автоулр.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Нет данных',
-    labels: { speed: 'Скорость', gear: 'Передача', steering: 'Руль', accelerator: 'Акселер.', brake: 'Тормоз', blinkers: 'Поворот.', autopilot: 'Автопилот', gps: 'GPS', heading: 'Направ.', gForce: 'Перегрузка', lateral: 'Боковая', longitudinal: 'Продольная' },
+    labels: { speed: 'Скорость', gear: 'Передача', steering: 'Руль', accelerator: 'Акселер.', brake: 'Тормоз', blinkers: 'Поворот.', autopilot: 'Автопилот', gps: 'GPS', heading: 'Направ.', gForce: 'Перегрузка', lateral: 'Боковая', longitudinal: 'Продольная' , dateTime: 'Дата/Время'},
     brakeStates: { on: 'ВКЛ', off: 'ВЫКЛ' },
     apStates: { off: 'ВЫКЛ', fsd: 'FSD Надзор', autopilot: 'Автопилот', tacc: 'TACC' }
   },
@@ -116,7 +116,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manuale', 1: 'Autonomo', 2: 'Autodir.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Nessun Dato',
-    labels: { speed: 'Velocità', gear: 'Marcia', steering: 'Sterzo', accelerator: 'Acceleratore', brake: 'Freno', blinkers: 'Frecce', autopilot: 'Autopilota', gps: 'GPS', heading: 'Direzione', gForce: 'Forza G', lateral: 'Laterale', longitudinal: 'Longitudinale' },
+    labels: { speed: 'Velocità', gear: 'Marcia', steering: 'Sterzo', accelerator: 'Acceleratore', brake: 'Freno', blinkers: 'Frecce', autopilot: 'Autopilota', gps: 'GPS', heading: 'Direzione', gForce: 'Forza G', lateral: 'Laterale', longitudinal: 'Longitudinale' , dateTime: 'Data/Ora'},
     brakeStates: { on: 'SÌ', off: 'NO' },
     apStates: { off: 'OFF', fsd: 'FSD Superv.', autopilot: 'Autopilota', tacc: 'TACC' }
   },
@@ -125,7 +125,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Handmatig', 1: 'Zelfrijdend', 2: 'Autostuur', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Geen Data',
-    labels: { speed: 'Snelheid', gear: 'Versnelling', steering: 'Stuur', accelerator: 'Gas', brake: 'Rem', blinkers: 'Richting', autopilot: 'Autopiloot', gps: 'GPS', heading: 'Koers', gForce: 'G-Kracht', lateral: 'Lateraal', longitudinal: 'Longitudinaal' },
+    labels: { speed: 'Snelheid', gear: 'Versnelling', steering: 'Stuur', accelerator: 'Gas', brake: 'Rem', blinkers: 'Richting', autopilot: 'Autopiloot', gps: 'GPS', heading: 'Koers', gForce: 'G-Kracht', lateral: 'Lateraal', longitudinal: 'Longitudinaal' , dateTime: 'Datum/Tijd'},
     brakeStates: { on: 'AAN', off: 'UIT' },
     apStates: { off: 'UIT', fsd: 'FSD Beg.', autopilot: 'Autopiloot', tacc: 'TACC' }
   },
@@ -134,7 +134,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Ręczny', 1: 'Autonomiczny', 2: 'Autokier.', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Brak Danych',
-    labels: { speed: 'Prędkość', gear: 'Bieg', steering: 'Kierow.', accelerator: 'Gaz', brake: 'Hamulec', blinkers: 'Kierunki', autopilot: 'Autopilot', gps: 'GPS', heading: 'Kierunek', gForce: 'Siła G', lateral: 'Boczna', longitudinal: 'Wzdłużna' },
+    labels: { speed: 'Prędkość', gear: 'Bieg', steering: 'Kierow.', accelerator: 'Gaz', brake: 'Hamulec', blinkers: 'Kierunki', autopilot: 'Autopilot', gps: 'GPS', heading: 'Kierunek', gForce: 'Siła G', lateral: 'Boczna', longitudinal: 'Wzdłużna' , dateTime: 'Data/Czas'},
     brakeStates: { on: 'WŁ', off: 'WYŁ' },
     apStates: { off: 'WYŁ', fsd: 'FSD Nadz.', autopilot: 'Autopilot', tacc: 'TACC' }
   },
@@ -143,7 +143,7 @@ const DASHBOARD_TRANSLATIONS = {
     ap: { 0: 'Manuel', 1: 'Otonom', 2: 'Otomatik', 3: 'TACC' },
     speedUnit: { mph: 'MPH', kmh: 'KM/H' },
     noData: 'Veri Yok',
-    labels: { speed: 'Hız', gear: 'Vites', steering: 'Direksiyon', accelerator: 'Gaz', brake: 'Fren', blinkers: 'Sinyal', autopilot: 'Otopilot', gps: 'GPS', heading: 'Yön', gForce: 'G-Kuv.', lateral: 'Yanal', longitudinal: 'Boylamasına' },
+    labels: { speed: 'Hız', gear: 'Vites', steering: 'Direksiyon', accelerator: 'Gaz', brake: 'Fren', blinkers: 'Sinyal', autopilot: 'Otopilot', gps: 'GPS', heading: 'Yön', gForce: 'G-Kuv.', lateral: 'Yanal', longitudinal: 'Boylamasına' , dateTime: 'Tarih/Saat'},
     brakeStates: { on: 'AÇIK', off: 'KAPALI' },
     apStates: { off: 'KAPALI', fsd: 'FSD Denet.', autopilot: 'Otopilot', tacc: 'TACC' }
   }
@@ -1592,23 +1592,24 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
   };
   const sizeMultiplier = sizeMultipliers[size] || 0.40;
 
-  // Detailed layout: vertical panel that fits within the video frame
+  // Detailed layout: vertical panel that fits within the video frame.
+  // Date/Time header occupies a full row-height zone at the top (so it matches the
+  // rhythm of the other rows: Speed, Gear, Steering, …). Effective row count = 10.
   const dashWidth = Math.min(Math.round(1920 * sizeMultiplier * 0.50), playResX - 80);
   const numRows = 9; // Speed, Gear, Steering, Accel, Brake, Blinkers, Autopilot, GPS, Acceleration
-  // Calculate row height to fit within 80% of video height.
-  // (numRows + 1) covers top/bottom padding; the extra +0.65 carves out space for the
-  // date/time header that sits above row 0.
+  const totalRows = numRows + 1; // +1 for the Date/Time header row at the top
   const maxHeight = Math.round(playResY * 0.80);
-  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / (numRows + 1.65)));
-  // Dedicated date/time header zone above row 0. ~65% of a row height — enough for
-  // a readable timestamp without stealing much vertical real estate from rows.
-  const dateHeaderHeight = Math.round(rowHeight * 0.65);
-  const dashHeight = Math.min(Math.round(rowHeight * (numRows + 1)) + dateHeaderHeight, maxHeight);
+  const rowHeight = Math.min(Math.round(dashWidth * 0.16), Math.floor(maxHeight / (totalRows + 1)));
+  // Header zone = one full row, so the header reads as a sibling of the other rows.
+  const dateHeaderHeight = rowHeight;
+  const dashHeight = Math.min(Math.round(rowHeight * (totalRows + 1)), maxHeight); // +1 for top/bottom padding
   const fontSize = Math.max(12, Math.round(rowHeight * 0.42));
   const labelFontSize = Math.max(10, Math.round(fontSize * 0.75));
   const largeFontSize = Math.round(fontSize * 2.0);
   const smallFontSize = Math.round(fontSize * 0.82);
-  const headerFontSize = Math.max(10, Math.round(dateHeaderHeight * 0.45));
+  // Slightly smaller than Brake's OFF (fontSize * 1.3) so the full date+time string
+  // fits inside the narrower Detailed panel without overflowing horizontally.
+  const headerFontSize = Math.round(fontSize * 1.15);
   const iconSize = Math.round(rowHeight * 0.70);
   const padding = Math.round(dashWidth * 0.06);
 
@@ -1625,11 +1626,12 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
   const contentWidth = contentRight - contentLeft;
   const centerX = pos.x;
 
-  // Row Y positions (top of each row's content area). Row 0 now sits below the
-  // date/time header, so shift all rows down by dateHeaderHeight.
+  // Row Y positions (top of each row's content area). Row 0 sits below the
+  // date/time header row, so all rows shift down by dateHeaderHeight.
   const rowPadding = Math.round(rowHeight * 0.18);
   const getRowY = (rowIndex) => panelTop + padding + dateHeaderHeight + (rowIndex * rowHeight);
-  const dateHeaderCenterY = panelTop + padding + Math.round(dateHeaderHeight / 2);
+  // The header row mirrors getRowY(0) but at rowIndex -1 (i.e. panelTop + padding).
+  const headerRowY = panelTop + padding;
 
   const durationMs = endTimeMs - startTimeMs;
   const totalFrames = Math.ceil((durationMs / 1000) * FPS);
@@ -1780,25 +1782,32 @@ function generateDetailedDashboardEvents(seiData, startTimeMs, endTimeMs, option
           `b ${panelLeft} ${panelTop} ${panelLeft + r} ${panelTop} ${panelLeft + r} ${panelTop}{\\p0}`
         ));
 
-        // === Date/Time Header (top of panel, above row 0) ===
-        // Uses the user's dateFormat (mdy/dmy/ymd) and timeFormat (12h/24h) prefs,
-        // same as everywhere else in the app.
+        // === Date/Time Header (first row of panel) ===
+        // Uses the user's dateFormat (mdy/dmy/ymd) and timeFormat (12h/24h) prefs.
+        // Laid out exactly like the other rows: grey label on the left, bold white
+        // value centered in the row.
         {
           const headerEventTimeMs = startTimeMs + (eventStartFrame * frameTimeMs);
           const rawTs = convertVideoTimeToTimestamp(headerEventTimeMs, segments, cumStarts);
           // convertVideoTimeToTimestamp falls back to returning the raw videoTimeMs if
           // no segment matches — that would render as 1970-01-01. Treat anything before
-          // year 2000 as 'no real timestamp available' so formatDisplayDate/Time show
-          // the neutral --/-- placeholders instead of bogus 1970 dates.
+          // year 2000 as 'no real timestamp available' so the formatters emit their
+          // neutral --/-- placeholders instead of bogus 1970 dates.
           const headerTs = (rawTs && rawTs > 946684800000) ? rawTs : null;
           const headerDate = formatDisplayDate(headerTs, dateFormat);
           const headerTime = formatDisplayTime(headerTs, timeFormat);
           const headerText = `${headerDate}   ${headerTime}`;
+          // Label (left, same style as Speed/Gear/Steering labels)
           events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
-            `{\\an5\\pos(${centerX},${dateHeaderCenterY})\\bord0\\shad0\\fs${headerFontSize}\\1c&HFFFFFF&\\b1}${headerText}`
+            `{\\an4\\pos(${contentLeft},${headerRowY + rowPadding})\\bord0\\shad0\\fs${labelFontSize}\\1c&H909090&}${labels.dateTime}`
           ));
-          // Separator below the date/time header (matches the row separators).
-          drawSectionSep(startAssTime, endAssTime, panelTop + padding + dateHeaderHeight);
+          // Value (centered in the row, bold, white — same pattern as Brake's OFF/ON
+          // and Gear's DRIVE, just a touch smaller so the full timestamp fits).
+          events.push(dialogueLine(1, startAssTime, endAssTime, 'DetailedDash',
+            `{\\an5\\pos(${centerX},${headerRowY + rowHeight * 0.58})\\bord0\\shad0\\fs${headerFontSize}\\1c&HFFFFFF&\\b1}${headerText}`
+          ));
+          // Separator below the header (matches every other row's bottom separator).
+          drawSectionSep(startAssTime, endAssTime, headerRowY + rowHeight);
         }
 
         // === Row 0: Speed ===
