@@ -1344,7 +1344,10 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           // Silent retry with CPU encoder when a GPU encoder refuses to initialize —
           // lets Max-quality exports succeed on hardware that can't handle the resolution
           // (e.g. HEVC QSV on Intel Gen 9.5 with non-16-aligned dimensions).
-          if (isEncoderInitFailure && !retriedWithCpu && useGpu && !cancelledExports.has(exportId)) {
+          // Skip for VAAPI: the filter chain already contains `hwupload` and cmd has
+          // `-vaapi_device` baked in, so a naive libx264 retry would error on the
+          // hwupload filter. We fail loudly instead and let the user pick a CPU export.
+          if (isEncoderInitFailure && !retriedWithCpu && useGpu && !isVaapi && !cancelledExports.has(exportId)) {
             retriedWithCpu = true;
             console.log('[EXPORT] GPU encoder failed to initialize; retrying with CPU encoder');
             // Keep temp files (ASS subtitle etc.) — don't cleanup. Just rebuild cmd tail.
