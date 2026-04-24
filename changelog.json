@@ -1,6 +1,29 @@
 {
   "versions": [
     {
+      "version": "2026.17.27",
+      "date": "2026-04-24",
+      "title": "Linux Support & UX Polish",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Linux: Added hardware-accelerated export via VAAPI for AMD and Intel integrated GPUs, on par with the existing NVENC path on Windows."
+        },
+        {
+          "type": "improvement",
+          "description": "App size: Swapped the native image library used for privacy blur masks for a pure-JS equivalent. Removes roughly 100 MB of platform-specific binaries from every installer on every platform, with no change to blur output."
+        },
+        {
+          "type": "feature",
+          "description": "Export: The Detailed dashboard now shows the clip's recording date and time as its own row at the top, using your existing date and time format preferences."
+        },
+        {
+          "type": "improvement",
+          "description": "Startup: Added a 'Checking for updates…' loader so the first few seconds of FFmpeg detection and the update check no longer look like a freeze."
+        }
+      ]
+    },
+    {
       "version": "2026.17.26",
       "date": "2026-04-23",
       "title": "UI Refresh and Export Reliability",
