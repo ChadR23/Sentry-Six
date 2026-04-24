@@ -4,14 +4,55 @@ const fs = require('fs');
 const os = require('os');
 const { spawn, spawnSync } = require('child_process');
 const { writeCompactDashboardAss, writeDetailedDashboardAss, writeTeslaMobileDashboardAss, writeMinimapAss } = require('./assGenerator');
-let _sharp = null;
-function getSharp() { if (!_sharp) _sharp = require('sharp'); return _sharp; }
+// Pure-JS PNG compositor used for blur masks. Replaces `sharp` so Linux (and other)
+// users don't need the native libvips binaries bundled.
+const { PNG } = require('pngjs');
+function compositeBlurMasks(width, height, zones) {
+  const canvas = new PNG({ width, height });
+  canvas.data.fill(0);
+  for (let i = 3; i < canvas.data.length; i += 4) canvas.data[i] = 255;
+
+  for (const zone of zones) {
+    const buf = Buffer.from(zone.maskImageBase64, 'base64');
+    let overlay;
+    try {
+      overlay = PNG.sync.read(buf);
+    } catch (err) {
+      console.warn('[BLUR] Skipping zone - failed to decode PNG mask:', err.message);
+      continue;
+    }
+    const copyW = Math.min(overlay.width, width);
+    const copyH = Math.min(overlay.height, height);
+    for (let y = 0; y < copyH; y++) {
+      for (let x = 0; x < copyW; x++) {
+        const srcIdx = (y * overlay.width + x) * 4;
+        const dstIdx = (y * width + x) * 4;
+        const sa = overlay.data[srcIdx + 3];
+        if (sa === 0) continue;
+        if (sa === 255) {
+          canvas.data[dstIdx]     = overlay.data[srcIdx];
+          canvas.data[dstIdx + 1] = overlay.data[srcIdx + 1];
+          canvas.data[dstIdx + 2] = overlay.data[srcIdx + 2];
+          canvas.data[dstIdx + 3] = 255;
+        } else {
+          const a = sa / 255;
+          canvas.data[dstIdx]     = Math.round(overlay.data[srcIdx]     * a + canvas.data[dstIdx]     * (1 - a));
+          canvas.data[dstIdx + 1] = Math.round(overlay.data[srcIdx + 1] * a + canvas.data[dstIdx + 1] * (1 - a));
+          canvas.data[dstIdx + 2] = Math.round(overlay.data[srcIdx + 2] * a + canvas.data[dstIdx + 2] * (1 - a));
+          canvas.data[dstIdx + 3] = 255;
+        }
+      }
+    }
+  }
+
+  return PNG.sync.write(canvas);
+}
 const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTelemetry');
 const { settingsPath, loadSettings, saveSettings, registerSettingsIpc } = require('./main/settings');
 const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
 const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
 const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
-const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
+const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, findVaapiDevice, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
 const { calculateMinimapSize, downloadStaticMapBackground, preRenderMinimap } = require('./main/minimap');
 const crypto = require('crypto');
 
@@ -161,16 +202,7 @@ async function applyBlurZonesToStreams({ blurZones, blurType, streams, streamTag
       const maskW = firstZone.maskWidth || 1448;
       const maskH = firstZone.maskHeight || 938;
 
-      const sharp = getSharp();
-      const overlays = zones.map(zone => ({
-        input: Buffer.from(zone.maskImageBase64, 'base64'),
-        top: 0,
-        left: 0,
-      }));
-
-      const compositeMaskBuffer = await sharp({
-        create: { width: maskW, height: maskH, channels: 3, background: { r: 0, g: 0, b: 0 } }
-      }).composite(overlays).png().toBuffer();
+      const compositeMaskBuffer = compositeBlurMasks(maskW, maskH, zones);
       const maskPath = path.join(os.tmpdir(), `blur_mask_${exportId}_${cam}_${Date.now()}.png`);
       fs.writeFileSync(maskPath, compositeMaskBuffer);
       tempFiles.push(maskPath);
@@ -1124,6 +1156,19 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       filters.push(`[pre_norm]format=yuv420p${padExpr}[out]`);
     }
 
+    // VAAPI (Linux AMD/Intel): append hwupload to the final filter and declare the
+    // hardware device globally so ffmpeg can upload to the GPU. Only wire this up
+    // if the render node actually exists — otherwise fall through to the software path.
+    const isVaapi = useGpu && activeEncoder?.codec?.includes('vaapi');
+    if (isVaapi) {
+      const vaapiDev = findVaapiDevice();
+      if (vaapiDev) {
+        const lastIdx = filters.length - 1;
+        filters[lastIdx] = filters[lastIdx].replace(/\[out\]$/, ',format=nv12,hwupload[out]');
+        cmd.splice(2, 0, '-vaapi_device', vaapiDev);
+      }
+    }
+
     cmd.push('-filter_complex', filters.join(';'));
     cmd.push('-map', '[out]');
 
@@ -1179,6 +1224,12 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
           args.push('-preset', 'medium');
           args.push('-global_quality', qsvQp.toString());
           args.push('-g', (FPS * 2).toString());
+        } else if (enc.codec === 'h264_vaapi' || enc.codec === 'hevc_vaapi') {
+          // VAAPI (Linux AMD/Intel): constant-QP rate control
+          const vaapiQp = Math.max(18, Math.min(46, crf));
+          args.push('-rc_mode', 'CQP');
+          args.push('-qp', vaapiQp.toString());
+          args.push('-g', (FPS * 2).toString());
         } else {
           console.log(`[WARN] Using generic settings for unknown GPU encoder: ${enc.codec}`);
           args.push('-preset', 'fast', '-crf', crf.toString());
@@ -1200,9 +1251,11 @@ async function performVideoExport(event, exportId, exportData, ffmpegPath) {
       args.push('-t', outputDurationSec.toString());
       args.push('-movflags', '+faststart');
 
-      // VideoToolbox handles pixel format internally; others need explicit setting.
+      // VideoToolbox handles pixel format internally; VAAPI uses nv12 via the
+      // hwupload filter chain, so neither wants an explicit -pix_fmt.
       const isVideoToolbox = enc?.codec?.includes('videotoolbox');
-      if (!isVideoToolbox) {
+      const isVaapiEnc = enc?.codec?.includes('vaapi');
+      if (!isVideoToolbox && !isVaapiEnc) {
         args.push('-pix_fmt', 'yuv420p');
       }
 

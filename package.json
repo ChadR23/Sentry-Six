@@ -27,9 +27,9 @@
     "electron-builder": "^26.6.0"
   },
   "dependencies": {
-    "sharp": "^0.33.5",
     "electron-updater": "^6.1.7",
     "node-machine-id": "^1.1.12",
+    "pngjs": "^7.0.0",
     "protobufjs": "^7.5.4"
   },
   "build": {
@@ -45,8 +45,6 @@
       ],
       "verifyUpdateCodeSignature": false,
       "asarUnpack": [
-        "node_modules/sharp/**/*",
-        "node_modules/@img/**/*",
         "node_modules/node-machine-id/**/*"
       ],
       "extraResources": [
@@ -85,10 +83,8 @@
       "signIgnore": ["\\.pak$"],
       "notarize": true,
       "artifactName": "SentryStudio-${version}-macOS.${ext}",
-      "x64ArchFiles": "{Contents/Resources/ffmpeg_bin/*,Contents/Resources/app.asar.unpacked/node_modules/@img/**/*}",
+      "x64ArchFiles": "{Contents/Resources/ffmpeg_bin/*}",
       "asarUnpack": [
-        "node_modules/sharp/**/*",
-        "node_modules/@img/**/*",
         "node_modules/node-machine-id/**/*"
       ],
       "extraResources": [
