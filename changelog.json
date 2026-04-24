@@ -7,10 +7,6 @@
       "changes": [
         {
           "type": "fix",
-          "description": "Map: Fixed the in-app map failing to load in pre-release builds. The Content Security Policy added during recent security hardening was blocking Leaflet and the Google Fonts stylesheets; it now whitelists those specific origins without weakening any other protections."
-        },
-        {
-          "type": "fix",
           "description": "Export: Maximum quality now works on Intel integrated GPUs. HEVC QuickSync previously failed to open the encoder at resolutions like 4344x2088; the canvas is now padded to a 16-pixel multiple for GPU encoders and the app automatically falls back to the CPU encoder if the GPU encoder still can't start."
         },
         {
@@ -26,14 +22,6 @@
           "description": "UI: Migrated most icons to Google Material Symbols for a cleaner, more consistent look."
         },
         {
-          "type": "improvement",
-          "description": "Security: Hardened path validation, added CSP headers, and gated dev-only IPC handlers in production builds."
-        },
-        {
-          "type": "improvement",
-          "description": "Quality: Added Jest test framework with 87 tests and GitHub Actions CI for continuous verification."
-        },
-        {
           "type": "fix",
           "description": "Export: Steering wheel in the detailed dashboard now correctly reflects Autopilot state."
         },
@@ -47,15 +35,7 @@
         },
         {
           "type": "fix",
-          "description": "UI: Fixed a syntax error in translations that was breaking all UI buttons."
-        },
-        {
-          "type": "fix",
           "description": "UI: Privacy zone restore banner now updates when the language is changed."
-        },
-        {
-          "type": "fix",
-          "description": "UI: Fixed thumbnail preview getting stuck and a startup freeze when a previously-used folder path was no longer available."
         },
         {
           "type": "fix",
