@@ -1,7 +1,17 @@
-# Sentry Studio
-#### View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration. All in one beautiful app.
+<h1 align="center">Sentry Drive</h1>
 
-🌐 **Website**: [sentry-six.com](https://sentry-six.com)
+<p align="center">
+  <strong>All in one beautiful app.</strong><br>
+  View all six cameras simultaneously. Visualize SEI telemetry data. Export clips with hardware acceleration.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Sentry-Six/Sentry-Six/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Sentry-Six/Sentry-Six"></a>
+  <a href="https://discord.gg/9QZEzVwdnt"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+</p>
+
+---
 
 Sentry Studio by Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
 
@@ -120,8 +130,6 @@ Join our [Discord Server](https://discord.com/invite/9QZEzVwdnt)!
 2. Download the SentryStudioSetup.exe (SentryStudio.dmg for MacOS) 
 3. Run the installer
 4. Run Sentry Studio
-
-**Note for macOS users:** You may encounter a security warning because this app is not digitally signed. As this is an open-source project, we do not maintain a paid subscription to the Apple Developer Program. To launch the app, navigate to **System Settings > Privacy & Security**, scroll down, and click **"Open Anyway."**
 
  <img width="245.5" height="96.5" alt="Screenshot_2026-01-02_at_1 17 05_PM" src="https://github.com/user-attachments/assets/81c21fef-6eb6-49c9-a0d3-75765eb32685" />
 
