@@ -245,11 +245,14 @@
         }
 
         // Native-dark providers (Google night palette) bake darkness into the
-        // tiles, so the CSS invert must NOT be layered on top; OSM still needs it.
+        // tiles and photographic imagery (satellite) must never be inverted;
+        // only drawn maps with no native dark style (OSM) need the CSS invert.
         function updateDarkClass() {
-            const native = window.MapProviders && window.MapProviders.hasNativeDark(tileProviderId);
+            const wantsFilter = window.MapProviders
+                ? window.MapProviders.wantsDarkFilter(tileProviderId)
+                : true;
             document.getElementById('minimapContainer')
-                .classList.toggle('dark-mode', darkEnabled && !native);
+                .classList.toggle('dark-mode', darkEnabled && wantsFilter);
         }
 
         function setTileProvider(providerId) {

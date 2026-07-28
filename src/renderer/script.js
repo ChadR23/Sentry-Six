@@ -431,8 +431,9 @@ let useMetric = false; // Will be loaded from settings
     
     // Map dark mode. Styled providers (Google) bake a real night palette into
     // the tiles via apistyle, so for those we rebuild the layer and apply NO
-    // CSS filter. Providers without a native dark style (OSM/satellite) still
-    // get the CSS invert on the tile pane.
+    // CSS filter. Drawn maps without a native dark style (OSM) get the CSS
+    // invert on the tile pane; photographic imagery (satellite) is never
+    // filtered — inverting a photo produces a color negative.
     window._mapDarkMode = false;
 
     // Filter-only step (no tile rebuild) — safe to call after a tile rebuild
@@ -440,8 +441,8 @@ let useMetric = false; // Will be loaded from settings
     function updateMapDarkFilter() {
         const tilePane = document.getElementById('map')?.querySelector('.leaflet-tile-pane');
         if (!tilePane) return;
-        const native = window.MapProviders?.hasNativeDark?.(getEffectiveProviderId());
-        tilePane.style.filter = (window._mapDarkMode && !native)
+        const wantsFilter = window.MapProviders?.wantsDarkFilter?.(getEffectiveProviderId());
+        tilePane.style.filter = (window._mapDarkMode && wantsFilter)
             ? 'invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.2)'
             : '';
     }

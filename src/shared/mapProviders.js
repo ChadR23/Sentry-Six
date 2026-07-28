@@ -45,6 +45,10 @@
       id: 'google-satellite',
       label: 'Google Satellite',
       urlTemplate: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      // Real photography: the dark-mode invert/darken filters that fake a
+      // night style on drawn maps produce a color negative here, so every
+      // dark-mode filter path must skip this provider (see wantsDarkFilter).
+      photographic: true,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       maxZoom: 20,
       attribution: '&copy; Google'
@@ -116,13 +120,26 @@
   /**
    * Whether the provider renders its own dark style in-tile (via apistyle).
    * When true, callers must NOT layer a CSS/FFmpeg invert filter on top — the
-   * night palette is already baked in. When false (OSM, satellite), the
-   * caller's invert filter is the only way to get a dark map.
+   * night palette is already baked in.
    * @param {string} id - Provider id
    * @returns {boolean}
    */
   function hasNativeDark(id) {
     return typeof getProvider(id).apistyle === 'function';
+  }
+
+  /**
+   * Whether dark mode should be faked with a CSS/FFmpeg invert-or-darken
+   * filter for this provider. True only for drawn maps with no native dark
+   * style (OSM). False for styled providers (night palette already in-tile)
+   * and for photographic imagery (satellite), where an invert produces a
+   * color negative — imagery is simply shown as-is in dark mode.
+   * @param {string} id - Provider id
+   * @returns {boolean}
+   */
+  function wantsDarkFilter(id) {
+    const p = getProvider(id);
+    return typeof p.apistyle !== 'function' && !p.photographic;
   }
 
   /**
@@ -173,6 +190,7 @@
     getProvider,
     isGoogleProvider,
     hasNativeDark,
+    wantsDarkFilter,
     getUrlTemplate,
     buildTileUrl
   };

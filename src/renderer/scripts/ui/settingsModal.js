@@ -158,13 +158,8 @@ export function initSettingsModal() {
                 if (settingsMapToggle && currentState) settingsMapToggle.checked = currentState.ui.mapEnabled;
                 if (settingsMetricToggle) settingsMetricToggle.checked = currentUseMetric;
 
-                // Sync map mode dropdown
-                const settingsMapMode = $('settingsMapMode');
-                if (settingsMapMode) settingsMapMode.value = window._mapDarkMode ? 'dark' : 'light';
-
-                // Sync map provider dropdown
-                const settingsMapProviderEl = $('settingsMapProvider');
-                if (settingsMapProviderEl) settingsMapProviderEl.value = getSelectedProviderId();
+                // Sync map provider + style dropdowns
+                syncMapSettingsUI(getSelectedProviderId(), window._mapDarkMode);
 
                 // Sync map labels toggle
                 const settingsMapLabelsEl = $('settingsMapLabels');
@@ -308,15 +303,48 @@ export function initSettingsModal() {
         };
     }
 
-    // Map provider dropdown (Google Maps / Google Satellite / OpenStreetMap)
+    // Map provider (Google Maps / OpenStreetMap) and map style (Light / Dark /
+    // Satellite) dropdowns. The google-satellite tile provider is presented as
+    // provider "google" + style "satellite"; the Satellite style option is
+    // hidden while OSM is selected (OSM has no imagery). While Satellite is
+    // active, the mapDarkMode setting keeps the remembered Light/Dark choice
+    // for when the user returns to a drawn map style.
     const settingsMapProvider = $('settingsMapProvider');
-    if (settingsMapProvider && window.electronAPI?.getSetting) {
-        window.electronAPI.getSetting('mapTileProvider').then(saved => {
-            settingsMapProvider.value = window.MapProviders?.getProvider?.(saved)?.id || 'google';
-        });
+    const settingsMapMode = $('settingsMapMode');
+    const satelliteStyleOption = settingsMapMode
+        ? settingsMapMode.querySelector('option[value="satellite"]')
+        : null;
 
+    // Reflect a tile provider id + dark flag into both dropdowns.
+    function syncMapSettingsUI(providerId, dark) {
+        const satellite = providerId === 'google-satellite';
+        if (settingsMapProvider) {
+            settingsMapProvider.value = satellite ? 'google' : providerId;
+        }
+        if (satelliteStyleOption && settingsMapProvider) {
+            satelliteStyleOption.hidden = settingsMapProvider.value === 'osm';
+        }
+        if (settingsMapMode) {
+            settingsMapMode.value = satellite ? 'satellite' : (dark ? 'dark' : 'light');
+        }
+    }
+
+    if ((settingsMapProvider || settingsMapMode) && window.electronAPI?.getSetting) {
+        Promise.all([
+            window.electronAPI.getSetting('mapTileProvider'),
+            window.electronAPI.getSetting('mapDarkMode')
+        ]).then(([savedProvider, savedDark]) => {
+            const providerId = window.MapProviders?.getProvider?.(savedProvider)?.id || 'google';
+            syncMapSettingsUI(providerId, savedDark === true);
+        });
+    }
+
+    if (settingsMapProvider) {
         settingsMapProvider.onchange = async () => {
+            // Switching provider always lands on a drawn map: if Satellite was
+            // active, the style select falls back to the remembered Light/Dark.
             await setMapTileProvider(settingsMapProvider.value);
+            syncMapSettingsUI(getSelectedProviderId(), window._mapDarkMode);
             settingsMapProvider.blur();
         };
     }
@@ -331,21 +359,26 @@ export function initSettingsModal() {
         };
     }
 
-    // Map mode dropdown (light/dark)
-    const settingsMapMode = $('settingsMapMode');
-    if (settingsMapMode && window.electronAPI?.getSetting) {
-        window.electronAPI.getSetting('mapDarkMode').then(saved => {
-            settingsMapMode.value = saved === true ? 'dark' : 'light';
-        });
-
+    // Map style dropdown (light/dark/satellite)
+    if (settingsMapMode) {
         settingsMapMode.onchange = async () => {
-            const enabled = settingsMapMode.value === 'dark';
-            window._mapDarkMode = enabled;
-            if (window.electronAPI?.setSetting) {
-                await window.electronAPI.setSetting('mapDarkMode', enabled);
-            }
-            if (window.applyMapDarkMode) {
-                window.applyMapDarkMode(enabled);
+            const style = settingsMapMode.value;
+            if (style === 'satellite') {
+                // Satellite imagery: swap the tile provider, leaving the
+                // persisted Light/Dark choice untouched.
+                await setMapTileProvider('google-satellite');
+            } else {
+                if (getSelectedProviderId() === 'google-satellite') {
+                    await setMapTileProvider('google');
+                }
+                const enabled = style === 'dark';
+                window._mapDarkMode = enabled;
+                if (window.electronAPI?.setSetting) {
+                    await window.electronAPI.setSetting('mapDarkMode', enabled);
+                }
+                if (window.applyMapDarkMode) {
+                    window.applyMapDarkMode(enabled);
+                }
             }
             settingsMapMode.blur();
         };
