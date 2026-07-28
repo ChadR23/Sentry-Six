@@ -310,10 +310,11 @@ async function downloadStaticMapBackground(exportId, mapPath, targetSize, ffmpeg
       inputs.push('-i', tile.path);
     }
     
-    // Dark theme filter — only for providers without a native dark style.
-    // Google bakes its night palette into the tiles (apistyle), so filtering
-    // it again would double-darken; OSM still needs this CSS-style filter.
-    const darkFilter = (darkMode && !MapProviders.hasNativeDark(activeProviderId))
+    // Dark theme filter — only for drawn maps without a native dark style
+    // (OSM). Google bakes its night palette into the tiles (apistyle), so
+    // filtering it again would double-darken, and satellite photography must
+    // never be filtered (it would shift the imagery's real colors).
+    const darkFilter = (darkMode && MapProviders.wantsDarkFilter(activeProviderId))
       ? ',hue=s=0.7:b=-0.2,eq=brightness=-0.15:contrast=1.1' : '';
 
     // Create filter to position each tile
