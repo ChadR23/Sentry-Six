@@ -3,7 +3,20 @@
 
 🌐 **Website**: [sentry-six.com](https://sentry-six.com)
 
-Sentry Studio is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
+Sentry Studio by Sentry Six is a modern, feature‑rich viewer and exporter for your TeslaCam. View sentry and dashcam events with an easy-to-use UI! Trim and export your clips with ease with a variety of options - from camera layouts to a telemetry overlay. Use it on your preferred OS - Windows, MacOS, or Linux.
+
+## Part of Sentry Six
+
+Sentry Studio is one of four free tools for Tesla owners from the [Sentry Six](https://sentry-six.com) project:
+
+| Tool | What it does |
+| --- | --- |
+| **Sentry Studio** (this repo) | Desktop TeslaCam viewer and clip exporter for Windows, macOS, and Linux |
+| [Sentry USB](https://github.com/Sentry-Six/Sentry-USB-Rusty) | Raspberry Pi smart USB drive: drive and charge tracking, auto-archiving, BLE telemetry |
+| [Sentry Drive](https://github.com/Sentry-Six/Sentry-Drive) | Desktop drive history and FSD analytics, processed locally |
+| [Sentry Connect](https://sentry-six.com/sentry-connect/) | iPhone companion app for Sentry USB (App Store, iOS 17+) |
+
+Not affiliated with Tesla, Inc. Unrelated to the Sentry (sentry.io) error-monitoring service and the "Sentry Studio" product at sentrystudio.app.
 
 ## Features
 - **Simple UI**
