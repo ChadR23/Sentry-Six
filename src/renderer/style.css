@@ -7983,3 +7983,10 @@ body>.dashboard-vis-compact.draggable:not(.fixed-to-camera) {
     transition: opacity 0.15s ease;
 }
 }
+
+/* Keep profile-defined blank/missing camera slots in the grid without showing
+   a stale video frame or allowing focus/drag interactions. */
+.multi-tile.empty-camera-slot {
+    visibility: hidden;
+    pointer-events: none;
+}

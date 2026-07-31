@@ -64,6 +64,10 @@ export async function runAdvancedExport() {
         showError('No clip loaded.');
         return;
     }
+    if (state.library?.capabilities?.export === false) {
+        notify('Export support for this vehicle profile is coming later.', { type: 'info' });
+        return;
+    }
 
     // A simple-modal export may already be running (the AE stays reachable
     // while one encodes) — starting another would clobber its progress

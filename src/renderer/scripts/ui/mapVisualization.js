@@ -176,9 +176,11 @@ export function updateMapVisibility() {
     const state = getState?.();
 
     if (!mapVis) return;
-    mapVis.classList.toggle('user-hidden', !state?.ui?.mapEnabled);
+    const enabled = !!state?.ui?.mapEnabled &&
+        state?.library?.capabilities?.map !== false;
+    mapVis.classList.toggle('user-hidden', !enabled);
 
-    if (state?.ui?.mapEnabled && map) {
+    if (enabled && map) {
         setTimeout(() => {
             map.invalidateSize();
             if (mapPolyline) {

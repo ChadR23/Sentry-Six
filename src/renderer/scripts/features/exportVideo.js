@@ -94,6 +94,14 @@ let getBaseFolderPath = null;
 let getProgressBar = null;
 let getFindSeiAtTime = null;
 let getUseMetric = null;
+const PROFILE_EXPORT_UNAVAILABLE =
+    'Export support for this vehicle profile is coming later.';
+
+function ensureProfileExportSupported(state = getState?.()) {
+    if (state?.library?.capabilities?.export !== false) return true;
+    notify(PROFILE_EXPORT_UNAVAILABLE, { type: 'info' });
+    return false;
+}
 
 /**
  * Initialize export module with dependencies
@@ -862,12 +870,30 @@ export function updateExportButtonState() {
     const setStartMarkerBtn = $('setStartMarkerBtn');
     const setEndMarkerBtn = $('setEndMarkerBtn');
     const exportBtn = $('exportBtn');
+    const openAdvancedEditorBtn = $('openAdvancedEditorBtn');
 
     const hasCollection = !!state?.collection?.active;
+    const exportAvailable = state?.library?.capabilities?.export !== false;
+    const unavailableMessage = 'Export support for this vehicle profile is coming later.';
 
-    if (setStartMarkerBtn) setStartMarkerBtn.disabled = !hasCollection;
-    if (setEndMarkerBtn) setEndMarkerBtn.disabled = !hasCollection;
-    if (exportBtn) exportBtn.disabled = !hasCollection;
+    if (setStartMarkerBtn) setStartMarkerBtn.disabled = !hasCollection || !exportAvailable;
+    if (setEndMarkerBtn) setEndMarkerBtn.disabled = !hasCollection || !exportAvailable;
+    if (exportBtn) {
+        exportBtn.disabled = !hasCollection || !exportAvailable;
+        if (!exportAvailable) {
+            exportBtn.title = unavailableMessage;
+            exportBtn.setAttribute('data-tip', unavailableMessage);
+        } else {
+            const availableMessage = t('ui.playback.exportVideo');
+            exportBtn.title = availableMessage;
+            exportBtn.setAttribute('data-tip', availableMessage);
+        }
+    }
+    if (openAdvancedEditorBtn) {
+        openAdvancedEditorBtn.disabled = !exportAvailable;
+        if (!exportAvailable) openAdvancedEditorBtn.title = unavailableMessage;
+        else openAdvancedEditorBtn.removeAttribute('title');
+    }
 }
 
 // Lock or unlock the simple export modal for AE-driven exports. Locks the
@@ -901,6 +927,7 @@ export function openExportModal() {
     }
 
     const state = getState?.();
+    if (!ensureProfileExportSupported(state)) return;
     if (!state?.collection?.active) {
         notify(t('ui.notifications.loadCollectionFirst'), { type: 'warn' });
         return;
@@ -1855,6 +1882,8 @@ export async function startExport() {
     const state = getState?.();
     const nativeVideo = getNativeVideo?.();
     const baseFolderPath = getBaseFolderPath?.();
+
+    if (!ensureProfileExportSupported(state)) return;
 
     if (!state?.collection?.active || !window.electronAPI?.startExport) {
         notify(t('ui.notifications.exportNotAvailable'), { type: 'error' });

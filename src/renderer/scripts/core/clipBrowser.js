@@ -137,7 +137,9 @@ export function createClipItem(coll, title, typeClass) {
     
     // Get folder path from first group's first file
     let folderPath = null;
-    if (firstGroup && firstGroup.filesByCamera.size > 0) {
+    if (coll.deletion) {
+        folderPath = coll.deletion.allowed ? coll.deletion.path : null;
+    } else if (firstGroup && firstGroup.filesByCamera.size > 0) {
         const firstEntry = firstGroup.filesByCamera.values().next().value;
         if (firstEntry?.file?.path) {
             // Extract the parent folder path (e.g., /path/to/SentryClips/2024-01-15_10-30-00)
@@ -162,7 +164,9 @@ export function createClipItem(coll, title, typeClass) {
     const segmentText = groups.length === 1 ? t('ui.clipBrowser.segment') : t('ui.clipBrowser.segments');
     const subline = `${groups.length} ${segmentText} · ${Math.max(1, cameras.length)} cam`;
     const badgeClass = typeClass;
-    const badgeLabel = typeClass.charAt(0).toUpperCase() + typeClass.slice(1);
+    const badgeLabel = typeClass === 'custom' && coll.tag
+        ? coll.tag
+        : typeClass.charAt(0).toUpperCase() + typeClass.slice(1);
     
     // Build reason badge for SavedClips only (as text, not icon)
     let reasonBadge = '';

@@ -45,6 +45,16 @@ import {
 import { matchClipsTodrives } from './scripts/core/driveGrouper.js';
 import { initDriveBrowser, renderDriveList, setDriveTagFilter } from './scripts/core/driveBrowser.js';
 import { initI18n, t, onLanguageChange } from './scripts/lib/i18n.js';
+import {
+    detectDashcamProfile,
+    getDashcamProfile,
+    parseDashcamFilename
+} from '../shared/dashcamProfiles.mjs';
+import { discoverGmcSource } from '../shared/dashcamSourceDiscovery.mjs';
+import {
+    createInitialSegmentDurations,
+    resolveSegmentDurations
+} from '../shared/playbackTiming.mjs';
 
 // State
 const player = state.player;
@@ -1050,12 +1060,24 @@ let useMetric = false; // Will be loaded from settings
         setEndMarkerBtn.onclick = (e) => { e.preventDefault(); setExportMarker('end'); setEndMarkerBtn.blur(); };
     }
     if (exportBtn) {
-        exportBtn.onclick = (e) => { e.preventDefault(); openExportModal(); exportBtn.blur(); };
+        exportBtn.onclick = (e) => {
+            e.preventDefault();
+            if (library.capabilities?.export === false) {
+                notify('Export support for this vehicle profile is coming later.', { type: 'info' });
+                return;
+            }
+            openExportModal();
+            exportBtn.blur();
+        };
     }
     const openAdvEditorBtn = $('openAdvancedEditorBtn');
     if (openAdvEditorBtn) {
         openAdvEditorBtn.onclick = (e) => {
             e.preventDefault();
+            if (library.capabilities?.export === false) {
+                notify('Export support for this vehicle profile is coming later.', { type: 'info' });
+                return;
+            }
             openAdvancedEditor();
             openAdvEditorBtn.blur();
         };
@@ -1229,10 +1251,13 @@ function setMode(nextMode) {
     state.mode = normalized;
 }
 
-function setMultiLayout(layoutId) {
+function setMultiLayout(layoutId, {
+    persist = true,
+    reloadActive = true
+} = {}) {
     const next = MULTI_LAYOUTS[layoutId] ? layoutId : DEFAULT_MULTI_LAYOUT;
     multi.layoutId = next;
-    localStorage.setItem(MULTI_LAYOUT_KEY, next);
+    if (persist) localStorage.setItem(MULTI_LAYOUT_KEY, next);
     if (multiLayoutSelect) multiLayoutSelect.value = next;
 
     // Set grid column mode for the layout
@@ -1241,7 +1266,10 @@ function setMultiLayout(layoutId) {
         multiCamGrid.setAttribute('data-columns', layout.columns || 3);
     }
 
-    if (multi.enabled && state.ui.nativeVideoMode && state.collection.active) {
+    if (reloadActive &&
+        multi.enabled &&
+        state.ui.nativeVideoMode &&
+        state.collection.active) {
         // In native video mode, reload the current segment with new layout
         // Use >= 0 check to properly handle segment 0 (0 is falsy in JS)
         const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
@@ -1259,6 +1287,72 @@ function setMultiLayout(layoutId) {
             }
         });
     }
+}
+
+function getCollectionBuildOptions(profileId = library.profileId) {
+    const deletionByDate = new Map();
+    for (const [date, dateData] of folderStructure?.dateHandles || []) {
+        if (dateData?.deletion) deletionByDate.set(date, dateData.deletion);
+    }
+    return {
+        profileId,
+        sourceKind: library.sourceKind,
+        deletionByDate
+    };
+}
+
+function applyDashcamProfile(profileId = 'tesla', sourceKind = 'tesla') {
+    const profile = getDashcamProfile(profileId);
+    library.profileId = profile.id;
+    library.sourceKind = sourceKind;
+    library.capabilities = { ...profile.capabilities };
+    multi.masterCamera = 'front';
+    selection.selectedCamera = 'front';
+
+    setMultiLayout(profile.layoutId, {
+        persist: false,
+        reloadActive: false
+    });
+
+    // A profile switch must not leak Tesla SEI/GPS state into footage that
+    // cannot provide it.
+    stopTelemetryLoop();
+    nativeVideo.telemetryLoadToken++;
+    nativeVideo.durationProbeToken++;
+    nativeVideo.seiData = [];
+    nativeVideo.mapPath = [];
+    nativeVideo.lastSeiTimeMs = -Infinity;
+    resetDashboardAndMap();
+    updateDashboardVisibility();
+    updateMapVisibility();
+
+    for (const capability of ['dashboard', 'map']) {
+        const supported = profile.capabilities[capability] !== false;
+        document.querySelectorAll(
+            `.settings-subtab-btn[data-subtab="${capability}"], .settings-subtab-panel[data-subtab="${capability}"]`
+        ).forEach(element => {
+            element.style.display = supported ? '' : 'none';
+            if (!supported) element.classList.remove('active');
+        });
+    }
+    if (!profile.capabilities.dashboard && !profile.capabilities.map) {
+        document.querySelector('.settings-subtab-btn[data-subtab="cameras"]')
+            ?.classList.add('active');
+        document.querySelector('.settings-subtab-panel[data-subtab="cameras"]')
+            ?.classList.add('active');
+    }
+
+    updateTileLabels();
+    applyMirrorTransforms();
+
+    if (profile.capabilities.driveMatching === false && state.sentryUsb) {
+        state.sentryUsb.hasFootage = new Set();
+        updateDrivesTabVisibility();
+        renderDriveList();
+    }
+
+    updateExportButtonState();
+    console.log('[PROFILE] Active dashcam profile:', profile.id, sourceKind);
 }
 
 // Initialize zoom/pan module
@@ -1812,7 +1906,9 @@ async function loadSentryUsbData(filePath) {
             // Pass folderStructure.dates as a fallback so drives from dates other than
             // the currently-loaded date still get the Footage badge (Electron mode loads
             // clips one date at a time, so library.clipGroups is date-scoped).
-            sentryUsb.hasFootage = matchClipsTodrives(drives, library.clipGroups, folderStructure?.dates);
+            sentryUsb.hasFootage = library.capabilities?.driveMatching !== false
+                ? matchClipsTodrives(drives, library.clipGroups, folderStructure?.dates)
+                : new Set();
 
             console.log(`[SentryUSB] Loaded ${driveCount} drives from ${routeCount} routes`);
             console.log(`[SentryUSB] Footage matched: ${sentryUsb.hasFootage.size}/${driveCount} drives`);
@@ -2067,11 +2163,88 @@ async function openFolderPicker() {
     }
 }
 
+const electronSourceAdapter = {
+    name: node => node?.name || '',
+    list: async node => {
+        const entries = await window.electronAPI.readDir(node.path);
+        return entries.map(entry => ({
+            ...entry,
+            kind: entry.isDirectory ? 'directory' : 'file'
+        }));
+    }
+};
+
+const browserSourceAdapter = {
+    name: node => node?.name || '',
+    list: async node => {
+        const entries = [];
+        for await (const entry of node.values()) entries.push(entry);
+        return entries;
+    }
+};
+
+function applyGmcSourceManifest(manifest, mode) {
+    folderStructure.profileId = manifest.profileId;
+    folderStructure.sourceKind = manifest.sourceKind;
+    folderStructure.isCustomStructure = true;
+
+    for (const [date, sourceDate] of manifest.dates) {
+        const node = sourceDate.node;
+        const deletionPath = mode === 'electron'
+            ? sourceDate.deletionNode?.path || null
+            : null;
+        const deletionAllowed = sourceDate.deletionAllowed === true &&
+            mode === 'electron' &&
+            !!deletionPath;
+        const loose = mode === 'electron'
+            ? { path: node.path, isLoose: true, isGmcSource: true }
+            : node;
+
+        folderStructure.dates.add(date);
+        folderStructure.dateHandles.set(date, {
+            recent: null,
+            sentry: new Map(),
+            saved: new Map(),
+            loose,
+            isCustomStructure: true,
+            deletion: {
+                allowed: deletionAllowed,
+                path: deletionAllowed ? deletionPath : null
+            }
+        });
+    }
+}
+
+function hasTeslaRootEntries(entries) {
+    return entries.some(entry => {
+        if (entry.kind !== 'directory' && !entry.isDirectory) return false;
+        return ['recentclips', 'sentryclips', 'savedclips', 'teslacam', 'teslausb']
+            .includes(String(entry.name || '').toLowerCase());
+    });
+}
+
+function notifyMixedDashcamSource() {
+    notify(
+        'This folder contains both Tesla and GMC footage. Select the TeslaCam or Continuous/SurroundVisionRecorder subfolder directly.',
+        { type: 'warn' }
+    );
+}
+
+function reportIgnoredDashcamFiles(built) {
+    const count = Number(built?.ignoredFileCount) || 0;
+    if (!count) return;
+    console.warn(`[PROFILE] Ignored ${count} unrecognized video file${count === 1 ? '' : 's'}.`);
+    notify(
+        `Loaded valid clips and ignored ${count} unrecognized video file${count === 1 ? '' : 's'}.`,
+        { type: 'info' }
+    );
+}
+
 // Traverse directory using Electron's fs APIs (provides actual file paths)
 async function traverseDirectoryElectron(dirPath) {
     // Normalize path separators and extract folder name
     const normalizedPath = dirPath.replace(/\\/g, '/');
-    const folderName = normalizedPath.split('/').pop();
+    const folderName = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath;
     const folderNameLower = folderName.toLowerCase();
     
     // Create a pseudo directory handle structure for compatibility
@@ -2082,14 +2255,28 @@ async function traverseDirectoryElectron(dirPath) {
         sentryClips: null,
         savedClips: null,
         dates: new Set(),
-        dateHandles: new Map()
+        dateHandles: new Map(),
+        profileId: 'tesla',
+        sourceKind: 'tesla'
     };
     
     // Check if the selected folder itself is a clip folder
     const isClipFolder = ['recentclips', 'sentryclips', 'savedclips'].includes(folderNameLower);
     
     try {
-        if (isClipFolder) {
+        const rootNode = { name: folderName, path: dirPath, kind: 'directory' };
+        const rootEntries = await electronSourceAdapter.list(rootNode);
+        const gmcManifest = await discoverGmcSource(rootNode, electronSourceAdapter);
+
+        if (gmcManifest?.mixedProfiles || (gmcManifest && hasTeslaRootEntries(rootEntries))) {
+            notifyMixedDashcamSource();
+            hideLoading();
+            return;
+        }
+
+        if (gmcManifest) {
+            applyGmcSourceManifest(gmcManifest, 'electron');
+        } else if (isClipFolder) {
             // User selected a clip folder directly (e.g., SentryClips)
             const pseudoEntry = { name: folderName, path: dirPath, isDirectory: true };
             if (folderNameLower === 'recentclips') {
@@ -2145,6 +2332,10 @@ async function traverseDirectoryElectron(dirPath) {
     
     // Build date list and update UI
     const sortedDates = Array.from(folderStructure.dates).sort().reverse();
+    applyDashcamProfile(
+        folderStructure.profileId || 'tesla',
+        folderStructure.sourceKind || 'tesla'
+    );
     library.allDates = sortedDates;
     library.folderLabel = folderName;
     library.clipGroups = [];
@@ -2238,10 +2429,10 @@ async function scanEventFolderElectron(dirPath, clipType) {
     }
 }
 
-// Helper: extract date from a Tesla-style or generic video filename
+// Helper: extract date through the active dashcam filename registry.
 function extractDateFromFilename(filename) {
-    const teslaMatch = filename.match(/^(\d{4}-\d{2}-\d{2})_/);
-    if (teslaMatch) return teslaMatch[1];
+    const parsed = parseDashcamFilename(filename);
+    if (parsed?.date) return parsed.date;
     const compactMatch = filename.match(/(\d{4})(\d{2})(\d{2})/);
     if (compactMatch) return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
     return 'Unknown';
@@ -2458,7 +2649,8 @@ async function loadDateContentElectron(date) {
 
     // Build index with path information
     const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
-    mergeIntoLibrary(built, date);
+    if (!mergeIntoLibrary(built, date)) return;
+    reportIgnoredDashcamFiles(built);
 
     // Update export button state after collection loads
     setTimeout(updateExportButtonState, 100);
@@ -2504,7 +2696,9 @@ async function traverseDirectoryHandle(dirHandle) {
         savedClips: null,
         dates: new Set(),
         // Store handles for event folders: Map<date, Map<clipType, handle[]>>
-        dateHandles: new Map()
+        dateHandles: new Map(),
+        profileId: 'tesla',
+        sourceKind: 'tesla'
     };
 
     // Check if the selected folder itself is a clip folder
@@ -2513,7 +2707,18 @@ async function traverseDirectoryHandle(dirHandle) {
 
     // Find the main clip folders
     try {
-        if (isClipFolder) {
+        const rootEntries = await browserSourceAdapter.list(dirHandle);
+        const gmcManifest = await discoverGmcSource(dirHandle, browserSourceAdapter);
+
+        if (gmcManifest?.mixedProfiles || (gmcManifest && hasTeslaRootEntries(rootEntries))) {
+            notifyMixedDashcamSource();
+            hideLoading();
+            return;
+        }
+
+        if (gmcManifest) {
+            applyGmcSourceManifest(gmcManifest, 'browser');
+        } else if (isClipFolder) {
             // User selected a clip folder directly (e.g., SentryClips)
             if (folderNameLower === 'recentclips') {
                 folderStructure.recentClips = dirHandle;
@@ -2529,7 +2734,7 @@ async function traverseDirectoryHandle(dirHandle) {
             // User selected a parent folder (e.g., TeslaCam, teslausb, or any custom name)
             // Scan for clip subfolders
             let foundClipFolders = false;
-            for await (const entry of dirHandle.values()) {
+            for (const entry of rootEntries) {
                 if (entry.kind !== 'directory') continue;
                 const name = entry.name.toLowerCase();
                 if (name === 'recentclips') {
@@ -2565,6 +2770,10 @@ async function traverseDirectoryHandle(dirHandle) {
 
     // Build date list and update UI
     const sortedDates = Array.from(folderStructure.dates).sort().reverse();
+    applyDashcamProfile(
+        folderStructure.profileId || 'tesla',
+        folderStructure.sourceKind || 'tesla'
+    );
     library.allDates = sortedDates;
     library.folderLabel = dirHandle.name;
     library.clipGroups = [];
@@ -2664,22 +2873,7 @@ async function scanLooseClipsForDates(dirHandle) {
             
             // Check for video files
             if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
-                // Try to extract date from Tesla-style filename: YYYY-MM-DD_HH-MM-SS-camera.mp4
-                let date = null;
-                const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                if (teslaMatch) {
-                    date = teslaMatch[1];
-                } else {
-                    // Try other common date formats in filenames
-                    // YYYYMMDD format
-                    const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                    if (compactMatch) {
-                        date = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
-                    } else {
-                        // Group all undated files under "Unknown"
-                        date = 'Unknown';
-                    }
-                }
+                const date = extractDateFromFilename(entry.name);
                 
                 folderStructure.dates.add(date);
                 if (!folderStructure.dateHandles.has(date)) {
@@ -2786,20 +2980,11 @@ async function loadDateContent(date) {
                 if (nameLower.endsWith('.mp4') || nameLower.endsWith('.avi') || nameLower.endsWith('.mov') || nameLower.endsWith('.mkv')) {
                     // Filter by date if not "Unknown"
                     if (date !== 'Unknown') {
-                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                        let fileDate = null;
-                        if (teslaMatch) {
-                            fileDate = teslaMatch[1];
-                        } else if (compactMatch) {
-                            fileDate = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
-                        }
+                        const fileDate = extractDateFromFilename(entry.name);
                         if (fileDate && fileDate !== date) continue;
                     } else {
                         // For "Unknown" date, only include files without recognizable dates
-                        const teslaMatch = entry.name.match(/^(\d{4}-\d{2}-\d{2})_/);
-                        const compactMatch = entry.name.match(/(\d{4})(\d{2})(\d{2})/);
-                        if (teslaMatch || compactMatch) continue;
+                        if (extractDateFromFilename(entry.name) !== 'Unknown') continue;
                     }
                     
                     try {
@@ -2858,9 +3043,21 @@ async function loadEventFolder(eventHandle, clipType, eventId, files) {
 
 // Shared helper: merge built index into library, reset selection, render, auto-select
 function mergeIntoLibrary(built, date) {
+    if (built.mixedProfiles) {
+        notifyMixedDashcamSource();
+        return false;
+    }
+    const profileId = built.profileId || folderStructure?.profileId || 'tesla';
+    const sourceKind = folderStructure?.sourceKind ||
+        getDashcamProfile(profileId).defaultLooseSourceKind;
+    applyDashcamProfile(profileId, sourceKind);
+
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
-    const dayResult = buildDayCollections(library.clipGroups);
+    const dayResult = buildDayCollections(
+        library.clipGroups,
+        getCollectionBuildOptions(profileId)
+    );
     library.dayCollections = dayResult.collections;
     library.allDates = dayResult.allDates;
     library.dayData = dayResult.dayData;
@@ -2871,7 +3068,8 @@ function mergeIntoLibrary(built, date) {
     previews.queue.length = 0;
     previews.inFlight = 0;
 
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
+    const profileName = getDashcamProfile(profileId).displayName;
+    clipBrowserSubtitle.textContent = `${profileName} \u00B7 ${library.folderLabel}: ${library.clipGroups.length} ${t('ui.clipBrowser.clipsOn')} ${formatDateDisplay(date)}`;
     renderClipList();
 
     const dayValues = library.dayCollections ? Array.from(library.dayCollections.values()) : [];
@@ -2886,24 +3084,27 @@ function mergeIntoLibrary(built, date) {
     ingestSentryEventJson(built.eventAssetsByKey);
 
     // If SentryUSB drive data is loaded, re-match drives against the new clip set.
-    if (state.sentryUsb?.loaded && state.sentryUsb.drives?.length > 0) {
+    if (library.capabilities?.driveMatching !== false &&
+        state.sentryUsb?.loaded &&
+        state.sentryUsb.drives?.length > 0) {
         state.sentryUsb.hasFootage = matchClipsTodrives(
             state.sentryUsb.drives, library.clipGroups, folderStructure?.dates
         );
         updateDrivesTabVisibility();
         renderDriveList();
     }
+    return true;
 }
 
 // Process files for a single date
 async function handleFolderFilesForDate(files, date) {
-    if (!seiType) {
+    if (library.capabilities?.telemetry !== false && !seiType) {
         notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
         return;
     }
 
     const built = await buildTeslaCamIndex(files, folderStructure?.root?.name);
-    mergeIntoLibrary(built, date);
+    if (mergeIntoLibrary(built, date)) reportIgnoredDashcamFiles(built);
 }
 
 // Default click = choose folder (streamlined TeslaCam flow).
@@ -2988,11 +3189,6 @@ function updateDayFilterMarker() {
 }
 
 async function handleFolderFiles(fileList, directoryName = null) {
-    if (!seiType) {
-        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
-        return;
-    }
-
     // Show loading overlay immediately for large folders
     const totalRaw = fileList?.length ?? 0;
     const isLargeFolder = totalRaw > 1000;
@@ -3005,6 +3201,16 @@ async function handleFolderFiles(fileList, directoryName = null) {
     const FILTER_BATCH = 2000;
     const files = [];
     const rawFiles = Array.isArray(fileList) ? fileList : Array.from(fileList);
+    const detectedSource = detectDashcamProfile(rawFiles.map(file => file?.name));
+    if (detectedSource.mixed) {
+        notifyMixedDashcamSource();
+        return;
+    }
+    const detectedProfile = getDashcamProfile(detectedSource.profileId || 'tesla');
+    if (detectedProfile.capabilities.telemetry && !seiType) {
+        notify(t('ui.notifications.metadataParserNotReady'), { type: 'warn' });
+        return;
+    }
     
     for (let i = 0; i < rawFiles.length; i++) {
         const f = rawFiles[i];
@@ -3042,18 +3248,30 @@ async function handleFolderFiles(fileList, directoryName = null) {
     };
 
     const built = await buildTeslaCamIndex(files, directoryName, isLargeFolder ? onProgress : null);
+    if (built.mixedProfiles) {
+        hideLoading();
+        notifyMixedDashcamSource();
+        return;
+    }
+    reportIgnoredDashcamFiles(built);
     
     if (isLargeFolder) {
         updateLoading('Building collections...', `${built.groups.length.toLocaleString()} clip groups`, 92);
         await yieldToUI();
     }
 
+    const profileId = built.profileId || 'tesla';
+    const sourceKind = getDashcamProfile(profileId).defaultLooseSourceKind;
+    applyDashcamProfile(profileId, sourceKind);
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
     library.folderLabel = built.inferredRoot || directoryName || 'Folder';
 
     // Build virtual day-level collections (Sentry Studio–style day timelines)
-    const dayResult = buildDayCollections(library.clipGroups);
+    const dayResult = buildDayCollections(
+        library.clipGroups,
+        getCollectionBuildOptions(profileId)
+    );
     library.dayCollections = dayResult.collections;
     library.allDates = dayResult.allDates;
     library.dayData = dayResult.dayData;
@@ -3081,14 +3299,16 @@ async function handleFolderFiles(fileList, directoryName = null) {
     }
 
     // Update UI
-    clipBrowserSubtitle.textContent = `${library.folderLabel}: ${library.allDates?.length || 0} ${t('ui.clipBrowser.datesAvailable')}`;
+    clipBrowserSubtitle.textContent = `${getDashcamProfile(profileId).displayName} \u00B7 ${library.folderLabel}: ${library.allDates?.length || 0} ${t('ui.clipBrowser.datesAvailable')}`;
     
     // Update day filter options and render clip list
     updateDayFilterOptions();
     renderClipList();
 
     // Re-run clip-to-drive matching with newly loaded clips
-    if (state.sentryUsb.loaded && state.sentryUsb.drives.length > 0) {
+    if (library.capabilities?.driveMatching !== false &&
+        state.sentryUsb.loaded &&
+        state.sentryUsb.drives.length > 0) {
         state.sentryUsb.hasFootage = matchClipsTodrives(state.sentryUsb.drives, library.clipGroups, folderStructure?.dates);
         // Refresh drive list if currently visible
         if (driveList && driveList.style.display !== 'none') {
@@ -3234,14 +3454,17 @@ function selectDayCollection(dayKey) {
     // Initialize segment duration tracking with estimates, then probe actual durations
     const numSegs = coll.groups?.length || 0;
     const groups = coll.groups || [];
+    const profileId = coll.profileId || library.profileId || 'tesla';
+    const segmentFallback = getDashcamProfile(profileId).defaultSegmentDurationSeconds;
     
-    // Start with 60s estimates for immediate UI responsiveness
-    nativeVideo.segmentDurations = new Array(numSegs).fill(60);
+    // Start with profile estimates for immediate UI responsiveness. Metadata
+    // probing below replaces each value independently.
+    nativeVideo.segmentDurations = createInitialSegmentDurations(numSegs, profileId);
     nativeVideo.cumulativeStarts = [];
     let cum = 0;
     for (let i = 0; i <= numSegs; i++) {
         nativeVideo.cumulativeStarts.push(cum);
-        if (i < numSegs) cum += 60;
+        if (i < numSegs) cum += nativeVideo.segmentDurations[i];
     }
     
     // Configure progress bar as percentage (0-100) for entire day with smooth stepping
@@ -3282,10 +3505,11 @@ function selectDayCollection(dayKey) {
 
     // Probe actual segment durations in the background for accurate seek positioning
     // This runs concurrently with loading the first segment
+    const durationProbeToken = ++nativeVideo.durationProbeToken;
     console.log('Starting duration probe for', groups.length, 'segments');
-    probeSegmentDurations(groups).then(probedDurations => {
+    probeSegmentDurations(groups, profileId).then(probedDurations => {
         console.log('Duration probe completed:', probedDurations);
-        if (!state.collection.active || state.collection.active.id !== coll.id) return; // Stale
+        if (durationProbeToken !== nativeVideo.durationProbeToken) return; // Stale
         
         // Update durations with actual values
         nativeVideo.segmentDurations = probedDurations;
@@ -3297,7 +3521,7 @@ function selectDayCollection(dayKey) {
         }
         
         // Update time display with accurate total duration
-        const totalSec = nativeVideo.cumulativeStarts[probedDurations.length] || 60;
+        const totalSec = nativeVideo.cumulativeStarts[probedDurations.length] || segmentFallback;
         const vid = nativeVideo.master;
         const segIdx = nativeVideo.currentSegmentIdx >= 0 ? nativeVideo.currentSegmentIdx : 0;
         const cumStart = nativeVideo.cumulativeStarts[segIdx] || 0;
@@ -3318,14 +3542,15 @@ function selectDayCollection(dayKey) {
 
     // Load the correct segment directly (avoids loading segment 0 then seeking, which caused camera desync)
     if (startOffsetSec > 0) {
-        // Calculate which segment contains the event time using 60s estimates
-        const targetSegIdx = Math.min(Math.floor(startOffsetSec / 60), numSegs - 1);
-        const localOffset = startOffsetSec - (targetSegIdx * 60);
+        // Calculate which segment contains the event using the active profile's
+        // estimate. Tesla remains 60 seconds; non-event GMC collections start at 0.
+        const targetSegIdx = Math.min(Math.floor(startOffsetSec / segmentFallback), numSegs - 1);
+        const localOffset = startOffsetSec - (targetSegIdx * segmentFallback);
         
         console.log('Loading directly at event segment', targetSegIdx, 'localOffset:', localOffset.toFixed(1) + 's');
         
         loadNativeSegment(targetSegIdx).then(() => {
-            const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
+            const totalSec = nativeVideo.cumulativeStarts[numSegs] || segmentFallback;
             updateTimeDisplayNew(Math.floor(startOffsetSec), Math.floor(totalSec));
             
             playBtn.disabled = false;
@@ -3334,7 +3559,7 @@ function selectDayCollection(dayKey) {
             // Seek within the segment to the correct local offset
             const vid = nativeVideo.master;
             if (vid) {
-                const seekTo = Math.min(localOffset, vid.duration || 60);
+                const seekTo = Math.min(localOffset, vid.duration || segmentFallback);
                 vid.currentTime = seekTo;
                 syncMultiVideos(seekTo);
                 
@@ -3359,7 +3584,7 @@ function selectDayCollection(dayKey) {
     } else {
         // No event anchor - load from the beginning
         loadNativeSegment(0).then(() => {
-            const totalSec = nativeVideo.cumulativeStarts[numSegs] || 60;
+            const totalSec = nativeVideo.cumulativeStarts[numSegs] || segmentFallback;
             updateTimeDisplayNew(0, totalSec);
             
             playBtn.disabled = false;
@@ -3385,7 +3610,11 @@ function selectDayCollection(dayKey) {
 function updateCameraSelect(group) {
     const cams = Array.from(group.filesByCamera.keys());
     cameraSelect.innerHTML = '';
-    const ordered = ['front', 'back', 'left_repeater', 'right_repeater', 'left_pillar', 'right_pillar', ...cams];
+    const profile = getDashcamProfile(library.profileId);
+    const profileOrder = profile.layoutSlots
+        .map(slot => slot.camera)
+        .filter(Boolean);
+    const ordered = [...profileOrder, ...cams];
     const seen = new Set();
     for (const cam of ordered) {
         if (seen.has(cam)) continue;
@@ -3393,7 +3622,7 @@ function updateCameraSelect(group) {
         if (!group.filesByCamera.has(cam)) continue;
         const opt = document.createElement('option');
         opt.value = cam;
-        opt.textContent = cameraLabel(cam);
+        opt.textContent = cameraLabel(cam, profile.id);
         cameraSelect.appendChild(opt);
     }
     cameraSelect.disabled = cameraSelect.options.length === 0;
@@ -3776,6 +4005,7 @@ async function showCollectionAtMs(ms) {
 // Visualization Logic - support both camelCase (protobufjs) and snake_case
 function updateVisualization(sei) {
     if (!sei) return;
+    if (library.capabilities?.telemetry === false) return;
 
     // This runs at ~60Hz during playback — skip all DOM work when the user
     // has hidden both overlays it feeds.
@@ -3982,7 +4212,9 @@ const nativeVideo = {
     _pendingSeekSec: null,  // Queued seek target for "latest wins" pattern
     lastSeiTimeMs: -Infinity, // Track last timestamp where SEI data was found
     dashboardReset: false,  // Track if dashboard has been reset for no-SEI section
-    telemetryRafId: null    // requestAnimationFrame ID for ~60Hz telemetry polling
+    telemetryRafId: null,   // requestAnimationFrame ID for ~60Hz telemetry polling
+    telemetryLoadToken: 0,  // Invalidates stale async SEI work on segment/profile changes
+    durationProbeToken: 0   // Invalidates metadata probes from a previous collection/root
 };
 
 /**
@@ -3991,11 +4223,11 @@ const nativeVideo = {
  * @param {Array} groups - Array of clip groups with filesByCamera maps
  * @returns {Promise<number[]>} - Array of segment durations in seconds
  */
-async function probeSegmentDurations(groups) {
+async function probeSegmentDurations(groups, profileId = library.profileId) {
     if (!groups || groups.length === 0) return [];
     
     console.log('Probing durations for', groups.length, 'segments...');
-    const durations = [];
+    const fallback = getDashcamProfile(profileId).defaultSegmentDurationSeconds;
     
     // Helper to get video URL from entry (same as in loadNativeSegment)
     const getVideoUrl = (entry) => {
@@ -4011,61 +4243,56 @@ async function probeSegmentDurations(groups) {
         return null;
     };
     
-    // Probe each segment's duration using a temporary video element
-    for (let i = 0; i < groups.length; i++) {
-        const group = groups[i];
+    const probe = async (group, index) => {
         // Prefer front camera for duration, fall back to any available camera
         const entry = group.filesByCamera.get('front') || 
                       group.filesByCamera.values().next().value;
         const urlData = getVideoUrl(entry);
         
         if (!urlData) {
-            console.warn('No video file for segment', i, '- using 60s estimate');
-            durations.push(60);
-            continue;
+            console.warn('No video file for segment', index, '- using profile estimate');
+            return fallback;
         }
         
-        try {
-            const duration = await new Promise((resolve, reject) => {
-                const tempVid = document.createElement('video');
-                tempVid.preload = 'metadata';
-                tempVid.muted = true;
-                
-                const cleanup = () => {
-                    tempVid.src = '';
-                    tempVid.load();
-                    if (urlData.isBlob) {
-                        URL.revokeObjectURL(urlData.url);
-                    }
-                };
-                
-                const timeout = setTimeout(() => {
-                    cleanup();
-                    reject(new Error('Timeout'));
-                }, 5000); // 5s timeout per segment
-                
-                tempVid.onloadedmetadata = () => {
-                    clearTimeout(timeout);
-                    const dur = tempVid.duration;
-                    cleanup();
-                    resolve(Number.isFinite(dur) ? dur : 60);
-                };
-                
-                tempVid.onerror = () => {
-                    clearTimeout(timeout);
-                    cleanup();
-                    reject(new Error('Load error'));
-                };
-                
-                tempVid.src = urlData.url;
-            });
+        return new Promise((resolve, reject) => {
+            const tempVid = document.createElement('video');
+            tempVid.preload = 'metadata';
+            tempVid.muted = true;
+
+            const cleanup = () => {
+                tempVid.removeAttribute('src');
+                tempVid.load();
+                if (urlData.isBlob) URL.revokeObjectURL(urlData.url);
+            };
+
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error('Timeout'));
+            }, 5000);
+
+            tempVid.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                const duration = tempVid.duration;
+                cleanup();
+                if (Number.isFinite(duration) && duration > 0) resolve(duration);
+                else reject(new Error('Invalid duration'));
+            };
+
+            tempVid.onerror = () => {
+                clearTimeout(timeout);
+                cleanup();
+                reject(new Error('Load error'));
+            };
             
-            durations.push(duration);
-        } catch (err) {
-            console.warn('Failed to probe segment', i, ':', err.message, '- using 60s estimate');
-            durations.push(60);
-        }
-    }
+            tempVid.src = urlData.url;
+        });
+    };
+
+    const durations = await resolveSegmentDurations(groups, {
+        profileId,
+        concurrency: 4,
+        probe
+    });
     
     console.log('Probed durations:', durations.map(d => d.toFixed(1) + 's').join(', '));
     return durations;
@@ -4146,6 +4373,7 @@ function telemetryAnimationLoop() {
 }
 
 function startTelemetryLoop() {
+    if (library.capabilities?.telemetry === false) return;
     if (!nativeVideo.telemetryRafId) {
         nativeVideo.telemetryRafId = requestAnimationFrame(telemetryAnimationLoop);
     }
@@ -4173,7 +4401,7 @@ function onMasterTimeUpdate() {
     
     // Telemetry is now updated at ~60Hz by telemetryAnimationLoop — only update here as fallback
     // when the rAF loop isn't running (e.g. during scrub/seek while paused)
-    if (!nativeVideo.telemetryRafId) {
+    if (library.capabilities?.telemetry !== false && !nativeVideo.telemetryRafId) {
         const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
         if (sei) {
             setDashboardParked(false);
@@ -4226,8 +4454,12 @@ function onMasterLoaded() {
     const vid = nativeVideo.master || videoMain;
     if (!vid) return;
     
-    const actualDuration = vid.duration || 60;
     const segIdx = nativeVideo.currentSegmentIdx || 0;
+    const fallback = nativeVideo.segmentDurations?.[segIdx] ||
+        getDashcamProfile(library.profileId).defaultSegmentDurationSeconds;
+    const actualDuration = Number.isFinite(vid.duration) && vid.duration > 0
+        ? vid.duration
+        : fallback;
     
     // Update segment duration with actual value
     if (nativeVideo.segmentDurations && segIdx < nativeVideo.segmentDurations.length) {
@@ -4328,6 +4560,8 @@ async function loadNativeSegment(segIdx) {
     
     // Clear stale SEI data immediately to prevent old segment data from showing during transition
     stopTelemetryLoop();
+    const telemetryLoadToken = ++nativeVideo.telemetryLoadToken;
+    const profileIdAtLoad = library.profileId;
     nativeVideo.seiData = [];
     nativeVideo.mapPath = [];
     nativeVideo.lastSeiTimeMs = -Infinity;
@@ -4373,6 +4607,10 @@ async function loadNativeSegment(segIdx) {
                 console.warn('No video element for slot:', slot);
                 continue;
             }
+
+            const tile = multiCamGrid?.querySelector(`.multi-tile[data-slot="${slot}"]`);
+            const hasCamera = !!camera && group.filesByCamera.has(camera);
+            tile?.classList.toggle('empty-camera-slot', !hasCamera);
             
             const entry = group.filesByCamera.get(camera);
             const urlData = getVideoUrl(entry);
@@ -4382,7 +4620,8 @@ async function loadNativeSegment(segIdx) {
                 vid.load();
                 console.log('Loaded', camera, 'into slot', slot, urlData.isBlob ? '(blob)' : '(file://)');
             } else {
-                vid.src = '';
+                vid.removeAttribute('src');
+                vid.load();
                 console.log('No file for camera', camera, 'in slot', slot);
             }
         }
@@ -4435,12 +4674,22 @@ async function loadNativeSegment(segIdx) {
     // Show dashboard and map panels
     dashboardVis.classList.add('visible');
     mapVis.classList.add('visible');
+    updateDashboardVisibility();
+    updateMapVisibility();
     
     // Pre-extract SEI telemetry from master camera file (runs in background)
     const masterCam = multi.masterCamera || 'front';
     const masterEntry = group.filesByCamera.get(masterCam) || group.filesByCamera.values().next().value;
-    if (masterEntry && seiType) {
+    if (library.capabilities?.telemetry !== false && masterEntry && seiType) {
         extractSeiFromEntry(masterEntry, seiType).then(({ seiData, mapPath }) => {
+            if (
+                telemetryLoadToken !== nativeVideo.telemetryLoadToken ||
+                profileIdAtLoad !== library.profileId ||
+                nativeVideo.currentSegmentIdx !== segIdx
+            ) {
+                console.log('[TELEMETRY] Discarded stale extraction result.');
+                return;
+            }
             nativeVideo.seiData = seiData;
             // If the active collection has a full drive route, use it for the map
             // polyline instead of the per-clip SEI path so the entire route is visible.
@@ -4771,7 +5020,12 @@ async function seekNativeDayCollectionBySec(targetSec) {
         // Seek within segment
         const vid = nativeVideo.master;
         if (vid) {
-            vid.currentTime = Math.min(localSec, vid.duration || 60);
+            const segmentDuration = nativeVideo.segmentDurations?.[segIdx] ||
+                getDashcamProfile(library.profileId).defaultSegmentDurationSeconds;
+            const seekLimit = Number.isFinite(vid.duration) && vid.duration > 0
+                ? vid.duration
+                : segmentDuration;
+            vid.currentTime = Math.min(localSec, seekLimit);
             syncMultiVideos(vid.currentTime);
             
             // Update progress bar and time display immediately
