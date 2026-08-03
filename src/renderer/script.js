@@ -1341,6 +1341,8 @@ function applyDashcamProfile(profileId = 'tesla', sourceKind = 'tesla') {
     // A profile switch must not leak Tesla SEI/GPS state into footage that
     // cannot provide it.
     stopTelemetryLoop();
+    nativeVideo.telemetryAbortController?.abort();
+    nativeVideo.telemetryAbortController = null;
     nativeVideo.telemetryLoadToken++;
     cancelDurationProbes();
     nativeVideo.seiData = [];
@@ -4253,6 +4255,7 @@ const nativeVideo = {
     dashboardReset: false,  // Track if dashboard has been reset for no-SEI section
     telemetryRafId: null,   // requestAnimationFrame ID for ~60Hz telemetry polling
     telemetryLoadToken: 0,  // Invalidates stale async SEI work on segment/profile changes
+    telemetryAbortController: null, // Cancels obsolete consumers of shared SEI parses
     durationProbeToken: 0   // Invalidates metadata probes from a previous collection/root
 };
 
@@ -4621,6 +4624,9 @@ async function loadNativeSegment(segIdx) {
     
     // Clear stale SEI data immediately to prevent old segment data from showing during transition
     stopTelemetryLoop();
+    nativeVideo.telemetryAbortController?.abort();
+    nativeVideo.telemetryAbortController = new AbortController();
+    const telemetrySignal = nativeVideo.telemetryAbortController.signal;
     const telemetryLoadToken = ++nativeVideo.telemetryLoadToken;
     const profileIdAtLoad = library.profileId;
     nativeVideo.seiData = [];
@@ -4742,7 +4748,7 @@ async function loadNativeSegment(segIdx) {
     const masterCam = multi.masterCamera || 'front';
     const masterEntry = group.filesByCamera.get(masterCam) || group.filesByCamera.values().next().value;
     if (library.capabilities?.telemetry !== false && masterEntry && seiType) {
-        extractSeiFromEntry(masterEntry, seiType).then(({ seiData, mapPath }) => {
+        extractSeiFromEntry(masterEntry, seiType, { signal: telemetrySignal }).then(({ seiData, mapPath }) => {
             if (
                 telemetryLoadToken !== nativeVideo.telemetryLoadToken ||
                 profileIdAtLoad !== library.profileId ||
@@ -4843,7 +4849,9 @@ async function loadNativeSegment(segIdx) {
                     if (map) map.invalidateSize();
                 }, 1000);
             }
-        }).catch(err => console.warn('SEI extraction failed:', err));
+        }).catch(err => {
+            if (!isAbortError(err)) console.warn('SEI extraction failed:', err);
+        });
     }
     
     // Wait for master to be ready

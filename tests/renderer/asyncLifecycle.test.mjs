@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createAsyncLimiter,
   createBoundedLru,
+  createInFlightDeduper,
   createLifecycleSession,
   createObjectUrlRegistry,
   createOwnedResourceSlot,
@@ -104,4 +105,27 @@ test('bounded LRU evicts the oldest entry and refreshes hits', () => {
   assert.equal(cache.has('a'), true);
   assert.equal(cache.has('b'), false);
   assert.equal(cache.size, 2);
+});
+
+test('in-flight deduper shares one load while one caller cancels waiting', async () => {
+  const deduper = createInFlightDeduper();
+  const controller = new AbortController();
+  let loads = 0;
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const loader = async () => {
+    loads++;
+    await gate;
+    return { seiData: [1] };
+  };
+
+  const cancelled = deduper.run('clip', loader, { signal: controller.signal });
+  const survivor = deduper.run('clip', loader);
+  controller.abort();
+  release();
+
+  await assert.rejects(cancelled, error => error.name === 'AbortError');
+  assert.deepEqual(await survivor, { seiData: [1] });
+  assert.equal(loads, 1);
+  assert.equal(deduper.size, 0);
 });

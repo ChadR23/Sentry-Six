@@ -207,3 +207,24 @@ export function createBoundedLru(maxEntries) {
     }
   };
 }
+
+export function createInFlightDeduper() {
+  const inFlight = new Map();
+  return {
+    run(key, loader, { signal } = {}) {
+      if (!key) {
+        return waitWithSignal(Promise.resolve().then(loader), signal);
+      }
+      if (!inFlight.has(key)) {
+        const promise = Promise.resolve()
+          .then(loader)
+          .finally(() => inFlight.delete(key));
+        inFlight.set(key, promise);
+      }
+      return waitWithSignal(inFlight.get(key), signal);
+    },
+    get size() {
+      return inFlight.size;
+    }
+  };
+}

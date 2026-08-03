@@ -4,6 +4,10 @@
  */
 
 import { filePathToUrl } from '../lib/utils.js';
+import {
+    createInFlightDeduper,
+    waitWithSignal
+} from '../../../shared/asyncLifecycle.mjs';
 
 /**
  * Check if SEI data contains valid GPS coordinates
@@ -75,6 +79,7 @@ async function extractSeiFromFile(file) {
 // be returned by reference.
 const SEI_CACHE_MAX = 8;
 const seiCache = new Map();
+const seiInFlight = createInFlightDeduper();
 
 function seiCacheKey(entry) {
     if (entry?.file?.isElectronFile && entry.file?.path) return entry.file.path;
@@ -90,7 +95,7 @@ function seiCacheKey(entry) {
  * @param {string} seiType - SEI type identifier
  * @returns {Promise<{seiData: Array, mapPath: Array}>}
  */
-export async function extractSeiFromEntry(entry, seiType) {
+export async function extractSeiFromEntry(entry, seiType, { signal } = {}) {
     if (!entry) return { seiData: [], mapPath: [] };
 
     const cacheKey = seiCacheKey(entry);
@@ -99,34 +104,46 @@ export async function extractSeiFromEntry(entry, seiType) {
         // Refresh LRU order
         seiCache.delete(cacheKey);
         seiCache.set(cacheKey, hit);
-        return hit;
+        return waitWithSignal(Promise.resolve(hit), signal);
     }
 
-    let result = { seiData: [], mapPath: [] };
+    const load = async () => {
+        // A completed result may have landed after this caller's first cache check.
+        if (cacheKey && seiCache.has(cacheKey)) {
+            const hit = seiCache.get(cacheKey);
+            seiCache.delete(cacheKey);
+            seiCache.set(cacheKey, hit);
+            return hit;
+        }
 
-    // If it's an Electron file with path, fetch via file:// protocol
-    if (entry.file?.isElectronFile && entry.file?.path) {
-        try {
+        let result = { seiData: [], mapPath: [] };
+
+        // If it's an Electron file with path, fetch via file:// protocol
+        if (entry.file?.isElectronFile && entry.file?.path) {
+          try {
             const fileUrl = filePathToUrl(entry.file.path);
             const response = await fetch(fileUrl);
             const buffer = await response.arrayBuffer();
             result = await extractSeiFromBuffer(buffer);
-        } catch (err) {
+          } catch (err) {
             console.warn('Failed to extract SEI from Electron file:', err);
             return { seiData: [], mapPath: [] }; // don't cache transient read failures
+          }
+        } else if (entry.file && entry.file instanceof File) {
+            // Regular File object
+            result = await extractSeiFromFile(entry.file);
         }
-    } else if (entry.file && entry.file instanceof File) {
-        // Regular File object
-        result = await extractSeiFromFile(entry.file);
-    }
 
-    if (cacheKey) {
-        seiCache.set(cacheKey, result);
-        if (seiCache.size > SEI_CACHE_MAX) {
-            seiCache.delete(seiCache.keys().next().value);
+        if (cacheKey) {
+            seiCache.set(cacheKey, result);
+            if (seiCache.size > SEI_CACHE_MAX) {
+                seiCache.delete(seiCache.keys().next().value);
+            }
         }
-    }
-    return result;
+        return result;
+    };
+
+    return seiInFlight.run(cacheKey, load, { signal });
 }
 
 /**
