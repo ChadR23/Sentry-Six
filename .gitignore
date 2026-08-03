@@ -23,6 +23,7 @@ dev-tools/
 sign-mac.sh
 
 .claude/worktrees/
+.worktrees/
 
 # Test coverage output (contains local absolute paths)
 coverage/
