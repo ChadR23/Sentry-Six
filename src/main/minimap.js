@@ -403,13 +403,75 @@ ipcMain.on('minimap:ready', (event) => {
   }
 });
 
+function destroyWindow(window) {
+  if (!window) return;
+  try {
+    if (!window.isDestroyed?.()) window.destroy();
+  } catch {}
+}
+
 // Create a hidden BrowserWindow for minimap rendering
-async function createMinimapRenderer(minimapWidth, minimapHeight) {
+async function createMinimapRenderer(minimapWidth, minimapHeight, overrides = {}) {
   return new Promise((resolve, reject) => {
+    const createWindow = overrides.createWindow || (options => new BrowserWindow(options));
+    const rendererPath = overrides.rendererPath ||
+      path.join(__dirname, '..', 'renderer', 'minimap-renderer.html');
+    const rendererExists = overrides.rendererExists || fs.existsSync;
+    let minimapWindow;
+    let timeout = null;
+    let readyDelay = null;
+    let settled = false;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      if (readyDelay) clearTimeout(readyDelay);
+      timeout = null;
+      readyDelay = null;
+      const webContents = minimapWindow?.webContents;
+      if (webContents) {
+        webContents.removeListener?.('did-fail-load', onFailLoad);
+        webContents.removeListener?.('did-finish-load', onFinishLoad);
+        minimapReadyCallbacks.delete(webContents.id);
+      }
+    };
+
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      destroyWindow(minimapWindow);
+      reject(error);
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      if (minimapWindow?.isDestroyed?.()) {
+        fail(new Error('Minimap renderer closed before it became ready'));
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(minimapWindow);
+    };
+
+    const onFailLoad = (_event, _errorCode, errorDescription) => {
+      console.error(`[MINIMAP] Renderer failed to load: ${errorDescription}`);
+      fail(new Error(`Minimap renderer failed to load: ${errorDescription}`));
+    };
+
+    const onFinishLoad = () => {
+      if (settled) return;
+      if (timeout) clearTimeout(timeout);
+      timeout = null;
+      console.log('[MINIMAP] Renderer loaded successfully');
+      readyDelay = setTimeout(succeed, 500);
+    };
+
+    try {
     // Security note: nodeIntegration + contextIsolation:false is acceptable here because
     // this is a hidden offscreen window that only loads local minimap-renderer.html.
     // No remote content is ever loaded into this window.
-    const minimapWindow = new BrowserWindow({
+    minimapWindow = createWindow({
       width: minimapWidth,
       height: minimapHeight,
       show: false,
@@ -437,34 +499,27 @@ async function createMinimapRenderer(minimapWidth, minimapHeight) {
       }
     );
 
-    const timeout = setTimeout(() => {
+    timeout = setTimeout(() => {
       console.error('[MINIMAP] Renderer load timeout');
-      reject(new Error('Minimap renderer load timeout'));
+      fail(new Error('Minimap renderer load timeout'));
     }, 15000);
     
-    minimapWindow.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
-      clearTimeout(timeout);
-      console.error(`[MINIMAP] Renderer failed to load: ${errorDescription}`);
-      reject(new Error(`Minimap renderer failed to load: ${errorDescription}`));
-    });
+    minimapWindow.webContents.once('did-fail-load', onFailLoad);
     
-    minimapWindow.webContents.once('did-finish-load', () => {
-      clearTimeout(timeout);
-      console.log('[MINIMAP] Renderer loaded successfully');
-      setTimeout(() => resolve(minimapWindow), 500);
-    });
+    minimapWindow.webContents.once('did-finish-load', onFinishLoad);
     
     // Load minimap renderer HTML
-    const rendererPath = path.join(__dirname, '..', 'renderer', 'minimap-renderer.html');
     console.log(`[MINIMAP] Loading renderer from: ${rendererPath}`);
     
-    if (!fs.existsSync(rendererPath)) {
-      clearTimeout(timeout);
-      reject(new Error(`Minimap renderer not found at: ${rendererPath}`));
+    if (!rendererExists(rendererPath)) {
+      fail(new Error(`Minimap renderer not found at: ${rendererPath}`));
       return;
     }
     
-    minimapWindow.loadFile(rendererPath);
+    Promise.resolve(minimapWindow.loadFile(rendererPath)).catch(fail);
+    } catch (error) {
+      fail(error);
+    }
   });
 }
 
@@ -535,7 +590,9 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   console.log(`[MINIMAP] Creating renderer window ${minimapWidth}x${minimapHeight}`);
   console.log(`[MINIMAP] Smooth mode: ${totalFrames} frames at ${FPS}fps with interpolation`);
   const minimapWindow = await createMinimapRenderer(minimapWidth, minimapHeight);
+  let ffmpegProcess = null;
 
+  try {
   // Set the tile provider + labels before the view locks so the right tiles load
   minimapWindow.webContents.send('minimap:setLabels', labels);
   minimapWindow.webContents.send('minimap:setProvider', providerId);
@@ -581,7 +638,7 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
   
   console.log(`[MINIMAP] Starting FFmpeg: ${ffmpegPath} ${ffmpegArgs.join(' ')}`);
   
-  const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
+  ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
     stdio: ['pipe', 'pipe', 'pipe']
   });
   
@@ -593,11 +650,9 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
     }
   });
   
-  try {
     for (let frame = 0; frame < totalFrames; frame++) {
       if (cancelledExports.has(exportId)) {
         ffmpegProcess.stdin.end();
-        minimapWindow.destroy();
         try { fs.unlinkSync(tempPath); } catch {}
         throw new Error('Export cancelled');
       }
@@ -627,17 +682,22 @@ async function preRenderMinimap(exportId, seiData, mapPath, startTimeMs, endTime
       ffmpegProcess.on('error', reject);
     });
     
-    minimapWindow.destroy();
     return tempPath;
   } catch (err) {
-    minimapWindow.destroy();
+    try { ffmpegProcess?.stdin?.end(); } catch {}
+    try { if (ffmpegProcess && !ffmpegProcess.killed) ffmpegProcess.kill(); } catch {}
     try { fs.unlinkSync(tempPath); } catch {}
     throw err;
+  } finally {
+    minimapReadyCallbacks.delete(minimapWindow.webContents?.id);
+    destroyWindow(minimapWindow);
   }
 }
 
 module.exports = {
   calculateMinimapSize,
+  createMinimapRenderer,
+  destroyWindow,
   downloadStaticMapBackground,
   preRenderMinimap
 };
