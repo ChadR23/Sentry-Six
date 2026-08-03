@@ -32,7 +32,7 @@ import { initEventMarkers, updateEventTimelineMarker, updateEventCameraHighlight
 import { initSkipSeconds, skipSeconds } from './scripts/features/skipSeconds.js';
 import { initMapVisualization, updateMapVisibility, updateMapMarker, clearMapMarker, getMapOrientation, setMapOrientation, getMapBearing, setUprightMarker } from './scripts/ui/mapVisualization.js';
 import { attachTileLayer, refreshTileLayers, getEffectiveProviderId } from './scripts/ui/mapTiles.js';
-import { initDashboardVisibility, updateDashboardVisibility, setDashboardParked } from './scripts/ui/dashboardVisibility.js';
+import { initDashboardVisibility, updateDashboardVisibility, setDashboardParked, resetDashboardParkedState } from './scripts/ui/dashboardVisibility.js';
 import { hasValidGps, extractSeiFromEntry, findSeiAtTime } from './scripts/core/seiExtractor.js';
 import { 
     getRootFolderNameFromWebkitRelativePath, cameraLabel, buildTeslaCamIndex, buildDayCollections
@@ -55,6 +55,7 @@ import {
     createInitialSegmentDurations,
     resolveSegmentDurations
 } from '../shared/playbackTiming.mjs';
+import { createDirtyValueTracker } from '../shared/telemetryDirtyState.mjs';
 import {
     createAbortError,
     createAsyncLimiter,
@@ -76,6 +77,7 @@ let enumFields = null;
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
 let libraryGeneration = 0;
+const telemetryDirty = createDirtyValueTracker();
 const durationProbeLimiter = createAsyncLimiter(4);
 const durationCache = createBoundedLru(256);
 let durationProbeController = null;
@@ -185,6 +187,9 @@ initSteeringWheel(() => state.ui.playbackRate || 1);
 
 // Reset dashboard and map to default state (no SEI data)
 function resetDashboardElements() {
+    telemetryDirty.reset();
+    updateVisualization._prevLeft = false;
+    updateVisualization._prevRight = false;
     // Reset speed
     if (speedValue) speedValue.textContent = '--';
     if (speedUnit) speedUnit.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
@@ -245,6 +250,8 @@ function resetDashboardElements() {
 }
 
 function resetDashboardAndMap() {
+    resetDashboardParkedState();
+    setDashboardParked(false);
     resetDashboardElements();
     
     // Reset map
@@ -433,6 +440,7 @@ let useMetric = false; // Will be loaded from settings
     // Listen for language changes and update dashboard labels
     onLanguageChange((lang) => {
         console.log('Language changed to:', lang);
+        telemetryDirty.reset();
         
         // Update speed unit labels
         if (speedUnit) speedUnit.textContent = t('ui.dashboard.' + (useMetric ? 'kmh' : 'mph'));
@@ -793,6 +801,7 @@ let useMetric = false; // Will be loaded from settings
     // Dashboard (SEI overlay) toggle
     dashboardToggle.onchange = () => {
         state.ui.dashboardEnabled = !!dashboardToggle.checked;
+        telemetryDirty.reset();
         if (window.electronAPI?.setSetting) {
             window.electronAPI.setSetting('dashboardEnabled', state.ui.dashboardEnabled);
         }
@@ -802,6 +811,7 @@ let useMetric = false; // Will be loaded from settings
     // Map toggle
     mapToggle.onchange = () => {
         state.ui.mapEnabled = !!mapToggle.checked;
+        telemetryDirty.reset();
         if (window.electronAPI?.setSetting) {
             window.electronAPI.setSetting('mapEnabled', state.ui.mapEnabled);
         }
@@ -814,6 +824,7 @@ let useMetric = false; // Will be loaded from settings
         metricToggle.checked = useMetric;
         metricToggle.onchange = () => {
             useMetric = metricToggle.checked;
+            telemetryDirty.reset();
             if (window.electronAPI?.setSetting) {
                 window.electronAPI.setSetting('useMetric', useMetric);
             }
@@ -892,6 +903,7 @@ let useMetric = false; // Will be loaded from settings
     
     // Global function to update dashboard layout (used by settings modal)
     window.updateDashboardLayout = async (layout) => {
+        telemetryDirty.reset();
         dashboardLayout = layout || 'default';
         window.dashboardLayout = dashboardLayout; // Store globally for dashboardVisibility
         const defaultDash = dashboardVis;
@@ -4089,131 +4101,133 @@ function updateVisualization(sei) {
     // Helper to get field value (supports both naming conventions)
     const get = (camel, snake) => sei[camel] ?? sei[snake];
 
-    // Speed (use absolute value to avoid negative display when in reverse)
-    const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
-    const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
-    
-    // Speed
-    if (speedValue) speedValue.textContent = speed;
-    if (speedUnit) speedUnit.textContent = useMetric ? 'KM/H' : 'MPH';
-    if (speedValueCompact) speedValueCompact.textContent = speed;
-    if (speedUnitCompact) speedUnitCompact.textContent = useMetric ? 'KM/H' : 'MPH';
+    const lat = Number(get('latitudeDeg', 'latitude_deg') || 0);
+    const lon = Number(get('longitudeDeg', 'longitude_deg') || 0);
+    const heading = Number(get('headingDeg', 'heading_deg') || 0);
 
-    // Gear
-    const gear = get('gearState', 'gear_state');
-    let gearText = '--';
-    if (gear === 0) gearText = 'Park';
-    else if (gear === 1) gearText = 'Drive';
-    else if (gear === 2) gearText = 'Reverse';
-    else if (gear === 3) gearText = 'Neutral';
-    
-    if (gearState) gearState.textContent = gearText;
-    if (gearStateCompact) gearStateCompact.textContent = gearText;
-
-    // Blinkers - Tesla uses 400ms on / 300ms off (700ms cycle)
-    const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
-    const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
-    const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
-
-    // Reset blink animation phase on activation (off→on) so cycle starts from "on" state
-    const prevLeft = updateVisualization._prevLeft || false;
-    const prevRight = updateVisualization._prevRight || false;
-    if (leftBlinkerOn && !prevLeft) {
-        for (const el of [blinkLeft, blinkLeftCompact]) {
-            if (!el) continue;
-            el.style.animation = 'none';
-            void el.offsetHeight;
-            el.style.animation = '';
+    if (dashOn) {
+        // Speed (use absolute value to avoid negative display when in reverse)
+        const mps = Math.abs(get('vehicleSpeedMps', 'vehicle_speed_mps') || 0);
+        const speed = useMetric ? Math.round(mps * MPS_TO_KMH) : Math.round(mps * MPS_TO_MPH);
+        const unit = useMetric ? 'KM/H' : 'MPH';
+        if (telemetryDirty.changed('dashboard.speed', `${speed}|${unit}`)) {
+            if (speedValue) speedValue.textContent = speed;
+            if (speedUnit) speedUnit.textContent = unit;
+            if (speedValueCompact) speedValueCompact.textContent = speed;
+            if (speedUnitCompact) speedUnitCompact.textContent = unit;
         }
-    }
-    if (rightBlinkerOn && !prevRight) {
-        for (const el of [blinkRight, blinkRightCompact]) {
-            if (!el) continue;
-            el.style.animation = 'none';
-            void el.offsetHeight;
-            el.style.animation = '';
+
+        const gear = get('gearState', 'gear_state');
+        if (telemetryDirty.changed('dashboard.gear', gear)) {
+            let gearText = '--';
+            if (gear === 0) gearText = 'Park';
+            else if (gear === 1) gearText = 'Drive';
+            else if (gear === 2) gearText = 'Reverse';
+            else if (gear === 3) gearText = 'Neutral';
+            if (gearState) gearState.textContent = gearText;
+            if (gearStateCompact) gearStateCompact.textContent = gearText;
         }
+
+        // Blinkers use CSS animation; DOM state changes only on telemetry/play-state changes.
+        const isCurrentlyPlaying = state.ui.nativeVideoMode ? nativeVideo.playing : player.playing;
+        const leftBlinkerOn = !!get('blinkerOnLeft', 'blinker_on_left');
+        const rightBlinkerOn = !!get('blinkerOnRight', 'blinker_on_right');
+        const blinkerKey = `${leftBlinkerOn}|${rightBlinkerOn}|${isCurrentlyPlaying}`;
+        if (telemetryDirty.changed('dashboard.blinkers', blinkerKey)) {
+            const prevLeft = updateVisualization._prevLeft || false;
+            const prevRight = updateVisualization._prevRight || false;
+            if (leftBlinkerOn && !prevLeft) {
+                for (const el of [blinkLeft, blinkLeftCompact]) {
+                    if (!el) continue;
+                    el.style.animation = 'none';
+                    void el.offsetHeight;
+                    el.style.animation = '';
+                }
+            }
+            if (rightBlinkerOn && !prevRight) {
+                for (const el of [blinkRight, blinkRightCompact]) {
+                    if (!el) continue;
+                    el.style.animation = 'none';
+                    void el.offsetHeight;
+                    el.style.animation = '';
+                }
+            }
+            updateVisualization._prevLeft = leftBlinkerOn;
+            updateVisualization._prevRight = rightBlinkerOn;
+            blinkLeft?.classList.toggle('active', leftBlinkerOn);
+            blinkRight?.classList.toggle('active', rightBlinkerOn);
+            blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
+            blinkRight?.classList.toggle('paused', !isCurrentlyPlaying);
+            blinkLeftCompact?.classList.toggle('active', leftBlinkerOn);
+            blinkRightCompact?.classList.toggle('active', rightBlinkerOn);
+            blinkLeftCompact?.classList.toggle('paused', !isCurrentlyPlaying);
+            blinkRightCompact?.classList.toggle('paused', !isCurrentlyPlaying);
+        }
+
+        const targetAngle = Number(get('steeringWheelAngle', 'steering_wheel_angle') || 0);
+        if (telemetryDirty.changed('dashboard.steering', targetAngle)) {
+            smoothSteeringTo(targetAngle);
+        }
+
+        const apState = get('autopilotState', 'autopilot_state');
+        if (telemetryDirty.changed('dashboard.autopilot', apState)) {
+            const isActive = apState === 1 || apState === 2;
+            autosteerIcon?.classList.toggle('active', isActive);
+            apText?.classList.toggle('active', isActive);
+            gearState?.classList.toggle('active', isActive);
+            let apTextContent = t('ui.dashboard.manual');
+            if (apState === 1) apTextContent = t('ui.dashboard.selfDriving');
+            else if (apState === 2) apTextContent = t('ui.dashboard.autosteer');
+            else if (apState === 3) apTextContent = t('ui.dashboard.tacc');
+            if (apText) apText.textContent = apTextContent;
+            autosteerIconCompact?.classList.toggle('active', isActive);
+            if (apTextCompact) {
+                apTextCompact.textContent = apTextContent;
+                apTextCompact.classList.toggle('active', isActive);
+            }
+            gearStateCompact?.classList.toggle('active', isActive);
+        }
+
+        const brakeActive = !!get('brakeApplied', 'brake_applied');
+        if (telemetryDirty.changed('dashboard.brake', brakeActive)) {
+            brakeIcon?.classList.toggle('active', brakeActive);
+            brakeIconCompact?.classList.toggle('active', brakeActive);
+        }
+
+        const accelPosRaw = Number(get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0);
+        const accelPct = accelPosRaw > 1 ? Math.min(100, accelPosRaw) : Math.min(100, accelPosRaw * 100);
+        const isPressed = accelPct > 5;
+        const topInset = 100 - accelPct;
+        if (telemetryDirty.changed('dashboard.accelerator', `${isPressed}|${topInset}`)) {
+            accelPedal?.classList.toggle('active', isPressed);
+            if (accelFill) accelFill.style.clipPath = `inset(${topInset}% 0 0 0)`;
+            accelPedalCompact?.classList.toggle('active', isPressed);
+            if (accelFillCompact) accelFillCompact.style.clipPath = `inset(${topInset}% 0 0 0)`;
+        }
+
+        const seqNo = get('frameSeqNo', 'frame_seq_no');
+        const extraKey = `${seqNo ?? '--'}|${lat}|${lon}|${heading}`;
+        if (
+            extraDataContainer?.classList.contains('expanded') &&
+            telemetryDirty.changed('dashboard.extra', extraKey)
+        ) {
+            if (valSeq) valSeq.textContent = seqNo ?? '--';
+            if (valLat) valLat.textContent = lat.toFixed(6);
+            if (valLon) valLon.textContent = lon.toFixed(6);
+            if (valHeading) valHeading.textContent = heading.toFixed(1) + '°';
+        }
+
+        // These modules include their own visibility-level dirty checks. G-force
+        // receives repeated samples briefly so its three-dot trail can settle.
+        updateGForceMeter(sei);
+        updateCompass(sei);
     }
-    updateVisualization._prevLeft = leftBlinkerOn;
-    updateVisualization._prevRight = rightBlinkerOn;
 
-    blinkLeft?.classList.toggle('active', leftBlinkerOn);
-    blinkRight?.classList.toggle('active', rightBlinkerOn);
-    blinkLeft?.classList.toggle('paused', !isCurrentlyPlaying);
-    blinkRight?.classList.toggle('paused', !isCurrentlyPlaying);
-    blinkLeftCompact?.classList.toggle('active', leftBlinkerOn);
-    blinkRightCompact?.classList.toggle('active', rightBlinkerOn);
-    blinkLeftCompact?.classList.toggle('paused', !isCurrentlyPlaying);
-    blinkRightCompact?.classList.toggle('paused', !isCurrentlyPlaying);
-
-    // Steering - smooth animation handles both default and compact dashboards
-    const targetAngle = get('steeringWheelAngle', 'steering_wheel_angle') || 0;
-    smoothSteeringTo(targetAngle);
-
-    // Autopilot
-    const apState = get('autopilotState', 'autopilot_state');
-    const isActive = apState === 1 || apState === 2;
-    
-    if (autosteerIcon) autosteerIcon.classList.toggle('active', isActive);
-    apText?.classList.toggle('active', isActive);
-    gearState?.classList.toggle('active', isActive);
-    
-    let apTextContent = t('ui.dashboard.manual');
-    if (apState === 1) apTextContent = t('ui.dashboard.selfDriving');
-    else if (apState === 2) apTextContent = t('ui.dashboard.autosteer');
-    else if (apState === 3) apTextContent = t('ui.dashboard.tacc');
-    
-    if (apText) apText.textContent = apTextContent;
-    if (autosteerIconCompact) autosteerIconCompact.classList.toggle('active', isActive);
-    if (apTextCompact) {
-        apTextCompact.textContent = apTextContent;
-        apTextCompact.classList.toggle('active', isActive);
+    // Keep the 60 Hz lookup cadence, but avoid Leaflet work while GPS is unchanged.
+    const mapFrameKey = `${lat}|${lon}|${heading}`;
+    if (mapOn && telemetryDirty.changed('map.position', mapFrameKey)) {
+        updateMapMarker(sei, hasValidGps);
     }
-    if (gearStateCompact) gearStateCompact.classList.toggle('active', isActive);
-
-    // Brake
-    const brakeActive = !!get('brakeApplied', 'brake_applied');
-    brakeIcon?.classList.toggle('active', brakeActive);
-    if (brakeIconCompact) brakeIconCompact.classList.toggle('active', brakeActive);
-
-    // Accelerator pedal - lights up when pressed with pressure bar
-    const accelPosRaw = get('acceleratorPedalPosition', 'accelerator_pedal_position') || 0;
-    // Normalize to 0-100 range (SEI data can be 0-1 or 0-100 depending on version)
-    const accelPct = accelPosRaw > 1 ? Math.min(100, accelPosRaw) : Math.min(100, accelPosRaw * 100);
-    const isPressed = accelPct > 5;
-    const topInset = 100 - accelPct;
-    
-    if (accelPedal) accelPedal.classList.toggle('active', isPressed);
-    if (accelFill) accelFill.style.clipPath = `inset(${topInset}% 0 0 0)`;
-    if (accelPedalCompact) accelPedalCompact.classList.toggle('active', isPressed);
-    if (accelFillCompact) accelFillCompact.style.clipPath = `inset(${topInset}% 0 0 0)`;
-
-    // Extra Data
-    const seqNo = get('frameSeqNo', 'frame_seq_no');
-    const lat = get('latitudeDeg', 'latitude_deg') || 0;
-    const lon = get('longitudeDeg', 'longitude_deg') || 0;
-    const heading = get('headingDeg', 'heading_deg') || 0;
-    const accX = get('linearAccelerationMps2X', 'linear_acceleration_mps2_x') || 0;
-    const accY = get('linearAccelerationMps2Y', 'linear_acceleration_mps2_y') || 0;
-    const accZ = get('linearAccelerationMps2Z', 'linear_acceleration_mps2_z') || 0;
-    
-    if (valSeq) valSeq.textContent = seqNo ?? '--';
-    if (valLat) valLat.textContent = lat.toFixed(6);
-    if (valLon) valLon.textContent = lon.toFixed(6);
-    if (valHeading) valHeading.textContent = heading.toFixed(1) + '°';
-    
-    // Acceleration values (valAccX/Y/Z removed - elements don't exist in HTML)
-    // G-force meter already displays this information
-
-    // G-Force Meter Update
-    updateGForceMeter(sei);
-
-    // Compass Update
-    updateCompass(sei);
-
-    // Leaflet work (marker, pan, container transform) is not free even when
-    // the map panel is display:none — skip it entirely while hidden.
-    if (mapOn) updateMapMarker(sei, hasValidGps);
 }
 
 // Toggle Extra Data - prevent all event bubbling to avoid interfering with playback
@@ -4223,6 +4237,7 @@ toggleExtra.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     extraDataContainer.classList.toggle('expanded');
+    telemetryDirty.reset();
     // Refresh data if expanding while paused
     if (extraDataContainer.classList.contains('expanded') && player.frames && progressBar.value) {
          updateVisualization(player.frames[+progressBar.value].sei);
@@ -4449,11 +4464,11 @@ function telemetryAnimationLoop() {
         
         const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
         if (sei) {
-            setDashboardParked(false);
+            if (state.ui.dashboardEnabled) setDashboardParked(false);
             updateVisualization(sei);
             nativeVideo.lastSeiTimeMs = currentVidMs;
             nativeVideo.dashboardReset = false;
-        } else {
+        } else if (state.ui.dashboardEnabled) {
             // No telemetry near this time (parked) -> show PARKED, hide gauges.
             setDashboardParked(true);
             const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;
@@ -4500,11 +4515,11 @@ function onMasterTimeUpdate() {
     if (library.capabilities?.telemetry !== false && !nativeVideo.telemetryRafId) {
         const sei = findSeiAtTime(nativeVideo.seiData, currentVidMs);
         if (sei) {
-            setDashboardParked(false);
+            if (state.ui.dashboardEnabled) setDashboardParked(false);
             updateVisualization(sei);
             nativeVideo.lastSeiTimeMs = currentVidMs;
             nativeVideo.dashboardReset = false;
-        } else {
+        } else if (state.ui.dashboardEnabled) {
             // No telemetry near this time (parked) -> show PARKED, hide gauges.
             setDashboardParked(true);
             const lastSei = nativeVideo.lastSeiTimeMs ?? -Infinity;

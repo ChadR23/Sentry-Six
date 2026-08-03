@@ -49,6 +49,7 @@ export function updateDashboardVisibility() {
 // Dashboard layout containers that support the parked state. Toggling the class
 // on all of them is safe (only the active layout is visible).
 const PARKED_CONTAINER_IDS = ['dashboardVis', 'dashboardVisCompact'];
+let lastParkedState = null;
 
 /**
  * Toggle the "parked" telemetry-gap state on the live dashboard. When parked,
@@ -57,8 +58,15 @@ const PARKED_CONTAINER_IDS = ['dashboardVis', 'dashboardVisCompact'];
  * @param {boolean} parked
  */
 export function setDashboardParked(parked) {
+    const next = !!parked;
+    if (next === lastParkedState) return;
+    lastParkedState = next;
     for (const id of PARKED_CONTAINER_IDS) {
         const el = document.getElementById(id);
-        if (el) el.classList.toggle('telemetry-parked', parked);
+        if (el) el.classList.toggle('telemetry-parked', next);
     }
+}
+
+export function resetDashboardParkedState() {
+    lastParkedState = null;
 }
