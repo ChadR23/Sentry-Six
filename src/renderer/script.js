@@ -40,7 +40,7 @@ import {
 import { initMultiCamFocus, clearMultiFocus, toggleMultiFocus, scheduleResync, syncMultiVideos } from './scripts/ui/multiCamFocus.js';
 import {
     initClipBrowser, renderClipList, highlightSelectedClip,
-    buildDisplayItems, parseTimestampKeyToEpochMs
+    buildDisplayItems, clearThumbnailCache, parseTimestampKeyToEpochMs
 } from './scripts/core/clipBrowser.js';
 import { matchClipsTodrives } from './scripts/core/driveGrouper.js';
 import { initDriveBrowser, renderDriveList, setDriveTagFilter } from './scripts/core/driveBrowser.js';
@@ -59,6 +59,7 @@ import {
     createAbortError,
     createAsyncLimiter,
     createBoundedLru,
+    detachMediaElement,
     isAbortError
 } from '../shared/asyncLifecycle.mjs';
 
@@ -74,6 +75,7 @@ let enumFields = null;
 // Sentry event metadata (event.json)
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
+let libraryGeneration = 0;
 const durationProbeLimiter = createAsyncLimiter(4);
 const durationCache = createBoundedLru(256);
 let durationProbeController = null;
@@ -91,6 +93,13 @@ function mediaSourceKey(entry) {
     const file = entry?.file;
     if (!file) return null;
     return `file:${file.name}|${file.size}|${file.lastModified}`;
+}
+
+function resetLibraryScopedResources() {
+    libraryGeneration++;
+    eventMetaByKey.clear();
+    clearThumbnailCache();
+    cancelDurationProbes();
 }
 
 // DOM Elements
@@ -2363,6 +2372,7 @@ async function traverseDirectoryElectron(dirPath) {
         folderStructure.profileId || 'tesla',
         folderStructure.sourceKind || 'tesla'
     );
+    resetLibraryScopedResources();
     library.allDates = sortedDates;
     library.folderLabel = folderName;
     library.clipGroups = [];
@@ -2801,6 +2811,7 @@ async function traverseDirectoryHandle(dirHandle) {
         folderStructure.profileId || 'tesla',
         folderStructure.sourceKind || 'tesla'
     );
+    resetLibraryScopedResources();
     library.allDates = sortedDates;
     library.folderLabel = dirHandle.name;
     library.clipGroups = [];
@@ -3078,6 +3089,7 @@ function mergeIntoLibrary(built, date) {
     const sourceKind = folderStructure?.sourceKind ||
         getDashcamProfile(profileId).defaultLooseSourceKind;
     applyDashcamProfile(profileId, sourceKind);
+    resetLibraryScopedResources();
 
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
@@ -3290,6 +3302,7 @@ async function handleFolderFiles(fileList, directoryName = null) {
     const profileId = built.profileId || 'tesla';
     const sourceKind = getDashcamProfile(profileId).defaultLooseSourceKind;
     applyDashcamProfile(profileId, sourceKind);
+    resetLibraryScopedResources();
     library.clipGroups = built.groups;
     library.clipGroupById = new Map(library.clipGroups.map(g => [g.id, g]));
     library.folderLabel = built.inferredRoot || directoryName || 'Folder';
@@ -3672,6 +3685,7 @@ function updateCameraSelect(group) {
 
 async function ingestSentryEventJson(eventAssetsByKey) {
     if (!eventAssetsByKey || eventAssetsByKey.size === 0) return;
+    const generation = libraryGeneration;
     // Read every event.json in parallel — sequential awaits cost one IPC
     // round-trip per event, which adds up fast on folders with many events.
     const reads = [];
@@ -3686,8 +3700,10 @@ async function ingestSentryEventJson(eventAssetsByKey) {
             err => ({ key, err })
         ));
     }
+    const results = await Promise.all(reads);
+    if (generation !== libraryGeneration) return;
     let needsRender = false;
-    for (const { key, text, err } of await Promise.all(reads)) {
+    for (const { key, text, err } of results) {
         if (err) {
             console.warn(`Error reading event.json for ${key}:`, err);
             continue;
@@ -4641,6 +4657,8 @@ async function loadNativeSegment(segIdx) {
         }
     });
     videoUrls.clear();
+    detachMediaElement(videoMain);
+    Object.values(videoBySlot).forEach(detachMediaElement);
     
     // Helper to get video URL from entry (handles both File objects and Electron paths)
     const getVideoUrl = (entry) => {

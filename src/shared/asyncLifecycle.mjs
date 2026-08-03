@@ -228,3 +228,16 @@ export function createInFlightDeduper() {
     }
   };
 }
+
+export function detachMediaElement(video) {
+  if (!video) return;
+  try {
+    video.pause?.();
+  } catch {}
+  try {
+    video.removeAttribute?.('src');
+  } catch {}
+  try {
+    video.load?.();
+  } catch {}
+}

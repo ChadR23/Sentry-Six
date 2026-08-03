@@ -8,6 +8,7 @@ import {
   createLifecycleSession,
   createObjectUrlRegistry,
   createOwnedResourceSlot,
+  detachMediaElement,
   isAbortError
 } from '../../src/shared/asyncLifecycle.mjs';
 
@@ -150,4 +151,18 @@ test('a disposed lifecycle session cannot publish after awaited work', async () 
   await work;
 
   assert.equal(published, false);
+});
+
+test('detaching inactive media pauses and releases its source', () => {
+  const calls = [];
+  const video = {
+    pause: () => calls.push('pause'),
+    removeAttribute: name => calls.push(`remove:${name}`),
+    load: () => calls.push('load')
+  };
+
+  detachMediaElement(video);
+  detachMediaElement(null);
+
+  assert.deepEqual(calls, ['pause', 'remove:src', 'load']);
 });

@@ -494,6 +494,10 @@ function showFinalDeleteConfirmModal(folderPath, collectionId) {
 // Cache of folder paths we've already checked for thumb.png
 const thumbExistsCache = new Map();
 
+export function clearThumbnailCache() {
+    thumbExistsCache.clear();
+}
+
 /**
  * Attach a thumbnail hover preview to a clip item.
  * Shows thumb.png from the event folder on mouseenter.
