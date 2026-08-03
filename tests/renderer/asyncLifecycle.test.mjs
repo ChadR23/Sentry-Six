@@ -129,3 +129,25 @@ test('in-flight deduper shares one load while one caller cancels waiting', async
   assert.equal(loads, 1);
   assert.equal(deduper.size, 0);
 });
+
+test('a disposed lifecycle session cannot publish after awaited work', async () => {
+  const session = createLifecycleSession({
+    requestFrame: callback => callback(),
+    cancelFrame: () => {},
+    setTimer: callback => callback(),
+    clearTimer: () => {}
+  });
+  let published = false;
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const work = (async () => {
+    await pending;
+    if (session.isActive()) published = true;
+  })();
+
+  session.dispose();
+  release();
+  await work;
+
+  assert.equal(published, false);
+});
