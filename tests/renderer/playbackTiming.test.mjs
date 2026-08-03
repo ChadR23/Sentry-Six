@@ -5,6 +5,10 @@ import {
   createInitialSegmentDurations,
   resolveSegmentDurations
 } from '../../src/shared/playbackTiming.mjs';
+import {
+  createAsyncLimiter,
+  createBoundedLru
+} from '../../src/shared/asyncLifecycle.mjs';
 
 test('uses profile-specific duration estimates before metadata is available', () => {
   assert.deepEqual(createInitialSegmentDurations(3, 'tesla'), [60, 60, 60]);
@@ -57,4 +61,86 @@ test('limits metadata probes to the requested concurrency', async () => {
   });
 
   assert.equal(peak, 3);
+});
+
+test('overlapping duration resolutions share one global limiter', async () => {
+  const limiter = createAsyncLimiter(4);
+  let active = 0;
+  let peak = 0;
+  const probe = async group => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    active--;
+    return group.duration;
+  };
+  const options = {
+    profileId: 'tesla',
+    probe,
+    runProbe: (task, signal) => limiter.run(task, { signal })
+  };
+
+  await Promise.all([
+    resolveSegmentDurations(
+      Array.from({ length: 8 }, () => ({ duration: 60 })),
+      options
+    ),
+    resolveSegmentDurations(
+      Array.from({ length: 8 }, () => ({ duration: 60 })),
+      options
+    )
+  ]);
+
+  assert.equal(peak, 4);
+});
+
+test('aborting duration resolution prevents queued probes and cache writes', async () => {
+  const controller = new AbortController();
+  const limiter = createAsyncLimiter(1);
+  const cache = createBoundedLru(8);
+  let started = 0;
+
+  const resultPromise = resolveSegmentDurations(
+    [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+    {
+      profileId: 'tesla',
+      signal: controller.signal,
+      cache,
+      getCacheKey: group => group.id,
+      runProbe: (task, signal) => limiter.run(task, { signal }),
+      probe: async () => {
+        started++;
+        controller.abort();
+        return 61;
+      }
+    }
+  );
+
+  await assert.rejects(resultPromise, error => error.name === 'AbortError');
+  assert.equal(started, 1);
+  assert.equal(cache.size, 0);
+});
+
+test('duration cache reuses stable results without changing fallbacks', async () => {
+  const cache = createBoundedLru(2);
+  let probes = 0;
+  const options = {
+    profileId: 'tesla',
+    cache,
+    getCacheKey: group => group.id,
+    probe: async group => {
+      probes++;
+      return group.duration;
+    }
+  };
+
+  assert.deepEqual(
+    await resolveSegmentDurations([{ id: 'a', duration: 61 }], options),
+    [61]
+  );
+  assert.deepEqual(
+    await resolveSegmentDurations([{ id: 'a', duration: 99 }], options),
+    [61]
+  );
+  assert.equal(probes, 1);
 });

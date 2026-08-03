@@ -55,6 +55,12 @@ import {
     createInitialSegmentDurations,
     resolveSegmentDurations
 } from '../shared/playbackTiming.mjs';
+import {
+    createAbortError,
+    createAsyncLimiter,
+    createBoundedLru,
+    isAbortError
+} from '../shared/asyncLifecycle.mjs';
 
 // State
 const player = state.player;
@@ -68,6 +74,24 @@ let enumFields = null;
 // Sentry event metadata (event.json)
 // Keyed by `${tag}/${eventId}` (e.g. `SentryClips/2025-12-11_17-58-00`)
 const eventMetaByKey = new Map(); // key -> parsed JSON object
+const durationProbeLimiter = createAsyncLimiter(4);
+const durationCache = createBoundedLru(256);
+let durationProbeController = null;
+
+function cancelDurationProbes() {
+    durationProbeController?.abort();
+    durationProbeController = null;
+    nativeVideo.durationProbeToken++;
+}
+
+function mediaSourceKey(entry) {
+    if (entry?.file?.isElectronFile && entry.file.path) {
+        return `path:${entry.file.path}`;
+    }
+    const file = entry?.file;
+    if (!file) return null;
+    return `file:${file.name}|${file.size}|${file.lastModified}`;
+}
 
 // DOM Elements
 const $ = id => document.getElementById(id);
@@ -1318,7 +1342,7 @@ function applyDashcamProfile(profileId = 'tesla', sourceKind = 'tesla') {
     // cannot provide it.
     stopTelemetryLoop();
     nativeVideo.telemetryLoadToken++;
-    nativeVideo.durationProbeToken++;
+    cancelDurationProbes();
     nativeVideo.seiData = [];
     nativeVideo.mapPath = [];
     nativeVideo.lastSeiTimeMs = -Infinity;
@@ -1590,6 +1614,7 @@ function refreshFsdEventMarkers() {
  * calendar dates the drive spans and combining their clip groups.
  */
 async function selectDriveCollection(drive) {
+    cancelDurationProbes();
     // Collect all unique calendar dates this drive spans (from its route timestamp keys)
     const neededDates = [...new Set(drive.routeTimestampKeys.map(k => k.split('_')[0]).filter(Boolean))];
 
@@ -3342,6 +3367,7 @@ async function handleFolderFiles(fileList, directoryName = null) {
 function selectClipGroup(groupId) {
     const g = library.clipGroupById.get(groupId);
     if (!g) return;
+    cancelDurationProbes();
     setMode('clip');
     selection.selectedGroupId = groupId;
     highlightSelectedClip();
@@ -3364,6 +3390,7 @@ function selectSentryCollection(collectionId) {
     if (!it) return;
 
     const c = it.collection;
+    cancelDurationProbes();
     setMode('collection');
     // Ensure a clean start. If we came from an actively playing clip, segment loading clears timers,
     // which can leave playing=true but no timer loop. Pause first so autoplay can reliably start.
@@ -3410,6 +3437,8 @@ function selectDayCollection(dayKey) {
         }
         
         console.log('Day collection:', coll.id, 'groups:', coll.groups?.length, 'duration:', coll.durationMs);
+
+    cancelDurationProbes();
 
     setMode('collection');
     pause();
@@ -3505,11 +3534,16 @@ function selectDayCollection(dayKey) {
 
     // Probe actual segment durations in the background for accurate seek positioning
     // This runs concurrently with loading the first segment
+    durationProbeController = new AbortController();
+    const activeDurationProbeController = durationProbeController;
     const durationProbeToken = ++nativeVideo.durationProbeToken;
     console.log('Starting duration probe for', groups.length, 'segments');
-    probeSegmentDurations(groups, profileId).then(probedDurations => {
+    probeSegmentDurations(groups, profileId, activeDurationProbeController.signal).then(probedDurations => {
         console.log('Duration probe completed:', probedDurations);
-        if (durationProbeToken !== nativeVideo.durationProbeToken) return; // Stale
+        if (
+            activeDurationProbeController.signal.aborted ||
+            durationProbeToken !== nativeVideo.durationProbeToken
+        ) return; // Stale
         
         // Update durations with actual values
         nativeVideo.segmentDurations = probedDurations;
@@ -3537,7 +3571,12 @@ function selectDayCollection(dayKey) {
         
         console.log('Timeline updated with actual durations, total:', totalSec.toFixed(1) + 's');
     }).catch(err => {
+        if (isAbortError(err)) return;
         console.warn('Duration probing failed, using estimates:', err);
+    }).finally(() => {
+        if (durationProbeController === activeDurationProbeController) {
+            durationProbeController = null;
+        }
     });
 
     // Load the correct segment directly (avoids loading segment 0 then seeking, which caused camera desync)
@@ -4223,7 +4262,7 @@ const nativeVideo = {
  * @param {Array} groups - Array of clip groups with filesByCamera maps
  * @returns {Promise<number[]>} - Array of segment durations in seconds
  */
-async function probeSegmentDurations(groups, profileId = library.profileId) {
+async function probeSegmentDurations(groups, profileId = library.profileId, signal) {
     if (!groups || groups.length === 0) return [];
     
     console.log('Probing durations for', groups.length, 'segments...');
@@ -4243,10 +4282,12 @@ async function probeSegmentDurations(groups, profileId = library.profileId) {
         return null;
     };
     
-    const probe = async (group, index) => {
+    const getProbeEntry = group => group.filesByCamera.get('front') ||
+        group.filesByCamera.values().next().value;
+
+    const probe = async (group, index, probeSignal) => {
         // Prefer front camera for duration, fall back to any available camera
-        const entry = group.filesByCamera.get('front') || 
-                      group.filesByCamera.values().next().value;
+        const entry = getProbeEntry(group);
         const urlData = getVideoUrl(entry);
         
         if (!urlData) {
@@ -4258,40 +4299,60 @@ async function probeSegmentDurations(groups, profileId = library.profileId) {
             const tempVid = document.createElement('video');
             tempVid.preload = 'metadata';
             tempVid.muted = true;
+            let settled = false;
+            let timeout = null;
 
             const cleanup = () => {
+                if (timeout) clearTimeout(timeout);
+                timeout = null;
+                probeSignal?.removeEventListener('abort', onAbort);
+                tempVid.onloadedmetadata = null;
+                tempVid.onerror = null;
                 tempVid.removeAttribute('src');
                 tempVid.load();
                 if (urlData.isBlob) URL.revokeObjectURL(urlData.url);
             };
 
-            const timeout = setTimeout(() => {
+            const finish = (settle, value) => {
+                if (settled) return;
+                settled = true;
                 cleanup();
-                reject(new Error('Timeout'));
-            }, 5000);
+                settle(value);
+            };
+
+            const onAbort = () => finish(reject, createAbortError());
+
+            timeout = setTimeout(() => finish(reject, new Error('Timeout')), 5000);
 
             tempVid.onloadedmetadata = () => {
-                clearTimeout(timeout);
                 const duration = tempVid.duration;
-                cleanup();
-                if (Number.isFinite(duration) && duration > 0) resolve(duration);
-                else reject(new Error('Invalid duration'));
+                if (Number.isFinite(duration) && duration > 0) finish(resolve, duration);
+                else finish(reject, new Error('Invalid duration'));
             };
 
-            tempVid.onerror = () => {
-                clearTimeout(timeout);
-                cleanup();
-                reject(new Error('Load error'));
-            };
-            
-            tempVid.src = urlData.url;
+            tempVid.onerror = () => finish(reject, new Error('Load error'));
+            probeSignal?.addEventListener('abort', onAbort, { once: true });
+            if (probeSignal?.aborted) {
+                onAbort();
+                return;
+            }
+
+            try {
+                tempVid.src = urlData.url;
+            } catch (error) {
+                finish(reject, error);
+            }
         });
     };
 
     const durations = await resolveSegmentDurations(groups, {
         profileId,
         concurrency: 4,
-        probe
+        probe,
+        signal,
+        cache: durationCache,
+        getCacheKey: group => mediaSourceKey(getProbeEntry(group)),
+        runProbe: (task, taskSignal) => durationProbeLimiter.run(task, { signal: taskSignal })
     });
     
     console.log('Probed durations:', durations.map(d => d.toFixed(1) + 's').join(', '));
