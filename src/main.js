@@ -54,6 +54,7 @@ const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
 const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
 const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, findVaapiDevice, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
 const { calculateMinimapSize, downloadStaticMapBackground, preRenderMinimap } = require('./main/minimap');
+const { createSentryUsbCache } = require('./main/sentryUsbCache');
 const MapProviders = require('./shared/mapProviders');
 const crypto = require('crypto');
 
@@ -2799,7 +2800,8 @@ ipcMain.handle('fs:readFile', async (_event, filePath) => {
 // for minutes (frozen UI). Points arrive from the worker as transferable
 // Float64Array buffers (zero-copy), stay cached here, and are inflated
 // per-drive via sentryUsb:getDriveDetail when a drive is opened.
-let sentryUsbCache = { filePath: null, mtimeMs: 0, drives: null, routeCount: 0, routesLen: 0 };
+const sentryUsbCache = createSentryUsbCache();
+const activeSentryUsbWorkers = new Set();
 
 function makeLightSentryUsbDrives(drives) {
   return drives.map(d => {
@@ -2816,17 +2818,19 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
     // Serve from cache when the same unmodified file is requested again
     // (e.g. a renderer reload) — re-parsing a 400MB+ file takes minutes.
     const stat = fs.statSync(filePath);
-    if (sentryUsbCache.drives && sentryUsbCache.filePath === filePath && sentryUsbCache.mtimeMs === stat.mtimeMs) {
+    const cached = sentryUsbCache.get();
+    if (cached.drives && cached.filePath === filePath && cached.mtimeMs === stat.mtimeMs) {
       console.log('[SentryUSB] Serving drives from cache (file unchanged)');
       return {
         success: true,
-        drives: makeLightSentryUsbDrives(sentryUsbCache.drives),
-        driveCount: sentryUsbCache.drives.length,
-        routeCount: sentryUsbCache.routeCount,
-        routesLen: sentryUsbCache.routesLen,
+        drives: makeLightSentryUsbDrives(cached.drives),
+        driveCount: cached.drives.length,
+        routeCount: cached.routeCount,
+        routesLen: cached.routesLen,
         topKeys: ['routes', 'driveTags'],
       };
     }
+    const cacheGeneration = sentryUsbCache.generation;
 
     const { Worker } = require('worker_threads');
     const fileSize = stat.size;
@@ -2840,7 +2844,10 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
         const worker = new Worker(path.join(__dirname, 'main', 'driveTagsWorker.js'), {
           workerData: { filePath },
         });
+        activeSentryUsbWorkers.add(worker);
+        const releaseWorker = () => activeSentryUsbWorkers.delete(worker);
         worker.once('message', (msg) => {
+          releaseWorker();
           if (msg?.ok) {
             console.log(`[SentryUSB] Tags worker: ${Object.keys(msg.driveTags).length} drive tags in ${Date.now() - t0}ms`);
             resolve(msg.driveTags);
@@ -2850,12 +2857,16 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
           }
         });
         worker.once('error', (err) => {
+          releaseWorker();
           console.warn('[SentryUSB] Tags worker error:', err?.message || err);
           resolve({});
         });
         // A worker killed without emitting 'message'/'error' (e.g. OOM) must
         // still resolve, or the load worker waits on the tags forever.
-        worker.once('exit', () => resolve({}));
+        worker.once('exit', () => {
+          releaseWorker();
+          resolve({});
+        });
       } catch (err) {
         console.warn('[SentryUSB] Could not start tags worker:', err?.message || err);
         resolve({});
@@ -2874,6 +2885,7 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
         if (!settled) {
           settled = true;
           fn(v);
+          activeSentryUsbWorkers.delete(worker);
           try { worker.terminate(); } catch {}
         }
       };
@@ -2881,6 +2893,7 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
         worker = new Worker(path.join(__dirname, 'main', 'driveLoadWorker.js'), {
           workerData: { filePath },
         });
+        activeSentryUsbWorkers.add(worker);
       } catch (err) { reject(err); return; }
 
       worker.on('message', (msg) => {
@@ -2909,13 +2922,16 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
 
     console.log(`[SentryUSB] Grouped into ${result.driveCount} drives in ${result.groupMs}ms (total ${Date.now() - t0}ms)`);
 
-    sentryUsbCache = {
+    const cacheStored = sentryUsbCache.replace({
       filePath,
       mtimeMs: stat.mtimeMs,
       drives: result.drives,
       routeCount: result.routeCount,
       routesLen: result.routesLen,
-    };
+    }, cacheGeneration);
+    if (!cacheStored) {
+      return { success: false, cancelled: true, error: 'Drive data load was cleared' };
+    }
 
     return {
       success: true,
@@ -2929,6 +2945,14 @@ ipcMain.handle('sentryUsb:loadAndGroup', async (_event, filePath) => {
     console.error('[SentryUSB] Load failed:', err);
     return { success: false, error: err?.message || String(err) };
   }
+});
+
+ipcMain.handle('sentryUsb:clear', async () => {
+  for (const worker of activeSentryUsbWorkers) {
+    try { worker.terminate(); } catch {}
+  }
+  activeSentryUsbWorkers.clear();
+  return sentryUsbCache.clear();
 });
 
 // Reverse-geocode a coordinate into a short place label for the drive list's
@@ -2955,7 +2979,7 @@ ipcMain.handle('geo:reverseGeocode', async (_event, { lat, lng } = {}) => {
 // shipping all drives' points up front which froze the app. Points are
 // cached as a flat Float64Array (5 values per point) and inflated here.
 ipcMain.handle('sentryUsb:getDriveDetail', async (_event, driveId) => {
-  const drives = sentryUsbCache.drives;
+  const drives = sentryUsbCache.get().drives;
   if (!drives) return { success: false, error: 'No drive data loaded' };
   const drive = drives.find(d => d.id === driveId);
   if (!drive) return { success: false, error: 'Drive not found: ' + driveId };
@@ -3131,4 +3155,3 @@ registerDiagnosticsStorageIpc(SUPPORT_SERVER_URL);
 
 // Support chat module (extracted to src/main/supportChat.js)
 registerSupportChatIpc();
-

@@ -1897,6 +1897,7 @@ setTimeout(loadDefaultFolderOnStartup, 500);
 // settings file picker firing while the startup auto-load is still streaming a
 // large drive-data.json) so we don't pile up parallel reads of a 1GB file.
 const _inFlightSentryUsbLoads = new Map();
+let _sentryUsbLoadGeneration = 0;
 
 /**
  * Load and parse a SentryUSB drive-data.json file.
@@ -1918,6 +1919,7 @@ async function loadSentryUsbData(filePath) {
     }
 
     const sentryUsb = state.sentryUsb;
+    const loadGeneration = _sentryUsbLoadGeneration;
     sentryUsb.loading = true;
     // Reflect the loading state in the Drives tab so the user sees something
     // is happening instead of the "No drive data loaded" placeholder.
@@ -1926,6 +1928,9 @@ async function loadSentryUsbData(filePath) {
     const promise = (async () => {
         try {
             const result = await window.electronAPI.loadSentryUsbDrives(filePath);
+            if (loadGeneration !== _sentryUsbLoadGeneration) {
+                return { success: false, cancelled: true };
+            }
             if (!result?.success) {
                 const err = result?.error || 'Unknown load error';
                 console.error('[SentryUSB] Failed to load drive data:', err);
@@ -1962,7 +1967,9 @@ async function loadSentryUsbData(filePath) {
             return { success: false, error: err?.message || String(err) };
         } finally {
             sentryUsb.loading = false;
-            _inFlightSentryUsbLoads.delete(filePath);
+            if (_inFlightSentryUsbLoads.get(filePath) === promise) {
+                _inFlightSentryUsbLoads.delete(filePath);
+            }
             // Always refresh the Drives tab and badge after the load settles so
             // success → drive list, failure → empty placeholder.
             try { updateDrivesTabVisibility(); } catch {}
@@ -1976,16 +1983,25 @@ async function loadSentryUsbData(filePath) {
 /**
  * Clear loaded SentryUSB drive data and refresh the Drives tab placeholder.
  */
-function clearSentryUsbData() {
+async function clearSentryUsbData() {
+    _sentryUsbLoadGeneration++;
+    _inFlightSentryUsbLoads.clear();
     const sentryUsb = state.sentryUsb;
-    sentryUsb.drives = [];
-    sentryUsb.hasFootage = new Set();
-    sentryUsb.loaded = false;
-    sentryUsb.dataPath = null;
+    try {
+        await window.electronAPI?.clearSentryUsbDrives?.();
+    } catch (err) {
+        console.warn('[SentryUSB] Failed to clear main-process cache:', err);
+    } finally {
+        sentryUsb.loading = false;
+        sentryUsb.drives = [];
+        sentryUsb.hasFootage = new Set();
+        sentryUsb.loaded = false;
+        sentryUsb.dataPath = null;
 
-    switchToClipsTab();
-    updateDrivesTabVisibility();
-    renderDriveList(); // Refresh to show the "no data" placeholder
+        switchToClipsTab();
+        updateDrivesTabVisibility();
+        renderDriveList(); // Refresh to show the "no data" placeholder
+    }
 }
 
 /**

@@ -619,13 +619,13 @@ export function initSettingsModal() {
                 await window.electronAPI.setSetting('sentryUsbDataPath', null);
             }
             if (driveDataFilePath) driveDataFilePath.value = '';
+            // Clear drive state and its heavy main-process cache.
+            if (window._clearSentryUsbData) await window._clearSentryUsbData();
             if (driveDataFileStatus) {
                 driveDataFileStatus.textContent = 'Drive data cleared';
                 driveDataFileStatus.className = 'folder-status';
                 setTimeout(() => { driveDataFileStatus.textContent = ''; }, 2000);
             }
-            // Clear drive state in main app
-            if (window._clearSentryUsbData) window._clearSentryUsbData();
             clearDriveDataFileBtn.blur();
         };
     }
