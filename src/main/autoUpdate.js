@@ -124,36 +124,60 @@ function resolveUpdateChannel(settings) {
 }
 
 /**
- * Point electron-updater at a channel's release feed.
+ * Point electron-updater at a channel.
  *
- * allowDowngrade is the subtle part. A pre-release sorts BELOW the stable
- * release it precedes (2026.32.35-rc1 < 2026.32.35), so the pre-release channel
- * can only ever install anything if downgrades are permitted. Coming back the
- * other way needs it too: someone running an RC who switches to stable has to
- * move *down* to the latest stable build. So downgrades are allowed on the
- * pre-release channel, and on stable only while the running build is itself a
- * pre-release (a '-' in its version) — ordinary stable users can never be
- * rolled backwards by a bad publish.
+ * `allowPrerelease` is the switch that actually does the work. With it on,
+ * GitHubProvider walks the releases Atom feed (which includes pre-releases) and
+ * takes the newest entry; with it off it asks for /releases/latest, which GitHub
+ * excludes pre-releases from. That is what makes the toggle work here even
+ * though Sentry Studio ships betas under ordinary version numbers — "Sentry
+ * Studio Beta Release v2026.26.34" — flagged prerelease on the GitHub release
+ * rather than carrying an -rc/-beta semver suffix.
+ *
+ * The feed's `releaseType` is NOT what switches channels. It is a publish-time
+ * option describing what kind of release electron-builder should create;
+ * GitHubProvider never reads it. It is set here only to keep the runtime feed
+ * consistent with package.json's publish block.
+ *
+ * `allowDowngrade` is off by default and granted only for a deliberate revert.
+ * Because betas carry ordinary version numbers, a beta's version is usually
+ * HIGHER than the newest stable, so going back is a downgrade; but leaving the
+ * permission on for everyone would also let a republished older release roll
+ * ordinary stable users backwards. Sentry Drive scopes it the same way (its
+ * revert-to-stable handler). The caller passes it explicitly and it is written
+ * every time rather than only when true — a plain re-application must be able to
+ * clear a grant that is no longer wanted, and this function runs at boot.
+ *
+ * Never assign `autoUpdater.channel`: its setter unconditionally sets
+ * allowDowngrade = true, which would silently undo all of the above.
  *
  * No-ops without electron-updater (manual npm installs), which update by
  * downloading the branch zip instead.
  *
  * @param {object} channel - A UPDATE_CHANNELS entry
- * @param {string} currentVersion - The running app version
+ * @param {{allowDowngrade?: boolean}} [opts] - Grant a downgrade for a revert
  * @returns {object} The channel that was applied
  */
-function applyUpdateChannel(channel, currentVersion) {
+function applyUpdateChannel(channel, opts = {}) {
   if (!autoUpdater) return channel;
 
-  const runningPrerelease = String(currentVersion || '').includes('-');
   autoUpdater.allowPrerelease = channel.allowPrerelease;
-  autoUpdater.allowDowngrade = channel.allowPrerelease || runningPrerelease;
+  autoUpdater.allowDowngrade = !!opts.allowDowngrade;
   autoUpdater.setFeedURL({
     provider: 'github',
     owner: UPDATE_CONFIG.owner,
     repo: UPDATE_CONFIG.repo,
     releaseType: channel.releaseType
   });
+
+  // Switching channels invalidates anything the previous channel resolved.
+  // checkForUpdates() hands back an in-flight promise rather than starting a
+  // fresh check, so without this the post-switch re-check can be answered by a
+  // result computed against the old feed. updateInfoAndProvider is never cleared
+  // by electron-updater on the not-available branch either, so a stale offer
+  // from the other channel would otherwise remain installable.
+  autoUpdater.checkForUpdatesPromise = null;
+  autoUpdater.updateInfoAndProvider = null;
   return channel;
 }
 
@@ -229,11 +253,46 @@ function registerAutoUpdateIpc(deps) {
 
   const getActiveChannel = () => resolveUpdateChannel(loadSettings());
 
+  // A revert to stable can need more than one session to finish: the user flips
+  // the toggle, the download is still running (or never started) when they quit,
+  // and on the next launch allowDowngrade is back at its constructor default of
+  // false — leaving them on the beta with the app insisting it is up to date.
+  // The permission is therefore persisted until an update actually lands.
+  const isDowngradePending = () => loadSettings().pendingDowngrade === true;
+
+  function setDowngradePending(pending) {
+    const settings = loadSettings();
+    if (pending) settings.pendingDowngrade = true;
+    else delete settings.pendingDowngrade;
+    saveSettings(settings);
+  }
+
   // Apply the persisted channel up front so the session's first update check
   // already targets the right feed rather than electron-builder's default.
+  //
+  // This is load-bearing, not belt-and-braces: electron-updater's constructor
+  // runs `allowPrerelease = hasPrereleaseComponents(currentVersion)`, which is
+  // false for every plain calendar version Sentry Studio ships — so without
+  // re-applying here, a machine running a beta would silently be put back on the
+  // stable track on every launch.
   const startupChannel = getActiveChannel();
-  applyUpdateChannel(startupChannel, app.getVersion());
-  console.log(`[UPDATE] Update channel: ${startupChannel.id} (branch ${startupChannel.branch})`);
+  const startupDowngrade = isDowngradePending();
+  applyUpdateChannel(startupChannel, { allowDowngrade: startupDowngrade });
+  console.log(
+    `[UPDATE] Update channel: ${startupChannel.id} (branch ${startupChannel.branch})` +
+    (startupDowngrade ? ' — downgrade to stable still pending' : '')
+  );
+
+  // The revert has completed once something actually installs; drop the
+  // permission so an ordinary session cannot be rolled backwards later.
+  if (autoUpdater) {
+    autoUpdater.on('update-downloaded', () => {
+      if (!isDowngradePending()) return;
+      setDowngradePending(false);
+      autoUpdater.allowDowngrade = false;
+      console.log('[UPDATE] Downgrade to stable completed — permission cleared');
+    });
+  }
 
   /**
    * Check for updates - handles both packaged (NSIS) and development (npm start) modes
@@ -253,8 +312,12 @@ function registerAutoUpdateIpc(deps) {
       
       console.log(`[UPDATE] Current: v${currentVer}, Latest: v${latestVer}`);
       
-      if (compareVersions(currentVer, latestVer) < 0) {
-        console.log('[UPDATE] New version available!');
+      // Different, not just newer. This path reads version.json off the
+      // channel's own branch, so switching channels can legitimately point at a
+      // LOWER version — reverting from Dev-SEI to main usually does. Testing for
+      // "newer" reported "up to date" and offered no way back.
+      if (compareVersions(currentVer, latestVer) !== 0) {
+        console.log('[UPDATE] Different version available on this channel!');
         const mainWindow = getMainWindow();
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('update:available', {
@@ -409,26 +472,51 @@ function registerAutoUpdateIpc(deps) {
         };
       }
       
-      // Handle up_to_date from API
+      // Handle up_to_date from API.
+      //
+      // The telemetry API only knows the stable line — it is sent a version and
+      // nothing about channels — so its "you are current" verdict cannot be
+      // trusted to end the check. Two cases it gets wrong:
+      //   - on the pre-release channel, a newer beta it has never heard of;
+      //   - after switching back to stable from a beta, where the running
+      //     version is HIGHER than the newest stable and the revert is a
+      //     downgrade the API will never report.
+      // In both, defer to the channel-aware electron-updater check below and
+      // only report "up to date" if that agrees. force_manual is handled above
+      // and still wins, so the killswitch is unaffected.
       if (processedResult.action === 'up_to_date') {
-        console.log('[UPDATE] App is up to date (from API)');
-        return {
-          checked: true,
-          updateAvailable: false,
-          currentVersion: app.getVersion(),
-          latestVersion: app.getVersion(),
-          serverMessage: processedResult.message
-        };
+        if (!(app.isPackaged && autoUpdater)) {
+          console.log('[UPDATE] App is up to date (from API)');
+          return {
+            checked: true,
+            updateAvailable: false,
+            currentVersion: app.getVersion(),
+            latestVersion: app.getVersion(),
+            serverMessage: processedResult.message
+          };
+        }
+        console.log('[UPDATE] API reports up to date — confirming against the channel feed');
       }
-      
+
       // Fallback to direct GitHub/electron-updater check
-      console.log('[UPDATE] API unavailable, falling back to direct check...');
+      console.log('[UPDATE] Falling back to direct check...');
       if (app.isPackaged && autoUpdater) {
         const result = await autoUpdater.checkForUpdates();
-        const updateAvailable = result?.updateInfo?.version && 
-          compareVersions(app.getVersion(), result.updateInfo.version) < 0;
-        return { 
-          checked: true, 
+        // Take electron-updater's own verdict. Deriving one from updateInfo was
+        // wrong twice over: updateInfo is populated on the NOT-available branch
+        // too (doCheckForUpdates returns {isUpdateAvailable:false, updateInfo}),
+        // so any version difference read as an offer — and compareVersions is
+        // not semver-aware, so it can disagree with the comparator that actually
+        // gates the download. The visible symptom was "Update found" with no
+        // modal, then update:install rejecting with "Please check update first"
+        // because no provider had been staged.
+        //
+        // isUpdateAvailable already accounts for the revert case: it is
+        // `newer || (allowDowngrade && older)`, and the downgrade permission is
+        // granted and persisted for exactly that transition.
+        const updateAvailable = result?.isUpdateAvailable === true;
+        return {
+          checked: true,
           updateAvailable,
           currentVersion: app.getVersion(),
           latestVersion: result?.updateInfo?.version || app.getVersion()
@@ -479,7 +567,11 @@ function registerAutoUpdateIpc(deps) {
   }
 
   ipcMain.handle('update:installAndRestart', async () => {
-    if (autoUpdater) {
+    // electron-updater is a hard dependency, so `autoUpdater` is non-null in dev
+    // too — without the isPackaged gate that update:exit already has, this hit
+    // quitAndInstall, threw, and fell through to a plain app.quit(): the app
+    // vanished and nothing was installed. Dev installs update by branch zip.
+    if (app.isPackaged && autoUpdater) {
       quitAndInstallOrExit();
     } else {
       app.quit();
@@ -510,15 +602,43 @@ function registerAutoUpdateIpc(deps) {
       return { success: false, error: `Unknown update channel: ${channelId}` };
     }
 
+    const previous = getActiveChannel();
+
+    // Leaving the pre-release channel is the one case that needs to move
+    // *backwards*: betas here carry ordinary version numbers, so the newest
+    // stable is usually a lower version than the beta being left behind. The
+    // permission is recorded so it survives a quit before the download lands;
+    // opting back in cancels a revert that was still outstanding.
+    const isRevertToStable = previous.id === 'prerelease' && channel.id === 'stable';
+    const downgrade = isRevertToStable || (channel.id === 'stable' && isDowngradePending());
+
+    // One write, so a failed save can never leave the channel and the pending
+    // downgrade disagreeing with each other.
     const settings = loadSettings();
     settings.updateChannel = channel.id;
     // Keep the legacy branch key in step. It is what older builds sharing this
     // settings file read directly, and resolveUpdateChannel still honours it.
     settings.updateBranch = channel.branch;
+    if (downgrade) settings.pendingDowngrade = true;
+    else delete settings.pendingDowngrade;
     const saved = saveSettings(settings);
 
-    applyUpdateChannel(channel, app.getVersion());
-    console.log(`[UPDATE] Channel set to ${channel.id} (branch ${channel.branch})`);
+    applyUpdateChannel(channel, { allowDowngrade: downgrade });
+
+    console.log(
+      `[UPDATE] Channel set to ${channel.id} (branch ${channel.branch})` +
+      (isRevertToStable ? ' — downgrade to stable permitted' : '')
+    );
+
+    // The re-check is deliberately NOT fired here. Calling checkForUpdates()
+    // inside the handler returns its answer to nobody: the renderer only learns
+    // of an update through the update:available event, so a switch that finds
+    // nothing — the common case when reverting — produced no feedback at all and
+    // read as a broken toggle. The renderer now runs the check itself through
+    // update:check, which returns a result it can display in the same states the
+    // Check Now button already uses. Sentry Drive drives it from the renderer
+    // for the same reason.
+
     return { success: saved, channel: channel.id, branch: channel.branch };
   });
 
@@ -593,7 +713,7 @@ function registerAutoUpdateIpc(deps) {
         // Restore the user's configured channel, NOT a hardcoded stable feed —
         // a dev-tools install must not silently drag someone off the
         // pre-release channel they opted into.
-        applyUpdateChannel(getActiveChannel(), app.getVersion());
+        applyUpdateChannel(getActiveChannel());
         autoUpdater.removeListener('error', onError);
         autoUpdater.removeListener('update-downloaded', onDownloaded);
       };

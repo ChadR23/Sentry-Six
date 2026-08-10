@@ -75,7 +75,7 @@ describe('resolveUpdateChannel', () => {
 
 describe('applyUpdateChannel', () => {
   test('points the feed at published releases on stable', () => {
-    applyUpdateChannel(UPDATE_CHANNELS.stable, '2026.32.34');
+    applyUpdateChannel(UPDATE_CHANNELS.stable);
 
     expect(autoUpdater.allowPrerelease).toBe(false);
     expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
@@ -86,19 +86,10 @@ describe('applyUpdateChannel', () => {
     });
   });
 
-  test('does not allow downgrades for a stable build on stable', () => {
-    applyUpdateChannel(UPDATE_CHANNELS.stable, '2026.32.34');
-
-    expect(autoUpdater.allowDowngrade).toBe(false);
-  });
-
-  // An RC sorts below the stable release it precedes, so the pre-release
-  // channel can only install anything if downgrades are permitted.
-  test('allows prereleases and downgrades on the prerelease channel', () => {
-    applyUpdateChannel(UPDATE_CHANNELS.prerelease, '2026.32.34');
+  test('points the feed at prereleases and opts in to them', () => {
+    applyUpdateChannel(UPDATE_CHANNELS.prerelease);
 
     expect(autoUpdater.allowPrerelease).toBe(true);
-    expect(autoUpdater.allowDowngrade).toBe(true);
     expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
       provider: 'github',
       owner: UPDATE_CONFIG.owner,
@@ -107,17 +98,60 @@ describe('applyUpdateChannel', () => {
     });
   });
 
-  // Switching back to stable from an RC means moving *down* to the newest
-  // stable build, which is still a downgrade.
-  test('allows a downgrade back to stable when the running build is an RC', () => {
-    applyUpdateChannel(UPDATE_CHANNELS.stable, '2026.32.35-rc1');
+  // Regression: turning the toggle off has to be able to walk BACK to stable.
+  //
+  // Sentry Studio ships betas under ordinary version numbers ("Sentry Studio
+  // Beta Release v2026.26.34"), flagged prerelease on the GitHub release rather
+  // than carrying an -rc/-beta suffix. So a beta's version is usually higher
+  // than the newest stable and the revert is a downgrade. An earlier revision
+  // gated allowDowngrade on a '-' in the version — which never matches here —
+  // and left users stuck on the beta with no way back.
+  test('grants a downgrade when one is explicitly requested', () => {
+    applyUpdateChannel(UPDATE_CHANNELS.stable, { allowDowngrade: true });
 
-    expect(autoUpdater.allowPrerelease).toBe(false);
     expect(autoUpdater.allowDowngrade).toBe(true);
   });
 
+  // Ordinary channel application must NOT hand out the permission, or a
+  // republished older release could roll stable users backwards.
+  test.each([
+    ['stable', UPDATE_CHANNELS.stable],
+    ['prerelease', UPDATE_CHANNELS.prerelease]
+  ])('does not grant a downgrade on a plain %s application', (_name, channel) => {
+    applyUpdateChannel(channel);
+
+    expect(autoUpdater.allowDowngrade).toBe(false);
+  });
+
+  // The flag is written on EVERY application, not only when granting. A
+  // one-way guard would make it impossible to withdraw — including from the
+  // dev pre-release cleanup, whose whole job is to undo what the attempt
+  // changed. Continuity across sessions comes from the persisted
+  // pendingDowngrade flag being passed back in, not from stickiness here.
+  test('withdraws the permission when a later application does not ask for it', () => {
+    applyUpdateChannel(UPDATE_CHANNELS.stable, { allowDowngrade: true });
+    applyUpdateChannel(UPDATE_CHANNELS.stable);
+
+    expect(autoUpdater.allowDowngrade).toBe(false);
+  });
+
+  // Switching channels invalidates whatever the previous one resolved.
+  // checkForUpdates() returns an in-flight promise rather than starting a fresh
+  // check, and electron-updater never clears updateInfoAndProvider on the
+  // not-available branch — so a stale offer would otherwise stay installable
+  // through the old provider after a switch.
+  test('drops state left over from the previous channel', () => {
+    autoUpdater.checkForUpdatesPromise = Promise.resolve('stale');
+    autoUpdater.updateInfoAndProvider = { info: { version: '9999.1.1' } };
+
+    applyUpdateChannel(UPDATE_CHANNELS.prerelease);
+
+    expect(autoUpdater.checkForUpdatesPromise).toBeNull();
+    expect(autoUpdater.updateInfoAndProvider).toBeNull();
+  });
+
   test('returns the channel it applied', () => {
-    expect(applyUpdateChannel(UPDATE_CHANNELS.prerelease, '2026.32.34'))
+    expect(applyUpdateChannel(UPDATE_CHANNELS.prerelease))
       .toBe(UPDATE_CHANNELS.prerelease);
   });
 });

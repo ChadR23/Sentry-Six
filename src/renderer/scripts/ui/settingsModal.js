@@ -777,6 +777,24 @@ export function initSettingsModal() {
         } catch (err) {
             console.warn('[UPDATE] Failed to read update channel:', err);
         }
+        reflectPrereleaseEnrolment();
+    }
+
+    // Sentry Drive keeps an amber warning visible under its beta checkbox for as
+    // long as the user is enrolled — a standing reminder of the risk state,
+    // separate from the moment of opting in. Studio already renders that
+    // sentence permanently, so this just promotes it to a warning while the
+    // toggle is on: same information, no new strings to translate.
+    function reflectPrereleaseEnrolment() {
+        const toggle = $('settingsPrereleaseUpdates');
+        if (!toggle) return;
+        const row = toggle.closest('.toggle-row');
+        const desc = row?.querySelector('.toggle-row-desc');
+        if (desc) desc.classList.toggle('toggle-row-desc--warning', toggle.checked);
+        // The description already describes the risk; point the control at it so
+        // the state is announced rather than only shown. Drive does neither.
+        if (desc && !desc.id) desc.id = 'prereleaseUpdatesDesc';
+        if (desc) toggle.setAttribute('aria-describedby', desc.id);
     }
 
     // Ask before opting in to pre-releases. Resolves true only on an explicit
@@ -822,6 +840,7 @@ export function initSettingsModal() {
         settingsPrereleaseUpdates.addEventListener('change', async () => {
             const wantsPrerelease = settingsPrereleaseUpdates.checked;
             settingsPrereleaseUpdates.disabled = true;
+            let changed = false;
             try {
                 // Only opting IN needs the warning — going back to stable is the
                 // safe direction and shouldn't nag.
@@ -836,6 +855,8 @@ export function initSettingsModal() {
                     console.warn('[UPDATE] Channel change rejected:', result.error);
                     // Fall back to whatever the main process actually holds.
                     await syncUpdateChannelUI();
+                } else {
+                    changed = true;
                 }
             } catch (err) {
                 console.warn('[UPDATE] Failed to set update channel:', err);
@@ -843,46 +864,64 @@ export function initSettingsModal() {
             } finally {
                 settingsPrereleaseUpdates.disabled = false;
                 settingsPrereleaseUpdates.blur();
+                reflectPrereleaseEnrolment();
             }
+
+            // Re-check on the new channel, the way Drive does after its beta
+            // checkbox changes. Driven from here rather than the main process so
+            // the result comes back through the same invoke the Check Now button
+            // uses and lands in the existing translated status states — a check
+            // fired inside the IPC handler returns to nobody and looks inert.
+            if (changed) await runUpdateCheckWithFeedback();
         });
+    }
+
+    // Run an update check and report the outcome on the Check for Updates
+    // button. Extracted so the pre-release toggle can reuse it: switching
+    // channel re-checks, and without shared feedback the switch looked inert
+    // until the user found this button. Mirrors Sentry Drive, which likewise
+    // fires a check from the renderer straight after its beta checkbox changes.
+    let updateCheckResetTimer = null;
+    async function runUpdateCheckWithFeedback() {
+        const btn = $('checkForUpdatesBtn');
+        if (!btn || !window.electronAPI?.checkForUpdates) return;
+
+        // A second run must not be reset by the previous run's pending timer.
+        if (updateCheckResetTimer) clearTimeout(updateCheckResetTimer);
+        btn.disabled = true;
+        btn.textContent = t('ui.settings.checking');
+
+        const settle = (text, background) => {
+            btn.textContent = text;
+            btn.style.background = background;
+            updateCheckResetTimer = setTimeout(() => {
+                updateCheckResetTimer = null;
+                btn.textContent = t('ui.settings.checkNow');
+                btn.style.background = '';
+                btn.disabled = false;
+            }, 3000);
+        };
+
+        try {
+            const result = await window.electronAPI.checkForUpdates();
+            if (result?.updateAvailable) {
+                // Update modal will be shown by the update:available event
+                settle(t('ui.settings.updateFound'), 'rgba(76, 175, 80, 0.3)');
+            } else if (result?.error) {
+                settle(t('ui.settings.checkFailed'), 'rgba(244, 67, 54, 0.3)');
+            } else {
+                settle(t('ui.settings.upToDate') + ' ✓', 'rgba(76, 175, 80, 0.3)');
+            }
+        } catch (err) {
+            settle(t('ui.settings.checkFailed'), 'rgba(244, 67, 54, 0.3)');
+        }
     }
 
     // Check for updates button
     const checkForUpdatesBtn = $('checkForUpdatesBtn');
     if (checkForUpdatesBtn) {
         checkForUpdatesBtn.onclick = async () => {
-            if (window.electronAPI?.checkForUpdates) {
-                checkForUpdatesBtn.disabled = true;
-                checkForUpdatesBtn.textContent = t('ui.settings.checking');
-                try {
-                    const result = await window.electronAPI.checkForUpdates();
-                    if (result?.updateAvailable) {
-                        // Update modal will be shown by the update:available event
-                        checkForUpdatesBtn.textContent = t('ui.settings.updateFound');
-                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
-                    } else if (result?.error) {
-                        checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
-                        checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
-                    } else {
-                        checkForUpdatesBtn.textContent = t('ui.settings.upToDate') + ' ✓';
-                        checkForUpdatesBtn.style.background = 'rgba(76, 175, 80, 0.3)';
-                    }
-                    // Reset button after 3 seconds
-                    setTimeout(() => {
-                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
-                        checkForUpdatesBtn.style.background = '';
-                        checkForUpdatesBtn.disabled = false;
-                    }, 3000);
-                } catch (err) {
-                    checkForUpdatesBtn.textContent = t('ui.settings.checkFailed');
-                    checkForUpdatesBtn.style.background = 'rgba(244, 67, 54, 0.3)';
-                    setTimeout(() => {
-                        checkForUpdatesBtn.textContent = t('ui.settings.checkNow');
-                        checkForUpdatesBtn.style.background = '';
-                        checkForUpdatesBtn.disabled = false;
-                    }, 3000);
-                }
-            }
+            await runUpdateCheckWithFeedback();
             checkForUpdatesBtn.blur();
         };
     }

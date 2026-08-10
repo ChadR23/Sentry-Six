@@ -23,13 +23,22 @@ function loadSettings() {
   return _settingsCache;
 }
 
+// The cache is only adopted once the write succeeds. Publishing it first looks
+// harmless — callers usually ignore the return value — but loadSettings hands
+// back the same object by reference, so on a failed write any caller that
+// re-reads settings to recover sees the value that was never persisted. The
+// update-channel toggle does exactly that: it re-syncs from the main process
+// when a save fails, and with a mutate-first cache it would read back the new
+// channel and could never be reverted.
 function saveSettings(settings) {
-  _settingsCache = settings; // Update cache immediately
+  const previous = _settingsCache;
+  _settingsCache = settings;
   try {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
     return true;
   } catch (err) {
     console.error('Failed to save settings:', err);
+    _settingsCache = previous; // roll back so readers see what is actually on disk
     return false;
   }
 }
