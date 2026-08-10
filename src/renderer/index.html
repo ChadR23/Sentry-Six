@@ -1306,6 +1306,31 @@
         </div>
     </div>
 
+    <!-- Pre-release channel opt-in warning. Sits above the settings modal, which
+         stays open behind it so a cancel lands the user back on the toggle. -->
+    <div id="prereleaseWarnModal" class="modal hidden" style="z-index: 10001;">
+        <div class="modal-content prerelease-warn-modal">
+            <div class="modal-header">
+                <h2>
+                    <span class="material-symbols-outlined mi-md prerelease-warn-icon">warning</span>
+                    <span data-i18n="ui.settings.prereleaseWarnTitle">Switch to pre-release builds?</span>
+                </h2>
+                <button id="closePrereleaseWarnModal" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body modal-body-padded">
+                <p class="prerelease-warn-message" data-i18n="ui.settings.prereleaseWarnBody">Pre-release builds are
+                    early betas. They may be unstable, contain bugs, or break your installation. You can switch back
+                    to stable updates at any time.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmPrereleaseBtn" class="btn btn-danger"
+                    data-i18n="ui.settings.prereleaseWarnConfirm">Confirm</button>
+                <button id="dismissPrereleaseBtn" class="btn btn-secondary"
+                    data-i18n="ui.settings.prereleaseWarnCancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- My Shared Clips Modal -->
     <div id="sharedClipsModal" class="modal hidden">
         <div class="modal-content shared-clips-modal">
@@ -2443,6 +2468,21 @@
                                     </table>
                                 </div>
                             </div>
+                            <label class="toggle-row">
+                                <div class="toggle-row-info">
+                                    <span class="toggle-row-label"
+                                        data-i18n="ui.settings.prereleaseUpdates">Pre-release Updates</span>
+                                    <span class="toggle-row-desc"
+                                        data-i18n="ui.settings.prereleaseUpdatesDesc">Receive early beta builds before
+                                        they are released. May be unstable.</span>
+                                </div>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="settingsPrereleaseUpdates">
+                                    <div class="toggle-switch-track">
+                                        <div class="toggle-switch-thumb"></div>
+                                    </div>
+                                </div>
+                            </label>
                             <div class="action-row">
                                 <span class="action-row-label" data-i18n="ui.settings.checkForUpdates">Check for
                                     Updates</span>
