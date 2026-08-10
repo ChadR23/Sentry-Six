@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skipUpdate: () => ipcRenderer.invoke('update:skip'),
   exitApp: () => ipcRenderer.invoke('update:exit'),
   getChangelog: () => ipcRenderer.invoke('update:getChangelog'),
+  // Update channel: 'stable' follows published releases, 'prerelease' also
+  // picks up RCs/betas. Setting it re-points electron-updater's feed and the
+  // branch the changelog and version checks read from.
+  getUpdateChannel: () => ipcRenderer.invoke('update:getChannel'),
+  setUpdateChannel: (channel) => ipcRenderer.invoke('update:setChannel', channel),
   
   // Developer settings operations
   devOpenDevTools: () => ipcRenderer.invoke('dev:openDevTools'),

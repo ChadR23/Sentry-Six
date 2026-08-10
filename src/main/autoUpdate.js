@@ -12,6 +12,27 @@ const UPDATE_CONFIG = {
   defaultBranch: 'main'
 };
 
+// Update channels. `stable` follows published GitHub releases; `prerelease`
+// also picks up releases flagged prerelease (RCs / betas). `branch` is used by
+// the paths that read raw files from GitHub rather than going through
+// electron-updater — the dev-install zip download, the version.json check, and
+// the changelog fetch.
+const UPDATE_CHANNELS = Object.freeze({
+  stable: Object.freeze({
+    id: 'stable',
+    branch: 'main',
+    releaseType: 'release',
+    allowPrerelease: false
+  }),
+  prerelease: Object.freeze({
+    id: 'prerelease',
+    branch: 'Dev-SEI',
+    releaseType: 'prerelease',
+    allowPrerelease: true
+  })
+});
+const DEFAULT_CHANNEL_ID = 'stable';
+
 // electron-updater is optional - only needed for NSIS packaged installs
 // Manual npm installs use the GitHub download method instead
 let autoUpdater = null;
@@ -81,6 +102,62 @@ function downloadFile(url, destPath, onProgress) {
 }
 
 /**
+ * Resolve the configured update channel from a settings object.
+ *
+ * Falls back to the legacy `updateBranch` setting — the dropdown that shipped
+ * until the 2026.6.11 UI overhaul removed it — so anyone who had opted into
+ * Dev-SEI back then lands on the pre-release channel instead of being silently
+ * moved to stable.
+ *
+ * @param {object} settings - Parsed settings.json contents
+ * @returns {{id: string, branch: string, releaseType: string, allowPrerelease: boolean}}
+ */
+function resolveUpdateChannel(settings) {
+  const channelId = settings && settings.updateChannel;
+  if (channelId && UPDATE_CHANNELS[channelId]) return UPDATE_CHANNELS[channelId];
+
+  const legacyBranch = settings && settings.updateBranch;
+  if (legacyBranch && legacyBranch !== UPDATE_CONFIG.defaultBranch) {
+    return UPDATE_CHANNELS.prerelease;
+  }
+  return UPDATE_CHANNELS[DEFAULT_CHANNEL_ID];
+}
+
+/**
+ * Point electron-updater at a channel's release feed.
+ *
+ * allowDowngrade is the subtle part. A pre-release sorts BELOW the stable
+ * release it precedes (2026.32.35-rc1 < 2026.32.35), so the pre-release channel
+ * can only ever install anything if downgrades are permitted. Coming back the
+ * other way needs it too: someone running an RC who switches to stable has to
+ * move *down* to the latest stable build. So downgrades are allowed on the
+ * pre-release channel, and on stable only while the running build is itself a
+ * pre-release (a '-' in its version) — ordinary stable users can never be
+ * rolled backwards by a bad publish.
+ *
+ * No-ops without electron-updater (manual npm installs), which update by
+ * downloading the branch zip instead.
+ *
+ * @param {object} channel - A UPDATE_CHANNELS entry
+ * @param {string} currentVersion - The running app version
+ * @returns {object} The channel that was applied
+ */
+function applyUpdateChannel(channel, currentVersion) {
+  if (!autoUpdater) return channel;
+
+  const runningPrerelease = String(currentVersion || '').includes('-');
+  autoUpdater.allowPrerelease = channel.allowPrerelease;
+  autoUpdater.allowDowngrade = channel.allowPrerelease || runningPrerelease;
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: UPDATE_CONFIG.owner,
+    repo: UPDATE_CONFIG.repo,
+    releaseType: channel.releaseType
+  });
+  return channel;
+}
+
+/**
  * Fetch the latest version.json from GitHub (for manual/dev installs)
  */
 async function getLatestVersionFromGitHub(getUpdateBranch) {
@@ -137,6 +214,7 @@ function copyDirectoryRecursive(src, dest) {
  * @param {function} deps.getMainWindow - Returns the main BrowserWindow
  * @param {function} deps.getUpdateBranch - Returns the configured update branch
  * @param {function} deps.loadSettings - Returns settings object
+ * @param {function} deps.saveSettings - Persists a settings object
  * @param {function} deps.checkUpdateWithTelemetry - Telemetry check function
  * @param {function} deps.processApiResponse - Process telemetry API response
  */
@@ -147,7 +225,15 @@ function registerAutoUpdateIpc(deps) {
     return;
   }
 
-  const { getMainWindow, getUpdateBranch, loadSettings, checkUpdateWithTelemetry, processApiResponse } = deps;
+  const { getMainWindow, getUpdateBranch, loadSettings, saveSettings, checkUpdateWithTelemetry, processApiResponse } = deps;
+
+  const getActiveChannel = () => resolveUpdateChannel(loadSettings());
+
+  // Apply the persisted channel up front so the session's first update check
+  // already targets the right feed rather than electron-builder's default.
+  const startupChannel = getActiveChannel();
+  applyUpdateChannel(startupChannel, app.getVersion());
+  console.log(`[UPDATE] Update channel: ${startupChannel.id} (branch ${startupChannel.branch})`);
 
   /**
    * Check for updates - handles both packaged (NSIS) and development (npm start) modes
@@ -413,13 +499,39 @@ function registerAutoUpdateIpc(deps) {
     return { skipped: true };
   });
 
+  ipcMain.handle('update:getChannel', async () => {
+    const channel = getActiveChannel();
+    return { channel: channel.id, branch: channel.branch };
+  });
+
+  ipcMain.handle('update:setChannel', async (_event, channelId) => {
+    const channel = UPDATE_CHANNELS[channelId];
+    if (!channel) {
+      return { success: false, error: `Unknown update channel: ${channelId}` };
+    }
+
+    const settings = loadSettings();
+    settings.updateChannel = channel.id;
+    // Keep the legacy branch key in step. It is what older builds sharing this
+    // settings file read directly, and resolveUpdateChannel still honours it.
+    settings.updateBranch = channel.branch;
+    const saved = saveSettings(settings);
+
+    applyUpdateChannel(channel, app.getVersion());
+    console.log(`[UPDATE] Channel set to ${channel.id} (branch ${channel.branch})`);
+    return { success: saved, channel: channel.id, branch: channel.branch };
+  });
+
   // Pre-release testing handlers. Fetches the latest GitHub release with
   // `prerelease: true` and, on install, flips the autoUpdater into a
   // prerelease+downgrade-allowed mode so the pre-release installs even
   // when its semver sorts below the currently-installed stable version
-  // (e.g. 2026.12.15-rc1 < 2026.12.15). The feed type and two flags are
-  // restored after the download completes so ordinary update cycles are
-  // not permanently flipped.
+  // (e.g. 2026.12.15-rc1 < 2026.12.15). The feed and flags are reset to the
+  // user's configured channel after the download completes so ordinary update
+  // cycles are not permanently flipped.
+  //
+  // This is the one-shot dev-tools path; users who want to stay on pre-releases
+  // should switch the update channel in Settings instead.
   ipcMain.handle('dev:checkPrerelease', async () => {
     try {
       const url = `https://api.github.com/repos/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases?per_page=10`;
@@ -456,10 +568,6 @@ function registerAutoUpdateIpc(deps) {
     try {
       console.log(`[UPDATE] Dev-triggered pre-release install: ${tag}`);
 
-      // Remember originals so we can restore after the download.
-      const originalAllowPrerelease = autoUpdater.allowPrerelease;
-      const originalAllowDowngrade = autoUpdater.allowDowngrade;
-
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = true;
       autoUpdater.setFeedURL({
@@ -482,14 +590,10 @@ function registerAutoUpdateIpc(deps) {
         autoUpdater.quitAndInstall(false, true);
       };
       const cleanup = () => {
-        autoUpdater.allowPrerelease = originalAllowPrerelease;
-        autoUpdater.allowDowngrade = originalAllowDowngrade;
-        autoUpdater.setFeedURL({
-          provider: 'github',
-          owner: UPDATE_CONFIG.owner,
-          repo: UPDATE_CONFIG.repo,
-          releaseType: 'release'
-        });
+        // Restore the user's configured channel, NOT a hardcoded stable feed —
+        // a dev-tools install must not silently drag someone off the
+        // pre-release channel they opted into.
+        applyUpdateChannel(getActiveChannel(), app.getVersion());
         autoUpdater.removeListener('error', onError);
         autoUpdater.removeListener('update-downloaded', onDownloaded);
       };
@@ -587,8 +691,12 @@ function setupAutoUpdaterEvents(mainWindow) {
 
 module.exports = {
   UPDATE_CONFIG,
+  UPDATE_CHANNELS,
+  DEFAULT_CHANNEL_ID,
   autoUpdater,
+  applyUpdateChannel,
   getLatestVersionFromGitHub,
   registerAutoUpdateIpc,
+  resolveUpdateChannel,
   setupAutoUpdaterEvents
 };

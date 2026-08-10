@@ -165,6 +165,9 @@ export function initSettingsModal() {
                 const settingsMapLabelsEl = $('settingsMapLabels');
                 if (settingsMapLabelsEl) settingsMapLabelsEl.checked = getMapLabelsEnabled();
 
+                // Sync update channel dropdown
+                syncUpdateChannelUI();
+
                 // Sync layout style toggle
                 const settingsLayoutStyle = $('settingsLayoutStyle');
                 if (settingsLayoutStyle) {
@@ -760,6 +763,88 @@ export function initSettingsModal() {
             advancedSettingsToggle.classList.toggle('expanded', !advancedSettingsSection.classList.contains('hidden'));
             advancedSettingsToggle.blur();
         };
+    }
+
+    // Reflect the main process's active channel into the toggle. The main
+    // process is the source of truth — it also migrates the legacy updateBranch
+    // setting — so never seed this from a local default.
+    async function syncUpdateChannelUI() {
+        const toggle = $('settingsPrereleaseUpdates');
+        if (!toggle || !window.electronAPI?.getUpdateChannel) return;
+        try {
+            const result = await window.electronAPI.getUpdateChannel();
+            if (result?.channel) toggle.checked = result.channel === 'prerelease';
+        } catch (err) {
+            console.warn('[UPDATE] Failed to read update channel:', err);
+        }
+    }
+
+    // Ask before opting in to pre-releases. Resolves true only on an explicit
+    // confirm; dismissing, clicking the backdrop, or pressing Escape all count
+    // as "no" so the toggle can be reverted.
+    function confirmPrereleaseOptIn() {
+        const modal = $('prereleaseWarnModal');
+        const confirmBtn = $('confirmPrereleaseBtn');
+        const dismissBtn = $('dismissPrereleaseBtn');
+        const closeBtn = $('closePrereleaseWarnModal');
+        // Without the modal the warning cannot be shown, and silently opting the
+        // user in is worse than refusing the switch.
+        if (!modal || !confirmBtn || !dismissBtn) return Promise.resolve(false);
+
+        return new Promise(resolve => {
+            const settle = (accepted) => {
+                modal.classList.add('hidden');
+                confirmBtn.onclick = null;
+                dismissBtn.onclick = null;
+                modal.onclick = null;
+                if (closeBtn) closeBtn.onclick = null;
+                document.removeEventListener('keydown', onKeyDown, true);
+                resolve(accepted);
+            };
+            const onKeyDown = (e) => { if (e.key === 'Escape') settle(false); };
+
+            confirmBtn.onclick = () => settle(true);
+            dismissBtn.onclick = () => settle(false);
+            if (closeBtn) closeBtn.onclick = () => settle(false);
+            modal.onclick = (e) => { if (e.target === modal) settle(false); };
+            document.addEventListener('keydown', onKeyDown, true);
+            modal.classList.remove('hidden');
+        });
+    }
+
+    // Pre-release updates toggle. The main process owns the switch: it re-points
+    // electron-updater's release feed and the branch the version and changelog
+    // fetches read from, so this only confirms, persists, and reflects.
+    const settingsPrereleaseUpdates = $('settingsPrereleaseUpdates');
+    if (settingsPrereleaseUpdates) {
+        syncUpdateChannelUI();
+
+        settingsPrereleaseUpdates.addEventListener('change', async () => {
+            const wantsPrerelease = settingsPrereleaseUpdates.checked;
+            settingsPrereleaseUpdates.disabled = true;
+            try {
+                // Only opting IN needs the warning — going back to stable is the
+                // safe direction and shouldn't nag.
+                if (wantsPrerelease && !await confirmPrereleaseOptIn()) {
+                    settingsPrereleaseUpdates.checked = false;
+                    return;
+                }
+
+                const channel = wantsPrerelease ? 'prerelease' : 'stable';
+                const result = await window.electronAPI?.setUpdateChannel?.(channel);
+                if (result && result.success === false) {
+                    console.warn('[UPDATE] Channel change rejected:', result.error);
+                    // Fall back to whatever the main process actually holds.
+                    await syncUpdateChannelUI();
+                }
+            } catch (err) {
+                console.warn('[UPDATE] Failed to set update channel:', err);
+                await syncUpdateChannelUI();
+            } finally {
+                settingsPrereleaseUpdates.disabled = false;
+                settingsPrereleaseUpdates.blur();
+            }
+        });
     }
 
     // Check for updates button
