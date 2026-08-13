@@ -21,7 +21,7 @@
     "sentry",
     "electron"
   ],
-  "author": "Scott Vandereems",
+  "author": "Sentry-Six",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -163,6 +163,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "artifactName": "SentryStudioSetup${version}.${ext}",
+      "uninstallDisplayName": "${productName}",
       "include": "build/installer.nsh"
     },
     "publish": {
