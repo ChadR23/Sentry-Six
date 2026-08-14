@@ -51,7 +51,7 @@ const { checkUpdateWithTelemetry, processApiResponse } = require('./updateTeleme
 const { settingsPath, loadSettings, saveSettings, registerSettingsIpc, applyPlaybackHardwareAcceleration } = require('./main/settings');
 const { SUPPORT_SERVER_URL, registerSupportChatIpc } = require('./main/supportChat');
 const { registerDiagnosticsStorageIpc } = require('./main/diagnostics');
-const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, setupAutoUpdaterEvents } = require('./main/autoUpdate');
+const { UPDATE_CONFIG, autoUpdater, getLatestVersionFromGitHub, registerAutoUpdateIpc, resolveUpdateChannel, setupAutoUpdaterEvents } = require('./main/autoUpdate');
 const { findFFmpegPath, preCacheFFmpegPath, formatExportDuration, detectGpuHardware, detectGpuEncoder, detectHEVCEncoder, findVaapiDevice, getGpuEncoder, setGpuEncoder, getGpuEncoderHEVC, setGpuEncoderHEVC } = require('./main/ffmpeg');
 const { calculateMinimapSize, downloadStaticMapBackground, preRenderMinimap } = require('./main/minimap');
 const { createSentryUsbCache } = require('./main/sentryUsbCache');
@@ -118,10 +118,12 @@ if (!applyPlaybackHardwareAcceleration()) {
   console.log('[STARTUP] Hardware video acceleration disabled by user setting — using software video decode');
 }
 
-// Get the configured update branch from settings (defaults to main)
+// GitHub branch the raw-file update paths read from (version.json, the
+// changelog, and the dev-install zip). Derived from the configured update
+// channel so the branch and the electron-updater release feed can never
+// disagree — see resolveUpdateChannel in src/main/autoUpdate.js.
 function getUpdateBranch() {
-  const settings = loadSettings();
-  return settings.updateBranch || UPDATE_CONFIG.defaultBranch;
+  return resolveUpdateChannel(loadSettings()).branch;
 }
 
 // Active exports tracking
@@ -3001,6 +3003,7 @@ registerAutoUpdateIpc({
   getMainWindow: () => mainWindow,
   getUpdateBranch,
   loadSettings,
+  saveSettings,
   checkUpdateWithTelemetry,
   processApiResponse
 });

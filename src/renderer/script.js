@@ -1,7 +1,7 @@
 import { MULTI_LAYOUTS, DEFAULT_MULTI_LAYOUT } from './scripts/lib/multiLayouts.js';
 import { CLIPS_MODE_KEY, MULTI_LAYOUT_KEY, MULTI_ENABLED_KEY, SENTRY_CAMERA_HIGHLIGHT_KEY, SAVED_CAMERA_HIGHLIGHT_KEY } from './scripts/lib/storageKeys.js';
 import { createClipsPanelMode } from './scripts/ui/panelMode.js';
-import { filePathToUrl } from './scripts/lib/utils.js';
+import { filePathToUrl, formatError, describeMediaError } from './scripts/lib/utils.js';
 import { state } from './scripts/lib/state.js';
 import { notify } from './scripts/ui/notifications.js';
 import { showLoading, updateLoading, hideLoading, yieldToUI } from './scripts/ui/loadingOverlay.js';
@@ -3660,7 +3660,7 @@ function selectDayCollection(dayKey) {
                 playBtn.disabled = false;
                 progressBar.disabled = false;
             }).catch(e => {
-                notify(t('ui.notifications.failedToLoadVideo', { error: e?.message || String(e) }), { type: 'error' });
+                notify(t('ui.notifications.failedToLoadVideo', { error: formatError(e) }), { type: 'error' });
             });
         });
     } else {
@@ -3677,7 +3677,7 @@ function selectDayCollection(dayKey) {
             }
         }).catch(err => {
             console.error('Failed to load native segment:', err);
-            notify(t('ui.notifications.failedToLoadVideo', { error: err?.message || String(err) }), { type: 'error' });
+            notify(t('ui.notifications.failedToLoadVideo', { error: formatError(err) }), { type: 'error' });
         });
     }
 
@@ -3685,7 +3685,7 @@ function selectDayCollection(dayKey) {
     setTimeout(updateExportButtonState, 100);
     } catch (err) {
         console.error('Error in selectDayCollection:', err);
-        notify(t('ui.notifications.errorSelectingDay', { error: err?.message || String(err) }), { type: 'error' });
+        notify(t('ui.notifications.errorSelectingDay', { error: formatError(err) }), { type: 'error' });
     }
 }
 
@@ -4935,8 +4935,12 @@ async function loadNativeSegment(segIdx) {
             resolved = true;
             cleanup();
             clearTimeout(timeout);
-            console.error('Video load error:', e);
-            reject(e);
+            // The error event carries no message - the detail is on vid.error.
+            // Reject with a real Error so callers get a readable reason instead
+            // of stringifying the Event into "[object Event]".
+            const reason = describeMediaError(vid);
+            console.error('Video load error:', reason, e);
+            reject(new Error(reason));
         };
         
         const timeout = setTimeout(() => {
