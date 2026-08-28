@@ -38,7 +38,7 @@
   },
   "build": {
     "appId": "com.sentry-six.revamped",
-    "productName": "Sentry-Studio",
+    "productName": "Sentry Studio",
     "win": {
       "icon": "assets/Sentry_Six.ico",
       "target": [

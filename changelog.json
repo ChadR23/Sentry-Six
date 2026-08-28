@@ -72,6 +72,10 @@
         {
           "type": "improvement",
           "description": "Settings: The Open Support Chat button now uses the app's green accent instead of the blue-to-green gradient left over from before the Liquid Glass redesign."
+        },
+        {
+          "type": "improvement",
+          "description": "App: The installed app is now named \"Sentry Studio\" everywhere the operating system shows it — the Windows Start menu, Search, Task Manager, and Add/Remove Programs, and the macOS menu bar — matching the name the app already uses on-screen, instead of the hyphenated \"Sentry-Studio\". Upgrading cleans up after the old name automatically: the outdated Start menu and desktop shortcuts are removed, and your settings and preferences carry over untouched. Two one-time notes. On Windows, a taskbar pin made from the old install now points at a program that no longer exists, so re-pin the app after updating — and because the app's folder moved, Windows may ask once more to allow it through the firewall. On macOS, installing from the DMG does not remove the old Sentry-Studio.app — drag that one to the Trash."
         }
       ]
     },
